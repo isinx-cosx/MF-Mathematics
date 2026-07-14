@@ -18,7 +18,6 @@ from PySide6.QtWidgets import (
 )
 from MF_UI.plot.basic.plot_canvas import PlotCanvas
 from MF_UI.plot.basic.function_box import FunctionBox
-from MF_UI.plot.plot_3d import Plot3DCanvas
 
 
 def _load_plot_colors() -> list[str]:
@@ -43,15 +42,27 @@ _COLORS = _load_plot_colors()
 class PlotWorkspace(QWidget):
     """绘图模式工作区。"""
 
-    MODE_MAP: dict[str, str] = {
-        "普通模式": "normal", "3D模式": "3d",
-        "复数模式": "complex", "向量场": "vector",
-    }
+    # 模式名 → 内部标识（从 main_window 传入的标题中提取关键词）
+    _MODE_KEYWORDS: list[tuple[str, str]] = [
+        ("普通模式", "normal"),
+        ("3D",        "3d"),
+        ("复数",      "complex"),
+        ("向量",      "vector"),
+        ("任意做图",  "arbitrary"),
+    ]
+
+    @staticmethod
+    def _detect_mode(title: str) -> str:
+        """从标题字符串识别绘图模式。"""
+        for keyword, mode_id in PlotWorkspace._MODE_KEYWORDS:
+            if keyword in title:
+                return mode_id
+        return "normal"
 
     def __init__(self, title: str = "2D Plot", parent: QWidget | None = None):
         super().__init__(parent)
         self._title = title
-        self._mode = self.MODE_MAP.get(title, "normal")
+        self._mode = self._detect_mode(title)
         self._color_idx = 0
         self._next_index = 1
         self._boxes: list[FunctionBox] = []
@@ -70,7 +81,6 @@ class PlotWorkspace(QWidget):
         ll.setSpacing(4); ll.setContentsMargins(12, 12, 12, 12)
 
         # 标题 + 描述
-        _3d = self._mode == "3d"
         title_label = QLabel(title)
         title_label.setObjectName("plot_title_label")
         desc_map = {
@@ -140,23 +150,49 @@ class PlotWorkspace(QWidget):
         ll.addWidget(card, 1)
         root.addWidget(left)
 
-        # ── 右侧画布（2D / 3D 自动选择）──
-        if _3d:
-            self._canvas_3d = Plot3DCanvas()
-            self._canvas_3d.status_message.connect(self._status.setText)
-            root.addWidget(self._canvas_3d, 1)
-            self._canvas = None
-        else:
+        # ── 右侧画布（仅 2D 模式使用真实画布，其他模式显示占位页）──
+        if self._mode == "normal":
             self._canvas = PlotCanvas()
             self._canvas.status_message.connect(self._status.setText)
             root.addWidget(self._canvas, 1)
-            self._canvas_3d = None
+        else:
+            placeholder = self._make_placeholder(
+                title, "功能开发中，敬请期待...")
+            root.addWidget(placeholder, 1)
+            self._canvas = None
 
         self._add()
 
     @property
     def canvas(self):
-        return self._canvas if self._mode != "3d" else self._canvas_3d
+        return self._canvas
+
+    def _make_placeholder(self, title: str, desc: str) -> QWidget:
+        """创建占位页面。"""
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        frame = QFrame()
+        frame.setObjectName("placeholder_frame")
+        frame.setMinimumHeight(400)
+        inner = QVBoxLayout(frame)
+        inner.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        inner.setSpacing(12)
+
+        title_lbl = QLabel(title)
+        title_lbl.setObjectName("page_title")
+        title_lbl.setStyleSheet("font-size: 20px; font-weight: 600;")
+        title_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        inner.addWidget(title_lbl)
+
+        desc_lbl = QLabel(desc)
+        desc_lbl.setObjectName("page_desc")
+        desc_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        inner.addWidget(desc_lbl)
+
+        layout.addWidget(frame)
+        return page
 
     # ── 全局滑块 ──────────────────────────────────────────
 
@@ -323,6 +359,10 @@ class PlotWorkspace(QWidget):
         self._rebuild_curves()
 
     def _rebuild_curves(self) -> None:
+        # 非 2D 模式无画布，不重绘
+        if self._canvas is None:
+            return
+
         gparams = self._global_params()
 
         # ── 收集用户定义函数 ──
@@ -343,25 +383,6 @@ class PlotWorkspace(QWidget):
                 name = m.group(1)
                 if name not in _KNOWN:
                     definitions[name] = b.expr
-
-        # ── 3D 模式 ──
-        if self._mode == "3d":
-            self._canvas_3d.clear_surfaces()
-            for b in self._boxes:
-                if not b.is_visible or not b.expr:
-                    continue
-                box_params = {k: v for k, v in gparams.items()
-                              if k in b.detected_params}
-                # 3D 模式：表达式为 z = f(x, y)
-                resolved_expr = b.expr
-                if b.is_derivative and b.referenced_function:
-                    r = b.resolve_derivative(definitions)
-                    if r:
-                        resolved_expr = r
-                self._canvas_3d.add_surface(
-                    resolved_expr, color=b.color, label=b.label,
-                    params=box_params)
-            return
 
         # ── 2D 模式 ──
         self._canvas.clear_functions()
