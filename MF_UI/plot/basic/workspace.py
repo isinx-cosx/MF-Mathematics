@@ -17,7 +17,7 @@ from PySide6.QtWidgets import (
     QScrollArea, QSlider, QVBoxLayout, QWidget,
 )
 from MF_UI.plot.basic.plot_canvas import PlotCanvas
-from MF_UI.plot.basic.function_box import FunctionBox
+from MF_UI.plot.basic.function_box import BaseFunctionBox, FunctionBox2D, FunctionBox3D
 from MF_UI.plot.plot_3d import Plot3D
 
 
@@ -66,7 +66,7 @@ class PlotWorkspace(QWidget):
         self._mode = self._detect_mode(title)
         self._color_idx = 0
         self._next_index = 1
-        self._boxes: list[FunctionBox] = []
+        self._boxes: list[BaseFunctionBox] = []
         self._separators: list[QFrame] = []
         self._global_sliders: dict[str, tuple[QSlider, QLineEdit]] = {}
         self._updating_slider = False
@@ -318,7 +318,8 @@ class PlotWorkspace(QWidget):
     def _add(self) -> None:
         color = _COLORS[self._color_idx % len(_COLORS)]
         self._color_idx += 1
-        box = FunctionBox(
+        cls = FunctionBox3D if self._mode == "3d" else FunctionBox2D
+        box = cls(
             index=self._next_index, color=color, mode=self._mode, parent=self)
         self._next_index += 1
 
