@@ -16,8 +16,8 @@ from PySide6.QtWidgets import (
     QFrame, QHBoxLayout, QLabel, QLineEdit, QPushButton,
     QScrollArea, QSlider, QVBoxLayout, QWidget,
 )
-from MF_UI.plot.plot_canvas import PlotCanvas
-from MF_UI.plot.function_box import FunctionBox
+from MF_UI.plot.basic.plot_canvas import PlotCanvas
+from MF_UI.plot.basic.function_box import FunctionBox
 
 
 def _load_plot_colors() -> list[str]:

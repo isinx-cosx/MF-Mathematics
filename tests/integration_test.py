@@ -71,15 +71,15 @@ def _():
 
 @test("PlotCanvas")
 def _():
-    from MF_UI.plot.plot_canvas import PlotCanvas
+    from MF_UI.plot.basic.plot_canvas import PlotCanvas
     pc = PlotCanvas()
     assert hasattr(pc, 'add_function')
     assert hasattr(pc, 'update_axes')
 
 @test("FunctionBox")
 def _():
-    from MF_UI.plot.function_box import FunctionBox
-    fb = FunctionBox(label='f(x)', color='#e74c3c')
+    from MF_UI.plot.basic.function_box import FunctionBox
+    fb = FunctionBox(index=1, color='#e74c3c')
     assert fb.is_visible
 
 @test("NumericalEstimation Ramanujan")

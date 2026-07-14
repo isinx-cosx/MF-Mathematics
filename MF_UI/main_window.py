@@ -14,7 +14,7 @@ from calc.algebra import Workspace as AlgebraWorkspace
 from calc.linear_algebra import Workspace as LinearAlgebraWorkspace
 from calc.numerical import Workspace as NumericalWorkspace
 from calc.probability import Workspace as ProbabilityWorkspace
-from plot.workspace import PlotWorkspace
+from plot.basic.workspace import PlotWorkspace
 
 # 运行时自动设置项目根路径
 import sys as _sys
