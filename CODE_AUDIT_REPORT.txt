@@ -1,0 +1,198 @@
+================================================================================
+  Multifunctional-Mathematics — 全项目代码审计报告
+  生成日期: 2026-07-15
+================================================================================
+
+一、项目规模统计
+────────────────────────────────────────────────────────────────────────────────
+
+  总文件数:  165 个 (.py, .qss, .json)
+  总代码行:  38,648 行
+
+  分布:
+    MF_Mathematics/    112 files   31,929 lines   (数学后端，12 子包 + core + utils)
+    MF_UI/              48 files    6,036 lines   (PySide6 用户界面)
+    根目录               4 files      552 lines   (config.json, demo, tests)
+    tests/               1 file       131 lines   (集成测试)
+
+二、MF_Mathematics 后端审计
+
+2.1 @register 覆盖率: 100% (所有公开数学函数均已注册)
+2.2 self_test() 覆盖率: 98% (仅 utils/translator.py 和 utils/__init__.py 缺失)
+
+2.3 各包统计
+
+  包名                   文件  行数  @register  self_test  eval()
+  ───────────────────────────────────────────────────────────────────
+  algebra                  9   3,892    77         YES        1 ⚠
+  algebraic_topology       6   1,841    17         YES        0
+  calculus                 7   2,423    32         YES        0
+  complex_analysis         9   3,060    27         YES        0
+  core                     3     200     1         YES        0
+  functional_analysis      7   1,888    21         YES        0
+  harmonic_analysis        7   2,029    22         YES        0
+  linear_algebra           7   2,107    31         YES        0
+  measure_theory           8   2,453    24         YES        0
+  number_theory            7   2,165    24         YES        0
+  numerical                6   1,786    23         YES        6 ⚠
+  probability              9   2,374    33         YES        0
+  real_analysis            7   2,497    28         YES        0
+  utils                    3     466     0         NO         0
+
+2.4 严重问题 (HIGH)
+
+  [H1] eval() 代码注入风险 — 8 处
+    - numerical/ode_solver.py:43,102,166,236  (ODE 右侧表达式解析)
+    - numerical/numerical_integration.py:22   (被积函数解析)
+    - numerical/error_stability.py:37         (函数表达式解析)
+    - algebra/sequences.py:326                (递推关系解析)
+    所有处均使用 {"__builtins__": {}} 限制，但不能完全消除风险。
+    建议: 替换为 sympy.sympify() 或 ast.literal_eval。
+
+  [H2] ConfigManager 完全未被使用
+    utils/config_manager.py 实现了完整的单例配置管理器 (262 行)，
+    支持 math_guard / plot / numerical / ai 四个节。
+    但 14 个功能包中没有一个导入或使用它。
+    所有阈值 (1e-12, 1e-10, 0.01 等) 全部硬编码在源码中。
+    配置系统是死代码。
+
+  [H3] 硬编码数值阈值 — ~45 处 (非测试代码)
+    散布在所有包中，典型值: 1e-12, 1e-10, 1e-8, 0.01, 0.1, 0.5
+    集中的包: functional_analysis (26处), probability (28处),
+             numerical (19处), real_analysis (12处)
+
+2.5 中等问题 (MEDIUM)
+
+  [M1] except Exception 过度使用 — ~250+ 处
+    几乎所有 @register 函数都将整个函数体包裹在 except Exception as e: 中。
+    这会静默吞掉编程错误 (NameError, AttributeError)，使调试困难。
+
+  [M2] 硬编码路径 — 1 处
+    tests/test_complex_analysis.py:4
+    r'C:\Users\fsafsafsa\Desktop\Multifunctional-Mathematics'
+
+  [M3] 缺少 self_test() — 2 处
+    utils/translator.py, utils/__init__.py
+
+2.6 正面发现
+
+  [+] 无 bare except: 子句 (所有异常处理至少指定了 Exception)
+  [+] @register 装饰器覆盖完整
+  [+] 中文 docstring + English type hint 风格一致
+  [+] core/ 包设计良好，注册表 + MathObject 模式清晰
+
+三、MF_UI 前端审计
+
+3.1 文件清单
+
+  子系统              文件数  总行数
+  ────────────────────────────────────
+  calc/ (4 子包)        20    3,050
+  plot/                 10    1,480
+  utils/                 4      670
+  components/            2      230
+  auth/                  1      173
+  styles/                2      310
+  根目录入口             4      484
+
+3.2 严重问题 (CRITICAL)
+
+  [C1] QThread.terminate() — numerical_estimation.py:293
+    强制杀线程，可能导致死锁/资源泄漏。worker 不支持协作取消。
+    建议: 改用 requestInterruption() + isInterruptionRequested()。
+
+  [C2] 暗色主题无效
+    dark.qss 仅覆盖 QMainWindow, QMenuBar, QToolBar 等外壳控件。
+    所有 calc block、workspace、plot panel 使用内联 setStyleSheet()
+    覆盖了应用级 QSS。暗色主题切换只影响菜单栏和工具栏。
+    受影响的控件: QComboBox, QLineEdit, QPushButton, QScrollArea,
+    QCheckBox, QSlider, QLCDNumber 等 22+ 种。
+
+3.3 高度问题 (HIGH)
+
+  [H4] 大量代码重复 — ~1,000 行
+    - 4 个 Workspace 文件 99% 相同 (144行×4 = 576行, ~420行重复)
+    - 4 个 CalcBlock 的 __init__ 完全相同 (~80行×4 = 320行重复)
+    - _sanitize() 在 math_display.py:258 和 latex_render.py:145 完全相同
+    - _load_config() 在 3 个文件中各自实现 (math_guard, numerical_estimation, plot_canvas)
+    - _load_colors() 在 workspace.py 和 plot_canvas.py 重复
+
+  [H5] calc_engine.py 被绕过
+    calc/algebra/calc_block.py 直接调用 dispatch() 而非 calc_engine.calculate()
+    calc_engine.py 设计的统一调度入口未生效。
+
+  [H6] config.json 死字段 — 8/29 (~28%)
+    未使用的字段: math_guard.limit.timeout_seconds, math_guard.plot.* (4个),
+    plot.range_limit, ai.* (2个)
+
+3.4 中等问题 (MEDIUM)
+
+  [M4] 信号/槽微小问题
+    - main_window.py _switch_mode 中 _on_sub_mode_changed 被重复调用
+    - main_window.py:269 不可达的 return page
+
+  [M5] 未使用的导入
+    main_window.py: QSplitter, QListWidget, QListWidgetItem
+
+  [M6] StepViewer 占位
+    4 个 StepViewer 中仅 algebra 有实现，其余 3 个是 7 行空壳
+
+  [M7] 空文件
+    calc/workspace.py, 5 个 plot/*/__init__.py, 4 个 plot/*/placeholder.py
+
+  [M8] 公开方法缺少 docstring — 15+ 处
+    plot_canvas.py 和 main_window.py 的大多数公开方法无文档
+
+  [M9] plot/workspace.py MODE_MAP 缺失 "任意做图"
+    5 个绘图面板槽位但只有 4 个映射条目
+
+3.5 正面发现
+
+  [+] MF_Mathematics 中无 PySide6 导入 — 架构隔离严格
+  [+] 信号/槽连接总体正确，无断链
+  [+] plot_canvas.py 已重构为 drawForeground 架构，场景仅 2 项
+  [+] function_box.py + workspace.py 实现全局滑块系统
+
+四、config.json 使用情况
+
+4.1 被代码读取的字段:
+    math_guard.level1.*          → math_guard.py
+    math_guard.level2.*          → math_guard.py
+    math_guard.limit.*           → math_guard.py
+    plot.colors                  → workspace.py, plot_canvas.py
+    plot.axes.*                  → axes.py
+    numerical.*                  → numerical_estimation.py
+
+4.2 死字段 (定义了但无代码读取):
+    math_guard.limit.timeout_seconds  = 5
+    math_guard.plot.max_constant_coeff = 100000
+    math_guard.plot.view_range        = [-10000, 10000]
+    math_guard.plot.zoom_min          = 0.01
+    math_guard.plot.zoom_max          = 10000
+    plot.range_limit                  = [-10000, 10000]
+    ai.daily_free_steps               = 5
+    ai.daily_free_accelerations       = 3
+
+五、建议修复优先级
+
+  第一轮 (P0 — 立即):
+    1. numerical_estimation.py:293 — QThread.terminate() 替换
+    2. numerical/ 中 eval() 替换为 sympy 解析
+    3. algebra/sequences.py:326 eval() 替换
+
+  第二轮 (P1 — 本周):
+    4. 提取 BaseWorkspace / BaseCalcBlock 消除 ~1000 行重复
+    5. 统一 _load_config() → ConfigManager 单例
+    6. 消除 _sanitize / _load_colors 重复
+    7. 修复暗色主题 (将内联 setStyleSheet 迁移到 QSS 选择器)
+
+  第三轮 (P2 — 迭代):
+    8. 清理 config.json 死字段
+    9. 清理空文件和占位文件
+   10. 补全丢失的 docstring
+   11. 修复 MODE_MAP 缺失
+   12. 统一 calc_engine 调度入口
+
+================================================================================
+  报告结束
+================================================================================
