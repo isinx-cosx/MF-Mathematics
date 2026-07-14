@@ -10,7 +10,7 @@
 
 from __future__ import annotations
 
-import json, os
+import json, os, re
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QFrame, QHBoxLayout, QLabel, QLineEdit, QPushButton,
@@ -332,11 +332,43 @@ class PlotWorkspace(QWidget):
     def _rebuild_curves(self) -> None:
         self._canvas.clear_functions()
         gparams = self._global_params()
+
+        # ── 收集用户定义的函数（供导数引用解析）──
+        _KNOWN = {'sin','cos','tan','cot','sec','csc','sinh','cosh','tanh','coth',
+                  'asin','acos','atan','arcsin','arccos','arctan',
+                  'ln','log','log10','sqrt','exp','abs','ceiling','floor',
+                  'diff','integrate','limit','Sum','sum','solve',
+                  'e','pi','E','Pi','oo','nan','I'}
+        definitions: dict[str, str] = {}
+        for b in self._boxes:
+            if not b.is_visible or not b.expr:
+                continue
+            if b.is_derivative:
+                continue
+            raw = b._input.text().strip()
+            m = re.match(r"^([a-zA-Z]\w*)\s*\(\s*([a-zA-Z])\s*\)\s*=\s*(.+)$", raw)
+            if m:
+                name = m.group(1)
+                if name not in _KNOWN:
+                    definitions[name] = b.expr
+
+        # ── 绘制曲线（解析导数引用）──
         for b in self._boxes:
             if not b.is_visible or not b.expr:
                 continue
             box_params = {k: v for k, v in gparams.items()
                           if k in b.detected_params}
+
+            # 导数引用解析：f'(x) → 查找 f(x) 的定义并求导
+            if b.is_derivative and b.referenced_function:
+                resolved = b.resolve_derivative(definitions)
+                if resolved:
+                    self._canvas.add_function(
+                        resolved, color=b.color, label=b.label,
+                        var=b.independent_var, params=box_params,
+                        implicit=False)
+                    continue
+
             self._canvas.add_function(
                 b.expr, color=b.color, label=b.label,
                 var=b.independent_var, params=box_params,

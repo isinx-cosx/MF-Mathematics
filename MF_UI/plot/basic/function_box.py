@@ -192,7 +192,7 @@ class FunctionBox(QWidget):
             return _preprocess(s) if s else ""
 
         # 导数检测
-        deriv_expr, deriv_var = _parse_derivative(raw, self._independent_var)
+        deriv_expr, deriv_var, _ref = _parse_derivative(raw, self._independent_var)
         if deriv_expr is not None:
             try:
                 d = sp.sympify(deriv_expr)
@@ -232,8 +232,37 @@ class FunctionBox(QWidget):
         if self._expr_type == "implicit":
             return False
         raw = self._input.text().strip()
-        d, _ = _parse_derivative(raw, self._independent_var)
+        d, _, _ = _parse_derivative(raw, self._independent_var)
         return d is not None
+
+    @property
+    def referenced_function(self) -> str:
+        """导数引用的用户函数名（如 f'(x) → "f"），无引用时为空。"""
+        if self._expr_type == "implicit":
+            return ""
+        raw = self._input.text().strip()
+        _, _, ref = _parse_derivative(raw, self._independent_var)
+        return ref
+
+    def resolve_derivative(self, definitions: dict[str, str]) -> str:
+        """使用函数定义字典解析导数引用。
+
+        definitions: {"f": "sin(x)", "g": "x^2"} — 函数名 → 表达式
+        返回解析后的表达式字符串，或原表达式。
+        """
+        if not self.is_derivative:
+            return self.expr
+        ref = self.referenced_function
+        if not ref or ref not in definitions:
+            return self.expr
+        try:
+            def_expr = definitions[ref]
+            # 构造 Derivative(def_expr, var)
+            d = sp.Derivative(sp.sympify(def_expr), sp.Symbol(self._independent_var))
+            result = d.doit()
+            return str(result)
+        except Exception:
+            return self.expr
 
     @property
     def label(self) -> str:
@@ -342,7 +371,7 @@ class FunctionBox(QWidget):
             self._independent_var = "x"
         else:
             # 检查是否为导数表达式
-            d_expr, d_var = _parse_derivative(raw, self._independent_var)
+            d_expr, d_var, _d_ref = _parse_derivative(raw, self._independent_var)
             if d_expr is not None:
                 self._type_tag.setText("导数")
                 self._type_tag.setStyleSheet(
@@ -407,36 +436,33 @@ class FunctionBox(QWidget):
 #  导数语法解析
 # ═══════════════════════════════════════════════════════════════════════
 
-def _parse_derivative(raw: str, default_var: str = "x") -> tuple[str | None, str]:
-    """解析导数记号 ' 返回 (sympy_Derivative字符串, 自变量) 或 (None, "")。
+def _parse_derivative(raw: str, default_var: str = "x") -> tuple[str | None, str, str]:
+    """解析导数记号 ' 返回 (sympy_Derivative字符串, 自变量, 被引用函数名或"")。
 
     支持格式:
-      sin'(x)   → Derivative(sin(x), x)
-      f'(t)     → Derivative(f(t), t)
-      (x^3+2*x)' → Derivative(x^3+2*x, x)
+      sin'(x)   → ("Derivative(sin(x), x)", "x", "")       已知函数，无引用
+      f'(t)     → ("Derivative(f(t), t)", "t", "f")        用户函数，引用 f
+      (x^3+2*x)' → ("Derivative(x^3+2*x, x)", "x", "")     表达式，无引用
     """
     raw = raw.strip()
     if "'" not in raw:
-        return None, ""
+        return None, "", ""
 
     # 模式 1: func'(var) — 如 sin'(x), f'(t)
     m = re.match(r"^([a-zA-Z]\w*)\s*'\s*\(\s*([a-zA-Z])\s*\)$", raw)
     if m:
         func_name = m.group(1)
         var = m.group(2)
-        # 验证 func_name 是已知数学函数
-        if func_name not in _KNOWN_IDS:
-            return f"Derivative({func_name}({var}), {var})", var
-        else:
-            return f"Derivative({func_name}({var}), {var})", var
+        ref = "" if func_name in _KNOWN_IDS else func_name
+        return f"Derivative({func_name}({var}), {var})", var, ref
 
     # 模式 2: (expr)' — 如 (x^3 + 2*x)', (sin(x) + cos(x))'
     m = re.match(r"^\((.+)\)\s*'$", raw)
     if m:
         inner = m.group(1).strip()
-        return f"Derivative({inner}, {default_var})", default_var
+        return f"Derivative({inner}, {default_var})", default_var, ""
 
-    return None, ""
+    return None, "", ""
 
 
 # ═══════════════════════════════════════════════════════════════════════
