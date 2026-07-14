@@ -19,6 +19,9 @@ import MF_Mathematics.complex_analysis
 from MF_Mathematics.core.registry import dispatch
 from MF_Mathematics.core.math_object import MathObject
 from MF_Mathematics.utils.translator import MathTranslator
+from MF_Mathematics.utils.math_guard import ComplexityGuard, LimitGuard, GuardLevel, GuardResult
+from MF_Mathematics.utils.ai_accelerator import get_accelerator
+from MF_Mathematics.utils.config_manager import config as _cfg
 
 # 导入 LaTeX 组件
 from calc.math_display import LatexLineEdit, ResultDialog
@@ -200,31 +203,45 @@ class CalcBlock(QWidget):
         op = self.calc_mode_combo.currentText()
 
         # ── 三级数学守卫 ──
-        from MF_UI.utils.math_guard import ComplexityGuard, LimitGuard, GuardLevel
-        from PySide6.QtWidgets import QMessageBox
+        from MF_UI.utils.math_guard_ui import show_guard_dialog, show_quota_exceeded, show_ai_error
 
         guard_result = ComplexityGuard.check(expr, mode=op)
+
         if guard_result.level == GuardLevel.REJECT:
-            QMessageBox.critical(self, guard_result.title, guard_result.message)
+            show_guard_dialog(self, guard_result)
             return
-        elif guard_result.level == GuardLevel.BLOCK:
-            reply = QMessageBox.question(
-                self, guard_result.title, guard_result.message,
-                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No | QMessageBox.StandardButton.Cancel,
-                QMessageBox.StandardButton.Cancel,
-            )
-            # Customize buttons: Yes="本地硬算", No="AI加速", Cancel="取消"
-            # For now, use Yes=continue, Cancel=abort
-            if reply != QMessageBox.StandardButton.Yes:
+
+        if guard_result.level == GuardLevel.COMPLEX:
+            choice = show_guard_dialog(self, guard_result)
+            if choice == "complex":
+                op = "复数运算"
+            elif choice == "cancel":
                 return
-        elif guard_result.level == GuardLevel.WARN:
-            reply = QMessageBox.question(
-                self, guard_result.title, guard_result.message,
-                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-                QMessageBox.StandardButton.Yes,
-            )
-            if reply != QMessageBox.StandardButton.Yes:
+            # "continue" → 继续实数模式
+
+        if guard_result.level == GuardLevel.BLOCK:
+            choice = show_guard_dialog(self, guard_result)
+            if choice == "ai":
+                ai = get_accelerator()
+                if ai.check_quota("accelerations"):
+                    obj = ai.accelerate(expr, mode=op)
+                    self._last_result = obj
+                    dlg = ResultDialog(f"AI 加速 — {op}", self)
+                    dlg.set_result(obj)
+                    dlg.exec()
+                    return
+                else:
+                    show_quota_exceeded(self, "AI 加速")
+                    choice = "cancel"
+            if choice == "cancel":
                 return
+            # choice == "local" → 继续本地硬算
+
+        if guard_result.level == GuardLevel.WARN:
+            choice = show_guard_dialog(self, guard_result)
+            if choice == "cancel":
+                return
+            # "continue" → 继续
 
         # ── 极限专项防御 ──
         if op == "极限":
@@ -233,8 +250,34 @@ class CalcBlock(QWidget):
             point = parts[2] if len(parts) > 2 else "0"
             lim_result = LimitGuard.check(expr, var, point)
             if lim_result.level == GuardLevel.REJECT:
-                QMessageBox.critical(self, lim_result.title, lim_result.message)
+                show_guard_dialog(self, lim_result)
                 return
+
+            # 超时计算
+            import threading
+            cf = _cfg()
+            timeout = cf.get("math_guard", "limit", "timeout_seconds", default=5)
+            lim_obj: list[MathObject | None] = [None]
+
+            def _run_limit():
+                try:
+                    lim_obj[0] = self._do_calculate(op, expr)
+                except Exception as e:
+                    lim_obj[0] = MathObject(error=str(e))
+
+            t = threading.Thread(target=_run_limit, daemon=True)
+            t.start()
+            t.join(timeout)
+            if t.is_alive():
+                obj = MathObject(error=f"极限计算超过 {timeout} 秒，建议使用 AI 辅助。")
+            else:
+                obj = lim_obj[0] or MathObject(error="暂不支持此功能")
+
+            self._last_result = obj
+            dlg = ResultDialog(f"计算结果 — {op}", self)
+            dlg.set_result(obj)
+            dlg.exec()
+            return
 
         # ── 执行计算 ──
         obj: MathObject | None = None

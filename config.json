@@ -53,7 +53,18 @@
   },
   "ai": {
     "daily_free_steps": 5,
-    "daily_free_accelerations": 3
+    "daily_free_accelerations": 3,
+    "providers": {
+      "deepseek": {
+        "model": "deepseek-chat",
+        "endpoint": "https://api.deepseek.com/v1/chat/completions"
+      },
+      "openai": {
+        "model": "gpt-4o-mini",
+        "endpoint": "https://api.openai.com/v1/chat/completions"
+      }
+    },
+    "default_provider": "deepseek"
   },
   "numerical": {
     "max_iterations": 10000000,
