@@ -19,7 +19,7 @@ import json, math, os
 from typing import Any
 
 import numpy as np
-from PySide6.QtCore import Qt, QPointF, QRectF, Signal
+from PySide6.QtCore import Qt, QPointF, QRectF, QTimer, Signal
 from PySide6.QtGui import (
     QBrush, QColor, QFont, QPainter, QPainterPath, QPen,
 )
@@ -194,6 +194,12 @@ class PlotCanvas(QGraphicsView):
         # ── 曲线 ──
         self._curves: list[dict[str, Any]] = []
         self._curve_items: list[QGraphicsPathItem] = []
+
+        # ── 防抖定时器（避免缩放时频繁重绘隐函数）──
+        self._rebuild_timer = QTimer(self)
+        self._rebuild_timer.setSingleShot(True)
+        self._rebuild_timer.setInterval(200)
+        self._rebuild_timer.timeout.connect(self._do_deferred_rebuild)
 
         self._emit_status()
 
@@ -393,8 +399,20 @@ class PlotCanvas(QGraphicsView):
         if vr.bottom() > R:
             v.setValue(v.value() + int(vr.bottom() - R))
 
+    def _schedule_rebuild(self) -> None:
+        """延迟重绘：缩放时启动防抖定时器，避免频繁计算隐函数。"""
+        self._update_curve_pens()
+        self._rebuild_timer.start()  # 重新计时 200ms
+
+    def _do_deferred_rebuild(self) -> None:
+        """定时器到期 → 执行实际曲线重绘。"""
+        self._clamp_view()
+        self._rebuild_all_curves()
+        self._emit_status()
+        self.viewport().update()
+
     def _after_view_change(self) -> None:
-        """视图变化后的统一处理。"""
+        """视图变化后的统一处理（缩放用防抖，拖拽后立即重绘）。"""
         self._clamp_view()
         self._update_curve_pens()
         self._rebuild_all_curves()
@@ -406,12 +424,15 @@ class PlotCanvas(QGraphicsView):
         if vs * factor < 1.0 / ZOOM_MAX or vs * factor > 1.0 / ZOOM_MIN:
             return
         self.scale(factor, factor)
-        self._after_view_change()
+        self._clamp_view()
+        self._update_curve_pens()
+        self._schedule_rebuild()  # 防抖：200ms 内连续缩放只重绘一次
         event.accept()
 
     def mouseReleaseEvent(self, event) -> None:
         super().mouseReleaseEvent(event)
         if event.button() == Qt.MouseButton.LeftButton:
+            self._rebuild_timer.stop()  # 停止防抖，立即重绘
             self._after_view_change()
             self._emit_status()
 
@@ -547,8 +568,7 @@ class PlotCanvas(QGraphicsView):
     def _draw_implicit_curve(self, f: dict) -> QPainterPath | None:
         """Marching Squares 提取 f(x,y) = 0 等值线。
 
-        自适应分辨率：视图范围大时降低分辨率，范围小时提高分辨率，
-        平衡性能与精度。
+        自适应分辨率 + 场景坐标 + 固定像素笔宽。
         """
         try:
             import sympy as sp
@@ -566,49 +586,62 @@ class PlotCanvas(QGraphicsView):
         if remaining:
             return None
 
-        # ── 自适应分辨率 ──
+        # ── 获取视图范围（场景坐标）──
         vr = self.mapToScene(self.viewport().rect()).boundingRect()
         x_min, x_max = float(vr.left()), float(vr.right())
         y_min, y_max = float(vr.top()), float(vr.bottom())
         rng = max(x_max - x_min, y_max - y_min)
         if rng <= 0:
             return None
-        res = max(60, min(300, int(300 * 20.0 / rng)))
+
+        # ── 自适应分辨率（防止卡顿）──
+        if rng > 1000:
+            res = 100
+        elif rng < 10:
+            res = 300
+        else:
+            res = 200
+
         xs = np.linspace(x_min, x_max, res)
         ys = np.linspace(y_min, y_max, res)
         dx = float(xs[1] - xs[0])
         dy = float(ys[1] - ys[0])
 
-        # ── 向量化求值 ──
+        # ── 向量化求值（numpy 加速）──
         try:
             f_fn = sp.lambdify((x_sym, y_sym), expr, "numpy")
             X, Y = np.meshgrid(xs, ys)
             Z = f_fn(X, Y)
             if not isinstance(Z, np.ndarray):
                 return None
-            # 复数 → 实部（虚部极小则视为实数）
             if np.iscomplexobj(Z):
                 Z = np.where(np.abs(Z.imag) < 1e-10, Z.real, np.nan)
         except Exception:
             return None
 
         # ── Marching Squares ──
+        # 单元格四角（标准顺序）:
+        #   z01=top-left    z11=top-right       3──2
+        #   z00=bottom-left z10=bottom-right    0──1
         path = QPainterPath()
 
         for i in range(res - 1):
             for j in range(res - 1):
-                z00, z10 = Z[i, j], Z[i + 1, j]
-                z11, z01 = Z[i + 1, j + 1], Z[i, j + 1]
+                # Z[i,j] 对应 (xs[j], ys[i])
+                z00 = Z[i, j]         # bottom-left  → corner 0
+                z10 = Z[i, j + 1]     # bottom-right → corner 1
+                z11 = Z[i + 1, j + 1] # top-right    → corner 2
+                z01 = Z[i + 1, j]     # top-left     → corner 3
 
                 if any(np.isnan(v) for v in (z00, z10, z11, z01)):
                     continue
 
-                # 确定 case (0-15)
+                # 确定 case (0-15): bit0=corner0, bit1=corner1, ...
                 case = 0
-                if z00 >= 0: case |= 1
-                if z10 >= 0: case |= 2
-                if z11 >= 0: case |= 4
-                if z01 >= 0: case |= 8
+                if z00 >= 0: case |= 1   # corner 0: bottom-left
+                if z10 >= 0: case |= 2   # corner 1: bottom-right
+                if z11 >= 0: case |= 4   # corner 2: top-right
+                if z01 >= 0: case |= 8   # corner 3: top-left
 
                 if case == 0 or case == 15:
                     continue
@@ -620,24 +653,22 @@ class PlotCanvas(QGraphicsView):
                     if (center_z >= 0) == (z00 >= 0):
                         segs = _MS_ALT.get(case, segs)
 
-                # 计算 4 条边的交点坐标
-                x0, y0 = xs[i], ys[j]
-                x1, y1 = xs[i + 1], ys[j + 1]
+                # 计算 4 条边与 f=0 的交点（场景坐标）
+                # 边 0=底(bottom-left→bottom-right) 1=右(bottom-right→top-right)
+                # 边 2=顶(top-left→top-right)       3=左(bottom-left→top-left)
+                x0, y0 = xs[j], ys[i]
+                x1, y1 = xs[j + 1], ys[i + 1]
 
-                def _interp_bottom() -> float:
-                    return x0 + dx * _safe_frac(z00, z10)
-                def _interp_right() -> float:
-                    return y0 + dy * _safe_frac(z10, z11)
-                def _interp_top() -> float:
-                    return x0 + dx * _safe_frac(z01, z11)
-                def _interp_left() -> float:
-                    return y0 + dy * _safe_frac(z00, z01)
+                bx = x0 + dx * _safe_frac(z00, z10)  # 底边交点 x
+                rx = y0 + dy * _safe_frac(z10, z11)  # 右边交点 y
+                tx = x0 + dx * _safe_frac(z01, z11)  # 顶边交点 x
+                lx = y0 + dy * _safe_frac(z00, z01)  # 左边交点 y
 
                 edge_pts = {
-                    0: (_interp_bottom(), y0),
-                    1: (x1, _interp_right()),
-                    2: (_interp_top(), y1),
-                    3: (x0, _interp_left()),
+                    0: (bx, y0),     # 底边
+                    1: (x1, rx),     # 右边
+                    2: (tx, y1),     # 顶边
+                    3: (x0, lx),     # 左边
                 }
 
                 for e0, e1 in segs:
