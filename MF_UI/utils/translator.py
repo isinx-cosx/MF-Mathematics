@@ -92,6 +92,16 @@ class MathTranslator:
         # Phase 4: ^ → **（必须在函数规范化之前）
         s = s.replace("^", "**")
 
+        # Phase 4b: e^ → exp(  (e^x → exp(x), e^(...) → exp(...))
+        s = re.sub(r"\be\*\*(\w+)", r"exp(\1)", s)
+        s = re.sub(r"\be\*\*\(", "exp(", s)
+
+        # Phase 4c: 裸函数调用（func+字母/数字 → func(字母/数字)）
+        F = "sin|cos|tan|cot|sec|csc|sinh|cosh|tanh|log|ln|sqrt|exp|abs|asin|acos|atan"
+        s = re.sub(rf"\b({F})(\d+)([a-zA-Z])", r"\1(\2*\3)", s)
+        s = re.sub(rf"\b({F})([a-zA-Z])", r"\1(\2)", s)
+        s = re.sub(rf"\b({F})(\d+)", r"\1(\2)", s)
+
         # Phase 5: 函数调用规范化（sin x → sin(x), e**x → exp(x)）
         s = MathTranslator._normalise_calls(s)
 
@@ -131,7 +141,11 @@ class MathTranslator:
     @staticmethod
     def _normalise_calls(s: str) -> str:
         """e^x → exp(x); sin x → sin(x); sin (x) → sin(x)。"""
-        s = re.sub(r"(?<![a-zA-Z])e\*\*(\S+)", r"exp(\1)", s)
+        s = re.sub(
+            r"(?<![a-zA-Z])e\*\*([a-zA-Z0-9_.]*(?:\([^)]*\))?)",
+            lambda m: f"exp({m.group(1)[1:-1]})" if m.group(1).startswith("(") else f"exp({m.group(1)})",
+            s,
+        )
         for fname in sorted(MathTranslator._KNOWN_FUNCS, key=len, reverse=True):
             s = re.sub(
                 rf"(?<![a-zA-Z])({re.escape(fname)})\s+([a-zA-Z0-9_]+)(?!\()",

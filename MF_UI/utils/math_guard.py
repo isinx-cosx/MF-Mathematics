@@ -18,19 +18,23 @@ from enum import Enum, auto
 from typing import Any
 
 
-# ── 加载配置 ──────────────────────────────────────────────
+# ── 加载配置（优先 ConfigManager，回退到直接读取）─────────
 
-def _load_config() -> dict:
+def _load_guard_config() -> dict:
+    try:
+        from MF_Mathematics.utils.config_manager import config
+        return config.math_guard
+    except Exception:
+        pass
+    # 回退
     root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     path = os.path.join(root, "config.json")
     if os.path.exists(path):
         with open(path, "r", encoding="utf-8") as f:
-            return json.load(f)
+            return json.load(f).get("math_guard", {})
     return {}
 
-
-_cfg = _load_config()
-_G = _cfg.get("math_guard", {})
+_G = _load_guard_config()
 _L1 = _G.get("level1", {})
 _L2 = _G.get("level2", {})
 _L3 = _G.get("level3", {})

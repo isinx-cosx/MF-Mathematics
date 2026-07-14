@@ -152,3 +152,29 @@ QStatusBar {
     color: #6c7086;
     font-size: 12px;
 }
+
+/* ---- 绘图区滚动条（暗色）---- */
+#plotScroll QScrollBar:vertical {
+    width: 10px;
+    background: transparent;
+    border: none;
+    margin: 0;
+}
+#plotScroll QScrollBar::handle:vertical {
+    background: #475569;
+    border-radius: 6px;
+    min-height: 30px;
+}
+#plotScroll QScrollBar::handle:vertical:hover {
+    background: #64748b;
+}
+#plotScroll QScrollBar::add-line:vertical,
+#plotScroll QScrollBar::sub-line:vertical {
+    height: 0px;
+    border: none;
+    background: none;
+}
+#plotScroll QScrollBar::add-page:vertical,
+#plotScroll QScrollBar::sub-page:vertical {
+    background: none;
+}

@@ -33,16 +33,20 @@ from PySide6.QtWidgets import (
 )
 
 
-def _load_config() -> dict:
+def _load_numerical_config() -> dict:
+    try:
+        from MF_Mathematics.utils.config_manager import config
+        return config.numerical
+    except Exception:
+        pass
     root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     p = os.path.join(root, "config.json")
     if os.path.exists(p):
         with open(p, "r", encoding="utf-8") as f:
-            return json.load(f)
+            return json.load(f).get("numerical", {})
     return {}
 
-
-_CFG = _load_config().get("numerical", {})
+_CFG = _load_numerical_config()
 _MAX_ITER = _CFG.get("max_iterations", 10_000_000)
 _MAX_PREC = _CFG.get("max_precision", 15)
 _RAM_TIMEOUT = _CFG.get("ramanujan_timeout", 1)
@@ -135,23 +139,30 @@ class _EstimationWorker(QThread):
             # 拉马努金特判：极速，每 1 次迭代报告一次
             if "拉马努金" in self._algo_key:
                 for k in range(1, self._max_iter + 1):
+                    if self.isInterruptionRequested():
+                        return
                     val = fn(k)
                     err = abs(val - target)
                     self.progress.emit(k, val, err)
                     if time.time() - start > _RAM_TIMEOUT:
                         break
-                val = fn(self._max_iter)
-                self.finished.emit(val, self._max_iter)
+                if not self.isInterruptionRequested():
+                    val = fn(self._max_iter)
+                    self.finished.emit(val, self._max_iter)
                 return
 
             # 通用：分批报告
             report_every = max(1, self._max_iter // 50)
+            val = 0.0
             for k in range(1, self._max_iter + 1):
+                if self.isInterruptionRequested():
+                    return
                 val = fn(k)
                 if k % report_every == 0 or k == self._max_iter:
                     err = abs(val - target)
                     self.progress.emit(k, val, err)
-            self.finished.emit(val, self._max_iter)
+            if not self.isInterruptionRequested():
+                self.finished.emit(val, self._max_iter)
 
         except Exception as e:
             self.error.emit(str(e))
@@ -265,6 +276,8 @@ class NumericalEstimation(QWidget):
         self._algo_combo.addItems(mapping.get(const, []))
 
     def _start(self) -> None:
+        if self._worker and self._worker.isRunning():
+            return  # 已有任务在运行
         algo_key = self._algo_combo.currentText()
         if not algo_key:
             return
@@ -290,8 +303,12 @@ class NumericalEstimation(QWidget):
 
     def _stop(self) -> None:
         if self._worker and self._worker.isRunning():
-            self._worker.terminate()
-            self._worker.wait()
+            self._worker.requestInterruption()
+            if not self._worker.wait(3000):
+                self._worker.terminate()  # 最后手段
+                self._worker.wait()
+            self._worker.deleteLater()
+            self._worker = None
         self._reset_ui()
 
     def _on_progress(self, iteration: int, value: float, error: float) -> None:

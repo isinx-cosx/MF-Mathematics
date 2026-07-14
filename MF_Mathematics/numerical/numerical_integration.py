@@ -14,14 +14,10 @@ from ..core.registry import register
 
 
 def _parse_func(f: Union[str, Callable[[float], float]]) -> Callable[[float], float]:
-    """将字符串表达式或可调用对象统一为可调用函数。"""
+    """将字符串表达式或可调用对象统一为可调用函数（使用 sympy 安全解析）。"""
     if isinstance(f, str):
-        expr = f
-
-        def fn(x: float) -> float:
-            return float(eval(expr, {"__builtins__": {}}, {"x": x, "pi": np.pi, "sin": np.sin, "cos": np.cos, "exp": np.exp, "log": np.log, "sqrt": np.sqrt, "tan": np.tan}))
-
-        return fn
+        import sympy as sp
+        return sp.lambdify(sp.Symbol("x"), sp.sympify(f), "numpy")
     return f
 
 

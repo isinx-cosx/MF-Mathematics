@@ -13,6 +13,15 @@ from ..core.math_object import MathObject
 from ..core.registry import register
 
 
+def _parse_ode_func(f) -> Callable:
+    """将字符串表达式安全解析为二元可调用函数 f(t, y)。"""
+    if isinstance(f, str):
+        import sympy as sp
+        t_sym, y_sym = sp.Symbol("t"), sp.Symbol("y")
+        return sp.lambdify((t_sym, y_sym), sp.sympify(f), "numpy")
+    return f
+
+
 @register(module="numerical", action="euler_method")
 def euler_method(
     f: Union[str, Callable[[float, float], float]],
@@ -36,13 +45,7 @@ def euler_method(
         MathObject: result 为 (t_values, y_values) 的 dict。
     """
     try:
-        if isinstance(f, str):
-            expr = f
-
-            def f_fn(t: float, y: float) -> float:
-                return float(eval(expr, {"__builtins__": {}}, {"t": t, "y": y, "np": np, "sin": np.sin, "cos": np.cos, "exp": np.exp, "log": np.log, "sqrt": np.sqrt}))
-        else:
-            f_fn = f
+        f_fn = _parse_ode_func(f)
 
         n_steps = max(1, int(np.ceil((t_end - t0) / h)))
         h_actual = (t_end - t0) / n_steps
@@ -95,13 +98,7 @@ def rk4(
         MathObject: result 为 (t_values, y_values) 的 dict。
     """
     try:
-        if isinstance(f, str):
-            expr = f
-
-            def f_fn(t: float, y: float) -> float:
-                return float(eval(expr, {"__builtins__": {}}, {"t": t, "y": y, "np": np, "sin": np.sin, "cos": np.cos, "exp": np.exp, "log": np.log, "sqrt": np.sqrt}))
-        else:
-            f_fn = f
+        f_fn = _parse_ode_func(f)
 
         n_steps = max(1, int(np.ceil((t_end - t0) / h)))
         h_actual = (t_end - t0) / n_steps
@@ -159,13 +156,7 @@ def implicit_euler(
         MathObject: result 为 (t_values, y_values) 的 dict。
     """
     try:
-        if isinstance(f, str):
-            expr = f
-
-            def f_fn(t: float, y: float) -> float:
-                return float(eval(expr, {"__builtins__": {}}, {"t": t, "y": y, "np": np, "sin": np.sin, "cos": np.cos, "exp": np.exp, "log": np.log, "sqrt": np.sqrt}))
-        else:
-            f_fn = f
+        f_fn = _parse_ode_func(f)
 
         n_steps = max(1, int(np.ceil((t_end - t0) / h)))
         h_actual = (t_end - t0) / n_steps
@@ -229,13 +220,7 @@ def stiff_detector(
         MathObject: result 为 True/False，表示是否检测到刚性。
     """
     try:
-        if isinstance(f, str):
-            expr = f
-
-            def f_fn(t: float, y: float) -> float:
-                return float(eval(expr, {"__builtins__": {}}, {"t": t, "y": y, "np": np, "sin": np.sin, "cos": np.cos, "exp": np.exp, "log": np.log, "sqrt": np.sqrt}))
-        else:
-            f_fn = f
+        f_fn = _parse_ode_func(f)
 
         h = min(0.01, (t_end - t0) / 100)
 

@@ -31,11 +31,9 @@ def condition_number(
     """
     try:
         if isinstance(f, str):
+            import sympy as sp
+            f_fn = sp.lambdify(sp.Symbol("x"), sp.sympify(f), "numpy")
             expr = f
-
-            def f_fn(val: float) -> float:
-                return float(eval(expr, {"__builtins__": {}}, {"x": val}))
-
         else:
             f_fn = f
             expr = f.__name__ if hasattr(f, "__name__") else "f"

@@ -323,7 +323,7 @@ def recurrence_sequence(
                         return str(seq[-idx])
                     return match.group(0)
                 rel_evaluated = re.sub(r'a\[-(\d+)\]', _replace, rel)
-                next_val = float(eval(rel_evaluated, {"__builtins__": {}}, local_vars))
+                next_val = float(sp.sympify(rel_evaluated))
             except Exception:
                 return MathObject(error=f"无法解析递推关系式 '{relation}'，请使用 a[-1] 表示前一项")
 
