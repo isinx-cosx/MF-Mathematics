@@ -364,6 +364,18 @@ class PlotCanvas(QGraphicsView):
             item.setPen(pen)
 
     # ═══════════════════════════════════════════════════════════════
+    #  Aspect ratio lock — 始终等比例缩放
+    # ═══════════════════════════════════════════════════════════════
+
+    def resizeEvent(self, event) -> None:
+        """窗口大小变化时保持纵横比，确保圆形始终为正圆。"""
+        super().resizeEvent(event)
+        # 以当前可见场景矩形为基准，等比缩放填充新视口
+        vr = self.mapToScene(self.viewport().rect()).boundingRect()
+        if vr.width() > 0 and vr.height() > 0:
+            self.fitInView(vr, Qt.AspectRatioMode.KeepAspectRatio)
+
+    # ═══════════════════════════════════════════════════════════════
     #  View control
     # ═══════════════════════════════════════════════════════════════
 
