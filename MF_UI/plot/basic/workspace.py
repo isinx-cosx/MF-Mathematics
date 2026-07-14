@@ -390,9 +390,10 @@ class PlotWorkspace(QWidget):
 
         # ── 3D 模式 ──
         if self._mode == "3d" and self._canvas_3d is not None:
+            # 同步函数框列表到 3D 曲面列表
             self._canvas_3d.clear_surfaces()
             for b in self._boxes:
-                if not b.is_visible or not b.expr:
+                if not b.expr:
                     continue
                 box_params = {k: v for k, v in gparams.items()
                               if k in b.detected_params}
@@ -401,8 +402,10 @@ class PlotWorkspace(QWidget):
                     r = b.resolve_derivative(definitions)
                     if r:
                         resolved = r
-                self._canvas_3d.add_surface(
+                idx = self._canvas_3d.add_surface(
                     resolved, color=b.color, params=box_params)
+                # 同步可见性
+                self._canvas_3d.set_visible(idx, b.is_visible)
             return
 
         # ── 2D 模式 ──
