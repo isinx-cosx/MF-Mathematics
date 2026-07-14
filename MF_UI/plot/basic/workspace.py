@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
 )
 from MF_UI.plot.basic.plot_canvas import PlotCanvas
 from MF_UI.plot.basic.function_box import FunctionBox
+from MF_UI.plot.plot_3d import Plot3D
 
 
 def _load_plot_colors() -> list[str]:
@@ -150,16 +151,23 @@ class PlotWorkspace(QWidget):
         ll.addWidget(card, 1)
         root.addWidget(left)
 
-        # ── 右侧画布（仅 2D 模式使用真实画布，其他模式显示占位页）──
+        # ── 右侧画布（2D / 3D 使用真实画布，其余模式占位）──
         if self._mode == "normal":
             self._canvas = PlotCanvas()
             self._canvas.status_message.connect(self._status.setText)
             root.addWidget(self._canvas, 1)
+            self._canvas_3d = None
+        elif self._mode == "3d":
+            self._canvas_3d = Plot3D()
+            self._canvas_3d.status_message.connect(self._status.setText)
+            root.addWidget(self._canvas_3d, 1)
+            self._canvas = None
         else:
             placeholder = self._make_placeholder(
                 title, "功能开发中，敬请期待...")
             root.addWidget(placeholder, 1)
             self._canvas = None
+            self._canvas_3d = None
 
         self._add()
 
@@ -359,10 +367,6 @@ class PlotWorkspace(QWidget):
         self._rebuild_curves()
 
     def _rebuild_curves(self) -> None:
-        # 非 2D 模式无画布，不重绘
-        if self._canvas is None:
-            return
-
         gparams = self._global_params()
 
         # ── 收集用户定义函数 ──
@@ -384,7 +388,26 @@ class PlotWorkspace(QWidget):
                 if name not in _KNOWN:
                     definitions[name] = b.expr
 
+        # ── 3D 模式 ──
+        if self._mode == "3d" and self._canvas_3d is not None:
+            self._canvas_3d.clear_surfaces()
+            for b in self._boxes:
+                if not b.is_visible or not b.expr:
+                    continue
+                box_params = {k: v for k, v in gparams.items()
+                              if k in b.detected_params}
+                resolved = b.expr
+                if b.is_derivative and b.referenced_function:
+                    r = b.resolve_derivative(definitions)
+                    if r:
+                        resolved = r
+                self._canvas_3d.add_surface(
+                    resolved, color=b.color, params=box_params)
+            return
+
         # ── 2D 模式 ──
+        if self._canvas is None:
+            return
         self._canvas.clear_functions()
         for b in self._boxes:
             if not b.is_visible or not b.expr:
