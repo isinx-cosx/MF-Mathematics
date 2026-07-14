@@ -330,9 +330,10 @@ class FunctionBox(QWidget):
             }
         elif has_xy:
             return {"type": "implicit"}
+        elif len(vars_found) == 1 and ('x' in vars_found or 'y' in vars_found):
+            # 单变量等式: y=5、x=8、y=2x+1 → 隐式水平/垂直线
+            return {"type": "implicit"}
         else:
-            # 形如 y = x^2（含 = 且含 y/x 但不被识别为 name(var)=expr）
-            # 将其视为显式函数（只有一个有效变量时）
             return {"type": "explicit"}
 
     # ── 输入处理 ───────────────────────────────────────────
