@@ -178,7 +178,11 @@ class MathTranslator:
     def _normalise_calls(s: str) -> str:
         """Convert bare function references to canonical parenthesised form."""
         # e^x → exp(x)  (not part of a word)
-        s = re.sub(r"(?<![a-zA-Z])e\*\*(\S+)", r"exp(\1)", s)
+        s = re.sub(
+            r"(?<![a-zA-Z])e\*\*([a-zA-Z0-9_.]*(?:\([^)]*\))?)",
+            lambda m: f"exp({m.group(1)[1:-1]})" if m.group(1).startswith("(") else f"exp({m.group(1)})",
+            s,
+        )
 
         for fname in sorted(MathTranslator._KNOWN_FUNCS, key=len, reverse=True):
             # "func single_token" → "func(single_token)"
