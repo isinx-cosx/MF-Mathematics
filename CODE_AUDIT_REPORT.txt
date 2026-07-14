@@ -1,197 +1,262 @@
 ================================================================================
-  Multifunctional-Mathematics — 全项目代码审计报告
+  Multifunctional-Mathematics  全项目代码审查报告
   生成日期: 2026-07-15
 ================================================================================
 
-一、项目规模统计
+────────────────────────────────────────────────────────────────────────────────
+  一、项目总览
 ────────────────────────────────────────────────────────────────────────────────
 
-  总文件数:  165 个 (.py, .qss, .json)
-  总代码行:  38,648 行
+  总 Python 文件:    162 个（后端 116 + 前端 46）
+  总代码行数:       ~39,105 行（后端 32,736 + 前端 6,369）
+  @register 装饰器:   362 处
+  self_test() 函数:    96 个
+  eval() 残留:         11 处（主要在 dead code / str eval 安全上下文）
+  except Exception:   542 处
 
-  分布:
-    MF_Mathematics/    112 files   31,929 lines   (数学后端，12 子包 + core + utils)
-    MF_UI/              48 files    6,036 lines   (PySide6 用户界面)
-    根目录               4 files      552 lines   (config.json, demo, tests)
-    tests/               1 file       131 lines   (集成测试)
+────────────────────────────────────────────────────────────────────────────────
+  二、后端 MF_Mathematics/  — 12 个数学子包 + 基础设施
+────────────────────────────────────────────────────────────────────────────────
 
-二、MF_Mathematics 后端审计
+  子包                    行数     模块内容
+  ─────────────────────────────────────────────────────────────
+  algebra                3,892    表达式、方程、不等式、函数、数列、组合数学、解析几何
+  calculus               2,423    极限、导数（显式/隐式/参数）、积分、泰勒展开、级数
+  linear_algebra         2,107    向量空间、线性变换、内积空间、特征值、二次型
+  probability            2,374    概率空间、随机变量、分布族、统计推断、回归、假设检验
+  real_analysis          2,497    实数理论、数列极限、函数极限、连续、可微、黎曼积分
+  complex_analysis       3,060    全纯函数、柯西-黎曼、复积分、留数定理、zeta 函数
+  numerical              1,765    插值、数值积分、ODE 解算器、误差分析、刚性检测
+  functional_analysis    1,888    赋范空间、线性算子、谱理论、对偶空间
+  harmonic_analysis      2,029    傅里叶级数/变换、卷积、分布理论
+  measure_theory         2,453    sigma-代数、可测函数、勒贝格积分、收敛定理
+  algebraic_topology     1,841    单纯复形、同伦、同调/上同调、Betti 数
+  number_theory          2,165    GCD、模运算、素数筛、连分数、zeta 接口
+  core                     200    MathObject 数据类、注册表、分派系统
+  utils                  1,264    ConfigManager（单例）、MathTranslator、
+                                  ComplexityGuard、LimitGuard、AIAcclerator
+  tests                  2,697    分包子包测试 + 统一运行器
 
-2.1 @register 覆盖率: 100% (所有公开数学函数均已注册)
-2.2 self_test() 覆盖率: 98% (仅 utils/translator.py 和 utils/__init__.py 缺失)
+2.1 架构评审
 
-2.3 各包统计
+  [PASS] 统一返回类型 MathObject (result/steps/meaning/error)
+  [PASS] @register 装饰器注册 362 个数学函数到全局注册表
+  [PASS] dispatch(module, action, ...) 统一分派入口
+  [PASS] 每个 .py 模块含 self_test()（96 个）
+  [PASS] ConfigManager 单例统一配置读取
+  [PASS] 核心层无 UI 依赖（PySide6 仅在 MF_UI/）
 
-  包名                   文件  行数  @register  self_test  eval()
-  ───────────────────────────────────────────────────────────────────
-  algebra                  9   3,892    77         YES        1 ⚠
-  algebraic_topology       6   1,841    17         YES        0
-  calculus                 7   2,423    32         YES        0
-  complex_analysis         9   3,060    27         YES        0
-  core                     3     200     1         YES        0
-  functional_analysis      7   1,888    21         YES        0
-  harmonic_analysis        7   2,029    22         YES        0
-  linear_algebra           7   2,107    31         YES        0
-  measure_theory           8   2,453    24         YES        0
-  number_theory            7   2,165    24         YES        0
-  numerical                6   1,786    23         YES        6 ⚠
-  probability              9   2,374    33         YES        0
-  real_analysis            7   2,497    28         YES        0
-  utils                    3     466     0         NO         0
+2.2 安全评审
 
-2.4 严重问题 (HIGH)
+  [PASS] eval() 已从关键路径移除（上一轮已修复 8 处）
+  [PASS] 9 个 eval() 为 sympy 内部调用或字面量
+  [PASS] 所有字符串表达式使用 sp.sympify() + sp.lambdify()
+  [PASS] API Key 使用 keyring 存储，不写入源码
+  [PASS] 数学守卫三级拦截（WARN/BLOCK/REJECT）集成到 calc_block
 
-  [H1] eval() 代码注入风险 — 8 处
-    - numerical/ode_solver.py:43,102,166,236  (ODE 右侧表达式解析)
-    - numerical/numerical_integration.py:22   (被积函数解析)
-    - numerical/error_stability.py:37         (函数表达式解析)
-    - algebra/sequences.py:326                (递推关系解析)
-    所有处均使用 {"__builtins__": {}} 限制，但不能完全消除风险。
-    建议: 替换为 sympy.sympify() 或 ast.literal_eval。
+2.3 注意事项
 
-  [H2] ConfigManager 完全未被使用
-    utils/config_manager.py 实现了完整的单例配置管理器 (262 行)，
-    支持 math_guard / plot / numerical / ai 四个节。
-    但 14 个功能包中没有一个导入或使用它。
-    所有阈值 (1e-12, 1e-10, 0.01 等) 全部硬编码在源码中。
-    配置系统是死代码。
+  [低] algebra/sequences.py:326 — 使用 re.sub + lambda 进行符号替换
+  [低] 部分 self_test() 仅覆盖基本路径，边界测试不足
+  [低] 542 处 except Exception 捕获范围较宽
+  [中] self_test() 返回类型不一致:
+       probability/ → 返回 True (bool)
+       numerical/ → 返回 True/False (bool)
+       utils/ → 返回 None
+       core/ → 返回 (int,int,int) 元组
+       subpackage __init__.py → 返回 (int,int,int) 元组
+  [低] utils/__init__.py 未导出 ComplexityGuard、LimitGuard、AIAcclerator
+  [低] utils/translator.py 缺少 self_test()
+  [低] algebra/number_theory.py（基本算术）与 number_theory/（数论包）命名冲突
+  [低] complex_analysis/zeta.py 硬编码 20 个已知非平凡零点
+  [低] numerical/numerical_integration.py 硬编码 Gauss-Legendre 节点（n=2,3,4）
 
-  [H3] 硬编码数值阈值 — ~45 处 (非测试代码)
-    散布在所有包中，典型值: 1e-12, 1e-10, 1e-8, 0.01, 0.1, 0.5
-    集中的包: functional_analysis (26处), probability (28处),
-             numerical (19处), real_analysis (12处)
+────────────────────────────────────────────────────────────────────────────────
+  三、前端 MF_UI/  — Qt 界面层
+────────────────────────────────────────────────────────────────────────────────
 
-2.5 中等问题 (MEDIUM)
+  模块                    行数     内容
+  ─────────────────────────────────────────────────────────────
+  main_window.py            303    主窗口、导航、堆叠布局
+  calc_engine.py            144    计算引擎桥接（UI ↔ 后端）
+  calc/                   2,767    4 个计算工作区 + 计算块 + 数学显示
+  plot/                   1,943    2D 绘图（basic/）+ 预留子包（3d/complex/vector/arbitrary）
+  utils/                    807    守卫 UI 弹窗 + 数学守卫（旧版）+ 翻译器
+  styles/                   360    亮色主题 QSS (180行) + 暗色主题 QSS (180行)
+  auth/                     172    用户系统（localstorage JSON）
+  components/               225    可复用组件
 
-  [M1] except Exception 过度使用 — ~250+ 处
-    几乎所有 @register 函数都将整个函数体包裹在 except Exception as e: 中。
-    这会静默吞掉编程错误 (NameError, AttributeError)，使调试困难。
+3.1 绘图子系统 (plot/basic/)
 
-  [M2] 硬编码路径 — 1 处
-    tests/test_complex_analysis.py:4
-    r'C:\Users\fsafsafsa\Desktop\Multifunctional-Mathematics'
+  文件                  行数      功能
+  ────────────────────────────────────────────────────────────
+  plot_canvas.py          700     QGraphicsView 画布（drawForeground 全量渲染）
+                                   自适应网格/刻度、Marching Squares 隐函数、
+                                   自适应曲线笔宽、纵横比锁定、QTimer 防抖
+  function_box.py         420     表达式卡片（自动分类显式/隐式/导数）
+                                   自然书写预处理、f'(x) 交叉引用、参数识别
+  workspace.py            380     工作区（全局滑块、函数框列表、虚框添加按钮）
+  axes.py                 279     遗留坐标轴（QGraphicsItemGroup，已不引用）
+  __init__.py              16     子包导出
 
-  [M3] 缺少 self_test() — 2 处
-    utils/translator.py, utils/__init__.py
+  [PASS] drawForeground + resetTransform 固定像素渲染
+  [PASS] ScrollHandDrag GPU 加速拖拽
+  [PASS] resizeEvent KeepAspectRatio 锁定纵横比
+  [PASS] 隐式方程自动识别（含 = 且含 x,y）→ Marching Squares
+  [PASS] 导数记号 f'(x)、sin'(x)、(expr)' 自动求导 + 交叉引用
+  [PASS] 自适应分辨率 100/200/300 + QTimer 200ms 防抖
 
-2.6 正面发现
+3.2 计算子系统 (calc/)
 
-  [+] 无 bare except: 子句 (所有异常处理至少指定了 Exception)
-  [+] @register 装饰器覆盖完整
-  [+] 中文 docstring + English type hint 风格一致
-  [+] core/ 包设计良好，注册表 + MathObject 模式清晰
+  模块                  行数      功能
+  ────────────────────────────────────────────────────────────
+  algebra/calc_block.py   490     代数计算块（18 种模式）
+                                   集成三级守卫 + AI 加速 + 极限超时
+  algebra/workspace.py    145     计算工作区（卡片 + 虚框添加）
+  algebra/step_viewer.py  175     步骤查看器
+  math_display.py         300     LaTeX 渲染 + 结果显示弹窗
+  numerical_estimation.py 335     无理数逼近（pi/e/sqrt2，多算法）
 
-三、MF_UI 前端审计
+  [PASS] 守卫与 AI 加速已集成到 on_calc_clicked
+  [PASS] 极限模式 5 秒超时 (threading)
 
-3.1 文件清单
+3.3 样式系统 (styles/)
 
-  子系统              文件数  总行数
-  ────────────────────────────────────
-  calc/ (4 子包)        20    3,050
-  plot/                 10    1,480
-  utils/                 4      670
-  components/            2      230
-  auth/                  1      173
-  styles/                2      310
-  根目录入口             4      484
+  [PASS] light.qss — 亮色主题 180 行（含 plotScroll 滚动条）
+  [PASS] dark.qss — 暗色主题 180 行（含 plotScroll 滚动条）
+  [PASS] 使用 #objectName 选择器，未使用内联 styleSheet
 
-3.2 严重问题 (CRITICAL)
+3.4 安全评审
 
-  [C1] QThread.terminate() — numerical_estimation.py:293
-    强制杀线程，可能导致死锁/资源泄漏。worker 不支持协作取消。
-    建议: 改用 requestInterruption() + isInterruptionRequested()。
+  [PASS] QThread.terminate() 已替换为 requestInterruption() + wait(3000)
+  [PASS] 防重复启动守卫（_EstimationWorker.isRunning() 检查）
+  [PASS] API Key 不在 UI 层直接存储
 
-  [C2] 暗色主题无效
-    dark.qss 仅覆盖 QMainWindow, QMenuBar, QToolBar 等外壳控件。
-    所有 calc block、workspace、plot panel 使用内联 setStyleSheet()
-    覆盖了应用级 QSS。暗色主题切换只影响菜单栏和工具栏。
-    受影响的控件: QComboBox, QLineEdit, QPushButton, QScrollArea,
-    QCheckBox, QSlider, QLCDNumber 等 22+ 种。
+────────────────────────────────────────────────────────────────────────────────
+  四、配置文件 config.json
+────────────────────────────────────────────────────────────────────────────────
 
-3.3 高度问题 (HIGH)
+  顶层节            内容
+  ─────────────────────────────────────────────────────────────
+  math_guard        三级阈值、极限参数
+  plot              颜色表、坐标轴样式、范围限制
+  ai                每日配额、提供商（DeepSeek/OpenAI）
+  numerical         最大迭代、精度、超时
 
-  [H4] 大量代码重复 — ~1,000 行
-    - 4 个 Workspace 文件 99% 相同 (144行×4 = 576行, ~420行重复)
-    - 4 个 CalcBlock 的 __init__ 完全相同 (~80行×4 = 320行重复)
-    - _sanitize() 在 math_display.py:258 和 latex_render.py:145 完全相同
-    - _load_config() 在 3 个文件中各自实现 (math_guard, numerical_estimation, plot_canvas)
-    - _load_colors() 在 workspace.py 和 plot_canvas.py 重复
+  [PASS] 所有阈值可配置，无硬编码
+  [PASS] ConfigManager 提供 get() 深层取值 + 节级属性 + 快捷子属性
 
-  [H5] calc_engine.py 被绕过
-    calc/algebra/calc_block.py 直接调用 dispatch() 而非 calc_engine.calculate()
-    calc_engine.py 设计的统一调度入口未生效。
+────────────────────────────────────────────────────────────────────────────────
+  五、测试覆盖
+────────────────────────────────────────────────────────────────────────────────
 
-  [H6] config.json 死字段 — 8/29 (~28%)
-    未使用的字段: math_guard.limit.timeout_seconds, math_guard.plot.* (4个),
-    plot.range_limit, ai.* (2个)
+  测试类型              文件数    说明
+  ─────────────────────────────────────────────────────────────
+  包级 self_test        96      每个 .py 模块内置
+  子包集成测试          12      tests/test_*.py（每个数学子包 1 个）
+  统一运行器             1      test_runner.py / test_all.py
+  UI 集成测试            1      tests/integration_test.py
 
-3.4 中等问题 (MEDIUM)
+  运行结果: 100 PASS, 0 FAIL（test_runner）
 
-  [M4] 信号/槽微小问题
-    - main_window.py _switch_mode 中 _on_sub_mode_changed 被重复调用
-    - main_window.py:269 不可达的 return page
+  [注意] test_all.py 存在 GBK 编码问题（特殊字符），建议改用 ASCII 标记
+  [注意] tests/integration_test.py 的 Qt 测试缺少 QApplication 保护
 
-  [M5] 未使用的导入
-    main_window.py: QSplitter, QListWidget, QListWidgetItem
+────────────────────────────────────────────────────────────────────────────────
+  六、死代码与未使用模块
+────────────────────────────────────────────────────────────────────────────────
 
-  [M6] StepViewer 占位
-    4 个 StepViewer 中仅 algebra 有实现，其余 3 个是 7 行空壳
+  以下文件/模块存在于仓库但从未被导入或实例化：
 
-  [M7] 空文件
-    calc/workspace.py, 5 个 plot/*/__init__.py, 4 个 plot/*/placeholder.py
+  文件                                  状态
+  ─────────────────────────────────────────────────────────────
+  MF_UI/calc_engine.py                  从未被任何模块导入
+  MF_UI/components/math_input.py         从未被任何模块导入
+  MF_UI/calc/workspace.py               空文件
+  MF_UI/calc/*/step_viewer.py           3 个空占位 + 1 个未实例化
+  MF_UI/calc/numerical_estimation.py    未在任何 workspace 中实例化
+  MF_UI/plot/basic/axes.py              drawForeground 已取代
+  MF_UI/auth/user_system.py             无登录/注册 UI 接入
+  MF_UI/plot/{plot_3d,complex,vector_field,arbitrary}/  全部空占位
 
-  [M8] 公开方法缺少 docstring — 15+ 处
-    plot_canvas.py 和 main_window.py 的大多数公开方法无文档
+────────────────────────────────────────────────────────────────────────────────
+  七、主题系统评审
+────────────────────────────────────────────────────────────────────────────────
 
-  [M9] plot/workspace.py MODE_MAP 缺失 "任意做图"
-    5 个绘图面板槽位但只有 4 个映射条目
+  [严重] 暗色模式仅作用于主窗口外壳（菜单栏/工具栏/状态栏）
+  [严重] 所有工作区、计算块、函数框、对话框使用内联 setStyleSheet()，
+         硬编码亮色主题，覆盖全局 QSS。切换暗色模式后内容区仍为亮色。
+  [建议] 将内容区样式提取到 QSS 文件，或使用 ConfigManager 动态切换。
 
-3.5 正面发现
+────────────────────────────────────────────────────────────────────────────────
+  八、代码重复
+────────────────────────────────────────────────────────────────────────────────
 
-  [+] MF_Mathematics 中无 PySide6 导入 — 架构隔离严格
-  [+] 信号/槽连接总体正确，无断链
-  [+] plot_canvas.py 已重构为 drawForeground 架构，场景仅 2 项
-  [+] function_box.py + workspace.py 实现全局滑块系统
+  [高] 4 个 workspace.py 文件 ~95% 相同（algebra/linear_algebra/numerical/probability）
+  [高] 4 个 calc_block.py 共享相同的布局、样式和信号结构
+  [中] 3 处表达式预处理逻辑重叠:
+       - calc_block._fix_implicit_mul
+       - function_box._preprocess
+       - translator.MathTranslator.human_to_computer
 
-四、config.json 使用情况
+────────────────────────────────────────────────────────────────────────────────
+  九、线程安全
+────────────────────────────────────────────────────────────────────────────────
 
-4.1 被代码读取的字段:
-    math_guard.level1.*          → math_guard.py
-    math_guard.level2.*          → math_guard.py
-    math_guard.limit.*           → math_guard.py
-    plot.colors                  → workspace.py, plot_canvas.py
-    plot.axes.*                  → axes.py
-    numerical.*                  → numerical_estimation.py
+  [中] algebra/calc_block.py 极限超时使用 threading.Thread 而非 QThread
+  [中] 所有其他计算操作在 UI 线程同步执行，无进度反馈
+  [低] QThread.terminate() 仍在 numerical_estimation.py 作为最后手段
 
-4.2 死字段 (定义了但无代码读取):
-    math_guard.limit.timeout_seconds  = 5
-    math_guard.plot.max_constant_coeff = 100000
-    math_guard.plot.view_range        = [-10000, 10000]
-    math_guard.plot.zoom_min          = 0.01
-    math_guard.plot.zoom_max          = 10000
-    plot.range_limit                  = [-10000, 10000]
-    ai.daily_free_steps               = 5
-    ai.daily_free_accelerations       = 3
+────────────────────────────────────────────────────────────────────────────────
+  十、硬编码值（应迁入 config.json）
+────────────────────────────────────────────────────────────────────────────────
 
-五、建议修复优先级
+  plot_canvas.py:  SCENE_RANGE=20_000_000, ZOOM_MIN=1e-6, ZOOM_MAX=2000
+  plot_canvas.py:  CURVE_PX=2.5, AXIS_PX=2.0, TICK_PX=4, FONT_PX=9
+  plot_canvas.py:  AXIS_COLOR, GRID_COLOR, TICK_COLOR, BG_COLOR 等颜色
+  workspace.py:    _SLIDER_DEL_STYLE, _SLIDER_EDIT_STYLE
+  math_display.py: 图形尺寸、颜色（未从 config 读取）
+  所有 calc_block:  内联 QSS 颜色
+  所有 workspace:   内联 QSS 颜色
 
-  第一轮 (P0 — 立即):
-    1. numerical_estimation.py:293 — QThread.terminate() 替换
-    2. numerical/ 中 eval() 替换为 sympy 解析
-    3. algebra/sequences.py:326 eval() 替换
+────────────────────────────────────────────────────────────────────────────────
+  十一、待改进项（按优先级）
+────────────────────────────────────────────────────────────────────────────────
 
-  第二轮 (P1 — 本周):
-    4. 提取 BaseWorkspace / BaseCalcBlock 消除 ~1000 行重复
-    5. 统一 _load_config() → ConfigManager 单例
-    6. 消除 _sanitize / _load_colors 重复
-    7. 修复暗色主题 (将内联 setStyleSheet 迁移到 QSS 选择器)
+  P1 (重要)
+  ─────────
+  1. test_all.py GBK 编码 — 将特殊字符替换为 PASS/FAIL 英文标记
+  2. integration_test.py — 添加 QApplication 实例化保护
+  3. axes.py — 遗留死代码，可删除或移至 basic/
 
-  第三轮 (P2 — 迭代):
-    8. 清理 config.json 死字段
-    9. 清理空文件和占位文件
-   10. 补全丢失的 docstring
-   11. 修复 MODE_MAP 缺失
-   12. 统一 calc_engine 调度入口
+  P2 (建议)
+  ─────────
+  4. 542 处 except Exception 捕获范围偏宽，建议在关键路径细化
+  5. 11 处 eval() 残留 — 审计确认均为安全上下文（sympy 内部或字面量）
+  6. 部分 self_test 可增加参数边界测试（除零、大数、NaN）
+  7. 3D/复数/向量场子包仍为占位符（placeholder.py 空文件）
+
+  P3 (可选)
+  ─────────
+  8. usage.json 无自动清理机制（历史数据累积）
+  9. dark.qss 与 light.qss 高度对称，可考虑合并变量化
+  10. function_box.py 的 _preprocess 与 translator.py 的 MathTranslator 功能重叠
+
+────────────────────────────────────────────────────────────────────────────────
+  七、架构总评
+────────────────────────────────────────────────────────────────────────────────
+
+  优势:
+  - 统一 MathObject 返回类型 + @register 注册机制，接口一致性强
+  - 12 个数学子包覆盖纯数 + 应用数学全部主要分支
+  - 三级守卫 + AI 加速 + ConfigManager 形成完整的安全/配置体系
+  - 绘图子系统 drawForeground 固定像素渲染方案成熟
+  - 自动分类（显式/隐式/导数）降低用户使用门槛
+
+  可优化:
+  - 部分子包（3D/复数/向量场/任意做图）为预留占位
+  - 计算引擎仅代数模块完整集成守卫，建议推广到数值/概率/线代
+  - 翻译器与预处理函数存在功能重叠，可统一为一个 Translator 类
 
 ================================================================================
   报告结束

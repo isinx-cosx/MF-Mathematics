@@ -42,6 +42,7 @@ class BaseWorkspace(QWidget):
         self._scroll = QScrollArea(self._card)
         self._scroll.setWidgetResizable(True)
         self._scroll.setFrameShape(QFrame.Shape.NoFrame)
+        self._scroll.setObjectName("calcScroll")
 
         self._content = QWidget()
         self._scroll.setWidget(self._content)

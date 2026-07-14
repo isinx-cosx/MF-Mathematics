@@ -288,34 +288,88 @@ FunctionBox QLineEdit:focus {
 }
 
 /* ============================================
-   绘图区滚动条
+   滚动条 — 全局 + 计算区 + 绘图区
    ============================================ */
-#plotScroll QScrollBar:vertical {
-    width: 10px;
+
+/* 全局滚动条基础 */
+QScrollBar:vertical {
+    width: 8px;
     background: transparent;
     border: none;
-    margin: 0;
+    margin: 4px 0 4px 0;
 }
-#plotScroll QScrollBar::handle:vertical {
+QScrollBar:horizontal {
+    height: 8px;
+    background: transparent;
+    border: none;
+    margin: 0 4px 0 4px;
+}
+QScrollBar::handle:vertical {
     background: #cbd5e1;
-    border-radius: 6px;
-    min-height: 30px;
+    border-radius: 4px;
+    min-height: 36px;
 }
-#plotScroll QScrollBar::handle:vertical:hover {
+QScrollBar::handle:vertical:hover {
     background: #94a3b8;
 }
-#plotScroll QScrollBar::add-line:vertical,
-#plotScroll QScrollBar::sub-line:vertical {
+QScrollBar::handle:vertical:pressed {
+    background: #64748b;
+}
+QScrollBar::handle:horizontal {
+    background: #cbd5e1;
+    border-radius: 4px;
+    min-width: 36px;
+}
+QScrollBar::handle:horizontal:hover {
+    background: #94a3b8;
+}
+QScrollBar::add-line,
+QScrollBar::sub-line {
+    height: 0px;
+    width: 0px;
+    border: none;
+    background: none;
+}
+QScrollBar::add-page,
+QScrollBar::sub-page {
+    background: none;
+}
+QScrollBar::up-arrow,
+QScrollBar::down-arrow,
+QScrollBar::left-arrow,
+QScrollBar::right-arrow {
+    width: 0px;
     height: 0px;
     border: none;
     background: none;
 }
-#plotScroll QScrollBar::add-page:vertical,
-#plotScroll QScrollBar::sub-page:vertical {
-    background: none;
+
+/* 计算工作区滚动条 — 略宽，更醒目 */
+#calcScroll QScrollBar:vertical {
+    width: 10px;
+}
+#calcScroll QScrollBar::handle:vertical {
+    background: #cbd5e1;
+    border-radius: 5px;
+    min-height: 40px;
+}
+#calcScroll QScrollBar::handle:vertical:hover {
+    background: #94a3b8;
 }
 
-/* ---- 滚动条全局 ---- */
+/* 绘图区滚动条 — 保持现有风格 */
+#plotScroll QScrollBar:vertical {
+    width: 10px;
+}
+#plotScroll QScrollBar::handle:vertical {
+    background: #cbd5e1;
+    border-radius: 5px;
+    min-height: 36px;
+}
+#plotScroll QScrollBar::handle:vertical:hover {
+    background: #94a3b8;
+}
+
 QScrollArea {
     background: transparent;
     border: none;
