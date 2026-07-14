@@ -6,6 +6,10 @@
 QMainWindow {
     background-color: #1e1e2e;
 }
+QWidget {
+    background-color: #1e1e2e;
+    color: #cdd6f4;
+}
 
 /* ---- 菜单栏 ---- */
 QMenuBar {
@@ -14,12 +18,10 @@ QMenuBar {
     border-bottom: 1px solid #313244;
     padding: 2px 0;
 }
-
 QMenuBar::item {
     padding: 4px 12px;
     border-radius: 4px;
 }
-
 QMenuBar::item:selected {
     background-color: #313244;
 }
@@ -30,16 +32,13 @@ QMenu {
     border: 1px solid #313244;
     padding: 4px;
 }
-
 QMenu::item {
     padding: 6px 32px 6px 16px;
     border-radius: 4px;
 }
-
 QMenu::item:selected {
     background-color: #313244;
 }
-
 QMenu::separator {
     height: 1px;
     background: #313244;
@@ -53,7 +52,6 @@ QToolBar {
     padding: 4px 8px;
     spacing: 6px;
 }
-
 QToolBar QToolButton {
     color: #a6adc8;
     padding: 6px 16px;
@@ -61,82 +59,14 @@ QToolBar QToolButton {
     border-radius: 6px;
     font-size: 13px;
 }
-
 QToolBar QToolButton:hover {
     background-color: #313244;
     color: #cdd6f4;
 }
-
 QToolBar QToolButton:checked {
     background-color: #3b82f6;
     color: #ffffff;
     border: 1px solid #2563eb;
-}
-
-/* ---- 左侧导航 ---- */
-#nav_header {
-    background-color: #252540;
-    color: #a6adc8;
-    font-size: 13px;
-    font-weight: bold;
-    border-bottom: 1px solid #313244;
-}
-
-#nav_list {
-    background-color: #252540;
-    color: #cdd6f4;
-    border: none;
-    font-size: 14px;
-    padding: 4px;
-    outline: none;
-}
-
-#nav_list::item {
-    padding: 8px 16px;
-    border-radius: 6px;
-}
-
-#nav_list::item:hover {
-    background-color: #313244;
-}
-
-#nav_list::item:selected {
-    background-color: #3b82f6;
-    color: #ffffff;
-}
-
-/* ---- 占位页面 ---- */
-#page_title {
-    color: #cdd6f4;
-    background: transparent;
-}
-
-#page_desc {
-    color: #a6adc8;
-    font-size: 13px;
-    background: transparent;
-}
-
-#placeholder_frame {
-    background-color: #1e1e2e;
-    border: 2px dashed #45475a;
-    border-radius: 12px;
-}
-
-#dev_label {
-    color: #6c7086;
-    font-size: 18px;
-    background: transparent;
-}
-
-/* ---- 分割器 ---- */
-QSplitter::handle {
-    background-color: #313244;
-    width: 2px;
-}
-
-QSplitter::handle:hover {
-    background-color: #585b70;
 }
 
 /* ---- 状态栏 ---- */
@@ -147,13 +77,225 @@ QStatusBar {
     padding: 2px 12px;
     font-size: 12px;
 }
-
 #brand_label {
     color: #6c7086;
     font-size: 12px;
 }
 
-/* ---- 绘图区滚动条（暗色）---- */
+/* ============================================
+   计算工作区 (BaseWorkspace)
+   ============================================ */
+#title_label {
+    font-size: 20px;
+    font-weight: 600;
+    color: #cdd6f4;
+    background: transparent;
+}
+#desc_label {
+    font-size: 14px;
+    color: #a6adc8;
+    background: transparent;
+}
+#work_card {
+    background-color: #252540;
+    border: 1px solid #313244;
+    border-radius: 10px;
+    padding: 12px;
+}
+#btn_add {
+    border-top: 1px solid #45475a;
+    border-left: 1px solid #45475a;
+    border-right: 1px solid #45475a;
+    border-bottom: none;
+    background-color: transparent;
+    color: #6c7086;
+    font-size: 13px;
+}
+#btn_add:hover {
+    background-color: #313244;
+    color: #a6adc8;
+}
+
+/* ---- 计算块分隔线 ---- */
+#calc_separator {
+    background-color: #313244;
+    border: none;
+}
+
+/* ============================================
+   计算块 (BaseCalcBlock)
+   ============================================ */
+CalcBlock {
+    background-color: #252540;
+    border: 1px solid #313244;
+    border-radius: 8px;
+    padding: 8px;
+    margin: 4px 0px;
+}
+
+/* 计算块内的输入框 */
+CalcBlock QLineEdit {
+    border: 1px solid #45475a;
+    border-radius: 4px;
+    padding: 6px 10px;
+    font-size: 13px;
+    background-color: #1e1e2e;
+    color: #cdd6f4;
+    selection-background-color: #3b82f6;
+}
+CalcBlock QLineEdit:focus {
+    border-color: #3b82f6;
+    background-color: #181825;
+}
+
+/* 计算块内的下拉菜单 */
+CalcBlock QComboBox {
+    border: 1px solid #45475a;
+    border-radius: 4px;
+    padding: 6px 10px;
+    font-size: 13px;
+    background-color: #1e1e2e;
+    color: #cdd6f4;
+    min-width: 100px;
+}
+CalcBlock QComboBox:hover {
+    background-color: #313244;
+}
+CalcBlock QComboBox QAbstractItemView {
+    background-color: #252540;
+    color: #cdd6f4;
+    selection-background-color: #3b82f6;
+    border: 1px solid #45475a;
+}
+CalcBlock QComboBox::drop-down {
+    border: none;
+    width: 20px;
+}
+CalcBlock QComboBox::drop-arrow {
+    width: 12px;
+    height: 12px;
+}
+
+/* 计算按钮 */
+QPushButton#calc_btn {
+    background-color: #3b82f6;
+    color: #ffffff;
+    border: none;
+    border-radius: 4px;
+    padding: 6px 16px;
+    font-size: 13px;
+    font-weight: 500;
+}
+QPushButton#calc_btn:hover {
+    background-color: #2563eb;
+}
+QPushButton#calc_btn:pressed {
+    background-color: #1d4ed8;
+}
+
+/* 删除按钮 */
+QPushButton#delete_btn {
+    background-color: transparent;
+    border: none;
+    color: #6c7086;
+    font-size: 16px;
+    font-weight: bold;
+    padding: 4px 8px;
+    border-radius: 4px;
+}
+QPushButton#delete_btn:hover {
+    background-color: #442222;
+    color: #ef4444;
+}
+QPushButton#delete_btn:pressed {
+    background-color: #552222;
+}
+
+/* ============================================
+   绘图工作区 (PlotWorkspace)
+   ============================================ */
+#plot_title_label {
+    font-size: 16px;
+    font-weight: 600;
+    color: #cdd6f4;
+    background: transparent;
+}
+#plot_desc_label {
+    font-size: 12px;
+    color: #a6adc8;
+    background: transparent;
+}
+#plot_work_card {
+    background-color: #252540;
+    border: 1px solid #313244;
+    border-radius: 10px;
+    padding: 12px;
+}
+#plot_btn_add {
+    border-top: 1px solid #45475a;
+    border-left: 1px solid #45475a;
+    border-right: 1px solid #45475a;
+    border-bottom: none;
+    background-color: transparent;
+    color: #6c7086;
+    font-size: 13px;
+}
+#plot_btn_add:hover {
+    background-color: #313244;
+    color: #a6adc8;
+}
+#plot_left_panel {
+    background-color: #1e1e2e;
+    border-right: 1px solid #313244;
+}
+
+/* ============================================
+   函数框 (FunctionBox)
+   ============================================ */
+FunctionBox {
+    background-color: #252540;
+    border: 1px solid #313244;
+    border-radius: 8px;
+    padding: 8px;
+    margin: 2px 0;
+}
+FunctionBox QLineEdit {
+    border: 1px solid #45475a;
+    border-radius: 4px;
+    padding: 3px 8px;
+    font-size: 13px;
+    background-color: #1e1e2e;
+    color: #cdd6f4;
+}
+FunctionBox QLineEdit:focus {
+    border-color: #3b82f6;
+}
+
+/* 函数框删除按钮 */
+#func_del_btn {
+    background-color: transparent;
+    border: none;
+    color: #6c7086;
+    font-size: 18px;
+    font-weight: bold;
+    padding: 0 4px;
+}
+#func_del_btn:hover {
+    color: #ef4444;
+    background-color: #442222;
+    border-radius: 4px;
+}
+
+/* 函数框可见性复选框 */
+#func_vis_cb {
+    font-size: 12px;
+    color: #a6adc8;
+    spacing: 4px;
+}
+
+/* ============================================
+   绘图区滚动条
+   ============================================ */
 #plotScroll QScrollBar:vertical {
     width: 10px;
     background: transparent;
@@ -177,4 +319,51 @@ QStatusBar {
 #plotScroll QScrollBar::add-page:vertical,
 #plotScroll QScrollBar::sub-page:vertical {
     background: none;
+}
+
+/* ---- 滚动条全局 ---- */
+QScrollArea {
+    background: transparent;
+    border: none;
+}
+
+/* ---- 占位页面 ---- */
+#page_title {
+    color: #cdd6f4;
+    background: transparent;
+}
+#page_desc {
+    color: #a6adc8;
+    font-size: 13px;
+    background: transparent;
+}
+#placeholder_frame {
+    background-color: #1e1e2e;
+    border: 2px dashed #45475a;
+    border-radius: 12px;
+}
+#dev_label {
+    color: #6c7086;
+    font-size: 18px;
+    background: transparent;
+}
+
+/* ---- 绘图区滑块控件 ---- */
+#slider_edit {
+    border: 1px solid #45475a; border-radius: 3px;
+    padding: 1px 4px; font-size: 11px; background: #1e1e2e; color: #cdd6f4; width: 52px;
+}
+#slider_del_btn {
+    background: transparent; border: none; color: #6c7086;
+    font-size: 14px; font-weight: bold; padding: 0 2px;
+}
+#slider_del_btn:hover { color: #ef4444; }
+
+/* ---- 分割器 ---- */
+QSplitter::handle {
+    background-color: #313244;
+    width: 2px;
+}
+QSplitter::handle:hover {
+    background-color: #585b70;
 }

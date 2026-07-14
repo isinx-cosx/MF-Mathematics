@@ -15,23 +15,6 @@ from PySide6.QtWidgets import (
 from MF_UI.calc.base_calc_block import BaseCalcBlock
 
 
-# ── 共享样式（统一从 QSS 文件读取，此处仅作兜底）─────────────
-_FALLBACK_STYLE = """
-    #title_label { font-size: 20px; font-weight: 600; color: #0f172a; }
-    #desc_label { font-size: 14px; color: #475569; }
-    #work_card {
-        background-color: #ffffff; border: 1px solid #e2e8f0;
-        border-radius: 10px; padding: 12px;
-    }
-    #btn_add {
-        border-top: 1px solid #d7d7d7; border-left: 1px solid #d7d7d7;
-        border-right: 1px solid #d7d7d7; border-bottom: none;
-        background-color: transparent; color: #94a3b8; font-size: 13px;
-    }
-    #btn_add:hover { background-color: #e0e2e4d8; color: #475569; }
-"""
-
-
 class BaseWorkspace(QWidget):
     """计算工作区基类 — 标题 + 描述 + 卡片 + 滚动区 + 虚框按钮。"""
 
@@ -84,9 +67,6 @@ class BaseWorkspace(QWidget):
 
         root.addWidget(self._card, 1)
 
-        # ── 样式 ──
-        self.setStyleSheet(_FALLBACK_STYLE)
-
         # 初始添加一个计算块
         self._on_add_block()
 
@@ -114,7 +94,7 @@ class BaseWorkspace(QWidget):
         if self._blocks:
             sep = QFrame()
             sep.setFixedHeight(1)
-            sep.setStyleSheet("background-color: #e2e8f0; border: none;")
+            sep.setObjectName("calc_separator")
             self._card_layout.insertWidget(idx, sep)
             cb._separator = sep
         else:

@@ -38,16 +38,6 @@ def _load_plot_colors() -> list[str]:
 
 _COLORS = _load_plot_colors()
 
-_SLIDER_DEL_STYLE = """
-    QPushButton { background: transparent; border: none; color: #94a3b8;
-                  font-size: 14px; font-weight: bold; padding: 0 2px; }
-    QPushButton:hover { color: #ef4444; }
-"""
-_SLIDER_EDIT_STYLE = """
-    QLineEdit { border: 1px solid #d1d5db; border-radius: 3px;
-                padding: 1px 4px; font-size: 11px; background: #fff; width: 52px; }
-"""
-
 
 class PlotWorkspace(QWidget):
     """绘图模式工作区。"""
@@ -74,23 +64,23 @@ class PlotWorkspace(QWidget):
         # ── 左侧面板 ──
         left = QWidget()
         left.setFixedWidth(340)
-        left.setStyleSheet("background:#f8fafc; border-right:1px solid #e2e8f0")
+        left.setObjectName("plot_left_panel")
         ll = QVBoxLayout(left)
         ll.setSpacing(4); ll.setContentsMargins(12, 12, 12, 12)
 
         # 标题 + 描述
         title_label = QLabel(title)
-        title_label.setObjectName("title_label")
+        title_label.setObjectName("plot_title_label")
         desc_label = QLabel("支持：显式 y=f(x)、隐式 f(x,y)=0、自然书写、参数滑块")
-        desc_label.setObjectName("desc_label")
+        desc_label.setObjectName("plot_desc_label")
         ll.addWidget(title_label); ll.addWidget(desc_label)
 
         self._status = QLabel("就绪")
-        self._status.setStyleSheet("font-size:11px; color:#64748b"); self._status.setWordWrap(True)
+        self._status.setStyleSheet("font-size:11px;"); self._status.setWordWrap(True)
         ll.addWidget(self._status)
 
         # ── 卡片容器 ──
-        card = QFrame(); card.setObjectName("work_card")
+        card = QFrame(); card.setObjectName("plot_work_card")
         scroll = QScrollArea(card)
         scroll.setWidgetResizable(True); scroll.setFrameShape(QScrollArea.Shape.NoFrame)
         scroll.setObjectName("plotScroll")  # 用于 QSS 样式选择器
@@ -133,7 +123,7 @@ class PlotWorkspace(QWidget):
         # 虚框添加按钮
         self._btn_add = QPushButton("＋ 添加函数")
         self._btn_add.setFlat(True); self._btn_add.setFixedHeight(50)
-        self._btn_add.setObjectName("btn_add")
+        self._btn_add.setObjectName("plot_btn_add")
         self._btn_add.setCursor(Qt.CursorShape.PointingHandCursor)
         self._btn_add.clicked.connect(self._add)
         self._list_layout.addWidget(self._btn_add)
@@ -148,18 +138,7 @@ class PlotWorkspace(QWidget):
         self._canvas.status_message.connect(self._status.setText)
         root.addWidget(self._canvas, 1)
 
-        # ── 全局样式 ──
-        self.setStyleSheet("""
-            #title_label { font-size: 16px; font-weight: 600; color: #0f172a; }
-            #desc_label { font-size: 12px; color: #475569; }
-            #work_card { background-color: #ffffff; border: 1px solid #e2e8f0;
-                         border-radius: 10px; padding: 12px; }
-            QScrollArea { background: transparent; border: none; }
-            #btn_add { border-top: 1px solid #d7d7d7; border-left: 1px solid #d7d7d7;
-                       border-right: 1px solid #d7d7d7; border-bottom: none;
-                       background-color: transparent; color: #94a3b8; font-size: 13px; }
-            #btn_add:hover { background-color: #e0e2e4d8; color: #475569; }
-        """)
+        # 样式由 light.qss / dark.qss 统一管理
 
         self._add()
 
@@ -198,11 +177,13 @@ class PlotWorkspace(QWidget):
         row.addWidget(slider, 1)
 
         edit = QLineEdit("1.00")
-        edit.setFixedWidth(52); edit.setStyleSheet(_SLIDER_EDIT_STYLE)
+        edit.setFixedWidth(52)
+        edit.setObjectName("slider_edit")
         row.addWidget(edit)
 
         del_btn = QPushButton("×")
-        del_btn.setFixedSize(20, 20); del_btn.setStyleSheet(_SLIDER_DEL_STYLE)
+        del_btn.setFixedSize(20, 20)
+        del_btn.setObjectName("slider_del_btn")
         del_btn.setToolTip(f"删除参数 '{name}' 的滑块")
         del_btn.clicked.connect(lambda: self._remove_global_slider(name))
         row.addWidget(del_btn)

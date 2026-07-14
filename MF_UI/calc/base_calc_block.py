@@ -30,45 +30,6 @@ for _p in (_prj, _ui):
 from calc.math_display import LatexLineEdit, ResultDialog
 
 
-# ── 共享样式（兜底，已从 QSS 文件加载）─────────────────────
-_SHARED_STYLE = """
-    CalcBlock {
-        background-color: #ffffff; border: 1px solid #e2e8f0;
-        border-radius: 8px; padding: 8px; margin: 4px 0px;
-    }
-    QLineEdit {
-        border: 1px solid #d1d5db; border-radius: 4px;
-        padding: 6px 10px; font-size: 13px;
-        background-color: #fafafa;
-        selection-background-color: #3b82f6;
-    }
-    QLineEdit:focus {
-        border-color: #3b82f6; background-color: #ffffff; outline: none;
-    }
-    QComboBox {
-        border: 1px solid #d1d5db; border-radius: 4px;
-        padding: 6px 10px; font-size: 13px;
-        background-color: #fafafa; min-width: 100px;
-    }
-    QComboBox:hover { background-color: #9ca3af; }
-    QComboBox:on { background-color: #3b82f6; }
-    QComboBox::drop-down { border: none; width: 20px; }
-    QComboBox::drop-arrow { width: 12px; height: 12px; }
-    QPushButton#calc_btn {
-        background-color: #3b82f6; color: #ffffff; border: none;
-        border-radius: 4px; padding: 6px 16px; font-size: 13px; font-weight: 500;
-    }
-    QPushButton#calc_btn:hover { background-color: #2563eb; }
-    QPushButton#calc_btn:pressed { background-color: #1d4ed8; }
-    QPushButton#delete_btn {
-        background-color: transparent; border: none; color: #94a3b8;
-        font-size: 16px; font-weight: bold; padding: 4px 8px; border-radius: 4px;
-    }
-    QPushButton#delete_btn:hover { background-color: #fee2e2; color: #ef4444; }
-    QPushButton#delete_btn:pressed { background-color: #fecaca; }
-"""
-
-
 class BaseCalcBlock(QWidget):
     """计算块基类 — 输入框 + 模式下拉 + 计算/删除按钮 + 统一分派。"""
 
@@ -119,7 +80,8 @@ class BaseCalcBlock(QWidget):
         outer.setContentsMargins(0, 0, 0, 0)
         outer.addLayout(row)
 
-        self.setStyleSheet(_SHARED_STYLE)
+        # 仅保留功能性内联样式（错误提示红色，不受主题影响）
+        # 其他样式由 light.qss / dark.qss 统一管理
 
     # ── 子类覆盖 ──────────────────────────────────────────────
 

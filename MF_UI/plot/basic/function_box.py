@@ -59,22 +59,7 @@ _KNOWN_IDS = {
     'e', 'pi', 'E', 'Pi', 'oo', 'nan', 'I',
 }
 
-# ── 样式 ──────────────────────────────────────────────────
-_CARD_STYLE = """
-    FunctionBox { background: #f9fafb; border: 1px solid #e2e8f0;
-                  border-radius: 8px; padding: 8px; margin: 2px 0; }
-"""
-_INPUT_STYLE = """
-    QLineEdit { border: 1px solid #d1d5db; border-radius: 4px;
-                padding: 3px 8px; font-size: 13px; background: #fff; color: #1e293b; }
-    QLineEdit:focus { border-color: #3b82f6; }
-"""
-_DEL_BTN_STYLE = """
-    QPushButton { background: transparent; border: none; color: #94a3b8;
-                  font-size: 18px; font-weight: bold; padding: 0 4px; }
-    QPushButton:hover { color: #ef4444; background: #fee2e2; border-radius: 4px; }
-"""
-_VIS_STYLE = "QCheckBox { font-size: 12px; color: #64748b; spacing: 4px; }"
+# ── 功能性内联样式（不随主题变化：错误红色、类型标签色）───
 _ERR_STYLE = "color: #dc2626; font-size: 11px; padding: 0 4px;"
 _TYPE_TAG_STYLE = """
     font-size: 10px; font-weight: 600; border-radius: 3px; padding: 1px 6px;
@@ -118,7 +103,6 @@ class FunctionBox(QWidget):
         self._updating = False
 
         # ── 卡片外观 ──
-        self.setStyleSheet(_CARD_STYLE)
         shadow = QGraphicsDropShadowEffect(self)
         shadow.setBlurRadius(8); shadow.setOffset(0, 1)
         shadow.setColor(QColor(0, 0, 0, 30))
@@ -130,10 +114,10 @@ class FunctionBox(QWidget):
         # ── 第 1 行：编号 + 类型标签 + 输入 + 色点 ──
         row1 = QHBoxLayout(); row1.setSpacing(6)
         self._title = QLabel(f"{index}.")
-        self._title.setStyleSheet("font-weight:600; font-size:13px; color:#1e293b;")
+        self._title.setStyleSheet("font-weight:600; font-size:13px;")  # 颜色由 QSS 管理
         row1.addWidget(self._title)
 
-        # 类型标签（自动显示 "显式" / "隐式"）
+        # 类型标签（自动显示 "显式" / "隐式" — 颜色由 _on_text 动态设置）
         self._type_tag = QLabel("")
         self._type_tag.setStyleSheet(_TYPE_TAG_STYLE)
         self._type_tag.hide()
@@ -142,12 +126,11 @@ class FunctionBox(QWidget):
         self._input = QLineEdit()
         self._input.setFixedHeight(28)
         self._input.setPlaceholderText("sinx, e^x, g(t)=sin(t), x^2+y^2=25")
-        self._input.setStyleSheet(_INPUT_STYLE)
         self._input.textChanged.connect(self._on_text)
         row1.addWidget(self._input, 1)
 
         dot = QLabel("●")
-        dot.setStyleSheet(f"color:{color}; font-size:16px;")
+        dot.setStyleSheet(f"color:{color}; font-size:16px;")  # 色点颜色是用户选择的
         dot.setFixedWidth(20); dot.setAlignment(Qt.AlignmentFlag.AlignCenter)
         row1.addWidget(dot)
         root.addLayout(row1)
@@ -163,18 +146,20 @@ class FunctionBox(QWidget):
         row2 = QHBoxLayout(); row2.setSpacing(4)
 
         self._param_hint = QLabel("")
-        self._param_hint.setStyleSheet("font-size: 11px; color: #94a3b8;")
+        self._param_hint.setStyleSheet("font-size: 11px;")  # 颜色由 QSS 管理
         row2.addWidget(self._param_hint)
 
         row2.addStretch()
 
         self._vis = QCheckBox("显示")
-        self._vis.setChecked(True); self._vis.setStyleSheet(_VIS_STYLE)
+        self._vis.setChecked(True)
+        self._vis.setObjectName("func_vis_cb")
         self._vis.toggled.connect(lambda _: self.changed.emit())
         row2.addWidget(self._vis)
 
         self._del_btn = QPushButton("×")
-        self._del_btn.setFixedSize(24, 24); self._del_btn.setStyleSheet(_DEL_BTN_STYLE)
+        self._del_btn.setFixedSize(24, 24)
+        self._del_btn.setObjectName("func_del_btn")
         self._del_btn.setToolTip("删除此函数")
         self._del_btn.clicked.connect(lambda: self.removed.emit(self))
         row2.addWidget(self._del_btn)
