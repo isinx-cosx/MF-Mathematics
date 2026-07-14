@@ -3,10 +3,12 @@ import sys
 import os
 import traceback
 
-# 将 MF_UI 目录加入 sys.path，确保可导入同目录下的 main_window
-_this_dir = os.path.dirname(os.path.abspath(__file__))
-if _this_dir not in sys.path:
-    sys.path.insert(0, _this_dir)
+# 将项目根目录和 MF_UI/ 加入 sys.path
+_this_dir = os.path.dirname(os.path.abspath(__file__))          # MF_UI/
+_project_root = os.path.dirname(_this_dir)                       # 项目根
+for _d in (_project_root, _this_dir):
+    if _d not in sys.path:
+        sys.path.insert(0, _d)
 
 from PySide6.QtWidgets import QApplication
 from main_window import MainWindow
