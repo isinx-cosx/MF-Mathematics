@@ -305,6 +305,10 @@ class NumericalEstimation(QWidget):
         if self._worker and self._worker.isRunning():
             self._worker.requestInterruption()
             if not self._worker.wait(3000):
+                import logging
+                logging.warning(
+                    "NumericalEstimation worker 线程 3 秒内未响应 requestInterruption，"
+                    "回退到 terminate()")
                 self._worker.terminate()  # 最后手段
                 self._worker.wait()
             self._worker.deleteLater()

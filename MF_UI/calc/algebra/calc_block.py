@@ -279,12 +279,15 @@ class CalcBlock(QWidget):
             dlg.exec()
             return
 
-        # ── 执行计算 ──
+        # ── 执行计算（保持 UI 响应）──
+        from PySide6.QtWidgets import QApplication
+        QApplication.processEvents()
         obj: MathObject | None = None
         try:
             obj = self._do_calculate(op, expr)
         except Exception as e:
             obj = MathObject(error=str(e))
+        QApplication.processEvents()
 
         if obj is None:
             obj = MathObject(error="暂不支持此功能")

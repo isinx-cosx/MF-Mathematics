@@ -3,6 +3,14 @@ import sys, os
 sys.path.insert(0, '.')
 sys.path.insert(0, 'MF_UI')
 
+# ── Qt 应用实例（PlotCanvas / FunctionBox / 对话框测试需要）──
+_app = None
+try:
+    from PySide6.QtWidgets import QApplication
+    _app = QApplication.instance() or QApplication(sys.argv)
+except Exception:
+    pass
+
 passed = 0
 failed = 0
 
@@ -71,6 +79,9 @@ def _():
 
 @test("PlotCanvas")
 def _():
+    if _app is None:
+        print("  [SKIP] QApplication not available")
+        return
     from MF_UI.plot.basic.plot_canvas import PlotCanvas
     pc = PlotCanvas()
     assert hasattr(pc, 'add_function')
@@ -78,6 +89,9 @@ def _():
 
 @test("FunctionBox")
 def _():
+    if _app is None:
+        print("  [SKIP] QApplication not available")
+        return
     from MF_UI.plot.basic.function_box import FunctionBox
     fb = FunctionBox(index=1, color='#e74c3c')
     assert fb.is_visible
@@ -96,6 +110,9 @@ def _():
 
 @test("UserSystem register+login")
 def _():
+    if _app is None:
+        print("  [SKIP] QApplication not available")
+        return
     from MF_UI.auth.user_system import UserSystem
     UserSystem.init(os.getcwd())
     ok, msg = UserSystem.register('itest_user', 'pass1234')
@@ -114,12 +131,18 @@ def _():
 
 @test("MathDisplay render")
 def _():
+    if _app is None:
+        print("  [SKIP] QApplication not available")
+        return
     from MF_UI.calc.math_display import _render_single
     pix = _render_single('x^2 + 2x + 1', font_size=10)
     assert pix is not None and not pix.isNull()
 
 @test("ResultDialog")
 def _():
+    if _app is None:
+        print("  [SKIP] QApplication not available")
+        return
     from MF_UI.calc.math_display import ResultDialog
     from MF_Mathematics.core.math_object import MathObject
     rd = ResultDialog()

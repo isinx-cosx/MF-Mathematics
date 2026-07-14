@@ -114,7 +114,7 @@ def run_all_tests() -> bool:
                 mod = importlib.import_module(full_name)
             except Exception as e:
                 pkg_errors += 1
-                print(f"  ✗ {label} IMPORT ERROR: {e}")
+                print(f"  FAIL {label} IMPORT ERROR: {e}")
                 continue
 
             if not hasattr(mod, "self_test"):
@@ -129,13 +129,13 @@ def run_all_tests() -> bool:
                 pkg_failed += 1
                 all_ok = False
                 msg = str(e) if str(e) else "(no message)"
-                print(f"  ✗ {label} FAILED: {msg}")
+                print(f"  FAIL {label} FAILED: {msg}")
             except Exception as e:
                 pkg_errors += 1
                 all_ok = False
                 tb_lines = traceback.format_exc().strip().split("\n")
                 last_msg = tb_lines[-1] if tb_lines else str(e)
-                print(f"  ✗ {label} ERROR: {last_msg}")
+                print(f"  FAIL {label} ERROR: {last_msg}")
 
         # 模块级汇总行
         parts = []
