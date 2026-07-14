@@ -1,0 +1,154 @@
+/* ============================================
+   MF-Mathematics - 亮色主题
+   ============================================ */
+
+/* ---- 全局 ---- */
+QMainWindow {
+    background-color: #f8fafc;
+}
+
+/* ---- 菜单栏 ---- */
+QMenuBar {
+    background-color: #ffffff;
+    color: #1e293b;
+    border-bottom: 1px solid #e2e8f0;
+    padding: 2px 0;
+}
+
+QMenuBar::item {
+    padding: 4px 12px;
+    border-radius: 4px;
+}
+
+QMenuBar::item:selected {
+    background-color: #e2e8f0;
+}
+
+QMenu {
+    background-color: #ffffff;
+    color: #1e293b;
+    border: 1px solid #e2e8f0;
+    padding: 4px;
+}
+
+QMenu::item {
+    padding: 6px 32px 6px 16px;
+    border-radius: 4px;
+}
+
+QMenu::item:selected {
+    background-color: #e2e8f0;
+}
+
+QMenu::separator {
+    height: 1px;
+    background: #e2e8f0;
+    margin: 4px 8px;
+}
+
+/* ---- 工具栏 ---- */
+QToolBar {
+    background-color: #ffffff;
+    border-bottom: 1px solid #e2e8f0;
+    padding: 4px 8px;
+    spacing: 6px;
+}
+
+QToolBar QToolButton {
+    color: #64748b;
+    padding: 6px 16px;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    font-size: 13px;
+}
+
+QToolBar QToolButton:hover {
+    background-color: #f1f5f9;
+    color: #1e293b;
+}
+
+QToolBar QToolButton:checked {
+    background-color: #3b82f6;
+    color: #ffffff;
+    border: 1px solid #2563eb;
+}
+
+/* ---- 左侧导航 ---- */
+#nav_header {
+    background-color: #ffffff;
+    color: #475569;
+    font-size: 13px;
+    font-weight: bold;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+#nav_list {
+    background-color: #ffffff;
+    color: #334155;
+    border: none;
+    font-size: 14px;
+    padding: 4px;
+    outline: none;
+}
+
+#nav_list::item {
+    padding: 8px 16px;
+    border-radius: 6px;
+}
+
+#nav_list::item:hover {
+    background-color: #f1f5f9;
+}
+
+#nav_list::item:selected {
+    background-color: #3b82f6;
+    color: #ffffff;
+}
+
+/* ---- 占位页面 ---- */
+#page_title {
+    color: #1e293b;
+    background: transparent;
+}
+
+#page_desc {
+    color: #64748b;
+    font-size: 13px;
+    background: transparent;
+}
+
+#placeholder_frame {
+    background-color: #f8fafc;
+    border: 2px dashed #cbd5e1;
+    border-radius: 12px;
+}
+
+#dev_label {
+    color: #94a3b8;
+    font-size: 18px;
+    background: transparent;
+}
+
+/* ---- 分割器 ---- */
+QSplitter::handle {
+    background-color: #e2e8f0;
+    width: 2px;
+}
+
+QSplitter::handle:hover {
+    background-color: #94a3b8;
+}
+
+/* ---- 状态栏 ---- */
+QStatusBar {
+    background-color: #ffffff;
+    color: #475569;
+    border-top: 1px solid #e2e8f0;
+    padding: 2px 12px;
+    font-size: 12px;
+}
+
+#brand_label {
+    color: #94a3b8;
+    font-size: 12px;
+}

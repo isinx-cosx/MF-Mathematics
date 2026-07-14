@@ -1,0 +1,49 @@
+{
+  "math_guard": {
+    "level1": {
+      "max_ops": 500,
+      "max_nest_depth": 10,
+      "description": "Slow warning — expression may take >10s"
+    },
+    "level2": {
+      "poly_degree_threshold": 10,
+      "max_matrix_dim": 6,
+      "max_series_range": 1000,
+      "description": "Explosion risk — very high chance of hang"
+    },
+    "level3": {
+      "description": "Hard math errors — division by zero, undefined symbols, etc."
+    },
+    "limit": {
+      "num_sample_epsilon": [0.001, 1e-6],
+      "max_diff_threshold": 0.001,
+      "timeout_seconds": 5,
+      "oscillation_patterns": [
+        "sin(1/",
+        "cos(1/"
+      ]
+    },
+    "plot": {
+      "max_constant_coeff": 100000,
+      "view_range": [-10000, 10000],
+      "zoom_min": 0.01,
+      "zoom_max": 10000
+    }
+  },
+  "plot": {
+    "range_limit": [-10000, 10000],
+    "colors": [
+      "#e74c3c", "#3498db", "#2ecc71", "#f39c12",
+      "#9b59b6", "#1abc9c", "#e67e22", "#e84393"
+    ]
+  },
+  "ai": {
+    "daily_free_steps": 5,
+    "daily_free_accelerations": 3
+  },
+  "numerical": {
+    "max_iterations": 10000000,
+    "max_precision": 15,
+    "ramanujan_timeout": 1
+  }
+}

@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Formula Input</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+<style>
+  :root {
+    --bg: #fafafa;
+    --border: #d1d5db;
+    --focus-border: #3b82f6;
+    --text: #0f172a;
+    --preview-bg: #f8fafc;
+    --preview-border: #e2e8f0;
+    --placeholder: #94a3b8;
+    --muted: #64748b;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: transparent;
+    padding: 0;
+    overflow: hidden;
+  }
+  .container {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    padding: 4px;
+    gap: 0;
+  }
+  .input-wrapper {
+    position: relative;
+    flex-shrink: 0;
+  }
+  #formula-input {
+    width: 100%;
+    padding: 8px 12px;
+    font-size: 14px;
+    font-family: 'Consolas', 'Courier New', monospace;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--bg);
+    color: var(--text);
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  #formula-input:focus {
+    border-color: var(--focus-border);
+    background: #ffffff;
+    box-shadow: 0 0 0 2px rgba(59,130,246,0.15);
+  }
+  #formula-input::placeholder {
+    color: var(--placeholder);
+  }
+  .preview-area {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    padding: 10px 14px;
+    min-height: 48px;
+    background: var(--preview-bg);
+    border: 1px solid var(--preview-border);
+    border-top: none;
+    border-radius: 0 0 6px 6px;
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+  .preview-area.empty {
+    justify-content: center;
+  }
+  #preview-content {
+    font-size: 18px;
+    line-height: 1.6;
+    white-space: nowrap;
+  }
+  .placeholder-text {
+    color: var(--placeholder);
+    font-size: 13px;
+    font-style: italic;
+  }
+  .katex { font-size: 1.2em !important; }
+  .katex-display { margin: 0 !important; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="input-wrapper">
+    <input type="text" id="formula-input" placeholder="输入表达式，如: sin(x)^2, x/2+3y, sqrt(4)"
+           autocomplete="off" autofocus>
+  </div>
+  <div class="preview-area empty" id="preview-area">
+    <span class="placeholder-text" id="placeholder-text">输入表达式...</span>
+    <span id="preview-content"></span>
+  </div>
+</div>
+
+<script>
+  // ==================== 全局状态 ====================
+  let _currentRaw = '';
+  let _parseError = false;
+
+  // ==================== 字符串 → LaTeX 智能转换 ====================
+  // 使用 KaTeX 原生能力，同时做简单的预处理
+  function rawToLatex(raw) {
+    if (!raw || !raw.trim()) return '';
+    let s = raw.trim();
+    // 预处理常见数学写法
+    s = s.replace(/\*\*/g, '^');       // ** → ^ (Python power)
+    // 隐式乘法：2x → 2 x, 3sin(x) → 3 sin(x)
+    // 但保留函数名
+    return s;
+  }
+
+  // ==================== KaTeX 渲染 ====================
+  function renderPreview() {
+    const raw = document.getElementById('formula-input').value;
+    _currentRaw = raw;
+    const previewContent = document.getElementById('preview-content');
+    const placeholderText = document.getElementById('placeholder-text');
+    const previewArea = document.getElementById('preview-area');
+    const latex = rawToLatex(raw);
+
+    if (!raw.trim()) {
+      previewContent.innerHTML = '';
+      placeholderText.style.display = 'inline';
+      previewArea.classList.add('empty');
+      _parseError = false;
+      return;
+    }
+
+    try {
+      katex.render(latex, previewContent, {
+        throwOnError: false,
+        displayMode: true,
+        strict: false,
+        trust: true,
+        output: 'html'
+      });
+      placeholderText.style.display = 'none';
+      previewArea.classList.remove('empty');
+      _parseError = false;
+    } catch (e) {
+      previewContent.innerHTML = '';
+      placeholderText.textContent = '无法解析: ' + raw;
+      placeholderText.style.display = 'inline';
+      placeholderText.style.color = '#dc2626';
+      previewArea.classList.add('empty');
+      _parseError = true;
+    }
+  }
+
+  // ==================== 事件绑定 ====================
+  const inputEl = document.getElementById('formula-input');
+  inputEl.addEventListener('input', function() {
+    renderPreview();
+  });
+
+  inputEl.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      console.log('MF_ENTER');
+    }
+  });
+
+  // 初始触发
+  renderPreview();
+
+  // ==================== 全局函数 (供 Python 调用) ====================
+  window.getFormulaText = function() {
+    return document.getElementById('formula-input').value;
+  };
+
+  window.setFormulaText = function(text) {
+    document.getElementById('formula-input').value = text || '';
+    renderPreview();
+  };
+
+  // 通知 Python 就绪
+  console.log('MF_READY');
+</script>
+</body>
+</html>

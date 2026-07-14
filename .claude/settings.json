@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "planning-with-files": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/planning-with-files"
+      ]
+    }
+  }
+}
