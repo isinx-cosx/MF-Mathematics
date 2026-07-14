@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
 )
 from MF_UI.plot.basic.plot_canvas import PlotCanvas
 from MF_UI.plot.basic.function_box import FunctionBox
+from MF_UI.plot.plot_3d import Plot3DCanvas
 
 
 def _load_plot_colors() -> list[str]:
@@ -69,9 +70,16 @@ class PlotWorkspace(QWidget):
         ll.setSpacing(4); ll.setContentsMargins(12, 12, 12, 12)
 
         # 标题 + 描述
+        _3d = self._mode == "3d"
         title_label = QLabel(title)
         title_label.setObjectName("plot_title_label")
-        desc_label = QLabel("支持：显式 y=f(x)、隐式 f(x,y)=0、自然书写、参数滑块")
+        desc_map = {
+            "normal": "支持：显式 y=f(x)、隐式 f(x,y)=0、自然书写、参数滑块",
+            "3d": "支持：三维曲面 z=f(x,y)、参数滑块、旋转/缩放/平移",
+            "complex": "支持：复平面 RGB 域着色（功能预留）",
+            "vector": "支持：2D/3D 向量场绘制（功能预留）",
+        }
+        desc_label = QLabel(desc_map.get(self._mode, desc_map["normal"]))
         desc_label.setObjectName("plot_desc_label")
         ll.addWidget(title_label); ll.addWidget(desc_label)
 
@@ -83,7 +91,7 @@ class PlotWorkspace(QWidget):
         card = QFrame(); card.setObjectName("plot_work_card")
         scroll = QScrollArea(card)
         scroll.setWidgetResizable(True); scroll.setFrameShape(QScrollArea.Shape.NoFrame)
-        scroll.setObjectName("plotScroll")  # 用于 QSS 样式选择器
+        scroll.setObjectName("plotScroll")
 
         self._list_container = QWidget()
         self._list_layout = QVBoxLayout(self._list_container)
@@ -97,7 +105,6 @@ class PlotWorkspace(QWidget):
         self._slider_layout = QVBoxLayout(self._slider_section)
         self._slider_layout.setSpacing(2); self._slider_layout.setContentsMargins(4, 4, 4, 4)
 
-        # 滑块区标题行
         slider_header = QHBoxLayout()
         slider_header.addWidget(QLabel("参数滑块"))
         slider_header.addStretch()
@@ -113,7 +120,7 @@ class PlotWorkspace(QWidget):
         self._slider_layout.addLayout(slider_header)
         self._list_layout.addWidget(self._slider_section)
 
-        # 分隔线（滑块与函数框之间）
+        # 分隔线
         self._slider_sep = QFrame()
         self._slider_sep.setFixedHeight(1)
         self._slider_sep.setStyleSheet("background: #e2e8f0; border: none;")
@@ -133,18 +140,23 @@ class PlotWorkspace(QWidget):
         ll.addWidget(card, 1)
         root.addWidget(left)
 
-        # ── 右侧画布 ──
-        self._canvas = PlotCanvas()
-        self._canvas.status_message.connect(self._status.setText)
-        root.addWidget(self._canvas, 1)
-
-        # 样式由 light.qss / dark.qss 统一管理
+        # ── 右侧画布（2D / 3D 自动选择）──
+        if _3d:
+            self._canvas_3d = Plot3DCanvas()
+            self._canvas_3d.status_message.connect(self._status.setText)
+            root.addWidget(self._canvas_3d, 1)
+            self._canvas = None
+        else:
+            self._canvas = PlotCanvas()
+            self._canvas.status_message.connect(self._status.setText)
+            root.addWidget(self._canvas, 1)
+            self._canvas_3d = None
 
         self._add()
 
     @property
-    def canvas(self) -> PlotCanvas:
-        return self._canvas
+    def canvas(self):
+        return self._canvas if self._mode != "3d" else self._canvas_3d
 
     # ── 全局滑块 ──────────────────────────────────────────
 
@@ -311,10 +323,9 @@ class PlotWorkspace(QWidget):
         self._rebuild_curves()
 
     def _rebuild_curves(self) -> None:
-        self._canvas.clear_functions()
         gparams = self._global_params()
 
-        # ── 收集用户定义的函数（供导数引用解析）──
+        # ── 收集用户定义函数 ──
         _KNOWN = {'sin','cos','tan','cot','sec','csc','sinh','cosh','tanh','coth',
                   'asin','acos','atan','arcsin','arccos','arctan',
                   'ln','log','log10','sqrt','exp','abs','ceiling','floor',
@@ -333,14 +344,32 @@ class PlotWorkspace(QWidget):
                 if name not in _KNOWN:
                     definitions[name] = b.expr
 
-        # ── 绘制曲线（解析导数引用）──
+        # ── 3D 模式 ──
+        if self._mode == "3d":
+            self._canvas_3d.clear_surfaces()
+            for b in self._boxes:
+                if not b.is_visible or not b.expr:
+                    continue
+                box_params = {k: v for k, v in gparams.items()
+                              if k in b.detected_params}
+                # 3D 模式：表达式为 z = f(x, y)
+                resolved_expr = b.expr
+                if b.is_derivative and b.referenced_function:
+                    r = b.resolve_derivative(definitions)
+                    if r:
+                        resolved_expr = r
+                self._canvas_3d.add_surface(
+                    resolved_expr, color=b.color, label=b.label,
+                    params=box_params)
+            return
+
+        # ── 2D 模式 ──
+        self._canvas.clear_functions()
         for b in self._boxes:
             if not b.is_visible or not b.expr:
                 continue
             box_params = {k: v for k, v in gparams.items()
                           if k in b.detected_params}
-
-            # 导数引用解析：f'(x) → 查找 f(x) 的定义并求导
             if b.is_derivative and b.referenced_function:
                 resolved = b.resolve_derivative(definitions)
                 if resolved:
@@ -349,7 +378,6 @@ class PlotWorkspace(QWidget):
                         var=b.independent_var, params=box_params,
                         implicit=False)
                     continue
-
             self._canvas.add_function(
                 b.expr, color=b.color, label=b.label,
                 var=b.independent_var, params=box_params,
