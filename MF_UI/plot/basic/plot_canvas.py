@@ -29,40 +29,64 @@ from PySide6.QtWidgets import (
 
 
 # ═══════════════════════════════════════════════════════════════════════
-#  Config
+#  Config — 所有阈值从 config.json 读取，此处仅提供回退值
 # ═══════════════════════════════════════════════════════════════════════
 
-def _load_config() -> dict:
+def _cfg():
+    """获取 ConfigManager 或回退到直接读取 config.json。"""
     try:
         from MF_Mathematics.utils.config_manager import config
-        return config.raw
+        return config
     except Exception:
         pass
+    # 回退
     try:
         root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         p = os.path.join(root, "config.json")
         if os.path.exists(p):
             with open(p, "r", encoding="utf-8") as f:
-                return json.load(f)
+                _fallback_data = json.load(f)
+            # 构造简易访问器
+            class _FB:
+                def get(self, *keys, default=None):
+                    d = _fallback_data
+                    for k in keys:
+                        if isinstance(d, dict) and k in d: d = d[k]
+                        else: return default
+                    return d
+            return _FB()
     except Exception:
         pass
-    return {}
+    class _Empty:
+        def get(self, *keys, default=None): return default
+    return _Empty()
 
-_CFG = _load_config()
-_PLT = _CFG.get("plot", {})
+_c = _cfg()
 
-SCENE_RANGE  = 20_000_000
-ZOOM_MIN     = 1e-6
-ZOOM_MAX     = 2000
-INITIAL_VIEW = QRectF(-20, -20, 40, 40)
-MAX_RANGE_MSG = "±20,000,000"
+# ── 场景参数 ─────────────────────────────────────────────────
+SCENE_RANGE  = _c.get("plot", "scene_range",  default=20_000_000)
+ZOOM_MIN     = _c.get("plot", "zoom_min",     default=1e-6)
+ZOOM_MAX     = _c.get("plot", "zoom_max",     default=2000)
+_iv          = _c.get("plot", "initial_view", default=[-20, -20, 40, 40])
+INITIAL_VIEW = QRectF(float(_iv[0]), float(_iv[1]), float(_iv[2]), float(_iv[3]))
+MAX_RANGE_MSG = f"±{SCENE_RANGE:,}"
 
-TICK_PX   = 4        # 刻度线半长（像素）
-FONT_PX   = 9        # 标签字号（像素）
-AXIS_PX   = 2.0      # 坐标轴线宽（像素，恒定）
-CURVE_PX  = 2.5      # 函数曲线线宽（像素，恒定）
+# ── 像素参数 ─────────────────────────────────────────────────
+TICK_PX   = _c.get("plot", "tick_px",   default=4)
+FONT_PX   = _c.get("plot", "font_px",   default=9)
+AXIS_PX   = _c.get("plot", "axis_px",   default=2.0)
+CURVE_PX  = _c.get("plot", "curve_px",  default=2.5)
 
-CURVE_COLORS = _PLT.get("colors", [
+# ── 颜色 ─────────────────────────────────────────────────────
+_ax = _c.get("plot", "axes", default={})
+AXIS_COLOR  = QColor(_ax.get("axis_color",  "#334155"))
+GRID_COLOR  = QColor(_ax.get("grid_color",  "#e8ecf0"))
+TICK_COLOR  = QColor(_ax.get("tick_color",  "#94a3b8"))
+EDGE_COLOR  = QColor(_ax.get("edge_color",  "#b0b8c0"))
+TEXT_COLOR  = QColor(_ax.get("text_color",  "#334155"))
+BG_COLOR    = QColor(_ax.get("bg_color",     "#fafbfc"))
+
+CURVE_COLORS = _c.get("plot", "colors", default=[
     "#e74c3c", "#3498db", "#2ecc71", "#f39c12",
     "#9b59b6", "#1abc9c", "#e67e22", "#e84393",
 ])
@@ -82,13 +106,6 @@ _MS_EDGES: dict[int, list[tuple[int, int]]] = {
 _MS_ALT: dict[int, list[tuple[int, int]]] = {  # 鞍点备选方案 B
     5: [(0, 3), (1, 2)], 10: [(0, 1), (2, 3)],
 }
-
-AXIS_COLOR  = QColor("#334155")
-GRID_COLOR  = QColor("#e8ecf0")
-TICK_COLOR  = QColor("#94a3b8")
-EDGE_COLOR  = QColor("#b0b8c0")
-TEXT_COLOR  = QColor("#334155")
-BG_COLOR    = QColor("#fafbfc")
 
 NICE_TABLE = (
     0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 50,

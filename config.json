@@ -31,18 +31,26 @@
     }
   },
   "plot": {
+    "scene_range": 20000000,
+    "zoom_min": 1e-6,
+    "zoom_max": 2000,
+    "initial_view": [-20, -20, 40, 40],
+    "tick_px": 4,
+    "font_px": 9,
+    "axis_px": 2.0,
+    "curve_px": 2.5,
     "range_limit": [-10000, 10000],
     "colors": [
       "#e74c3c", "#3498db", "#2ecc71", "#f39c12",
       "#9b59b6", "#1abc9c", "#e67e22", "#e84393"
     ],
     "axes": {
-      "axis_color": "#000000",
+      "axis_color": "#334155",
       "grid_color": "#e8ecf0",
       "tick_color": "#94a3b8",
-      "minor_color": "#d0d5dc",
       "edge_color": "#b0b8c0",
-      "text_color": "#475569",
+      "text_color": "#334155",
+      "bg_color": "#fafbfc",
       "label_font": "Segoe UI",
       "label_font_size": 9,
       "tick_px": 8,
