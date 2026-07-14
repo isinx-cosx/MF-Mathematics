@@ -1,10 +1,11 @@
 # -*- coding: utf-8 -*-
-"""概率统计计算块 — 继承 BaseCalcBlock，仅定义模式列表和分派映射。"""
+"""概率统计计算块 — 通过 calc_engine.calculate_direct 统一调度。"""
 
 from __future__ import annotations
 
-import MF_Mathematics.probability  # noqa: 注册后端函数
+import MF_Mathematics.probability  # noqa
 from MF_UI.calc.base_calc_block import BaseCalcBlock
+from calc_engine import calculate_direct
 
 
 class CalcBlock(BaseCalcBlock):
@@ -23,36 +24,27 @@ class CalcBlock(BaseCalcBlock):
         ]
 
     def get_action_map(self) -> dict[str, tuple[str, str]]:
-        return {
-            "条件概率":        ("probability", "conditional_probability"),
-            "独立性":          ("probability", "is_independent"),
-            "全概率公式":       ("probability", "total_probability"),
-            "贝叶斯公式":       ("probability", "bayes_theorem"),
-            "伯努利分布":       ("probability", "bernoulli"),
-            "二项分布":         ("probability", "binomial"),
-            "泊松分布":         ("probability", "poisson"),
-            "均匀分布":         ("probability", "uniform"),
-            "指数分布":         ("probability", "exponential"),
-            "正态分布":         ("probability", "normal"),
-            "期望":             ("probability", "expectation"),
-            "方差":             ("probability", "variance"),
-            "协方差":           ("probability", "covariance"),
-            "相关系数":         ("probability", "correlation_coefficient"),
-            "大数定律":         ("probability", "law_of_large_numbers"),
-            "中心极限定理":     ("probability", "central_limit_theorem"),
-            "样本均值":         ("probability", "sample_mean"),
-            "样本方差":         ("probability", "sample_variance"),
-            "矩估计":           ("probability", "moment_estimate"),
-            "MLE":              ("probability", "mle"),
-            "置信区间":         ("probability", "confidence_interval"),
-            "z检验":            ("probability", "z_test"),
-            "t检验":            ("probability", "t_test"),
-            "卡方检验":         ("probability", "chi_square_test"),
-            "p值":              ("probability", "p_value"),
-            "线性回归":         ("probability", "linear_regression"),
-            "预测":             ("probability", "predict"),
-            "残差":             ("probability", "residuals"),
-        }
+        return {}
+
+    def _do_dispatch(self, mod: str, act: str, expr: str):
+        """通过 calc_engine 统一调度。"""
+        from ast import literal_eval
+        import re as _re
+
+        if "=" in expr and expr.count("=") <= 3:
+            parts = _re.split(r'[,;]\s*(?=[a-zA-Z_])', expr)
+            kwargs = {}
+            for p in parts:
+                if "=" in p:
+                    k, v = p.split("=", 1)
+                    kwargs[k.strip()] = literal_eval(v.strip())
+            return calculate_direct(self.calc_mode_combo.currentText(), **kwargs)
+        else:
+            args = literal_eval(expr)
+            if isinstance(args, (list, tuple)):
+                return calculate_direct(self.calc_mode_combo.currentText(), *args)
+            else:
+                return calculate_direct(self.calc_mode_combo.currentText(), args)
 
 
 if __name__ == "__main__":

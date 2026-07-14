@@ -6,13 +6,13 @@ from __future__ import annotations
 import MF_Mathematics.algebra       # noqa
 import MF_Mathematics.calculus       # noqa
 import MF_Mathematics.complex_analysis  # noqa
-from MF_Mathematics.core.registry import dispatch
 from MF_Mathematics.core.math_object import MathObject
 from MF_Mathematics.utils.translator import MathTranslator
 from MF_Mathematics.utils.math_guard import ComplexityGuard, LimitGuard, GuardLevel
 from MF_Mathematics.utils.ai_accelerator import get_accelerator
 from MF_Mathematics.utils.config_manager import config as _cfg
 from MF_UI.calc.base_calc_block import BaseCalcBlock
+from calc_engine import calculate_direct
 
 
 class CalcBlock(BaseCalcBlock):
@@ -147,13 +147,13 @@ class CalcBlock(BaseCalcBlock):
             parts = [p.strip() for p in expr.split(",")]
             func = parts[0]; var = parts[1] if len(parts) > 1 else "x"
             order = int(parts[2]) if len(parts) > 2 else 1
-            return dispatch("calculus", "diff", expr=func, var=var, order=order)
+            return calculate_direct("求导", expr=func, var=var, order=order)
 
         # ========== 不定积分 ==========
         if op == "不定积分":
             parts = [p.strip() for p in expr.split(",")]
             func = parts[0]; var = parts[1] if len(parts) > 1 else "x"
-            return dispatch("calculus", "integrate", expr=func, var=var)
+            return calculate_direct("不定积分", expr=func, var=var)
 
         # ========== 定积分 ==========
         if op == "定积分":
@@ -164,7 +164,7 @@ class CalcBlock(BaseCalcBlock):
                 func, var, a, b = parts[0], parts[1], parts[2], parts[3]
             else:
                 return MathObject(error="定积分格式：函数, 下限, 上限 或 函数, 变量, 下限, 上限")
-            return dispatch("calculus", "integrate", expr=func, var=var, a=a, b=b)
+            return calculate_direct("定积分", expr=func, var=var, a=a, b=b)
 
         # ========== 极限 ==========
         if op == "极限":
@@ -172,7 +172,7 @@ class CalcBlock(BaseCalcBlock):
             func = parts[0]; var = parts[1] if len(parts) > 1 else "x"
             point = parts[2] if len(parts) > 2 else "0"
             direction = parts[3] if len(parts) > 3 else None
-            return dispatch("calculus", "limit", expr=func, var=var, point=point, direction=direction)
+            return calculate_direct("极限", expr=func, var=var, point=point, direction=direction)
 
         # ========== 解方程/组 ==========
         if op == "解方程/组":
@@ -187,7 +187,7 @@ class CalcBlock(BaseCalcBlock):
                 all_vars = sorted(all_vars)
                 if len(eqs) == 2 and len(all_vars) >= 2:
                     var1, var2 = all_vars[0], all_vars[1]
-                    return dispatch("algebra", "solve_linear_system", eq1=eqs[0], eq2=eqs[1], var1=var1, var2=var2)
+                    return calculate_direct("解方程组", eq1=eqs[0], eq2=eqs[1], var1=var1, var2=var2)
                 else:
                     import sympy as sp
                     try:
@@ -214,9 +214,9 @@ class CalcBlock(BaseCalcBlock):
                         vars_in_expr.add(v)
                 var = vars_in_expr.pop() if vars_in_expr else "x"
                 if "**2" in expr or "^2" in expr:
-                    return dispatch("algebra", "solve_quadratic", expr=expr, var=var)
+                    return calculate_direct("解一元二次", expr=expr, var=var)
                 else:
-                    return dispatch("algebra", "solve_linear", expr=expr, var=var)
+                    return calculate_direct("解方程", expr=expr, var=var)
 
         # ========== 表达式化简 ==========
         if op == "表达式化简":
@@ -226,14 +226,14 @@ class CalcBlock(BaseCalcBlock):
             has_fraction = "/" in expr
             has_sqrt = "sqrt" in expr or "**0.5" in expr
             if has_sqrt:
-                return dispatch("algebra", "simplify_radical", expr=expr)
+                return calculate_direct("化简根式", expr=expr)
             if has_fraction:
-                return dispatch("algebra", "simplify_fraction", expr=expr)
+                return calculate_direct("化简分式", expr=expr)
             if has_paren:
-                return dispatch("algebra", "expand_expression", expr=expr)
-            r1 = dispatch("algebra", "simplify_polynomial", expr=expr)
+                return calculate_direct("展开", expr=expr)
+            r1 = calculate_direct("化简", expr=expr)
             if r1.ok:
-                r2 = dispatch("algebra", "factor", expr=expr)
+                r2 = calculate_direct("因式分解", expr=expr)
                 if r2.ok and r2.result != r1.result:
                     r1.steps.append(f"可因式分解为: {r2.result}")
             return r1
@@ -248,7 +248,7 @@ class CalcBlock(BaseCalcBlock):
                 var, point, order = parts[1], parts[2], int(parts[3])
             else:
                 point, order = "0", 3; var = "x"
-            return dispatch("calculus", "taylor", expr=func, var=var, point=point, order=order)
+            return calculate_direct("泰勒展开", expr=func, var=var, point=point, order=order)
 
         # ========== 级数求和 ==========
         if op == "级数求和":
@@ -256,30 +256,30 @@ class CalcBlock(BaseCalcBlock):
             if len(parts) < 4:
                 return MathObject(error="级数求和格式：通项, 变量, 起始, 终止\n示例: 1/n**2, n, 1, oo")
             term, var, a, b = parts[0], parts[1], parts[2], parts[3]
-            return dispatch("calculus", "series_sum", expr=term, var=var, a=a, b=b)
+            return calculate_direct("级数求和", expr=term, var=var, a=a, b=b)
 
         # ========== 级数敛散性 ==========
         if op == "级数敛散性":
             parts = [p.strip() for p in expr.split(",")]
             term = parts[0]; var = parts[1] if len(parts) > 1 else "n"
-            return dispatch("calculus", "series_convergence", expr=term, var=var)
+            return calculate_direct("级数敛散性", expr=term, var=var)
 
         # ========== 复数运算 ==========
         if op == "复数运算":
             import sympy as _sp
             expr_lower = expr.lower().strip()
             if expr_lower.startswith("exp(") and expr_lower.endswith(")"):
-                return dispatch("complex_analysis", "exp_complex", z=expr[4:-1].strip())
+                return calculate_direct("复指数", z=expr[4:-1].strip())
             if expr_lower.startswith("log(") and expr_lower.endswith(")"):
-                return dispatch("complex_analysis", "log_complex", z=expr[4:-1].strip())
+                return calculate_direct("复对数", z=expr[4:-1].strip())
             if expr_lower.startswith("sqrt(") and expr_lower.endswith(")"):
-                return dispatch("complex_analysis", "sqrt_complex", z=expr[5:-1].strip())
+                return calculate_direct("复平方根", z=expr[5:-1].strip())
             if expr_lower.startswith("mobius(") or expr_lower.startswith("mobius_transform("):
                 inner = expr[expr.index("(")+1:expr.rindex(")")]
                 mob_parts = [p.strip() for p in inner.split(",")]
                 if len(mob_parts) == 5:
                     z_str, a, b, c, d = mob_parts
-                    return dispatch("complex_analysis", "mobius_transform",
+                    return calculate_direct("莫比乌斯变换",
                                     z=z_str, a=complex(a), b=complex(b), c=complex(c), d=complex(d))
                 return MathObject(error="mobius格式: mobius(z, a, b, c, d)")
             try:
@@ -301,16 +301,16 @@ class CalcBlock(BaseCalcBlock):
                         if v not in ("sin", "cos", "tan", "exp", "log", "sqrt", "abs"):
                             vars_set.add(v)
                 var = vars_set.pop() if vars_set else "x"
-                return dispatch("algebra", "solve_inequality_system", exprs=ineqs, var=var)
+                return calculate_direct("解不等式组", exprs=ineqs, var=var)
             else:
                 var = "x"
                 for v in _re_ineq.findall(r'[a-zA-Z_]\w*', expr):
                     if v not in ("sin", "cos", "tan", "exp", "log", "sqrt", "abs"):
                         var = v; break
                 if "**2" in expr or "^2" in expr:
-                    return dispatch("algebra", "solve_quadratic_inequality", expr=expr, var=var)
+                    return calculate_direct("解二次不等式", expr=expr, var=var)
                 else:
-                    return dispatch("algebra", "solve_linear_inequality", expr=expr, var=var)
+                    return calculate_direct("解线性不等式", expr=expr, var=var)
 
         # ========== 常微分 / 偏微分（占位）==========
         if op == "常微分方程":

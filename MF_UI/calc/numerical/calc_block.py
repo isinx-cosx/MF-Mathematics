@@ -1,10 +1,11 @@
 # -*- coding: utf-8 -*-
-"""数值分析计算块 — 继承 BaseCalcBlock，仅定义模式列表和分派映射。"""
+"""数值分析计算块 — 通过 calc_engine.calculate_direct 统一调度。"""
 
 from __future__ import annotations
 
-import MF_Mathematics.numerical  # noqa: 注册后端函数
+import MF_Mathematics.numerical  # noqa
 from MF_UI.calc.base_calc_block import BaseCalcBlock
+from calc_engine import calculate_direct
 
 
 class CalcBlock(BaseCalcBlock):
@@ -20,31 +21,27 @@ class CalcBlock(BaseCalcBlock):
         ]
 
     def get_action_map(self) -> dict[str, tuple[str, str]]:
-        return {
-            "条件数":         ("numerical", "condition_number"),
-            "截断误差":       ("numerical", "truncation_error"),
-            "舍入误差":       ("numerical", "rounding_error_estimate"),
-            "稳定性判断":     ("numerical", "is_stable"),
-            "拉格朗日插值":   ("numerical", "lagrange_interpolation"),
-            "牛顿插值":       ("numerical", "newton_interpolation"),
-            "三次样条":       ("numerical", "cubic_spline"),
-            "最小二乘拟合":   ("numerical", "least_squares_fit"),
-            "梯形法则":       ("numerical", "trapezoidal_rule"),
-            "辛普森法则":     ("numerical", "simpson_rule"),
-            "高斯求积":       ("numerical", "gauss_quadrature"),
-            "数值求导":       ("numerical", "numerical_derivative"),
-            "最优步长":       ("numerical", "optimal_step"),
-            "LU分解":         ("numerical", "lu_decomposition"),
-            "雅可比迭代":     ("numerical", "jacobi_iteration"),
-            "高斯-赛德尔":    ("numerical", "gauss_seidel"),
-            "共轭梯度":       ("numerical", "conjugate_gradient"),
-            "幂法":           ("numerical", "power_method"),
-            "QR算法":         ("numerical", "qr_algorithm"),
-            "欧拉方法":       ("numerical", "euler_method"),
-            "RK4":            ("numerical", "rk4"),
-            "隐式欧拉":       ("numerical", "implicit_euler"),
-            "刚性检测":       ("numerical", "stiff_detector"),
-        }
+        return {}
+
+    def _do_dispatch(self, mod: str, act: str, expr: str):
+        """通过 calc_engine 统一调度。"""
+        from ast import literal_eval
+        import re as _re
+
+        if "=" in expr and expr.count("=") <= 3:
+            parts = _re.split(r'[,;]\s*(?=[a-zA-Z_])', expr)
+            kwargs = {}
+            for p in parts:
+                if "=" in p:
+                    k, v = p.split("=", 1)
+                    kwargs[k.strip()] = literal_eval(v.strip())
+            return calculate_direct(self.calc_mode_combo.currentText(), **kwargs)
+        else:
+            args = literal_eval(expr)
+            if isinstance(args, (list, tuple)):
+                return calculate_direct(self.calc_mode_combo.currentText(), *args)
+            else:
+                return calculate_direct(self.calc_mode_combo.currentText(), args)
 
 
 if __name__ == "__main__":
