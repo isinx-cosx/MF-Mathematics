@@ -190,7 +190,18 @@ class FunctionBox(QWidget):
         if self._expr_type == "implicit":
             s = _normalize_implicit(raw)
             return _preprocess(s) if s else ""
-        # explicit
+
+        # 导数检测
+        deriv_expr, deriv_var = _parse_derivative(raw, self._independent_var)
+        if deriv_expr is not None:
+            try:
+                d = sp.sympify(deriv_expr)
+                result = sp.diff(d.args[0], d.args[1]) if hasattr(d, 'func') and d.func == sp.Derivative else d.doit()
+                return str(result)
+            except Exception:
+                return _preprocess(deriv_expr) if deriv_expr else ""
+
+        # 显式函数
         parsed = parse_input(raw, self._independent_var)
         s = parsed.raw_expr
         if self._mode == "complex":
@@ -216,9 +227,21 @@ class FunctionBox(QWidget):
         return self._expr_type
 
     @property
+    def is_derivative(self) -> bool:
+        """是否为导数表达式。"""
+        if self._expr_type == "implicit":
+            return False
+        raw = self._input.text().strip()
+        d, _ = _parse_derivative(raw, self._independent_var)
+        return d is not None
+
+    @property
     def label(self) -> str:
         if self._expr_type == "implicit":
             return f"{self._index}. 隐式"
+        if self.is_derivative:
+            raw = self._input.text().strip()
+            return f"{self._index}. 导数: {raw}"
         if self._func_name:
             return f"{self._index}. {self._func_name}({self._independent_var})"
         return f"{self._index}."
@@ -318,18 +341,29 @@ class FunctionBox(QWidget):
             self._func_name = ""
             self._independent_var = "x"
         else:
-            self._type_tag.setText("显式")
-            self._type_tag.setStyleSheet(
-                _TYPE_TAG_STYLE + "color: #2563eb; background: #dbeafe;")
-            self._type_tag.show()
-            # 解析 name(var)=expr
-            parsed = parse_input(raw, self._independent_var)
-            self._func_name = parsed.name
-            self._independent_var = parsed.var
-            if parsed.is_explicit:
-                self._title.setText(f"{self._index}. {parsed.name}({parsed.var}) =")
+            # 检查是否为导数表达式
+            d_expr, d_var = _parse_derivative(raw, self._independent_var)
+            if d_expr is not None:
+                self._type_tag.setText("导数")
+                self._type_tag.setStyleSheet(
+                    _TYPE_TAG_STYLE + "color: #dc2626; background: #fee2e2;")
+                self._type_tag.show()
+                self._title.setText(f"{self._index}. 导数:")
+                self._func_name = ""
+                self._independent_var = d_var
             else:
-                self._title.setText(f"{self._index}.")
+                self._type_tag.setText("显式")
+                self._type_tag.setStyleSheet(
+                    _TYPE_TAG_STYLE + "color: #2563eb; background: #dbeafe;")
+                self._type_tag.show()
+                # 解析 name(var)=expr
+                parsed = parse_input(raw, self._independent_var)
+                self._func_name = parsed.name
+                self._independent_var = parsed.var
+                if parsed.is_explicit:
+                    self._title.setText(f"{self._index}. {parsed.name}({parsed.var}) =")
+                else:
+                    self._title.setText(f"{self._index}.")
 
         self._validate()
         self._update_param_hint_text()
@@ -367,6 +401,42 @@ class FunctionBox(QWidget):
             self._param_hint.setText(f"参数: {', '.join(sorted(detected))}")
         else:
             self._param_hint.setText("")
+
+
+# ═══════════════════════════════════════════════════════════════════════
+#  导数语法解析
+# ═══════════════════════════════════════════════════════════════════════
+
+def _parse_derivative(raw: str, default_var: str = "x") -> tuple[str | None, str]:
+    """解析导数记号 ' 返回 (sympy_Derivative字符串, 自变量) 或 (None, "")。
+
+    支持格式:
+      sin'(x)   → Derivative(sin(x), x)
+      f'(t)     → Derivative(f(t), t)
+      (x^3+2*x)' → Derivative(x^3+2*x, x)
+    """
+    raw = raw.strip()
+    if "'" not in raw:
+        return None, ""
+
+    # 模式 1: func'(var) — 如 sin'(x), f'(t)
+    m = re.match(r"^([a-zA-Z]\w*)\s*'\s*\(\s*([a-zA-Z])\s*\)$", raw)
+    if m:
+        func_name = m.group(1)
+        var = m.group(2)
+        # 验证 func_name 是已知数学函数
+        if func_name not in _KNOWN_IDS:
+            return f"Derivative({func_name}({var}), {var})", var
+        else:
+            return f"Derivative({func_name}({var}), {var})", var
+
+    # 模式 2: (expr)' — 如 (x^3 + 2*x)', (sin(x) + cos(x))'
+    m = re.match(r"^\((.+)\)\s*'$", raw)
+    if m:
+        inner = m.group(1).strip()
+        return f"Derivative({inner}, {default_var})", default_var
+
+    return None, ""
 
 
 # ═══════════════════════════════════════════════════════════════════════

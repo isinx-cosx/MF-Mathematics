@@ -531,6 +531,9 @@ class PlotCanvas(QGraphicsView):
         try:
             import sympy as sp
             expr = sp.sympify(f["expr"])
+            # 处理 Derivative 对象（导数表达式）
+            if hasattr(expr, 'doit'):
+                expr = expr.doit()
         except Exception:
             return None
         vr = self.mapToScene(self.viewport().rect()).boundingRect()
