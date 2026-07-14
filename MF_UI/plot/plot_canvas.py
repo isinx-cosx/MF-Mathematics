@@ -492,7 +492,7 @@ class PlotCanvas(QGraphicsView):
             if not f.get("visible", True) or not f.get("expr"):
                 continue
             if f.get("implicit"):
-                path = self._eval_implicit_curve(f)
+                path = self._draw_implicit_curve(f)
             else:
                 path = self._eval_curve(f)
             if path is not None:
@@ -544,8 +544,12 @@ class PlotCanvas(QGraphicsView):
                 path.lineTo(xs[i + 1], b)
         return path if not path.isEmpty() else None
 
-    def _eval_implicit_curve(self, f: dict) -> QPainterPath | None:
-        """Marching Squares 提取 f(x,y) = 0 等值线。"""
+    def _draw_implicit_curve(self, f: dict) -> QPainterPath | None:
+        """Marching Squares 提取 f(x,y) = 0 等值线。
+
+        自适应分辨率：视图范围大时降低分辨率，范围小时提高分辨率，
+        平衡性能与精度。
+        """
         try:
             import sympy as sp
             expr = sp.sympify(f["expr"])

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""FunctionBox — 函数输入卡片（编号 + 自定义命名 + 隐式/显式模式）。
+"""FunctionBox — 函数输入卡片（自动识别显式/隐式，编号 + 自定义命名）。
 
 信号:
   - changed()               表达式 / 可见性变化
@@ -10,6 +10,12 @@
   - 命名表达式:    f(x)=sin(x), g(t)=cos(t), h(z)=z^2
   - 自然书写:      sinx, e^x, 2x+1, (x+1)(x-1)
   - 隐式方程:      x^2 + y^2 = 25, sin(x) + cos(y) = 0
+
+自动分类:
+  - 含 name(var)=expr 形式 → 显式函数（自定义变量）
+  - 含 = 且同时包含 x 和 y → 隐式方程（f(x,y)=0）
+  - 不含 = → 显式函数（默认自变量 x）
+  - 含 = 但变量 ≠ x,y 或多于 2 个变量 → 错误提示
 """
 
 from __future__ import annotations
@@ -21,7 +27,7 @@ import sympy as sp
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
-    QCheckBox, QComboBox, QGraphicsDropShadowEffect, QHBoxLayout, QLabel,
+    QCheckBox, QGraphicsDropShadowEffect, QHBoxLayout, QLabel,
     QLineEdit, QPushButton, QVBoxLayout, QWidget,
 )
 
@@ -35,13 +41,23 @@ _MODE_VARS: dict[str, set[str]] = {
 }
 _CONSTANTS = {sp.E, sp.pi, sp.Symbol("e")}
 
-# ── 已知函数名 ──────────────────────────────────────────────
-_FUNCS = (
+# ── 已知函数名（用于变量识别时排除）───────────────────────
+_FUNCS_PATTERN = (
     "sin|cos|tan|cot|sec|csc|sinh|cosh|tanh|coth|"
     "arcsin|arccos|arctan|asin|acos|atan|"
     "ln|log|log10|sqrt|exp|abs|ceiling|floor|"
     "limit|diff|integrate|Sum|sum|solve"
 )
+
+# ── 隐式方程变量检测 → 已知标识符（非变量）─────────────────
+_KNOWN_IDS = {
+    'sin', 'cos', 'tan', 'cot', 'sec', 'csc',
+    'sinh', 'cosh', 'tanh', 'coth',
+    'arcsin', 'arccos', 'arctan', 'asin', 'acos', 'atan',
+    'ln', 'log', 'log10', 'sqrt', 'exp', 'abs', 'ceiling', 'floor',
+    'limit', 'diff', 'integrate', 'Sum', 'sum', 'solve',
+    'e', 'pi', 'E', 'Pi', 'oo', 'nan', 'I',
+}
 
 # ── 样式 ──────────────────────────────────────────────────
 _CARD_STYLE = """
@@ -60,11 +76,8 @@ _DEL_BTN_STYLE = """
 """
 _VIS_STYLE = "QCheckBox { font-size: 12px; color: #64748b; spacing: 4px; }"
 _ERR_STYLE = "color: #dc2626; font-size: 11px; padding: 0 4px;"
-_MODE_COMBO_STYLE = """
-    QComboBox { border: 1px solid #d1d5db; border-radius: 3px;
-                padding: 1px 4px; font-size: 11px; background: #fff; color: #475569; }
-    QComboBox:hover { border-color: #94a3b8; }
-    QComboBox::drop-down { width: 16px; border: none; }
+_TYPE_TAG_STYLE = """
+    font-size: 10px; font-weight: 600; border-radius: 3px; padding: 1px 6px;
 """
 
 
@@ -85,7 +98,7 @@ def parse_input(text: str, default_var: str) -> _Parsed:
 
 
 class FunctionBox(QWidget):
-    """单个函数卡片 — 编号 + 表达式 + 显式/隐式模式。"""
+    """单个函数卡片 — 自动识别显式/隐式，无需手动切换。"""
 
     changed = Signal()
     removed = Signal(object)
@@ -99,9 +112,9 @@ class FunctionBox(QWidget):
         self._default_vars = _MODE_VARS.get(mode, {"x", "y"})
         self._default_var = "z" if mode == "complex" else "x"
 
-        self._func_name = ""       # 用户自定义函数名（空=未指定）
+        self._func_name = ""        # 用户自定义函数名（空=未指定）
         self._independent_var = self._default_var
-        self._is_implicit = False  # 隐式方程模式
+        self._expr_type = "explicit"  # "explicit" | "implicit" | "error"
         self._updating = False
 
         # ── 卡片外观 ──
@@ -114,27 +127,24 @@ class FunctionBox(QWidget):
         root = QVBoxLayout(self)
         root.setSpacing(3); root.setContentsMargins(8, 6, 8, 6)
 
-        # ── 第 1 行：编号.函数名(var) = 输入 + 模式选择 + 色点 ──
+        # ── 第 1 行：编号 + 类型标签 + 输入 + 色点 ──
         row1 = QHBoxLayout(); row1.setSpacing(6)
         self._title = QLabel(f"{index}.")
         self._title.setStyleSheet("font-weight:600; font-size:13px; color:#1e293b;")
         row1.addWidget(self._title)
 
+        # 类型标签（自动显示 "显式" / "隐式"）
+        self._type_tag = QLabel("")
+        self._type_tag.setStyleSheet(_TYPE_TAG_STYLE)
+        self._type_tag.hide()
+        row1.addWidget(self._type_tag)
+
         self._input = QLineEdit()
         self._input.setFixedHeight(28)
-        self._input.setPlaceholderText("sinx, e^x, g(t)=sin(t), a*x+b")
+        self._input.setPlaceholderText("sinx, e^x, g(t)=sin(t), x^2+y^2=25")
         self._input.setStyleSheet(_INPUT_STYLE)
         self._input.textChanged.connect(self._on_text)
         row1.addWidget(self._input, 1)
-
-        # 显式/隐式模式选择
-        self._mode_combo = QComboBox()
-        self._mode_combo.addItems(["显式", "隐式"])
-        self._mode_combo.setFixedWidth(52)
-        self._mode_combo.setStyleSheet(_MODE_COMBO_STYLE)
-        self._mode_combo.setToolTip("显式: y=f(x) / 隐式: f(x,y)=0")
-        self._mode_combo.currentIndexChanged.connect(self._on_mode_changed)
-        row1.addWidget(self._mode_combo)
 
         dot = QLabel("●")
         dot.setStyleSheet(f"color:{color}; font-size:16px;")
@@ -149,10 +159,9 @@ class FunctionBox(QWidget):
         self._error_label.hide()
         root.addWidget(self._error_label)
 
-        # ── 第 2 行：控制行（可见性 + 删除）──
+        # ── 第 2 行：参数提示 + 可见性 + 删除 ──
         row2 = QHBoxLayout(); row2.setSpacing(4)
 
-        # 参数提示（纯文本）
         self._param_hint = QLabel("")
         self._param_hint.setStyleSheet("font-size: 11px; color: #94a3b8;")
         row2.addWidget(self._param_hint)
@@ -178,9 +187,10 @@ class FunctionBox(QWidget):
         raw = self._input.text().strip()
         if not raw:
             return ""
-        if self._is_implicit:
+        if self._expr_type == "implicit":
             s = _normalize_implicit(raw)
             return _preprocess(s) if s else ""
+        # explicit
         parsed = parse_input(raw, self._independent_var)
         s = parsed.raw_expr
         if self._mode == "complex":
@@ -201,11 +211,14 @@ class FunctionBox(QWidget):
         return self._color
 
     @property
-    def is_implicit(self) -> bool:
-        return self._is_implicit
+    def expr_type(self) -> str:
+        """表达式类型: "explicit" | "implicit" | "error"。"""
+        return self._expr_type
 
     @property
     def label(self) -> str:
+        if self._expr_type == "implicit":
+            return f"{self._index}. 隐式"
         if self._func_name:
             return f"{self._index}. {self._func_name}({self._independent_var})"
         return f"{self._index}."
@@ -222,23 +235,53 @@ class FunctionBox(QWidget):
             return set()
         excluded = {sp.Symbol(v) for v in self._default_vars}
         excluded.add(sp.Symbol(self._independent_var))
-        # 隐式模式的 y 也是自变量
-        if self._is_implicit:
+        # 隐式方程：x 和 y 均为自变量，不作参数
+        if self._expr_type == "implicit":
             excluded.add(sp.Symbol("y"))
         return {str(s) for s in syms - excluded - _CONSTANTS}
 
-    # ── 模式切换 ───────────────────────────────────────────
+    # ── 表达式自动分类 ─────────────────────────────────────
 
-    def _on_mode_changed(self, idx: int) -> None:
-        self._is_implicit = (idx == 1)
-        if self._is_implicit:
-            self._input.setPlaceholderText("x^2 + y^2 = 25, sin(x) + cos(y) = 0")
-            self._param_hint.setText("隐式方程")
+    def _classify(self, raw: str) -> dict:
+        """自动识别表达式类型。
+
+        Returns:
+            {"type": "explicit"|"implicit"|"error", "message"?: str}
+        """
+        raw = raw.strip()
+        if not raw:
+            return {"type": "explicit"}
+
+        # 1) name(var)=expr 形式 → 显式（自定义变量）
+        if re.match(r"^([a-zA-Z]\w*)\s*\(\s*([a-zA-Z])\s*\)\s*=\s*(.+)$", raw):
+            return {"type": "explicit"}
+
+        # 2) 不含 = → 显式
+        if "=" not in raw:
+            return {"type": "explicit"}
+
+        # 3) 含 = → 提取变量，判断是否为隐式方程
+        all_ids = set(re.findall(r'[a-zA-Z]\w*', raw))
+        vars_found = all_ids - _KNOWN_IDS
+
+        # 隐式方程仅支持 x 和 y
+        has_xy = ('x' in vars_found or 'X' in vars_found) and \
+                 ('y' in vars_found or 'Y' in vars_found)
+
+        if len(vars_found) > 2:
+            return {
+                "type": "error",
+                "message": (
+                    f"隐式方程仅支持 x 和 y，检测到 {len(vars_found)} 个变量: "
+                    f"{', '.join(sorted(vars_found))}。\n请简化为二元方程，如 x^2 + y^2 = 25。"
+                ),
+            }
+        elif has_xy:
+            return {"type": "implicit"}
         else:
-            self._input.setPlaceholderText("sinx, e^x, g(t)=sin(t), a*x+b")
-            self._param_hint.setText("")
-        self._validate()
-        self.changed.emit()
+            # 形如 y = x^2（含 = 且含 y/x 但不被识别为 name(var)=expr）
+            # 将其视为显式函数（只有一个有效变量时）
+            return {"type": "explicit"}
 
     # ── 输入处理 ───────────────────────────────────────────
 
@@ -248,11 +291,38 @@ class FunctionBox(QWidget):
         raw = self._input.text().strip()
         if not raw:
             self._error_label.hide()
+            self._type_tag.hide()
+            self._expr_type = "explicit"
             self._update_param_hint_text()
             self.changed.emit()
             return
 
-        if not self._is_implicit:
+        # ── 自动分类 ──
+        classification = self._classify(raw)
+        self._expr_type = classification["type"]
+
+        if self._expr_type == "error":
+            self._error_label.setText(classification.get("message", "无法识别，请检查表达式"))
+            self._error_label.show()
+            self._type_tag.hide()
+            self._param_hint.setText("")
+            return
+
+        # ── 更新标题与类型标签 ──
+        if self._expr_type == "implicit":
+            self._type_tag.setText("隐式")
+            self._type_tag.setStyleSheet(
+                _TYPE_TAG_STYLE + "color: #7c3aed; background: #f3e8ff;")
+            self._type_tag.show()
+            self._title.setText(f"{self._index}.")
+            self._func_name = ""
+            self._independent_var = "x"
+        else:
+            self._type_tag.setText("显式")
+            self._type_tag.setStyleSheet(
+                _TYPE_TAG_STYLE + "color: #2563eb; background: #dbeafe;")
+            self._type_tag.show()
+            # 解析 name(var)=expr
             parsed = parse_input(raw, self._independent_var)
             self._func_name = parsed.name
             self._independent_var = parsed.var
@@ -260,8 +330,6 @@ class FunctionBox(QWidget):
                 self._title.setText(f"{self._index}. {parsed.name}({parsed.var}) =")
             else:
                 self._title.setText(f"{self._index}.")
-        else:
-            self._title.setText(f"{self._index}.")
 
         self._validate()
         self._update_param_hint_text()
@@ -287,8 +355,8 @@ class FunctionBox(QWidget):
 
     def _update_param_hint_text(self, existing: set[str] | None = None) -> None:
         """更新参数提示文本。"""
-        if self._is_implicit:
-            self._param_hint.setText("隐式方程" if not self.expr else "")
+        if self._expr_type == "implicit":
+            self._param_hint.setText("f(x, y) = 0")
             return
 
         detected = self.detected_params
@@ -310,9 +378,9 @@ def _preprocess(s: str) -> str:
     s = re.sub(r'\be\^\(', 'exp(', s)
     s = re.sub(r'\be\^(\w+)', r'exp(\1)', s)
     s = s.replace('^', '**')
-    s = re.sub(rf'\b({_FUNCS})(\d+)([a-zA-Z])', r'\1(\2*\3)', s)
-    s = re.sub(rf'\b({_FUNCS})([a-zA-Z])', r'\1(\2)', s)
-    s = re.sub(rf'\b({_FUNCS})(\d+)', r'\1(\2)', s)
+    s = re.sub(rf'\b({_FUNCS_PATTERN})(\d+)([a-zA-Z])', r'\1(\2*\3)', s)
+    s = re.sub(rf'\b({_FUNCS_PATTERN})([a-zA-Z])', r'\1(\2)', s)
+    s = re.sub(rf'\b({_FUNCS_PATTERN})(\d+)', r'\1(\2)', s)
     s = re.sub(r'\bln\b', 'log', s)
     s = re.sub(r'\blg\b', 'log10', s)
     s = re.sub(r'\barcsin\b', 'asin', s)
@@ -334,6 +402,7 @@ def _normalize_implicit(s: str) -> str:
 
     "x^2 + y^2 = 25" → "x^2 + y^2 - 25"
     "sin(x) + cos(y) = 0" → "sin(x) + cos(y)"
+    "x = y^2" → "(x) - (y^2)"
     """
     s = s.strip()
     if "=" in s:

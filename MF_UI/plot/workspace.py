@@ -340,7 +340,7 @@ class PlotWorkspace(QWidget):
             self._canvas.add_function(
                 b.expr, color=b.color, label=b.label,
                 var=b.independent_var, params=box_params,
-                implicit=b.is_implicit)
+                implicit=(b.expr_type == "implicit"))
 
     def _update_delete_buttons(self) -> None:
         visible = len(self._boxes) > 1
