@@ -15,6 +15,112 @@ from MF_UI.calc.base_calc_block import BaseCalcBlock
 from calc_engine import calculate_direct
 
 
+def _show_integral_bounds_dialog(
+    parent, expr: str, default_var: str = "x"
+) -> tuple[str, str, str, str] | None:
+    """定积分上下限选择对话框。
+
+    Returns:
+        (func, var, a, b) 或用户取消时 None。
+    """
+    from PySide6.QtWidgets import (QDialog, QDoubleSpinBox,
+                                    QHBoxLayout, QLabel, QLineEdit,
+                                    QPushButton, QVBoxLayout)
+
+    # 尝试从已有表达式解析，预填值
+    parts = [p.strip() for p in expr.split(",")]
+    func = parts[0] if parts else expr
+    var = default_var
+    pre_a, pre_b = 0.0, 1.0
+    if len(parts) == 3:
+        func, a_str, b_str = parts; var = "x"
+        try: pre_a = float(a_str)
+        except ValueError: pass
+        try: pre_b = float(b_str)
+        except ValueError: pass
+    elif len(parts) >= 4:
+        func, var, a_str, b_str = parts[0], parts[1], parts[2], parts[3]
+        try: pre_a = float(a_str)
+        except ValueError: pass
+        try: pre_b = float(b_str)
+        except ValueError: pass
+
+    dlg = QDialog(parent)
+    dlg.setWindowTitle("定积分 — 设定上下限")
+    dlg.setMinimumWidth(380)
+    dlg.setStyleSheet("QDialog{background:#f8fafc;}")
+
+    layout = QVBoxLayout(dlg); layout.setSpacing(12)
+    layout.setContentsMargins(20, 16, 20, 16)
+
+    # 被积函数
+    fl = QHBoxLayout()
+    fl.addWidget(QLabel("函数 f ="))
+    func_input = QLineEdit(func)
+    func_input.setStyleSheet(
+        "QLineEdit{border:1px solid #d1d5db;border-radius:4px;padding:6px 10px;"
+        "font-size:14px;background:#fff;}")
+    fl.addWidget(func_input, 1)
+    layout.addLayout(fl)
+
+    # 变量
+    vl = QHBoxLayout()
+    vl.addWidget(QLabel("变量"))
+    var_input = QLineEdit(var)
+    var_input.setMaximumWidth(60)
+    var_input.setStyleSheet(
+        "QLineEdit{border:1px solid #d1d5db;border-radius:4px;padding:6px 8px;"
+        "font-size:14px;background:#fff;}")
+    vl.addWidget(var_input)
+    vl.addStretch()
+    layout.addLayout(vl)
+
+    # 上下限
+    bl = QHBoxLayout(); bl.setSpacing(10)
+    bl.addWidget(QLabel("下限"))
+    spin_a = QDoubleSpinBox()
+    spin_a.setRange(-1e6, 1e6); spin_a.setValue(pre_a); spin_a.setDecimals(6)
+    spin_a.setStyleSheet(
+        "QDoubleSpinBox{border:1px solid #d1d5db;border-radius:4px;"
+        "padding:6px 10px;font-size:14px;background:#fff;}")
+    bl.addWidget(spin_a, 1)
+    bl.addWidget(QLabel("上限"))
+    spin_b = QDoubleSpinBox()
+    spin_b.setRange(-1e6, 1e6); spin_b.setValue(pre_b); spin_b.setDecimals(6)
+    spin_b.setStyleSheet(
+        "QDoubleSpinBox{border:1px solid #d1d5db;border-radius:4px;"
+        "padding:6px 10px;font-size:14px;background:#fff;}")
+    bl.addWidget(spin_b, 1)
+    layout.addLayout(bl)
+
+    # 按钮
+    btn_row = QHBoxLayout(); btn_row.addStretch()
+    cancel_btn = QPushButton("取消")
+    cancel_btn.setStyleSheet(
+        "QPushButton{background:#f1f5f9;color:#475569;border:1px solid #d1d5db;"
+        "border-radius:6px;padding:8px 20px;font-size:13px;}"
+        "QPushButton:hover{background:#e2e8f0;}")
+    cancel_btn.clicked.connect(dlg.reject)
+    btn_row.addWidget(cancel_btn)
+    ok_btn = QPushButton("计算")
+    ok_btn.setStyleSheet(
+        "QPushButton{background:#3b82f6;color:#fff;border:none;"
+        "border-radius:6px;padding:8px 24px;font-size:13px;font-weight:500;}"
+        "QPushButton:hover{background:#2563eb;}")
+    ok_btn.clicked.connect(dlg.accept)
+    btn_row.addWidget(ok_btn)
+    layout.addLayout(btn_row)
+
+    if dlg.exec() != QDialog.DialogCode.Accepted:
+        return None
+    return (
+        func_input.text().strip(),
+        var_input.text().strip() or "x",
+        str(spin_a.value()),
+        str(spin_b.value()),
+    )
+
+
 class CalcBlock(BaseCalcBlock):
     """代数计算块 — 含守卫 + AI 加速 + 极限超时。"""
 
@@ -68,7 +174,15 @@ class CalcBlock(BaseCalcBlock):
             if choice == "ai":
                 ai = get_accelerator()
                 if ai.check_quota("accelerations"):
-                    obj = ai.accelerate(expr, mode=op)
+                    # 定积分 → 让用户确认积分上下限
+                    ai_prompt = expr
+                    if op == "定积分":
+                        bounds = _show_integral_bounds_dialog(self, expr)
+                        if bounds is None:
+                            return  # 用户取消
+                        func_part, var, a, b = bounds
+                        ai_prompt = f"计算 ∫({func_part})d{var}, 从 {a} 到 {b}"
+                    obj = ai.accelerate(ai_prompt, mode=op)
                     self._last_result = obj
                     dlg = ResultDialog(f"AI 加速 — {op}", self)
                     dlg.set_result(obj)
@@ -161,7 +275,12 @@ class CalcBlock(BaseCalcBlock):
             elif len(parts) >= 4:
                 func, var, a, b = parts[0], parts[1], parts[2], parts[3]
             else:
-                return MathObject(error="定积分格式：函数, 下限, 上限 或 函数, 变量, 下限, 上限")
+                # 无上下限 → 弹窗让用户选择，默认变量 x
+                func = parts[0] if parts else expr
+                bounds = _show_integral_bounds_dialog(self, func, "x")
+                if bounds is None:
+                    return MathObject(error="已取消", meaning="用户取消")
+                func, var, a, b = bounds
             return calculate_direct("定积分", expr=func, var=var, a=a, b=b)
 
         # ========== 极限 ==========
