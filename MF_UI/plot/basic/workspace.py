@@ -13,7 +13,7 @@ from MF_UI.plot.basic.plot_canvas import PlotCanvas
 from MF_UI.plot.basic.function_box import FunctionBox
 from MF_UI.plot.basic.slider_function_box import SliderFunctionBox
 from MF_UI.plot.plot_3d import Plot3D
-from MF_UI.plot.plot_3d.function_box import FunctionBox as FunctionBox3D
+from MF_UI.plot.plot_3d.function_box import FunctionBox as FB3D
 
 
 def _load_plot_colors() -> list[str]:
@@ -148,7 +148,7 @@ class PlotWorkspace(QWidget):
         if self._mode not in ("normal", "3d"): return
         color = _COLORS[self._color_idx % len(_COLORS)]
         self._color_idx += 1
-        cls = FunctionBox3D if self._mode == "3d" else FunctionBox
+        cls = FB3D if self._mode == "3d" else FunctionBox
         box = cls(index=self._next_index, color=color, mode=self._mode, parent=self)
         self._next_index += 1
 
@@ -267,15 +267,18 @@ class PlotWorkspace(QWidget):
         if self._mode == "3d" and self._canvas_3d is not None:
             self._canvas_3d.clear_surfaces()
             for b in self._boxes:
-                if not isinstance(b, FunctionBox): continue
-                if not b.is_visible or not b.expr: continue
-                box_params = dict(gparams)
-                resolved = b.expr
-                if b.is_derivative and b.referenced_function:
-                    r = b.resolve_derivative(definitions)
-                    if r: resolved = r
-                idx = self._canvas_3d.add_surface(resolved, color=b.color, params=box_params)
-                self._canvas_3d.set_visible(idx, b.is_visible)
+                if not isinstance(b, FB3D): continue
+                if not b.is_visible or not b.exprs: continue
+                if b.form == 0:
+                    # 显式 z=f(x,y)
+                    self._canvas_3d.add_surface(b.exprs[0], color=b.color)
+                elif b.form == 1:
+                    # 隐式 f(x,y,z)=0 — 曲面上的零等值面
+                    self._canvas_3d.add_surface(b.exprs[0], color=b.color)
+                elif b.form in (2, 3):
+                    # 参数曲面/曲线 — 暂以第一个表达式为主
+                    if b.exprs:
+                        self._canvas_3d.add_surface(b.exprs[0], color=b.color)
             return
 
         # 2D
