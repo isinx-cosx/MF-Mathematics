@@ -663,6 +663,7 @@ class GeometryCanvas(QGraphicsView):
             self._redraw()
 
     def mouseReleaseEvent(self, event) -> None:
+        super().mouseReleaseEvent(event)
         if event.button() == Qt.MouseButton.MiddleButton:
             self.setDragMode(QGraphicsView.DragMode.NoDrag)
 
@@ -674,24 +675,77 @@ class GeometryCanvas(QGraphicsView):
         elif self._state == _State.DRAGGING:
             self._commit_drag()
 
+        # 复制 PlotCanvas：左键释放后立即重绘
+        if event.button() == Qt.MouseButton.LeftButton:
+            self._after_view_change()
+            self._emit_status()
+
     def mouseDoubleClickEvent(self, event) -> None:
         if self._state == _State.BUILD_POLY and len(self._temp_pts) >= 3:
             self._commit_polygon()
 
     def wheelEvent(self, event) -> None:
+        """缩放 — 完全复制 PlotCanvas.wheelEvent。"""
         factor = 1.15 if event.angleDelta().y() > 0 else 1.0 / 1.15
-        vs = abs(self.transform().m11())
+        vs = _view_scale(self)
         if vs * factor < 1.0 / ZOOM_MAX or vs * factor > 1.0 / ZOOM_MIN:
             return
         self.scale(factor, factor)
+        self._clamp_view()
         self._redraw()
         event.accept()
 
     def resizeEvent(self, event) -> None:
+        """保持纵横比 — 复制 PlotCanvas.resizeEvent。"""
         super().resizeEvent(event)
         vr = self.mapToScene(self.viewport().rect()).boundingRect()
         if vr.width() > 0 and vr.height() > 0:
             self.fitInView(vr, Qt.AspectRatioMode.KeepAspectRatio)
+
+    # ═══════════════════════════════════════════════════════════
+    #  View control — 复制 PlotCanvas
+    # ═══════════════════════════════════════════════════════════
+
+    def _clamp_view(self) -> None:
+        """确保视口不超出场景边界 ±SCENE_RANGE — 复制 PlotCanvas。"""
+        vr = self.mapToScene(self.viewport().rect()).boundingRect()
+        R = SCENE_RANGE
+        h, v = self.horizontalScrollBar(), self.verticalScrollBar()
+        if vr.left() < -R:
+            h.setValue(h.value() - int(-R - vr.left()))
+        if vr.right() > R:
+            h.setValue(h.value() + int(vr.right() - R))
+        if vr.top() < -R:
+            v.setValue(v.value() - int(-R - vr.top()))
+        if vr.bottom() > R:
+            v.setValue(v.value() + int(vr.bottom() - R))
+
+    def _after_view_change(self) -> None:
+        """视图变化后统一处理 — 复制 PlotCanvas（曲线 pen 适配替换为重绘）。"""
+        self._clamp_view()
+        self._redraw()
+
+    # ── 缩放 API ──────────────────────────────────────────────
+
+    def zoom_in(self) -> None:
+        """放大 — 复制 PlotCanvas.zoom_in。"""
+        if _view_scale(self) * 1.15 > 1.0 / ZOOM_MIN:
+            return
+        self.scale(1.15, 1.15)
+        self._after_view_change()
+
+    def zoom_out(self) -> None:
+        """缩小 — 复制 PlotCanvas.zoom_out。"""
+        if _view_scale(self) / 1.15 < 1.0 / ZOOM_MAX:
+            return
+        self.scale(1.0 / 1.15, 1.0 / 1.15)
+        self._after_view_change()
+
+    def reset_view(self) -> None:
+        """重置视图 — 复制 PlotCanvas.reset_view。"""
+        self.fitInView(INITIAL_VIEW, Qt.AspectRatioMode.KeepAspectRatio)
+        self._after_view_change()
+        self._emit_status()
 
     # ═══════════════════════════════════════════════════════════
     #  工具分发（与旧版相同逻辑）
@@ -907,10 +961,6 @@ class GeometryCanvas(QGraphicsView):
                 s.label = label; self._redraw()
                 self.shape_modified.emit(); return
 
-    def reset_view(self) -> None:
-        self.fitInView(INITIAL_VIEW, Qt.AspectRatioMode.KeepAspectRatio)
-        self._redraw()
-
     def fit_all(self) -> None:
         bounds = compute_bounds(self._shapes)
         if bounds is None:
@@ -929,8 +979,13 @@ class GeometryCanvas(QGraphicsView):
 
 
 # ═══════════════════════════════════════════════════════════════
-#  辅助函数
+#  辅助函数（复制 PlotCanvas）
 # ═══════════════════════════════════════════════════════════════
+
+def _view_scale(view) -> float:
+    """当前视图的像素/场景单位比 — 复制 PlotCanvas。"""
+    t = view.transform()
+    return abs(t.m11()) if abs(t.m11()) > 1e-9 else 1.0
 
 def _dist(x1, y1, x2, y2):
     return math.hypot(x2 - x1, y2 - y1)
