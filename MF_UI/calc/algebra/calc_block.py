@@ -47,6 +47,7 @@ class CalcBlock(BaseCalcBlock):
 
         # ── 三级守卫 ──
         from MF_UI.utils.math_guard_ui import show_guard_dialog, show_quota_exceeded
+        from calc.math_display import ResultDialog
         from PySide6.QtWidgets import QApplication
 
         guard_result = ComplexityGuard.check(expr, mode=op)
@@ -86,7 +87,6 @@ class CalcBlock(BaseCalcBlock):
 
         # ── 极限专项防御 ──
         if op == "极限":
-            from calc.math_display import ResultDialog
             import threading
             parts = [p.strip() for p in expr.split(",")]
             var = parts[1] if len(parts) > 1 else "x"
@@ -120,8 +120,6 @@ class CalcBlock(BaseCalcBlock):
             return
 
         # ── 执行计算 ──
-        from PySide6.QtWidgets import QApplication
-        from calc.math_display import ResultDialog
         QApplication.processEvents()
         obj: MathObject | None = None
         try:
