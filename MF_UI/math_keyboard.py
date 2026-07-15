@@ -6,8 +6,9 @@ from __future__ import annotations
 from PySide6.QtCore import Qt, QPoint, QRect, QSize, Signal
 from PySide6.QtGui import QFont, QMouseEvent, QShortcut, QKeySequence
 from PySide6.QtWidgets import (
-    QApplication, QGridLayout, QLineEdit, QPlainTextEdit,
-    QPushButton, QSizeGrip, QTabWidget, QTextEdit, QVBoxLayout, QWidget,
+    QApplication, QGridLayout, QHBoxLayout, QLabel, QLineEdit,
+    QPlainTextEdit, QPushButton, QSizeGrip, QTabWidget, QTextEdit,
+    QVBoxLayout, QWidget,
 )
 
 # ── 符号定义 ──────────────────────────────────────────────
@@ -61,10 +62,21 @@ SYMBOLS: dict[str, list[list[str]]] = {
 # ── 样式 ──────────────────────────────────────────────────
 
 _LIGHT_QSS = """
-    MathKeyboard { background: #f8fafc; border: 2px solid #cbd5e1; border-radius: 10px; }
+    MathKeyboard {
+        background: #f8fafc; border: 2px solid #cbd5e1; border-radius: 12px;
+    }
+    #kb_header {
+        background: #f1f5f9; border-bottom: 1px solid #e2e8f0;
+        border-top-left-radius: 10px; border-top-right-radius: 10px;
+    }
+    #kb_close {
+        background: transparent; border: none; color: #94a3b8;
+        font-size: 16px; font-weight: bold; padding: 0 4px;
+    }
+    #kb_close:hover { color: #ef4444; background: #fee2e2; border-radius: 4px; }
     QTabWidget::pane { border: 1px solid #e2e8f0; background: #fff; border-radius: 6px; }
     QTabBar::tab {
-        background: #f1f5f9; color: #475569; padding: 4px 8px;
+        background: #f1f5f9; color: #475569; padding: 4px 10px;
         border: 1px solid #d1d5db; border-bottom: none;
         border-top-left-radius: 6px; border-top-right-radius: 6px;
         font-size: 11px; margin-right: 2px;
@@ -79,11 +91,22 @@ _LIGHT_QSS = """
 """
 
 _DARK_QSS = """
-    MathKeyboard { background: #1e1e2e; border: 2px solid #313244; border-radius: 10px; }
+    MathKeyboard {
+        background: #1e1e2e; border: 2px solid #45475a; border-radius: 12px;
+    }
+    #kb_header {
+        background: #252540; border-bottom: 1px solid #313244;
+        border-top-left-radius: 10px; border-top-right-radius: 10px;
+    }
+    #kb_close {
+        background: transparent; border: none; color: #6c7086;
+        font-size: 16px; font-weight: bold; padding: 0 4px;
+    }
+    #kb_close:hover { color: #ef4444; background: #3b1c1c; border-radius: 4px; }
     QTabWidget::pane { border: 1px solid #313244; background: #252540; border-radius: 6px; }
     QTabBar::tab {
-        background: #313244; color: #94a3b8; padding: 4px 8px;
-        border: 1px solid #313244; border-bottom: none;
+        background: #313244; color: #94a3b8; padding: 4px 10px;
+        border: 1px solid #45475a; border-bottom: none;
         border-top-left-radius: 6px; border-top-right-radius: 6px;
         font-size: 11px; margin-right: 2px;
     }
@@ -127,8 +150,29 @@ class MathKeyboard(QWidget):
 
         # 布局
         root = QVBoxLayout(self)
-        root.setSpacing(2)
-        root.setContentsMargins(4, 4, 4, 0)
+        root.setSpacing(0)
+        root.setContentsMargins(4, 0, 4, 0)
+
+        # ── 标题栏 ──
+        hdr = QHBoxLayout()
+        hdr.setContentsMargins(8, 6, 4, 4)
+        title_lbl = QLabel("数学键盘")
+        title_lbl.setStyleSheet(
+            "font-size: 12px; font-weight: 600; color: #475569; background: transparent;")
+        hdr.addWidget(title_lbl)
+        hdr.addStretch()
+        close_btn = QPushButton("×")
+        close_btn.setObjectName("kb_close")
+        close_btn.setFixedSize(24, 24)
+        close_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        close_btn.clicked.connect(self.close)
+        hdr.addWidget(close_btn)
+
+        # 标题栏容器（用于 QSS 样式）
+        hdr_widget = QWidget()
+        hdr_widget.setObjectName("kb_header")
+        hdr_widget.setLayout(hdr)
+        root.addWidget(hdr_widget)
 
         self._tabs = QTabWidget()
         self._tabs.setDocumentMode(True)
