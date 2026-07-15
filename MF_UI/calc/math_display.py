@@ -395,11 +395,8 @@ class ResultDialog(QDialog):
 
         from MF_UI.calc.step_viewer import StepViewer
 
-        # 获取表达式上下文
-        expr = self._context_expr or getattr(obj, "result", "")
-        if isinstance(expr, str) and len(expr) > 500:
-            expr = expr[:500] + "…"
-        expr = str(expr) if expr else ""
+        # 使用用户输入的原始表达式（不是计算结果）
+        expr = str(self._context_expr) if self._context_expr else ""
         mode = self._context_mode or ""
 
         viewer = StepViewer(self, expr=expr, mode=mode)
