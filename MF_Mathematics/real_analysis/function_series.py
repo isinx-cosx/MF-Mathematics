@@ -4,6 +4,7 @@
 """
 
 from __future__ import annotations
+from MF_Mathematics.core.helpers import to_sympy
 
 from typing import List, Optional, Tuple, Union
 
@@ -12,15 +13,6 @@ import sympy as sp
 
 from ..core.math_object import MathObject
 from ..core.registry import register
-
-
-def _to_sympy(expr: Union[str, sp.Expr]) -> sp.Expr:
-    """将字符串或 sympy 表达式统一转为 sympy 表达式。"""
-    if isinstance(expr, sp.Expr):
-        return expr
-    return sp.sympify(str(expr))
-
-
 @register(module="real_analysis", action="pointwise_convergence")
 def pointwise_convergence(
     seq_expr: Union[str, sp.Expr],
@@ -44,7 +36,7 @@ def pointwise_convergence(
     try:
         x = sp.Symbol(var)
         n = sp.Symbol(n_var)
-        ex = _to_sympy(seq_expr)
+        ex = to_sympy(seq_expr)
 
         # 代入 x = point
         fn_at_point = ex.subs(x, point)
@@ -100,7 +92,7 @@ def uniform_convergence(
     try:
         x = sp.Symbol(var)
         n = sp.Symbol(n_var)
-        ex = _to_sympy(seq_expr)
+        ex = to_sympy(seq_expr)
         a, b = float(interval[0]), float(interval[1])
 
         # 极限函数 f(x) = lim_{n→∞} f_n(x)
@@ -188,7 +180,7 @@ def weierstrass_m_test(
     try:
         x = sp.Symbol(var)
         n = sp.Symbol(n_var)
-        ex = _to_sympy(seq_expr)
+        ex = to_sympy(seq_expr)
         a, b = float(interval[0]), float(interval[1])
 
         steps = [
@@ -240,7 +232,7 @@ def weierstrass_m_test(
         else:
             M_n_expr = str(bound_series)
 
-        M_n = _to_sympy(M_n_expr)
+        M_n = to_sympy(M_n_expr)
         steps.append(f"支配级数通项: M_n = {M_n}")
 
         # 判断 Σ M_n 是否收敛
@@ -292,7 +284,7 @@ def termwise_integration(
     try:
         x = sp.Symbol(var)
         n = sp.Symbol(n_var)
-        ex = _to_sympy(seq_expr)
+        ex = to_sympy(seq_expr)
 
         steps = [
             f"函数级数通项: f_{n_var}({var}) = {ex}",
@@ -353,7 +345,7 @@ def termwise_differentiation(
     try:
         x = sp.Symbol(var)
         n = sp.Symbol(n_var)
-        ex = _to_sympy(seq_expr)
+        ex = to_sympy(seq_expr)
 
         steps = [
             f"函数级数通项: f_{n_var}({var}) = {ex}",

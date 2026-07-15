@@ -5,6 +5,7 @@
 """
 
 from __future__ import annotations
+from MF_Mathematics.core.helpers import parse_func
 
 from typing import Callable, Optional, Union
 
@@ -17,20 +18,6 @@ from ..core.math_object import MathObject
 from ..core.registry import register
 
 _PI = np.pi
-
-
-def _parse_func(
-    f: Union[str, Callable], var: sp.Symbol
-) -> sp.Expr:
-    """将字符串或可调用对象解析为 SymPy 表达式。"""
-    if isinstance(f, str):
-        return sp.sympify(f, locals={"x": var, "pi": sp.pi, "PI": sp.pi})
-    elif callable(f):
-        return f(var)
-    else:
-        raise TypeError(f"f 必须为字符串或可调用对象，当前类型: {type(f)}")
-
-
 def _to_callable(expr: sp.Expr, var: sp.Symbol = sp.Symbol("x", real=True)) -> Callable:
     """将 SymPy 表达式转为可调用的 numpy 函数。"""
     return sp.lambdify(var, expr, modules=["numpy"])
@@ -58,7 +45,7 @@ def fourier_transform(
     """
     try:
         x = sp.Symbol("x", real=True)
-        expr = _parse_func(f, x)
+        expr = parse_func(f, x)
 
         if use_angular:
             # 角频率形式
@@ -124,7 +111,7 @@ def inverse_fourier_transform(
     """
     try:
         xi = sp.Symbol("xi", real=True)
-        expr = _parse_func(F, xi)
+        expr = parse_func(F, xi)
 
         x_sym = sp.Symbol("x", real=True)
         if use_angular:
@@ -183,7 +170,7 @@ def plancherel_theorem(
     """
     try:
         x = sp.Symbol("x", real=True)
-        expr_f = _parse_func(f, x)
+        expr_f = parse_func(f, x)
         f_callable = _to_callable(expr_f, x)
 
         x_vals = np.linspace(x_range[0], x_range[1], n_points)
@@ -212,7 +199,7 @@ def plancherel_theorem(
         ]
 
         if g is not None:
-            expr_g = _parse_func(g, x)
+            expr_g = parse_func(g, x)
             g_callable = _to_callable(expr_g, x)
             g_samples = g_callable(x_vals)
             G_fft = np.fft.fft(g_samples) * dx

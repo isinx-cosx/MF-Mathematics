@@ -4,6 +4,7 @@
 """
 
 from __future__ import annotations
+from MF_Mathematics.core.helpers import to_matrix
 
 from typing import Any, Dict, List, Tuple, Union
 
@@ -12,15 +13,6 @@ import sympy as sp
 
 from ..core.math_object import MathObject
 from ..core.registry import register
-
-
-def _to_matrix(mat: Union[List[List[float]], np.ndarray]) -> sp.Matrix:
-    """统一转为 sympy Matrix。"""
-    if isinstance(mat, sp.Matrix):
-        return mat
-    return sp.Matrix(mat)
-
-
 def _parse_vars(
     x: Union[str, List[str], List[sp.Symbol]],
     n: int,
@@ -54,7 +46,7 @@ def quadratic_form(
         MathObject，result 为二次型表达式。
     """
     try:
-        A = _to_matrix(matrix)
+        A = to_matrix(matrix)
         n = A.rows
 
         if A.rows != A.cols:
@@ -94,7 +86,7 @@ def standard_form(
         MathObject，result 包含特征值、标准形表达式和正交变换矩阵。
     """
     try:
-        A = _to_matrix(matrix)
+        A = to_matrix(matrix)
         n = A.rows
 
         if A.rows != A.cols:
@@ -171,7 +163,7 @@ def is_positive_definite(
         MathObject，result 为 bool。
     """
     try:
-        A = _to_matrix(matrix)
+        A = to_matrix(matrix)
         n = A.rows
 
         if A.rows != A.cols:
@@ -229,7 +221,7 @@ def is_negative_definite(
         MathObject，result 为 bool。
     """
     try:
-        A = _to_matrix(matrix)
+        A = to_matrix(matrix)
         n = A.rows
 
         if A.rows != A.cols:
@@ -292,7 +284,7 @@ def is_indefinite(
         MathObject，result 为 bool。
     """
     try:
-        A = _to_matrix(matrix)
+        A = to_matrix(matrix)
         n = A.rows
 
         if A.rows != A.cols:

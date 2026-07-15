@@ -4,6 +4,7 @@
 """
 
 from __future__ import annotations
+from MF_Mathematics.core.helpers import to_sympy
 
 from typing import Union
 
@@ -11,15 +12,6 @@ import sympy as sp
 
 from ..core.math_object import MathObject
 from ..core.registry import register
-
-
-def _to_sympy(expr: Union[str, sp.Expr]) -> sp.Expr:
-    """将字符串或 sympy 表达式统一转为 sympy 表达式。"""
-    if isinstance(expr, sp.Expr):
-        return expr
-    return sp.sympify(str(expr))
-
-
 @register(module="calculus", action="area_between")
 def area_between(
     expr1: Union[str, sp.Expr],
@@ -42,8 +34,8 @@ def area_between(
     """
     try:
         x = sp.Symbol(var)
-        f = _to_sympy(expr1)
-        g = _to_sympy(expr2)
+        f = to_sympy(expr1)
+        g = to_sympy(expr2)
 
         # 计算定积分
         diff = f - g
@@ -97,7 +89,7 @@ def volume_disk(
     """
     try:
         x = sp.Symbol(var)
-        f = _to_sympy(expr)
+        f = to_sympy(expr)
 
         if axis == "x":
             integrand = sp.pi * f**2
@@ -153,7 +145,7 @@ def volume_shell(
     """
     try:
         x = sp.Symbol(var)
-        f = _to_sympy(expr)
+        f = to_sympy(expr)
 
         integrand = 2 * sp.pi * x * f
         volume = sp.integrate(integrand, (x, a, b))
@@ -203,7 +195,7 @@ def arc_length(
     """
     try:
         x = sp.Symbol(var)
-        f = _to_sympy(expr)
+        f = to_sympy(expr)
         deriv = sp.diff(f, x)
         integrand = sp.sqrt(1 + deriv**2)
 

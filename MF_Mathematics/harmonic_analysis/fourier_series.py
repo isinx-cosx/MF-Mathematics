@@ -5,6 +5,7 @@
 """
 
 from __future__ import annotations
+from MF_Mathematics.core.helpers import parse_func
 
 from typing import Callable, Optional, Union
 
@@ -23,20 +24,6 @@ def _normalize_period(period):
         # 尝试将浮点周期识别为 π 的有理倍数
         return sp.nsimplify(period, [sp.pi])
     return sp.sympify(period)
-
-
-def _parse_func(
-    f: Union[str, Callable], var: sp.Symbol
-) -> sp.Expr:
-    """将字符串或可调用对象解析为 SymPy 表达式。"""
-    if isinstance(f, str):
-        return sp.sympify(f, locals={"x": var, "pi": sp.pi, "PI": sp.pi})
-    elif callable(f):
-        return f(var)
-    else:
-        raise TypeError(f"f 必须为字符串或可调用对象，当前类型: {type(f)}")
-
-
 @register(module="harmonic_analysis", action="fourier_coeff")
 def fourier_coeff(
     f: Union[str, Callable],
@@ -62,7 +49,7 @@ def fourier_coeff(
     """
     try:
         x = sp.Symbol("x", real=True)
-        expr = _parse_func(f, x)
+        expr = parse_func(f, x)
         T = _normalize_period(period)
 
         if coeff_type == "cos":
@@ -118,7 +105,7 @@ def fourier_series(
     """
     try:
         x = sp.Symbol("x", real=True)
-        expr = _parse_func(f, x)
+        expr = parse_func(f, x)
         T = _normalize_period(period)
 
         # a_0
@@ -175,7 +162,7 @@ def complex_fourier_coeff(
     """
     try:
         x = sp.Symbol("x", real=True)
-        expr = _parse_func(f, x)
+        expr = parse_func(f, x)
         T = _normalize_period(period)
 
         integrand = (1 / T) * expr * sp.exp(-2 * sp.pi * sp.I * n * x / T)

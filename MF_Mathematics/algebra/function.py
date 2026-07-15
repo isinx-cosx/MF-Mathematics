@@ -4,6 +4,7 @@
 """
 
 from __future__ import annotations
+from MF_Mathematics.core.helpers import to_sympy
 
 import math
 from typing import Any, Dict, List, Optional, Tuple, Union
@@ -12,15 +13,6 @@ import sympy as sp
 
 from ..core.math_object import MathObject
 from ..core.registry import register
-
-
-def _to_sympy(expr: Union[str, sp.Expr]) -> sp.Expr:
-    """字符串转 sympy 表达式。"""
-    if isinstance(expr, sp.Expr):
-        return expr
-    return sp.sympify(str(expr))
-
-
 # ===================================================================
 # 函数三要素
 # ===================================================================
@@ -38,7 +30,7 @@ def domain(expr: Union[str, sp.Expr], var: str = "x") -> MathObject:
         MathObject，result 为定义域描述。
     """
     try:
-        ex = _to_sympy(expr)
+        ex = to_sympy(expr)
         x = sp.Symbol(var, real=True)
 
         # 分析定义域约束
@@ -109,7 +101,7 @@ def range_estimate(
         MathObject，result 为值域描述。
     """
     try:
-        ex = _to_sympy(expr)
+        ex = to_sympy(expr)
         x = sp.Symbol(var, real=True)
         try:
             from sympy.calculus.util import function_range
@@ -141,7 +133,7 @@ def correspondence_rule(expr: Union[str, sp.Expr]) -> MathObject:
         MathObject，result 为对应法则的描述。
     """
     try:
-        ex = _to_sympy(expr)
+        ex = to_sympy(expr)
         # 分析表达式类型
         expr_type = "代数表达式"
         if ex.is_Polynomial:

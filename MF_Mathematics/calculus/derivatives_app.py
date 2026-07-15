@@ -5,6 +5,7 @@
 """
 
 from __future__ import annotations
+from MF_Mathematics.core.helpers import to_sympy
 
 from typing import Any, List, Optional, Tuple, Union
 
@@ -12,15 +13,6 @@ import sympy as sp
 
 from ..core.math_object import MathObject
 from ..core.registry import register
-
-
-def _to_sympy(expr: Union[str, sp.Expr]) -> sp.Expr:
-    """将字符串或 sympy 表达式统一转为 sympy 表达式。"""
-    if isinstance(expr, sp.Expr):
-        return expr
-    return sp.sympify(str(expr))
-
-
 @register(module="calculus", action="rolle_theorem")
 def rolle_theorem(
     expr: Union[str, sp.Expr],
@@ -39,7 +31,7 @@ def rolle_theorem(
     """
     try:
         x = sp.Symbol(var)
-        ex = _to_sympy(expr)
+        ex = to_sympy(expr)
         a, b = interval
 
         f_a = float(sp.N(ex.subs(x, a)))
@@ -97,7 +89,7 @@ def lagrange_theorem(
     """
     try:
         x = sp.Symbol(var)
-        ex = _to_sympy(expr)
+        ex = to_sympy(expr)
         a, b = interval
 
         f_a = float(sp.N(ex.subs(x, a)))
@@ -150,7 +142,7 @@ def lhopital(
     """
     try:
         x = sp.Symbol(var)
-        ex = _to_sympy(expr)
+        ex = to_sympy(expr)
 
         # 提取分子分母
         if isinstance(ex, sp.Mul):
@@ -214,7 +206,7 @@ def monotonicity(
     """
     try:
         x = sp.Symbol(var)
-        ex = _to_sympy(expr)
+        ex = to_sympy(expr)
         deriv = sp.diff(ex, x)
         simplified_deriv = sp.simplify(deriv)
 
@@ -298,7 +290,7 @@ def local_extrema(
     """
     try:
         x = sp.Symbol(var)
-        ex = _to_sympy(expr)
+        ex = to_sympy(expr)
 
         first_deriv = sp.diff(ex, x)
         second_deriv = sp.diff(first_deriv, x)
@@ -360,7 +352,7 @@ def global_extrema(
     """
     try:
         x = sp.Symbol(var)
-        ex = _to_sympy(expr)
+        ex = to_sympy(expr)
         a, b = interval
 
         first_deriv = sp.diff(ex, x)
@@ -415,7 +407,7 @@ def taylor(
     """
     try:
         x = sp.Symbol(var)
-        ex = _to_sympy(expr)
+        ex = to_sympy(expr)
         series = sp.series(ex, x, point, order + 1).removeO()
         poly = sp.expand(series)
 

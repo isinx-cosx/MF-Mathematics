@@ -5,6 +5,7 @@
 """
 
 from __future__ import annotations
+from MF_Mathematics.core.helpers import parse_func
 
 from typing import Callable, Optional, Union
 
@@ -17,20 +18,6 @@ from ..core.math_object import MathObject
 from ..core.registry import register
 
 _PI = np.pi
-
-
-def _parse_func(
-    f: Union[str, Callable], var: sp.Symbol
-) -> sp.Expr:
-    """将字符串或可调用对象解析为 SymPy 表达式。"""
-    if isinstance(f, str):
-        return sp.sympify(f, locals={"x": var, "pi": sp.pi, "PI": sp.pi})
-    elif callable(f):
-        return f(var)
-    else:
-        raise TypeError(f"f 必须为字符串或可调用对象，当前类型: {type(f)}")
-
-
 def _to_callable(expr: sp.Expr, var: sp.Symbol = sp.Symbol("x", real=True)) -> Callable:
     """将 SymPy 表达式转为可调用的 numpy 函数。"""
     return sp.lambdify(var, expr, modules=["numpy"])
@@ -56,10 +43,10 @@ def convolution(
     """
     try:
         t = sp.Symbol("t", real=True)
-        expr_f = _parse_func(f, t)
+        expr_f = parse_func(f, t)
 
         # g(x - t)
-        expr_g_raw = _parse_func(g, t)
+        expr_g_raw = parse_func(g, t)
         # 用变量替换：g(x_val - t)
         x_sym = sp.Symbol("x", real=True)
         expr_g_shifted = expr_g_raw.subs(t, x_sym - t).subs(x_sym, x_val)
@@ -116,8 +103,8 @@ def convolution_theorem(
     """
     try:
         x = sp.Symbol("x", real=True)
-        expr_f = _parse_func(f, x)
-        expr_g = _parse_func(g, x)
+        expr_f = parse_func(f, x)
+        expr_g = parse_func(g, x)
 
         f_fn = _to_callable(expr_f, x)
         g_fn = _to_callable(expr_g, x)

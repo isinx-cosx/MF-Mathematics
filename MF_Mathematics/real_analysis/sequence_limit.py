@@ -4,6 +4,7 @@
 """
 
 from __future__ import annotations
+from MF_Mathematics.core.helpers import to_sympy
 
 from typing import List, Optional, Union
 
@@ -11,15 +12,6 @@ import sympy as sp
 
 from ..core.math_object import MathObject
 from ..core.registry import register
-
-
-def _to_sympy(expr: Union[str, sp.Expr]) -> sp.Expr:
-    """将字符串或 sympy 表达式统一转为 sympy 表达式。"""
-    if isinstance(expr, sp.Expr):
-        return expr
-    return sp.sympify(str(expr))
-
-
 @register(module="real_analysis", action="sequence_limit")
 def sequence_limit(
     expr: Union[str, sp.Expr],
@@ -40,7 +32,7 @@ def sequence_limit(
     """
     try:
         n = sp.Symbol(var)
-        ex = _to_sympy(expr)
+        ex = to_sympy(expr)
 
         if n_inf == "oo" or n_inf == sp.oo:
             lim_val = sp.limit(ex, n, sp.oo)
@@ -100,7 +92,7 @@ def sequence_convergence(
     """
     try:
         n = sp.Symbol(var)
-        ex = _to_sympy(expr)
+        ex = to_sympy(expr)
 
         lim_val = sp.limit(ex, n, sp.oo)
         steps = [f"数列: a_{var} = {ex}"]
@@ -164,7 +156,7 @@ def cauchy_criterion(
     try:
         if isinstance(seq, str):
             n_sym = sp.Symbol('n')
-            ex = _to_sympy(seq)
+            ex = to_sympy(seq)
             values = []
             for i in range(1, max_n + 1):
                 val = float(sp.N(ex.subs(n_sym, i)))

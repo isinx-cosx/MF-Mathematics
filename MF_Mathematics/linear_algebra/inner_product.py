@@ -4,6 +4,7 @@
 """
 
 from __future__ import annotations
+from MF_Mathematics.core.helpers import to_vector
 
 from typing import Any, Dict, List, Tuple, Union
 
@@ -12,18 +13,6 @@ import sympy as sp
 
 from ..core.math_object import MathObject
 from ..core.registry import register
-
-
-def _to_vector(vec: Union[List[float], np.ndarray]) -> sp.Matrix:
-    """统一转为 sympy 列向量。"""
-    if isinstance(vec, sp.Matrix):
-        return vec
-    v = sp.Matrix(vec)
-    if v.rows == 1 and v.cols > 1:
-        v = v.T
-    return v
-
-
 @register(module="linear_algebra", action="dot")
 def dot(
     u: Union[List[float], np.ndarray],
@@ -39,8 +28,8 @@ def dot(
         MathObject，result 为点积数值。
     """
     try:
-        u_vec = _to_vector(u)
-        v_vec = _to_vector(v)
+        u_vec = to_vector(u)
+        v_vec = to_vector(v)
 
         if u_vec.rows != v_vec.rows:
             return MathObject(error=f"向量维数不一致: {u_vec.rows} vs {v_vec.rows}")
@@ -73,7 +62,7 @@ def norm(
         MathObject，result 为模长。
     """
     try:
-        v = _to_vector(vector)
+        v = to_vector(vector)
         n = v.norm()
 
         return MathObject(
@@ -103,8 +92,8 @@ def angle(
         MathObject，result 包含弧度值和角度值。
     """
     try:
-        u_vec = _to_vector(u)
-        v_vec = _to_vector(v)
+        u_vec = to_vector(u)
+        v_vec = to_vector(v)
 
         if u_vec.rows != v_vec.rows:
             return MathObject(error=f"向量维数不一致: {u_vec.rows} vs {v_vec.rows}")
@@ -156,8 +145,8 @@ def is_orthogonal(
         MathObject，result 为 bool。
     """
     try:
-        u_vec = _to_vector(u)
-        v_vec = _to_vector(v)
+        u_vec = to_vector(u)
+        v_vec = to_vector(v)
 
         if u_vec.rows != v_vec.rows:
             return MathObject(error=f"向量维数不一致: {u_vec.rows} vs {v_vec.rows}")
@@ -253,7 +242,7 @@ def orthogonal_projection(
         MathObject，result 为投影向量。
     """
     try:
-        v = _to_vector(vector)
+        v = to_vector(vector)
 
         if isinstance(basis, np.ndarray):
             basis = basis.tolist()

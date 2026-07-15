@@ -4,6 +4,7 @@
 """
 
 from __future__ import annotations
+from MF_Mathematics.core.helpers import parse_func
 
 from typing import Any, Callable, List, Optional, Tuple, Union
 
@@ -12,23 +13,6 @@ import sympy as sp
 
 from ..core.math_object import MathObject
 from ..core.registry import register
-
-
-def _parse_func(
-    f: Union[str, Callable],
-    var: sp.Symbol = None,
-) -> sp.Expr:
-    """将字符串或可调用对象解析为 SymPy 表达式。"""
-    if var is None:
-        var = sp.Symbol("x", real=True)
-    if isinstance(f, str):
-        return sp.sympify(f, locals={"x": var, "pi": sp.pi, "PI": sp.pi})
-    elif callable(f):
-        return f(var)
-    else:
-        raise TypeError(f"f 必须为字符串或可调用对象，当前类型: {type(f)}")
-
-
 def _parse_domain(domain) -> Tuple[float, float]:
     """解析定义域为 (a, b) 区间。"""
     if isinstance(domain, (list, tuple)):
@@ -60,7 +44,7 @@ def is_measurable(
     try:
         a, b = _parse_domain(domain)
         x = sp.Symbol("x", real=True)
-        expr = _parse_func(f, x)
+        expr = parse_func(f, x)
 
         steps = [f"函数: f(x) = {expr}", f"定义域: ({a}, {b})"]
 
@@ -200,7 +184,7 @@ def step_function_approx(
     try:
         a, b = _parse_domain(domain)
         x = sp.Symbol("x", real=True)
-        expr = _parse_func(f, x)
+        expr = parse_func(f, x)
 
         dx = (b - a) / n
         values = []

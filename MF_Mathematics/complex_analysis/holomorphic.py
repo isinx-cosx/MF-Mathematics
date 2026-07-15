@@ -4,6 +4,7 @@
 """
 
 from __future__ import annotations
+from MF_Mathematics.core.helpers import parse_func
 
 from typing import Any, Tuple, Union
 
@@ -14,99 +15,6 @@ from ..core.registry import register
 
 
 # ── 工具 ───────────────────────────────────────────────────────────────
-
-def _parse_func(func: Any, var: Any = None):
-    """解析函数表达式，返回 sympy 表达式和变量。"""
-    if isinstance(func, str):
-        expr = sp.sympify(func)
-    else:
-        expr = func
-    if var is None:
-        # 尝试自动检测变量
-        if hasattr(expr, 'free_symbols'):
-            syms = list(expr.free_symbols)
-            if len(syms) == 1:
-                var = syms[0]
-            else:
-                var = sp.Symbol('z')
-    elif isinstance(var, str):
-        var = sp.Symbol(var)
-    return expr, var
-
-
-# ── 公开函数 ──────────────────────────────────────────────────────────
-
-
-@register(module="complex_analysis", action="is_holomorphic")
-def is_holomorphic(
-    func: Any,
-    z: Any,
-) -> MathObject:
-    """在一点检查是否全纯（C-R方程 + 实可微）。
-
-    若 f(z) = u(x,y) + i v(x,y)，在点 z₀ 满足 C-R 方程：
-    u_x = v_y, u_y = -v_x，且 u, v 实可微，则全纯。
-
-    对 sympy 符号表达式：用 sp.diff 计算偏导并验证 C-R 方程。
-
-    Args:
-        func: 复函数，sympy 表达式或字符串（如 "sin(z)"）。
-        z: 复变量名或 sympy Symbol。
-
-    Returns:
-        MathObject，result 为 bool。
-    """
-    try:
-        expr, z_var = _parse_func(func, z)
-
-        # 引入实部和虚部符号
-        x = sp.Symbol('x', real=True)
-        y = sp.Symbol('y', real=True)
-
-        if z_var != sp.Symbol('z'):
-            # 若用户传入的变量不是 z，尝试用 z 替代
-            if str(z_var) != 'z':
-                z_var = sp.Symbol('z')
-
-        # 用 z 替换为 x + iy
-        expr_xy = expr.subs(z_var, x + sp.I * y)
-        # 分离实部和虚部
-        u_expr = sp.simplify(sp.re(expr_xy))
-        v_expr = sp.simplify(sp.im(expr_xy))
-
-        # 计算偏导数
-        u_x = sp.simplify(sp.diff(u_expr, x))
-        u_y = sp.simplify(sp.diff(u_expr, y))
-        v_x = sp.simplify(sp.diff(v_expr, x))
-        v_y = sp.simplify(sp.diff(v_expr, y))
-
-        # C-R 方程
-        cr1 = sp.simplify(u_x - v_y)
-        cr2 = sp.simplify(u_y + v_x)
-
-        holomorphic = cr1 == 0 and cr2 == 0
-
-        steps = [
-            f"f(z) = {expr}",
-            f"令 z = x + iy: f = {u_expr} + ({v_expr}) i",
-            f"u(x,y) = {u_expr}",
-            f"v(x,y) = {v_expr}",
-            f"∂u/∂x = {u_x}, ∂v/∂y = {v_y}",
-            f"∂u/∂y = {u_y}, ∂v/∂x = {v_x}",
-            f"u_x - v_y = {cr1} {'✓' if cr1 == 0 else '✗'}",
-            f"u_y + v_x = {cr2} {'✓' if cr2 == 0 else '✗'}",
-            f"C-R 方程{'成立' if holomorphic else '不成立'} → {'全纯' if holomorphic else '非全纯'}",
-        ]
-
-        return MathObject(
-            result=holomorphic,
-            steps=steps,
-            meaning="f 在区域上全纯 ⇔ 实部与虚部满足 C-R 方程且实可微。",
-        )
-    except Exception as e:
-        return MathObject(error=str(e))
-
-
 @register(module="complex_analysis", action="cauchy_riemann")
 def cauchy_riemann(
     u: Any,

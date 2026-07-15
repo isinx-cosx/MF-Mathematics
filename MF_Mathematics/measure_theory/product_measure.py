@@ -4,6 +4,7 @@
 """
 
 from __future__ import annotations
+from MF_Mathematics.core.helpers import parse_func
 
 from typing import Any, Callable, List, Optional, Tuple, Union
 
@@ -13,25 +14,6 @@ import sympy as sp
 
 from ..core.math_object import MathObject
 from ..core.registry import register
-
-
-def _parse_func(
-    f: Union[str, Callable],
-    vars_tuple: Tuple[sp.Symbol, sp.Symbol] = None,
-) -> sp.Expr:
-    """解析双变量函数表达式。"""
-    if vars_tuple is None:
-        x, y = sp.Symbol("x", real=True), sp.Symbol("y", real=True)
-    else:
-        x, y = vars_tuple
-    if isinstance(f, str):
-        return sp.sympify(f, locals={"x": x, "y": y, "pi": sp.pi, "PI": sp.pi})
-    elif callable(f):
-        return f(x, y)
-    else:
-        raise TypeError(f"f 必须为字符串或可调用对象，当前类型: {type(f)}")
-
-
 @register(module="measure_theory", action="product_measure")
 def product_measure(
     mu: Any,
@@ -127,7 +109,7 @@ def fubini_theorem(
             return MathObject(error=f"domain 需要 4 个值 [a,b,c,d]，当前 {domain}")
 
         x_sym, y_sym = sp.Symbol("x", real=True), sp.Symbol("y", real=True)
-        expr = _parse_func(f, (x_sym, y_sym))
+        expr = parse_func(f, (x_sym, y_sym))
 
         f_lambda = sp.lambdify((x_sym, y_sym), expr, "numpy")
 

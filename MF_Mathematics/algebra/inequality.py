@@ -4,6 +4,7 @@
 """
 
 from __future__ import annotations
+from MF_Mathematics.core.helpers import to_sympy
 
 from typing import Any, List, Optional, Union
 
@@ -11,15 +12,6 @@ import sympy as sp
 
 from ..core.math_object import MathObject
 from ..core.registry import register
-
-
-def _to_sympy(expr: Union[str, sp.Expr]) -> sp.Expr:
-    """字符串转 sympy 表达式。"""
-    if isinstance(expr, sp.Expr):
-        return expr
-    return sp.sympify(str(expr))
-
-
 # ===================================================================
 # 不等式基本性质
 # ===================================================================
@@ -97,7 +89,7 @@ def solve_linear_inequality(expr: Union[str, sp.Expr], var: str = "x") -> MathOb
         MathObject，result 为解集（区间表示）。
     """
     try:
-        ex = _to_sympy(expr)
+        ex = to_sympy(expr)
         x = sp.Symbol(var)
 
         if isinstance(ex, sp.StrictGreaterThan):
@@ -158,7 +150,7 @@ def solve_inequality_system(
         x = sp.Symbol(var)
         inequalities = []
         for e in exprs:
-            iex = _to_sympy(e)
+            iex = to_sympy(e)
             if isinstance(iex, (sp.StrictGreaterThan, sp.GreaterThan, sp.StrictLessThan, sp.LessThan)):
                 inequalities.append(iex)
             else:
@@ -205,7 +197,7 @@ def solve_quadratic_inequality(
         MathObject，result 为解集区间。
     """
     try:
-        ex = _to_sympy(expr)
+        ex = to_sympy(expr)
         x = sp.Symbol(var)
 
         if not isinstance(ex, (sp.StrictGreaterThan, sp.GreaterThan, sp.StrictLessThan, sp.LessThan)):

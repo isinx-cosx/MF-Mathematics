@@ -4,6 +4,7 @@
 """
 
 from __future__ import annotations
+from MF_Mathematics.core.helpers import to_matrix
 
 from typing import Any, Dict, List, Tuple, Union
 
@@ -12,15 +13,6 @@ import sympy as sp
 
 from ..core.math_object import MathObject
 from ..core.registry import register
-
-
-def _to_matrix(mat: Union[List[List[float]], np.ndarray]) -> sp.Matrix:
-    """统一转为 sympy Matrix。"""
-    if isinstance(mat, sp.Matrix):
-        return mat
-    return sp.Matrix(mat)
-
-
 @register(module="linear_algebra", action="eigenvalues")
 def eigenvalues(
     matrix: Union[List[List[float]], np.ndarray],
@@ -34,7 +26,7 @@ def eigenvalues(
         MathObject，result 为特征值列表（含重数）。
     """
     try:
-        A = _to_matrix(matrix)
+        A = to_matrix(matrix)
         if A.rows != A.cols:
             return MathObject(error="矩阵必须是方阵")
 
@@ -82,7 +74,7 @@ def eigenvectors(
         MathObject，result 为 (特征值, 特征向量) 的配对列表。
     """
     try:
-        A = _to_matrix(matrix)
+        A = to_matrix(matrix)
         if A.rows != A.cols:
             return MathObject(error="矩阵必须是方阵")
 
@@ -129,7 +121,7 @@ def characteristic_polynomial(
         MathObject，result 为特征多项式表达式。
     """
     try:
-        A = _to_matrix(matrix)
+        A = to_matrix(matrix)
         if A.rows != A.cols:
             return MathObject(error="矩阵必须是方阵")
 
@@ -166,7 +158,7 @@ def is_diagonalizable(
         MathObject，result 为 bool。
     """
     try:
-        A = _to_matrix(matrix)
+        A = to_matrix(matrix)
         if A.rows != A.cols:
             return MathObject(error="矩阵必须是方阵")
 
@@ -210,7 +202,7 @@ def diagonalize(
         MathObject，result 为 dict {"diagonalizable": bool, "P": ..., "D": ...}。
     """
     try:
-        A = _to_matrix(matrix)
+        A = to_matrix(matrix)
         if A.rows != A.cols:
             return MathObject(error="矩阵必须是方阵")
 

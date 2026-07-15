@@ -4,6 +4,7 @@
 """
 
 from __future__ import annotations
+from MF_Mathematics.core.helpers import to_sympy
 
 from typing import Optional, Union
 
@@ -11,15 +12,6 @@ import sympy as sp
 
 from ..core.math_object import MathObject
 from ..core.registry import register
-
-
-def _to_sympy(expr: Union[str, sp.Expr]) -> sp.Expr:
-    """将字符串或 sympy 表达式统一转为 sympy 表达式。"""
-    if isinstance(expr, sp.Expr):
-        return expr
-    return sp.sympify(str(expr))
-
-
 @register(module="calculus", action="diff")
 def diff(
     expr: Union[str, sp.Expr],
@@ -38,7 +30,7 @@ def diff(
     """
     try:
         x = sp.Symbol(var)
-        ex = _to_sympy(expr)
+        ex = to_sympy(expr)
         result = sp.diff(ex, x, order)
         order_str = f"({order}阶)" if order > 1 else ""
         return MathObject(
@@ -73,7 +65,7 @@ def diff_at(
     """
     try:
         x = sp.Symbol(var)
-        ex = _to_sympy(expr)
+        ex = to_sympy(expr)
         deriv = sp.diff(ex, x, order)
         value = sp.N(deriv.subs(x, point))
         order_str = f"({order}阶)" if order > 1 else ""
@@ -111,7 +103,7 @@ def implicit_diff(
     try:
         x = sp.Symbol(var)
         y = sp.Function(dep_var)(x)
-        ex = _to_sympy(eq)
+        ex = to_sympy(eq)
         # 用符号 y_sym 替换 y，然后求偏导
         y_sym = sp.Symbol(dep_var)
         ex_sym = ex
@@ -165,8 +157,8 @@ def parametric_diff(
     """
     try:
         t_sym = sp.Symbol(t)
-        x_ex = _to_sympy(x_expr)
-        y_ex = _to_sympy(y_expr)
+        x_ex = to_sympy(x_expr)
+        y_ex = to_sympy(y_expr)
 
         dx_dt = sp.diff(x_ex, t_sym)
         dy_dt = sp.diff(y_ex, t_sym)
@@ -218,7 +210,7 @@ def differential(
     """
     try:
         x = sp.Symbol(var)
-        ex = _to_sympy(expr)
+        ex = to_sympy(expr)
         deriv = sp.diff(ex, x)
         deriv_at = float(sp.N(deriv.subs(x, point)))
         dy = deriv_at * dx

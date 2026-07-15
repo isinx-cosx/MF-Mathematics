@@ -4,6 +4,7 @@
 """
 
 from __future__ import annotations
+from MF_Mathematics.core.helpers import to_matrix, to_vector
 
 from typing import Any, Dict, List, Tuple, Union
 
@@ -12,26 +13,6 @@ import sympy as sp
 
 from ..core.math_object import MathObject
 from ..core.registry import register
-
-
-def _to_matrix(mat: Union[List[List[float]], np.ndarray, sp.Matrix]) -> sp.Matrix:
-    """将各种矩阵表示统一转为 sympy Matrix。"""
-    if isinstance(mat, sp.Matrix):
-        return mat
-    return sp.Matrix(mat)
-
-
-def _to_vector(
-    vec: Union[List[float], np.ndarray, sp.Matrix, None],
-) -> sp.Matrix:
-    """将向量统一转为 sympy 列向量。"""
-    if vec is None:
-        return sp.Matrix([])
-    if isinstance(vec, sp.Matrix):
-        return vec
-    return sp.Matrix(vec)
-
-
 @register(module="linear_algebra", action="gaussian_elimination")
 def gaussian_elimination(
     matrix: Union[List[List[float]], np.ndarray],
@@ -49,7 +30,7 @@ def gaussian_elimination(
                 {"type": "unique"|"infinite"|"none", "solution": ...}
     """
     try:
-        A = _to_matrix(matrix)
+        A = to_matrix(matrix)
         m, n = A.rows, A.cols
 
         if b is not None:
@@ -135,7 +116,7 @@ def rank(matrix: Union[List[List[float]], np.ndarray]) -> MathObject:
         MathObject，result 为秩（整数）。
     """
     try:
-        A = _to_matrix(matrix)
+        A = to_matrix(matrix)
         r = A.rank()
         return MathObject(
             result=int(r),
@@ -165,7 +146,7 @@ def solve_linear_system(
         MathObject，result 为解（唯一解则列表，无穷多解则参数化表达式）。
     """
     try:
-        A_mat = _to_matrix(A)
+        A_mat = to_matrix(A)
         m, n = A_mat.rows, A_mat.cols
 
         if b is not None:
@@ -236,7 +217,7 @@ def nullspace(A: Union[List[List[float]], np.ndarray]) -> MathObject:
         MathObject，result 为基础解系向量列表。
     """
     try:
-        A_mat = _to_matrix(A)
+        A_mat = to_matrix(A)
         ns = A_mat.nullspace()
         basis_vectors = [v.tolist() for v in ns]
 

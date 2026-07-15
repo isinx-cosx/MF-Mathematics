@@ -5,6 +5,7 @@
 """
 
 from __future__ import annotations
+from MF_Mathematics.core.helpers import parse_func
 
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
@@ -14,23 +15,6 @@ import sympy as sp
 
 from ..core.math_object import MathObject
 from ..core.registry import register
-
-
-def _parse_func(
-    f: Union[str, Callable],
-    var: sp.Symbol = None,
-) -> sp.Expr:
-    """解析函数表达式。"""
-    if var is None:
-        var = sp.Symbol("x", real=True)
-    if isinstance(f, str):
-        return sp.sympify(f, locals={"x": var, "pi": sp.pi, "PI": sp.pi})
-    elif callable(f):
-        return f(var)
-    else:
-        raise TypeError(f"f 必须为字符串或可调用对象，当前类型: {type(f)}")
-
-
 def _parse_domain(domain) -> Tuple[float, float]:
     """解析定义域。"""
     if isinstance(domain, (list, tuple)):
@@ -137,7 +121,7 @@ def integral_nonnegative(
     try:
         a, b = _parse_domain(domain)
         x = sp.Symbol("x", real=True)
-        expr = _parse_func(f, x)
+        expr = parse_func(f, x)
 
         # 检查非负性
         f_lambda = sp.lambdify(x, expr, "numpy")
@@ -220,7 +204,7 @@ def integral_general(
     try:
         a, b = _parse_domain(domain)
         x = sp.Symbol("x", real=True)
-        expr = _parse_func(f, x)
+        expr = parse_func(f, x)
 
         f_lambda = sp.lambdify(x, expr, "numpy")
 
@@ -288,8 +272,8 @@ def integral_zero_set_independent(
     try:
         a, b = _parse_domain(domain)
         x = sp.Symbol("x", real=True)
-        expr_f = _parse_func(f, x)
-        expr_g = _parse_func(g, x)
+        expr_f = parse_func(f, x)
+        expr_g = parse_func(g, x)
 
         f_lambda = sp.lambdify(x, expr_f, "numpy")
         g_lambda = sp.lambdify(x, expr_g, "numpy")

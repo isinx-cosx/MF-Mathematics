@@ -4,6 +4,7 @@
 """
 
 from __future__ import annotations
+from MF_Mathematics.core.helpers import to_sympy
 
 from typing import List, Optional, Tuple, Union
 
@@ -12,15 +13,6 @@ import sympy as sp
 
 from ..core.math_object import MathObject
 from ..core.registry import register
-
-
-def _to_sympy(expr: Union[str, sp.Expr]) -> sp.Expr:
-    """将字符串或 sympy 表达式统一转为 sympy 表达式。"""
-    if isinstance(expr, sp.Expr):
-        return expr
-    return sp.sympify(str(expr))
-
-
 @register(module="real_analysis", action="darboux_sum")
 def darboux_sum(
     expr: Union[str, sp.Expr],
@@ -48,7 +40,7 @@ def darboux_sum(
     """
     try:
         x = sp.Symbol(var)
-        ex = _to_sympy(expr)
+        ex = to_sympy(expr)
 
         if partition is None:
             n = 10
@@ -150,7 +142,7 @@ def riemann_integrable(
     """
     try:
         x = sp.Symbol(var)
-        ex = _to_sympy(expr)
+        ex = to_sympy(expr)
         sym_int = sp.integrate(ex, (x, a, b))
 
         steps = [
@@ -238,7 +230,7 @@ def fundamental_theorem(
     """
     try:
         x = sp.Symbol(var)
-        ex = _to_sympy(expr)
+        ex = to_sympy(expr)
 
         # 求原函数（不定积分）
         F = sp.integrate(ex, x)
@@ -304,7 +296,7 @@ def integral_mean_value(
     """
     try:
         x = sp.Symbol(var)
-        ex = _to_sympy(expr)
+        ex = to_sympy(expr)
 
         # 定积分
         definite = sp.integrate(ex, (x, a, b))

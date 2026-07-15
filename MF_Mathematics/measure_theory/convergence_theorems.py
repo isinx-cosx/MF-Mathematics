@@ -4,6 +4,7 @@
 """
 
 from __future__ import annotations
+from MF_Mathematics.core.helpers import parse_func
 
 from typing import Any, Callable, List, Optional, Tuple, Union
 
@@ -13,23 +14,6 @@ import sympy as sp
 
 from ..core.math_object import MathObject
 from ..core.registry import register
-
-
-def _parse_func(
-    f: Union[str, Callable],
-    var: sp.Symbol = None,
-) -> sp.Expr:
-    """解析函数表达式。"""
-    if var is None:
-        var = sp.Symbol("x", real=True)
-    if isinstance(f, str):
-        return sp.sympify(f, locals={"x": var, "pi": sp.pi, "PI": sp.pi, "n": sp.Symbol("n", integer=True, positive=True)})
-    elif callable(f):
-        return f(var)
-    else:
-        raise TypeError(f"f 必须为字符串或可调用对象，当前类型: {type(f)}")
-
-
 @register(module="measure_theory", action="monotone_convergence")
 def monotone_convergence(
     f_n: Union[str, Callable],
@@ -58,8 +42,8 @@ def monotone_convergence(
         x_var = sp.Symbol("x", real=True)
         n_var = sp.Symbol("n", integer=True, positive=True)
 
-        expr_fn = _parse_func(f_n, x_var)
-        expr_f = _parse_func(f, x_var)
+        expr_fn = parse_func(f_n, x_var)
+        expr_f = parse_func(f, x_var)
 
         if n_values is None:
             n_values = [1, 2, 5, 10, 50, 100]
@@ -139,7 +123,7 @@ def fatou_lemma(
         x_var = sp.Symbol("x", real=True)
         n_var = sp.Symbol("n", integer=True, positive=True)
 
-        expr_fn = _parse_func(f_n, x_var)
+        expr_fn = parse_func(f_n, x_var)
 
         if n_values is None:
             n_values = [1, 2, 5, 10, 20]
@@ -222,9 +206,9 @@ def dominated_convergence(
         x_var = sp.Symbol("x", real=True)
         n_var = sp.Symbol("n", integer=True, positive=True)
 
-        expr_fn = _parse_func(f_n, x_var)
-        expr_f = _parse_func(f, x_var)
-        expr_g = _parse_func(g, x_var)
+        expr_fn = parse_func(f_n, x_var)
+        expr_f = parse_func(f, x_var)
+        expr_g = parse_func(g, x_var)
 
         if n_values is None:
             n_values = [1, 2, 5, 10, 50, 100]

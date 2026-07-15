@@ -4,6 +4,7 @@
 """
 
 from __future__ import annotations
+from MF_Mathematics.core.helpers import to_sympy
 
 from typing import List, Optional, Tuple, Union
 
@@ -11,15 +12,6 @@ import sympy as sp
 
 from ..core.math_object import MathObject
 from ..core.registry import register
-
-
-def _to_sympy(expr: Union[str, sp.Expr]) -> sp.Expr:
-    """将字符串或 sympy 表达式统一转为 sympy 表达式。"""
-    if isinstance(expr, sp.Expr):
-        return expr
-    return sp.sympify(str(expr))
-
-
 @register(module="real_analysis", action="derivative_definition")
 def derivative_definition(
     expr: Union[str, sp.Expr],
@@ -41,7 +33,7 @@ def derivative_definition(
     try:
         x = sp.Symbol(var)
         h = sp.Symbol('h')
-        ex = _to_sympy(expr)
+        ex = to_sympy(expr)
         pt = float(point) if isinstance(point, (int, float)) else float(sp.N(sp.sympify(str(point))))
 
         fx0 = ex.subs(x, pt)
@@ -92,7 +84,7 @@ def is_differentiable(
     try:
         x = sp.Symbol(var)
         h = sp.Symbol('h')
-        ex = _to_sympy(expr)
+        ex = to_sympy(expr)
         pt = float(point) if isinstance(point, (int, float)) else float(sp.N(sp.sympify(str(point))))
 
         fx0 = ex.subs(x, pt)
@@ -150,7 +142,7 @@ def taylor_polynomial(
     """
     try:
         x = sp.Symbol(var)
-        ex = _to_sympy(expr)
+        ex = to_sympy(expr)
         pt = float(point) if isinstance(point, (int, float)) else float(sp.N(sp.sympify(str(point))))
 
         steps = [f"函数: f({var}) = {ex}", f"展开点: a = {pt}, 阶数: n = {n}"]
@@ -199,7 +191,7 @@ def taylor_remainder(
     """
     try:
         x = sp.Symbol(var)
-        ex = _to_sympy(expr)
+        ex = to_sympy(expr)
         pt = float(point) if isinstance(point, (int, float)) else float(sp.N(sp.sympify(str(point))))
 
         xi_sym = sp.Symbol('xi')
@@ -249,7 +241,7 @@ def rolle_theorem(
     """
     try:
         x = sp.Symbol(var)
-        ex = _to_sympy(expr)
+        ex = to_sympy(expr)
         a, b = float(interval[0]), float(interval[1])
 
         fa = float(sp.N(ex.subs(x, a)))
@@ -319,7 +311,7 @@ def lagrange_theorem(
     """
     try:
         x = sp.Symbol(var)
-        ex = _to_sympy(expr)
+        ex = to_sympy(expr)
         a, b = float(interval[0]), float(interval[1])
 
         fa = float(sp.N(ex.subs(x, a)))

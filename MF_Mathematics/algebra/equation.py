@@ -4,6 +4,7 @@
 """
 
 from __future__ import annotations
+from MF_Mathematics.core.helpers import to_sympy
 
 from typing import Any, Dict, List, Optional, Union
 
@@ -11,15 +12,6 @@ import sympy as sp
 
 from ..core.math_object import MathObject
 from ..core.registry import register
-
-
-def _to_sympy(expr: Union[str, sp.Expr]) -> sp.Expr:
-    """将字符串或 sympy 表达式统一转为 sympy 表达式。"""
-    if isinstance(expr, sp.Expr):
-        return expr
-    return sp.sympify(str(expr))
-
-
 def _parse_equation(expr: Union[str, sp.Expr]) -> sp.Equality:
     """将方程表达式统一转为 sympy Eq 对象，支持 "=" 字符串。"""
     if isinstance(expr, str) and "=" in expr:
@@ -29,7 +21,7 @@ def _parse_equation(expr: Union[str, sp.Expr]) -> sp.Equality:
         return sp.Eq(lhs, rhs)
     if isinstance(expr, sp.Equality):
         return expr
-    ex = _to_sympy(expr)
+    ex = to_sympy(expr)
     return sp.Eq(ex, 0)
 
 
@@ -206,7 +198,7 @@ def discriminant(expr: Union[str, sp.Expr], var: str = "x") -> MathObject:
         MathObject，result 为 Δ 值和根的定性描述。
     """
     try:
-        ex = _to_sympy(expr)
+        ex = to_sympy(expr)
         x = sp.Symbol(var)
         if isinstance(ex, sp.Equality):
             poly = sp.Poly(ex.lhs - ex.rhs, x)
@@ -252,7 +244,7 @@ def vieta_theorem(expr: Union[str, sp.Expr], var: str = "x") -> MathObject:
         MathObject，result 为 (sum_roots, product_roots) 和验证信息。
     """
     try:
-        ex = _to_sympy(expr)
+        ex = to_sympy(expr)
         x = sp.Symbol(var)
         if isinstance(ex, sp.Equality):
             poly = sp.Poly(ex.lhs - ex.rhs, x)

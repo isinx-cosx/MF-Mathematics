@@ -4,6 +4,7 @@
 """
 
 from __future__ import annotations
+from MF_Mathematics.core.helpers import parse_func
 
 from typing import Callable, Union
 
@@ -11,22 +12,6 @@ import numpy as np
 
 from ..core.math_object import MathObject
 from ..core.registry import register
-
-
-def _parse_func(f: Union[str, Callable[[float], float]],
-                var: str = "x") -> Callable[[float], float]:
-    """将字符串表达式或可调用对象统一为可调用函数。
-
-    Args:
-        f: 字符串表达式或可调用对象。
-        var: 自变量名（默认 "x"）。
-    """
-    if isinstance(f, str):
-        import sympy as sp
-        return sp.lambdify(sp.Symbol(var), sp.sympify(f), "numpy")
-    return f
-
-
 @register(module="numerical", action="trapezoidal_rule")
 def trapezoidal_rule(
     f: Union[str, Callable[[float], float]],
@@ -49,7 +34,7 @@ def trapezoidal_rule(
         MathObject: result 为积分近似值（float）。
     """
     try:
-        f_fn = _parse_func(f, var)
+        f_fn = parse_func(f, var)
         x = np.linspace(a, b, n + 1)
         y = np.array([f_fn(xi) for xi in x])
         h = (b - a) / n
@@ -92,7 +77,7 @@ def simpson_rule(
     try:
         if n % 2 != 0:
             n += 1
-        f_fn = _parse_func(f, var)
+        f_fn = parse_func(f, var)
         x = np.linspace(a, b, n + 1)
         y = np.array([f_fn(xi) for xi in x])
         h = (b - a) / n
@@ -155,7 +140,7 @@ def gauss_quadrature(
         nodes = data["nodes"]
         weights = data["weights"]
 
-        f_fn = _parse_func(f, var)
+        f_fn = parse_func(f, var)
         # 变换到 [a,b]
         mid = (b + a) / 2
         half = (b - a) / 2
@@ -197,7 +182,7 @@ def numerical_derivative(
         MathObject: result 为导数值（float）。
     """
     try:
-        f_fn = _parse_func(f, var)
+        f_fn = parse_func(f, var)
         if method == "forward":
             deriv = (f_fn(x + h) - f_fn(x)) / h
             order = "O(h)"
@@ -243,7 +228,7 @@ def optimal_step(
         MathObject: result 为最优步长（float）。
     """
     try:
-        f_fn = _parse_func(f, var)
+        f_fn = parse_func(f, var)
         eps_machine = np.finfo(float).eps
 
         # 估计函数值的量级

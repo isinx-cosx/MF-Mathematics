@@ -4,6 +4,7 @@
 """
 
 from __future__ import annotations
+from MF_Mathematics.core.helpers import to_sympy
 
 from typing import Optional, Union
 
@@ -11,15 +12,6 @@ import sympy as sp
 
 from ..core.math_object import MathObject
 from ..core.registry import register
-
-
-def _to_sympy(expr: Union[str, sp.Expr]) -> sp.Expr:
-    """将字符串或 sympy 表达式统一转为 sympy 表达式。"""
-    if isinstance(expr, sp.Expr):
-        return expr
-    return sp.sympify(str(expr))
-
-
 @register(module="calculus", action="integrate")
 def integrate(
     expr: Union[str, sp.Expr],
@@ -40,7 +32,7 @@ def integrate(
     """
     try:
         x = sp.Symbol(var)
-        ex = _to_sympy(expr)
+        ex = to_sympy(expr)
 
         if a is not None and b is not None:
             # 定积分
@@ -104,7 +96,7 @@ def integrate_numeric(
     """
     try:
         x = sp.Symbol(var)
-        ex = _to_sympy(expr)
+        ex = to_sympy(expr)
         try:
             f = sp.lambdify(x, ex, "numpy")
         except Exception:
@@ -175,7 +167,7 @@ def improper_integral(
     """
     try:
         x = sp.Symbol(var)
-        ex = _to_sympy(expr)
+        ex = to_sympy(expr)
 
         # 处理无穷符号
         a_val = sp.oo if str(a) in ("oo", "inf") else (-sp.oo if str(a) == "-oo" else sp.sympify(a))

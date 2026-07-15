@@ -4,6 +4,7 @@
 """
 
 from __future__ import annotations
+from MF_Mathematics.core.helpers import to_sympy
 
 from typing import Optional, Union
 
@@ -11,15 +12,6 @@ import sympy as sp
 
 from ..core.math_object import MathObject
 from ..core.registry import register
-
-
-def _to_sympy(expr: Union[str, sp.Expr]) -> sp.Expr:
-    """将字符串或 sympy 表达式统一转为 sympy 表达式。"""
-    if isinstance(expr, sp.Expr):
-        return expr
-    return sp.sympify(str(expr))
-
-
 @register(module="calculus", action="series_sum")
 def series_sum(
     expr: Union[str, sp.Expr],
@@ -40,7 +32,7 @@ def series_sum(
     """
     try:
         n = sp.Symbol(var)
-        ex = _to_sympy(expr)
+        ex = to_sympy(expr)
 
         b_val = sp.oo if str(b) in ("oo", "inf") else sp.sympify(b)
         a_val = sp.sympify(a)
@@ -84,7 +76,7 @@ def series_convergence(
     """
     try:
         n = sp.Symbol(var)
-        ex = _to_sympy(expr)
+        ex = to_sympy(expr)
         ex_next = sp.simplify(ex.subs(n, n + 1))
         ratio_expr = sp.simplify(sp.Abs(ex_next / ex))
         ratio_limit = sp.limit(ratio_expr, n, sp.oo)
@@ -144,7 +136,7 @@ def power_series(
     """
     try:
         x = sp.Symbol(var)
-        ex = _to_sympy(expr)
+        ex = to_sympy(expr)
         series = sp.series(ex, x, point, n + 1).removeO()
         poly = sp.expand(series)
 
@@ -189,7 +181,7 @@ def power_series_radius(
     """
     try:
         n = sp.Symbol(var)
-        ex = _to_sympy(expr)
+        ex = to_sympy(expr)
 
         ex_next = sp.simplify(ex.subs(n, n + 1))
         ratio = sp.simplify(sp.Abs(ex_next / ex))
@@ -267,7 +259,7 @@ def leibniz_test(
     """
     try:
         n = sp.Symbol(var)
-        ex = _to_sympy(expr)
+        ex = to_sympy(expr)
 
         if not _is_alternating(ex, n):
             return MathObject(
@@ -343,7 +335,7 @@ def limit_comparison_test(
     """
     try:
         n = sp.Symbol(var)
-        ex = _to_sympy(expr)
+        ex = to_sympy(expr)
 
         if compare_expr is None:
             # 自动选择比较级数：若含指数衰减倾向用几何级数，否则用 p-级数 1/n^2
@@ -351,7 +343,7 @@ def limit_comparison_test(
                 compare_expr = sp.Rational(1, 2) ** n
             else:
                 compare_expr = 1 / n ** 2
-        b_n = _to_sympy(compare_expr)
+        b_n = to_sympy(compare_expr)
 
         ratio = sp.simplify(ex / b_n)
         L = sp.limit(ratio, n, sp.oo)
@@ -413,7 +405,7 @@ def integral_test(
     try:
         n = sp.Symbol(var)
         x = sp.Symbol(var, positive=True)
-        ex = _to_sympy(expr)
+        ex = to_sympy(expr)
         f = sp.simplify(ex.subs(n, x))
 
         integral = sp.integrate(f, (x, 1, sp.oo))
@@ -469,7 +461,7 @@ def direct_comparison_test(
     """
     try:
         n = sp.Symbol(var)
-        ex = _to_sympy(expr)
+        ex = to_sympy(expr)
 
         if compare_expr is None:
             # 自动生成：取主导项构造 p-级数或几何级数
@@ -480,7 +472,7 @@ def direct_comparison_test(
                 denom = sp.denom(ex) if ex.is_Mul or ex.is_Pow else ex
                 # 简单启发：用 1/n^2 作为收敛上界
                 compare_expr = 1 / n ** 2
-        b_n = _to_sympy(compare_expr)
+        b_n = to_sympy(compare_expr)
 
         diff = sp.simplify(ex - b_n)
         # 取大 n 处符号判断不等式方向
@@ -544,7 +536,7 @@ def p_series_test(
     """
     try:
         n = sp.Symbol(var)
-        ex = _to_sympy(expr)
+        ex = to_sympy(expr)
 
         # 匹配 1/n**p 或 n**(-p)
         p = None
@@ -617,7 +609,7 @@ def classify_and_test(
     """
     try:
         n = sp.Symbol(var)
-        ex = _to_sympy(expr)
+        ex = to_sympy(expr)
 
         steps = [f"通项: a_{{{var}}} = {ex}", "自动分类流程:"]
 

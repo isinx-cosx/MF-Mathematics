@@ -4,6 +4,7 @@
 """
 
 from __future__ import annotations
+from MF_Mathematics.core.helpers import to_matrix, to_vector
 
 from typing import Any, Dict, List, Tuple, Union
 
@@ -12,25 +13,6 @@ import sympy as sp
 
 from ..core.math_object import MathObject
 from ..core.registry import register
-
-
-def _to_matrix(mat: Union[List[List[float]], np.ndarray]) -> sp.Matrix:
-    """统一转为 sympy Matrix。"""
-    if isinstance(mat, sp.Matrix):
-        return mat
-    return sp.Matrix(mat)
-
-
-def _to_vector(vec: Union[List[float], np.ndarray]) -> sp.Matrix:
-    """统一转为 sympy 列向量。"""
-    if isinstance(vec, sp.Matrix):
-        return vec
-    v = sp.Matrix(vec)
-    if v.rows == 1:
-        v = v.T
-    return v
-
-
 @register(module="linear_algebra", action="linear_transform")
 def linear_transform(
     matrix: Union[List[List[float]], np.ndarray],
@@ -46,8 +28,8 @@ def linear_transform(
         MathObject，result 为变换后的向量。
     """
     try:
-        A = _to_matrix(matrix)
-        v = _to_vector(vector)
+        A = to_matrix(matrix)
+        v = to_vector(vector)
         result_vec = A * v
 
         return MathObject(
@@ -81,7 +63,7 @@ def matrix_representation(
         MathObject，result 为给定基下的矩阵表示。
     """
     try:
-        T = _to_matrix(transform)
+        T = to_matrix(transform)
 
         # 将基转为列向量列表
         if isinstance(domain_basis, np.ndarray):
@@ -146,7 +128,7 @@ def kernel(
         MathObject，result 包含核的基和维数。
     """
     try:
-        A = _to_matrix(matrix)
+        A = to_matrix(matrix)
         ns = A.nullspace()
         kernel_basis = [v.tolist() for v in ns]
         nullity = len(ns)
@@ -185,7 +167,7 @@ def image(
         MathObject，result 包含像的基和维数（即秩）。
     """
     try:
-        A = _to_matrix(matrix)
+        A = to_matrix(matrix)
         _, pivots = A.rref()
         image_basis = [A.col(p).tolist() for p in pivots]
         rank_val = len(pivots)
@@ -220,7 +202,7 @@ def rank_nullity(
         MathObject，result 为 (rank, nullity) 元组。
     """
     try:
-        A = _to_matrix(matrix)
+        A = to_matrix(matrix)
         n = A.cols
         r = A.rank()
         nullity = len(A.nullspace())

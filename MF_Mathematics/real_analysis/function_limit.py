@@ -4,6 +4,7 @@
 """
 
 from __future__ import annotations
+from MF_Mathematics.core.helpers import to_sympy
 
 from typing import List, Optional, Tuple, Union
 
@@ -11,15 +12,6 @@ import sympy as sp
 
 from ..core.math_object import MathObject
 from ..core.registry import register
-
-
-def _to_sympy(expr: Union[str, sp.Expr]) -> sp.Expr:
-    """将字符串或 sympy 表达式统一转为 sympy 表达式。"""
-    if isinstance(expr, sp.Expr):
-        return expr
-    return sp.sympify(str(expr))
-
-
 @register(module="real_analysis", action="limit_epsilon_delta")
 def limit_epsilon_delta(
     expr: Union[str, sp.Expr],
@@ -43,7 +35,7 @@ def limit_epsilon_delta(
     """
     try:
         x = sp.Symbol(var)
-        ex = _to_sympy(expr)
+        ex = to_sympy(expr)
         pt = float(point) if isinstance(point, (int, float)) else float(sp.N(sp.sympify(str(point))))
 
         # 计算极限
@@ -120,7 +112,7 @@ def is_continuous(
     """
     try:
         x = sp.Symbol(var)
-        ex = _to_sympy(expr)
+        ex = to_sympy(expr)
         pt = float(point) if isinstance(point, (int, float)) else float(sp.N(sp.sympify(str(point))))
 
         steps = []
@@ -184,7 +176,7 @@ def uniform_continuity(
     """
     try:
         x = sp.Symbol(var)
-        ex = _to_sympy(expr)
+        ex = to_sympy(expr)
         a, b = float(interval[0]), float(interval[1])
 
         steps = [
@@ -278,7 +270,7 @@ def discontinuity_classify(
     """
     try:
         x = sp.Symbol(var)
-        ex = _to_sympy(expr)
+        ex = to_sympy(expr)
         pt = float(point) if isinstance(point, (int, float)) else float(sp.N(sp.sympify(str(point))))
 
         left_lim = sp.limit(ex, x, pt, dir="-")
@@ -350,7 +342,7 @@ def extreme_value(
     """
     try:
         x = sp.Symbol(var)
-        ex = _to_sympy(expr)
+        ex = to_sympy(expr)
         a, b = float(interval[0]), float(interval[1])
 
         steps = [
@@ -419,7 +411,7 @@ def intermediate_value(
     """
     try:
         x = sp.Symbol(var)
-        ex = _to_sympy(expr)
+        ex = to_sympy(expr)
         a, b = float(interval[0]), float(interval[1])
 
         steps = [

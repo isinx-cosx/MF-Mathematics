@@ -4,6 +4,7 @@
 """
 
 from __future__ import annotations
+from MF_Mathematics.core.helpers import to_sympy
 
 from typing import Any, List, Optional, Union
 
@@ -16,15 +17,6 @@ from ..core.registry import register
 # ===================================================================
 # 辅助：将字符串表达式转为 sympy 表达式
 # ===================================================================
-
-
-def _to_sympy(expr: Union[str, sp.Expr]) -> sp.Expr:
-    """将字符串或 sympy 表达式统一转为 sympy 表达式。"""
-    if isinstance(expr, sp.Expr):
-        return expr
-    return sp.sympify(str(expr))
-
-
 # ===================================================================
 # 整式
 # ===================================================================
@@ -41,7 +33,7 @@ def simplify_polynomial(expr: Union[str, sp.Expr]) -> MathObject:
         MathObject，result 为化简后的表达式字符串。
     """
     try:
-        ex = _to_sympy(expr)
+        ex = to_sympy(expr)
         s_orig = str(ex)
         simplified = sp.simplify(ex)
         factored = sp.factor(ex)
@@ -95,7 +87,7 @@ def expand_expression(expr: Union[str, sp.Expr]) -> MathObject:
         MathObject，result 为展开后的表达式字符串。
     """
     try:
-        ex = _to_sympy(expr)
+        ex = to_sympy(expr)
         expanded = sp.expand(ex)
         return MathObject(
             result=str(expanded),
@@ -125,7 +117,7 @@ def factor_common(expr: Union[str, sp.Expr]) -> MathObject:
         MathObject，result 为分解结果。
     """
     try:
-        ex = _to_sympy(expr)
+        ex = to_sympy(expr)
         # 找到各项的公因式
         if isinstance(ex, sp.Add):
             terms = ex.as_ordered_terms()
@@ -158,7 +150,7 @@ def factor_perfect_square(expr: Union[str, sp.Expr]) -> MathObject:
         MathObject，result 为分解结果。
     """
     try:
-        ex = _to_sympy(expr)
+        ex = to_sympy(expr)
         factored = sp.factor(ex)
         is_square = "**2" in str(factored) or "^2" in str(factored) or str(factored).count("(") == 1
         return MathObject(
@@ -185,7 +177,7 @@ def factor_difference_squares(expr: Union[str, sp.Expr]) -> MathObject:
         MathObject，result 为分解结果。
     """
     try:
-        ex = _to_sympy(expr)
+        ex = to_sympy(expr)
         factored = sp.factor(ex)
         return MathObject(
             result=str(factored),
@@ -211,7 +203,7 @@ def factor_cross(expr: Union[str, sp.Expr]) -> MathObject:
         MathObject，result 为分解结果。
     """
     try:
-        ex = _to_sympy(expr)
+        ex = to_sympy(expr)
         factored = sp.factor(ex)
         # 尝试用十字相乘法解释
         return MathObject(
@@ -237,7 +229,7 @@ def factor_group(expr: Union[str, sp.Expr]) -> MathObject:
         MathObject，result 为分解结果。
     """
     try:
-        ex = _to_sympy(expr)
+        ex = to_sympy(expr)
         factored = sp.factor(ex)
         return MathObject(
             result=str(factored),
@@ -262,7 +254,7 @@ def factor(expr: Union[str, sp.Expr]) -> MathObject:
         MathObject，result 为因式分解结果。
     """
     try:
-        ex = _to_sympy(expr)
+        ex = to_sympy(expr)
         factored = sp.factor(ex)
         return MathObject(
             result=str(factored),
@@ -292,7 +284,7 @@ def simplify_fraction(expr: Union[str, sp.Expr]) -> MathObject:
         MathObject，result 为约分后的表达式。
     """
     try:
-        ex = _to_sympy(expr)
+        ex = to_sympy(expr)
         simplified = sp.simplify(ex)
         return MathObject(
             result=str(simplified),
@@ -320,8 +312,8 @@ def common_denominator(
         MathObject，result 为 (通分后表达式1, 通分后表达式2, 公分母)。
     """
     try:
-        e1 = _to_sympy(expr1)
-        e2 = _to_sympy(expr2)
+        e1 = to_sympy(expr1)
+        e2 = to_sympy(expr2)
         together1 = sp.together(e1)
         together2 = sp.together(e2)
         # 获取公分母
@@ -359,8 +351,8 @@ def fraction_operations(
         MathObject，result 为运算结果（已化简）。
     """
     try:
-        e1 = _to_sympy(expr1)
-        e2 = _to_sympy(expr2)
+        e1 = to_sympy(expr1)
+        e2 = to_sympy(expr2)
         if op == "+":
             result_expr = sp.simplify(e1 + e2)
         elif op == "-":
@@ -394,7 +386,7 @@ def rationalize_denominator(expr: Union[str, sp.Expr]) -> MathObject:
         MathObject，result 为有理化后的表达式。
     """
     try:
-        ex = _to_sympy(expr)
+        ex = to_sympy(expr)
         num = sp.numer(ex)
         den = sp.denom(ex)
         # 使用 sympy 的 rationalize 功能
@@ -432,7 +424,7 @@ def simplify_radical(expr: Union[str, sp.Expr]) -> MathObject:
         MathObject，result 为化简结果。
     """
     try:
-        ex = _to_sympy(expr)
+        ex = to_sympy(expr)
         simplified = sp.simplify(ex)
         # 尝试进一步化简 sqrt
         simplified = sp.sqrtdenest(simplified)
@@ -460,8 +452,8 @@ def like_radicals(expr1: Union[str, sp.Expr], expr2: Union[str, sp.Expr]) -> Mat
         MathObject，result 为 (是否同类, 化简后根式1, 化简后根式2)。
     """
     try:
-        e1 = sp.simplify(_to_sympy(expr1))
-        e2 = sp.simplify(_to_sympy(expr2))
+        e1 = sp.simplify(to_sympy(expr1))
+        e2 = sp.simplify(to_sympy(expr2))
         # 提取根式部分进行比较
         def _radical_part(expr: sp.Expr) -> sp.Expr:
             """提取根式部分（去掉系数）。"""
@@ -503,8 +495,8 @@ def radical_operations(
         MathObject，result 为运算结果（已化简）。
     """
     try:
-        e1 = _to_sympy(expr1)
-        e2 = _to_sympy(expr2)
+        e1 = to_sympy(expr1)
+        e2 = to_sympy(expr2)
         if op == "+":
             result_expr = sp.simplify(e1 + e2)
         elif op == "-":
