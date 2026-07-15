@@ -18,7 +18,6 @@ from PySide6.QtWidgets import (
 )
 from MF_UI.plot.basic.plot_canvas import PlotCanvas
 from MF_UI.plot.basic.function_box import FunctionBox
-from MF_UI.plot.plot_3d.function_box import FunctionBox as FunctionBox3D
 from MF_UI.plot.plot_3d import Plot3D
 
 
@@ -322,7 +321,7 @@ class PlotWorkspace(QWidget):
             return
         color = _COLORS[self._color_idx % len(_COLORS)]
         self._color_idx += 1
-        cls = FunctionBox3D if self._mode == "3d" else FunctionBox
+        cls = FunctionBox
         box = cls(
             index=self._next_index, color=color, mode=self._mode, parent=self)
         self._next_index += 1
