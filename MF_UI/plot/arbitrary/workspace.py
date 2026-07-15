@@ -38,6 +38,7 @@ from MF_UI.plot.arbitrary.undo_manager import UndoManager
 
 _TOOLS: list[tuple[str, str, Tool]] = [
     ("↖",  "选择/移动", Tool.SELECT),
+    ("✋",  "拖拽平移",  Tool.PAN),
     ("●",  "点",        Tool.POINT),
     ("─",  "线段",      Tool.SEGMENT),
     ("◯",  "圆",        Tool.CIRCLE),

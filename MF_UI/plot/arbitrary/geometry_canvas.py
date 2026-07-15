@@ -40,6 +40,7 @@ class Tool(Enum):
     ELLIPSE = 6
     RECTANGLE = 7
     POLYGON = 8
+    PAN = 9
 
 
 class _State(Enum):
@@ -55,6 +56,7 @@ class _State(Enum):
 
 _TOOL_HINTS: dict[Tool, str] = {
     Tool.SELECT:   "选择/移动 — 点击图形选中，拖拽移动",
+    Tool.PAN:      "拖拽 — 按住左键拖拽平移视图",
     Tool.POINT:    "点 — 点击画布创建点",
     Tool.SEGMENT:  "线段 — 点击起点，再点击终点",
     Tool.CIRCLE:   "圆 — 点击圆心，按住拖拽确定半径",
@@ -616,6 +618,11 @@ class GeometryCanvas(QGraphicsView):
             super().mousePressEvent(event)
             return
 
+        # 拖拽工具 → 交给 QGraphicsView ScrollHandDrag
+        if self._tool == Tool.PAN:
+            super().mousePressEvent(event)
+            return
+
         pt = self.mapToScene(event.pos())
         mx = self._snap(pt.x()); my = self._snap(pt.y())
 
@@ -846,6 +853,11 @@ class GeometryCanvas(QGraphicsView):
         self._cancel_construction()
         self._tool = tool
         self._set_selection(None)
+        # 拖拽模式：PAN 时启用 ScrollHandDrag，其余禁用
+        if tool == Tool.PAN:
+            self.setDragMode(QGraphicsView.DragMode.ScrollHandDrag)
+        else:
+            self.setDragMode(QGraphicsView.DragMode.NoDrag)
         self._redraw()
         self.status_message.emit(_TOOL_HINTS.get(tool, ""))
 
