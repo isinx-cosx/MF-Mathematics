@@ -371,13 +371,22 @@ class ResultDialog(QDialog):
         if obj is None:
             self._show_text("no result", "#94a3b8"); return
         if not obj.ok:
-            self._show_text(f"error: {obj.error}", "#dc2626"); return
+            err = getattr(obj, "error", "")
+            if _is_undefined(err):
+                self._show_text("未定义", "#dc2626"); return
+            self._show_text(f"error: {err}", "#dc2626"); return
+
+        # 检查结果是否为未定义值
+        result = getattr(obj, "result", None)
+        if _is_undefined_value(result):
+            self._show_text("未定义", "#dc2626"); return
+
         latex = self._obj_to_latex(obj).replace("*", "")
         if latex:
             self._result_stack.setCurrentIndex(0)
             self._math_display.setLatex(latex)
         else:
-            self._show_text(self._format_plain(obj.result), "#0f172a")
+            self._show_text(self._format_plain(result), "#0f172a")
 
     def setDarkTheme(self, enabled: bool) -> None:
         self._math_display.setDarkTheme(enabled)
@@ -451,6 +460,47 @@ def _to_implicit_mul(latex: str) -> str:
     s = re.sub(r'\s*\\cdot\s*', '', s)
     s = s.replace('\\ ', ' ')
     return s
+
+
+def _is_undefined(err: str) -> bool:
+    """判断错误是否为未定义结果。"""
+    if not err:
+        return False
+    keywords = ["undefined", "nan", "zoo", "oo", "inf", "singular",
+                "not defined", "not finite", "indeterminate",
+                "未定义", "无定义", "无穷", "发散", "不存在"]
+    return any(k in err.lower() for k in keywords)
+
+
+def _is_undefined_value(val: Any) -> bool:
+    """判断值是否为未定义（NaN, Inf, zoo 等）。"""
+    import math as _math
+    import numpy as _np
+    if val is None:
+        return False
+    # float NaN/Inf
+    if isinstance(val, float):
+        return _math.isnan(val) or _math.isinf(val)
+    # complex NaN/Inf
+    if isinstance(val, complex):
+        return (_math.isnan(val.real) or _math.isinf(val.real) or
+                _math.isnan(val.imag) or _math.isinf(val.imag))
+    # sympy nan/zoo/oo
+    try:
+        import sympy as _sp
+        if val in (_sp.nan, _sp.zoo, _sp.oo, -_sp.oo):
+            return True
+        if isinstance(val, _sp.Basic) and val.has(_sp.nan, _sp.zoo, _sp.oo):
+            return True
+    except Exception:
+        pass
+    # numpy nan/inf
+    try:
+        if isinstance(val, _np.ndarray):
+            return bool(_np.any(_np.isnan(val)) or _np.any(_np.isinf(val)))
+    except Exception:
+        pass
+    return False
 
 
 def _result_to_latex(result: Any) -> str:

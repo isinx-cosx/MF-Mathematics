@@ -32,6 +32,13 @@ class CalcBlock(BaseCalcBlock):
 
         op = self.calc_mode_combo.currentText()
 
+        # ── 数学翻译 ──
+        try:
+            from MF_Mathematics.utils.translator import MathTranslator
+            expr = MathTranslator.human_to_computer(expr)
+        except Exception:
+            pass
+
         # ── 三级守卫 ──
         from MF_UI.utils.math_guard_ui import show_guard_dialog, show_quota_exceeded
         from calc.math_display import ResultDialog

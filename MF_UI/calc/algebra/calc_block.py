@@ -121,6 +121,76 @@ def _show_integral_bounds_dialog(
     )
 
 
+def _show_series_dialog(parent, expr: str) -> tuple[str, str, str, str] | None:
+    """级数求和参数对话框 — 通项/变量/起始/终止。"""
+    from PySide6.QtWidgets import (QDialog, QHBoxLayout, QLabel,
+                                    QLineEdit, QPushButton, QVBoxLayout)
+    parts = [p.strip() for p in expr.split(",")]
+    pre_term = parts[0] if parts else expr
+    pre_var = parts[1] if len(parts) > 1 else "n"
+    pre_a = parts[2] if len(parts) > 2 else "1"
+    pre_b = parts[3] if len(parts) > 3 else "oo"
+
+    dlg = QDialog(parent); dlg.setWindowTitle("级数求和 — 参数"); dlg.setMinimumWidth(400)
+    dlg.setStyleSheet("QDialog{background:#f8fafc;}")
+    l = QVBoxLayout(dlg); l.setSpacing(10); l.setContentsMargins(20, 16, 20, 16)
+
+    def _row(label, default, ph=""):
+        r = QHBoxLayout(); r.addWidget(QLabel(label))
+        inp = QLineEdit(default); inp.setPlaceholderText(ph)
+        inp.setStyleSheet("QLineEdit{border:1px solid #d1d5db;border-radius:4px;padding:6px 10px;font-size:13px;background:#fff;}")
+        r.addWidget(inp, 1); l.addLayout(r)
+        return inp
+
+    term_inp = _row("通项 a_n =", pre_term, "1/n**2")
+    var_inp = _row("变量", pre_var, "n")
+    a_inp = _row("起始", pre_a, "1")
+    b_inp = _row("终止", pre_b, "oo")
+    l.addWidget(QLabel("支持 oo（无穷）、pi、e 等"))
+
+    btn = QHBoxLayout(); btn.addStretch()
+    cancel = QPushButton("取消"); cancel.setStyleSheet("QPushButton{background:#f1f5f9;color:#475569;border:1px solid #d1d5db;border-radius:6px;padding:8px 20px;font-size:13px;}QPushButton:hover{background:#e2e8f0;}"); cancel.clicked.connect(dlg.reject); btn.addWidget(cancel)
+    ok = QPushButton("计算"); ok.setStyleSheet("QPushButton{background:#3b82f6;color:#fff;border:none;border-radius:6px;padding:8px 24px;font-size:13px;font-weight:500;}QPushButton:hover{background:#2563eb;}"); ok.clicked.connect(dlg.accept); btn.addWidget(ok)
+    l.addLayout(btn)
+
+    if dlg.exec() != QDialog.DialogCode.Accepted:
+        return None
+    return (term_inp.text().strip(), var_inp.text().strip() or "n",
+            a_inp.text().strip() or "1", b_inp.text().strip() or "oo")
+
+
+def _show_taylor_dialog(parent, func: str) -> tuple[str, str, str, int] | None:
+    """泰勒展开参数对话框 — 函数/变量/展开点/阶数。"""
+    from PySide6.QtWidgets import (QDialog, QHBoxLayout, QLabel, QLineEdit,
+                                    QPushButton, QSpinBox, QVBoxLayout)
+    dlg = QDialog(parent); dlg.setWindowTitle("泰勒展开 — 参数"); dlg.setMinimumWidth(380)
+    dlg.setStyleSheet("QDialog{background:#f8fafc;}")
+    l = QVBoxLayout(dlg); l.setSpacing(10); l.setContentsMargins(20, 16, 20, 16)
+
+    def _row(label, default, ph=""):
+        r = QHBoxLayout(); r.addWidget(QLabel(label))
+        inp = QLineEdit(default); inp.setPlaceholderText(ph)
+        inp.setStyleSheet("QLineEdit{border:1px solid #d1d5db;border-radius:4px;padding:6px 10px;font-size:13px;background:#fff;}")
+        r.addWidget(inp, 1); l.addLayout(r)
+        return inp
+
+    func_inp = _row("函数 f =", func)
+    var_inp = _row("变量", "x")
+    point_inp = _row("展开点", "0")
+    r = QHBoxLayout(); r.addWidget(QLabel("阶数")); order_spin = QSpinBox(); order_spin.setRange(1, 20); order_spin.setValue(3)
+    order_spin.setStyleSheet("QSpinBox{border:1px solid #d1d5db;border-radius:4px;padding:6px 10px;font-size:13px;background:#fff;}"); r.addWidget(order_spin, 1); l.addLayout(r)
+
+    btn = QHBoxLayout(); btn.addStretch()
+    cancel = QPushButton("取消"); cancel.setStyleSheet("QPushButton{background:#f1f5f9;color:#475569;border:1px solid #d1d5db;border-radius:6px;padding:8px 20px;font-size:13px;}QPushButton:hover{background:#e2e8f0;}"); cancel.clicked.connect(dlg.reject); btn.addWidget(cancel)
+    ok = QPushButton("计算"); ok.setStyleSheet("QPushButton{background:#3b82f6;color:#fff;border:none;border-radius:6px;padding:8px 24px;font-size:13px;font-weight:500;}QPushButton:hover{background:#2563eb;}"); ok.clicked.connect(dlg.accept); btn.addWidget(ok)
+    l.addLayout(btn)
+
+    if dlg.exec() != QDialog.DialogCode.Accepted:
+        return None
+    return (func_inp.text().strip(), var_inp.text().strip() or "x",
+            point_inp.text().strip() or "0", order_spin.value())
+
+
 class CalcBlock(BaseCalcBlock):
     """代数计算块 — 含守卫 + AI 加速 + 极限超时。"""
 
@@ -368,15 +438,22 @@ class CalcBlock(BaseCalcBlock):
             elif len(parts) >= 4:
                 var, point, order = parts[1], parts[2], int(parts[3])
             else:
-                point, order = "0", 3; var = "x"
+                params = _show_taylor_dialog(self, func)
+                if params is None:
+                    return MathObject(error="已取消", meaning="用户取消")
+                func, var, point, order = params
             return calculate_direct("泰勒展开", expr=func, var=var, point=point, order=order)
 
         # ========== 级数求和 ==========
         if op == "级数求和":
             parts = [p.strip() for p in expr.split(",")]
-            if len(parts) < 4:
-                return MathObject(error="级数求和格式：通项, 变量, 起始, 终止\n示例: 1/n**2, n, 1, oo")
-            term, var, a, b = parts[0], parts[1], parts[2], parts[3]
+            if len(parts) >= 4:
+                term, var, a, b = parts[0], parts[1], parts[2], parts[3]
+            else:
+                params = _show_series_dialog(self, expr)
+                if params is None:
+                    return MathObject(error="已取消", meaning="用户取消")
+                term, var, a, b = params
             return calculate_direct("级数求和", expr=term, var=var, a=a, b=b)
 
         # ========== 级数敛散性 ==========
@@ -433,11 +510,59 @@ class CalcBlock(BaseCalcBlock):
                 else:
                     return calculate_direct("解线性不等式", expr=expr, var=var)
 
-        # ========== 常微分 / 偏微分（占位）==========
+        # ========== 常微分方程 ==========
         if op == "常微分方程":
-            return MathObject(error="常微分方程求解功能开发中")
+            try:
+                import sympy as _sp
+                # 解析 dy/dx = expr 或 f'(x) = expr 或直接 dsolve
+                if "=" in expr:
+                    lhs, rhs = expr.split("=", 1)
+                    lhs = lhs.strip(); rhs = rhs.strip()
+                else:
+                    rhs = expr; lhs = "f(x)"
+                # 构建 sympy 函数
+                x = _sp.Symbol("x")
+                f = _sp.Function("f")(x)
+                # 尝试识别 lhs 中的函数名
+                import re as _re
+                func_match = _re.match(r"([a-zA-Z]+)\(x\)", lhs)
+                if func_match:
+                    fname = func_match.group(1)
+                    f = _sp.Function(fname)(x)
+                # 将 rhs 中的 f(x) 替换
+                rhs_sym = _sp.sympify(rhs.replace("f(x)", "f").replace(f"{fname}(x)" if func_match else "f(x)", "f"))
+                eq = _sp.Eq(f.diff(x), rhs_sym) if func_match else _sp.Eq(_sp.Function("f")(x).diff(x), rhs_sym)
+                sol = _sp.dsolve(eq)
+                result = _sp.simplify(sol)
+                return MathObject(result=str(result),
+                    steps=[f"微分方程: {eq}", f"通解: {result}"],
+                    meaning=f"常微分方程的通解为 {result}")
+            except Exception as e:
+                return MathObject(error=f"ODE 求解失败: {e}\n格式: dy/dx = 表达式 或 f(x) = 表达式")
         if op == "偏微分方程":
-            return MathObject(error="偏微分方程求解功能开发中")
+            try:
+                import sympy as _sp
+                x, y = _sp.symbols("x y")
+                f = _sp.Function("f")(x, y)
+                # 尝试 pdsolve（可能不支持所有类型）
+                if "=" in expr:
+                    lhs, rhs = expr.split("=", 1)
+                    eq = _sp.Eq(_sp.sympify(lhs.strip()), _sp.sympify(rhs.strip()))
+                else:
+                    eq = _sp.Eq(f.diff(x, 2) + f.diff(y, 2), 0)
+                try:
+                    sol = _sp.pdsolve(eq)
+                except Exception:
+                    # 回退：返回特征线分析
+                    return MathObject(
+                        result="PDE 解析求解暂不支持此类型",
+                        steps=[f"PDE: {eq}", "请使用数值方法或 AI 辅助求解"],
+                        meaning="偏微分方程需要用数值方法求解")
+                return MathObject(result=str(sol),
+                    steps=[f"PDE: {eq}", f"解: {sol}"],
+                    meaning=f"偏微分方程的解为 {sol}")
+            except Exception as e:
+                return MathObject(error=f"PDE 求解失败: {e}")
 
         return None
 
