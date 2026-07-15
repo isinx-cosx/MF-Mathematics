@@ -599,6 +599,11 @@ class GeometryCanvas(QGraphicsView):
         return best
 
     def mousePressEvent(self, event) -> None:
+        # PAN 工具 — 全部交给 QGraphicsView 内建拖拽
+        if self._tool == Tool.PAN:
+            super().mousePressEvent(event)
+            return
+
         if event.button() == Qt.MouseButton.MiddleButton:
             self.setDragMode(QGraphicsView.DragMode.ScrollHandDrag)
             e = event.__class__(event.type(), event.pos(), Qt.MouseButton.LeftButton,
@@ -615,11 +620,6 @@ class GeometryCanvas(QGraphicsView):
             return
 
         if event.button() != Qt.MouseButton.LeftButton:
-            super().mousePressEvent(event)
-            return
-
-        # 拖拽工具 → 交给 QGraphicsView ScrollHandDrag
-        if self._tool == Tool.PAN:
             super().mousePressEvent(event)
             return
 
@@ -642,6 +642,11 @@ class GeometryCanvas(QGraphicsView):
             self._handle_poly_press(mx, my)
 
     def mouseMoveEvent(self, event) -> None:
+        # PAN 工具 — 全部交给 QGraphicsView（ScrollHandDrag）
+        if self._tool == Tool.PAN:
+            super().mouseMoveEvent(event)
+            return
+
         pt = self.mapToScene(event.pos())
         mx = self._snap(pt.x()); my = self._snap(pt.y())
         self._cursor_pt = (mx, my)
@@ -663,6 +668,11 @@ class GeometryCanvas(QGraphicsView):
             self._redraw()
 
     def mouseReleaseEvent(self, event) -> None:
+        # PAN 工具 — 全部交给 QGraphicsView（结束 ScrollHandDrag）
+        if self._tool == Tool.PAN:
+            super().mouseReleaseEvent(event)
+            return
+
         super().mouseReleaseEvent(event)
         if event.button() == Qt.MouseButton.MiddleButton:
             self.setDragMode(QGraphicsView.DragMode.NoDrag)
