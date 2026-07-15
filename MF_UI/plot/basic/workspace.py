@@ -61,6 +61,17 @@ class PlotWorkspace(QWidget):
         root = QHBoxLayout(self)
         root.setSpacing(0); root.setContentsMargins(0, 0, 0, 0)
 
+        self._status = QLabel("就绪")
+        self._status.setStyleSheet("font-size:11px;"); self._status.setWordWrap(True)
+
+        # ── 复数模式：整个区域使用 ComplexWorkspace ──
+        if self._mode == "complex":
+            self._complex = ComplexWorkspace()
+            self._complex.status_message.connect(self._status.setText)
+            root.addWidget(self._complex, 1)
+            self._canvas = None; self._canvas_3d = None
+            return
+
         # ── 左侧面板 ──
         left = QWidget()
         left.setFixedWidth(340); left.setObjectName("plot_left_panel")
@@ -71,15 +82,12 @@ class PlotWorkspace(QWidget):
         desc_map = {
             "normal": "支持：显式 y=f(x)、隐式 f(x,y)=0、参数滑块",
             "3d": "支持：三维曲面 z=f(x,y)",
-            "complex": "支持：复平面 RGB 域着色（功能预留）",
             "vector": "支持：2D/3D 向量场绘制（功能预留）",
         }
         desc_label = QLabel(desc_map.get(self._mode, desc_map["normal"]))
         desc_label.setObjectName("plot_desc_label")
         ll.addWidget(title_label); ll.addWidget(desc_label)
 
-        self._status = QLabel("就绪")
-        self._status.setStyleSheet("font-size:11px;"); self._status.setWordWrap(True)
         ll.addWidget(self._status)
 
         # ── 卡片容器 ──
@@ -118,11 +126,6 @@ class PlotWorkspace(QWidget):
             self._canvas_3d.status_message.connect(self._status.setText)
             root.addWidget(self._canvas_3d, 1)
             self._canvas = None
-        elif self._mode == "complex":
-            self._complex = ComplexWorkspace()
-            self._complex.status_message.connect(self._status.setText)
-            root.addWidget(self._complex, 1)
-            self._canvas = None; self._canvas_3d = None
         else:
             root.addWidget(self._make_placeholder(title, "功能开发中，敬请期待..."), 1)
             self._canvas = None; self._canvas_3d = None
