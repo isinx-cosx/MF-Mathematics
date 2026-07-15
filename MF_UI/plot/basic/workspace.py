@@ -17,7 +17,7 @@ from PySide6.QtWidgets import (
     QScrollArea, QSlider, QVBoxLayout, QWidget,
 )
 from MF_UI.plot.basic.plot_canvas import PlotCanvas
-from MF_UI.plot.basic.function_box import BaseFunctionBox, FunctionBox2D
+from MF_UI.plot.basic.function_box import FunctionBox
 from MF_UI.plot.plot_3d.function_box import FunctionBox as FunctionBox3D
 from MF_UI.plot.plot_3d import Plot3D
 
@@ -67,7 +67,7 @@ class PlotWorkspace(QWidget):
         self._mode = self._detect_mode(title)
         self._color_idx = 0
         self._next_index = 1
-        self._boxes: list[BaseFunctionBox] = []
+        self._boxes: list[FunctionBox] = []
         self._separators: list[QFrame] = []
         self._global_sliders: dict[str, tuple[QSlider, QLineEdit]] = {}
         self._updating_slider = False
@@ -322,7 +322,7 @@ class PlotWorkspace(QWidget):
             return
         color = _COLORS[self._color_idx % len(_COLORS)]
         self._color_idx += 1
-        cls = FunctionBox3D if self._mode == "3d" else FunctionBox2D
+        cls = FunctionBox3D if self._mode == "3d" else FunctionBox
         box = cls(
             index=self._next_index, color=color, mode=self._mode, parent=self)
         self._next_index += 1
@@ -364,11 +364,9 @@ class PlotWorkspace(QWidget):
         self._list_layout.removeWidget(box)
         box.deleteLater()
         self._update_delete_buttons()
-        self._refresh_all_param_hints()
         self._rebuild_curves()
 
     def _on_box_changed(self) -> None:
-        self._refresh_all_param_hints()
         self._rebuild_curves()
 
     def _rebuild_curves(self) -> None:
@@ -400,8 +398,7 @@ class PlotWorkspace(QWidget):
             for b in self._boxes:
                 if not b.expr:
                     continue
-                box_params = {k: v for k, v in gparams.items()
-                              if k in b.detected_params}
+                box_params = {**gparams, **b.get_params()}
                 resolved = b.expr
                 if b.is_derivative and b.referenced_function:
                     r = b.resolve_derivative(definitions)
@@ -420,8 +417,7 @@ class PlotWorkspace(QWidget):
         for b in self._boxes:
             if not b.is_visible or not b.expr:
                 continue
-            box_params = {k: v for k, v in gparams.items()
-                          if k in b.detected_params}
+            box_params = {**gparams, **b.get_params()}
             if b.is_derivative and b.referenced_function:
                 resolved = b.resolve_derivative(definitions)
                 if resolved:
