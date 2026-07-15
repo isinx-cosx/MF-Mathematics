@@ -356,10 +356,116 @@ class Config:
             )
 
     def reload_yaml(self) -> None:
-        """重新加载 config.yaml（用于用户编辑后热更新）。"""
+        """重新加载 config.yaml（兼容旧名）。"""
+        self.reload_config()
+
+    def reload_config(self) -> None:
+        """重新加载 config.yaml + .env，新配置即时生效。"""
         self._yaml = _load_yaml()
-        self._api_base = self._yaml_val("api_base") or self._api_base
-        self._default_model = self._yaml_val("default_model") or self._default_model
-        self._context_length = self._yaml_val("context_length") or self._context_length
-        self._model_map = self._yaml.get("model_map", {}) or self._model_map
-        self._model_params = self._yaml.get("model_params", {}) or self._model_params
+        dotenv = _load_dotenv()
+        self._api_base = (self._yaml_val("api_base")
+                          or os.environ.get("AI_BASE_URL", dotenv.get("AI_BASE_URL", _DEFAULT_BASE_URL)))
+        self._default_model = (self._yaml_val("default_model")
+                               or os.environ.get("AI_MODEL", dotenv.get("AI_MODEL", _DEFAULT_MODEL)))
+        self._context_length = self._yaml_val("context_length") or _DEFAULT_CONTEXT_LENGTH
+        self._model_map = self._yaml.get("model_map", {}) or {}
+        self._model_params = self._yaml.get("model_params", {}) or {}
+        self._api_key = os.environ.get("AI_API_KEY", dotenv.get("AI_API_KEY", self._api_key))
+
+    def is_available(self) -> bool:
+        """判断是否有有效的 AI 服务配置。"""
+        if self._api_key:
+            return True
+        if self._yaml.get("local_model", {}).get("enabled", False):
+            path = self._yaml.get("local_model", {}).get("path", "")
+            if path:
+                return True
+        return False
+
+    # ── 厂商/模型扩展 ────────────────────────────────────
+
+    @property
+    def provider(self) -> str:
+        return self._yaml_val("provider", "DeepSeek")
+
+    def set_provider(self, provider: str) -> None:
+        self._yaml["provider"] = provider
+
+    def get_provider_models(self, provider: str | None = None) -> list[str]:
+        """获取厂商的预置模型列表。"""
+        provider = provider or self.provider
+        pm = self._yaml.get("provider_models", {})
+        return pm.get(provider, [])
+
+    def get_provider_endpoint(self, provider: str | None = None) -> str:
+        """获取厂商的默认 API 端点。"""
+        provider = provider or self.provider
+        pe = self._yaml.get("provider_endpoints", {})
+        return pe.get(provider, _DEFAULT_BASE_URL)
+
+    @property
+    def local_model_enabled(self) -> bool:
+        return self._yaml.get("local_model", {}).get("enabled", False)
+
+    @property
+    def local_model_path(self) -> str:
+        return self._yaml.get("local_model", {}).get("path", "")
+
+    def set_local_model(self, enabled: bool, path: str = "") -> None:
+        self._yaml.setdefault("local_model", {})["enabled"] = enabled
+        if path:
+            self._yaml["local_model"]["path"] = path
+
+    def save_to_files(self) -> None:
+        """将当前运行时配置持久化到 config.yaml（不含 API Key）。
+
+        API Key 提示用户手动写入 .env。
+        """
+        import yaml as _yaml_mod
+        _yaml_mod is not None  # pyright
+        yaml_path = _find_yaml_path()
+        if yaml_path is None:
+            yaml_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.yaml")
+        try:
+            import yaml as _ym
+            with open(yaml_path, "w", encoding="utf-8") as f:
+                _ym.safe_dump(self._yaml, f, allow_unicode=True, default_flow_style=False)
+        except ImportError:
+            _dump_yaml_manual(self._yaml, yaml_path)
+
+
+def _dump_yaml_manual(data: dict, path: str) -> None:
+    """简易 YAML 写入（无需 pyyaml）。"""
+    with open(path, "w", encoding="utf-8") as f:
+        f.write("# MF_AI config.yaml (auto-saved)\n\n")
+        for key, value in data.items():
+            if isinstance(value, dict):
+                f.write(f"{key}:\n")
+                for k, v in value.items():
+                    if isinstance(v, dict):
+                        f.write(f"  {k}:\n")
+                        for sub_k, sub_v in v.items():
+                            f.write(f"    {sub_k}: {_yaml_val_str(sub_v)}\n")
+                    elif isinstance(v, list):
+                        f.write(f"  {k}:\n")
+                        for item in v:
+                            f.write(f"    - \"{item}\"\n")
+                    else:
+                        f.write(f"  {k}: {_yaml_val_str(v)}\n")
+            elif isinstance(value, list):
+                f.write(f"{key}:\n")
+                for item in value:
+                    f.write(f"  - \"{item}\"\n")
+            else:
+                f.write(f"{key}: {_yaml_val_str(value)}\n")
+
+
+def _yaml_val_str(v) -> str:
+    if v is True: return "true"
+    if v is False: return "false"
+    if v is None: return "null"
+    if isinstance(v, str):
+        if any(c in v for c in ('"', "'", '#', ':', '{', '}', '[', ']', ',')):
+            return f'"{v}"'
+        return v
+    return str(v)

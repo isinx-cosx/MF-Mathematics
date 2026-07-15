@@ -172,7 +172,7 @@ class MainWindow(QMainWindow):
         act_AI = toolbar.addAction("AI")
         act_AI.triggered.connect(self._open_ai_dialog)
         act_settings = toolbar.addAction("设置")
-        act_settings.triggered.connect(lambda: self._status_msg("设置"))
+        act_settings.triggered.connect(self._open_settings)
 
     def _on_toolbar_action(self, action):
         if action is self._btn_calc:
@@ -280,10 +280,55 @@ class MainWindow(QMainWindow):
         self._status_bar.showMessage(msg, 5000)
 
     def _open_ai_dialog(self):
-        """打开 AI 助手对话框。"""
+        """打开 AI 助手对话框 — 先检查配置，传递当前计算上下文。"""
         from MF_UI.ai_dialog import AIDialog
-        dlg = AIDialog(self)
+        from MF_AI.config import Config
+
+        cfg = Config()
+        if not cfg.is_available():
+            from PySide6.QtWidgets import QMessageBox
+            box = QMessageBox(self)
+            box.setWindowTitle("AI 服务未配置")
+            box.setText("未检测到有效的 AI 服务配置。\n请前往 设置 → AI 配置 中配置 API Key 或本地模型。")
+            box.setIcon(QMessageBox.Icon.Information)
+            btn_go = box.addButton("前往设置", QMessageBox.ButtonRole.AcceptRole)
+            box.addButton("取消", QMessageBox.ButtonRole.RejectRole)
+            box.exec()
+            if box.clickedButton() == btn_go:
+                self._open_settings(open_ai_tab=True)
+            return
+
+        expr, mode = self._get_calc_context()
+        dlg = AIDialog(self, context_expr=expr, context_mode=mode)
         dlg.exec()
+
+    def _open_settings(self, open_ai_tab: bool = False):
+        """打开设置对话框。"""
+        from MF_UI.settings_dialog import SettingsDialog
+        dlg = SettingsDialog(self, open_ai_tab=open_ai_tab)
+        dlg.exec()
+
+    def _get_calc_context(self) -> tuple[str, str]:
+        """获取当前激活的计算块上下文（表达式 + 模式）。"""
+        try:
+            sw = self._stacked_widget
+            w = sw.currentWidget()
+            if w:
+                def find_block(widget):
+                    if hasattr(widget, 'input_box') and hasattr(widget, 'calc_mode_combo'):
+                        return widget
+                    for child in widget.children() if hasattr(widget, 'children') else []:
+                        r = find_block(child)
+                        if r: return r
+                    return None
+                block = find_block(w)
+                if block:
+                    expr = block.input_box.text().strip()
+                    mode = block.calc_mode_combo.currentText()
+                    return (expr, mode)
+        except Exception:
+            pass
+        return ("", "")
 
     # ---------- 主题切换 ----------
     def _switch_to_light(self):

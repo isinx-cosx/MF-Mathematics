@@ -1,35 +1,52 @@
-# ═══════════════════════════════════════════════════════════
-#  MF_AI 模型映射配置（用户可编辑）
-# ═══════════════════════════════════════════════════════════
-
-# 自定义 API 端点（可选，覆盖默认 DeepSeek 地址）
-# 示例: https://api.deepseek.com/anthropic
-api_base: "https://api.deepseek.com"
-
-# 默认模型 — 未指定模型或 role 未命中时的回退
-default_model: "deepseek-v4-pro"
-
-# 上下文长度（token 数，仅记录用，不影响实际调用）
-context_length: 1048576  # 1M
-
-# ── 角色 → 实际模型映射 ─────────────────────────────────
+api_base: https://api.deepseek.com
+context_length: 1048576
+default_model: deepseek-v4-pro
+local_model:
+  auto_detect: true
+  enabled: false
+  path: ''
 model_map:
-  Sonnet:   "deepseek-v4-pro"
-  Opus:     "deepseek-v4-pro"
-  Haiku:    "deepseek-v4-pro"
-  Fable:    "deepseek-v4-pro"
-  Mythos:   "deepseek-v4-pro"
-  Chat:     "deepseek-chat"
-  Reasoner: "deepseek-reasoner"
-
-# ── 各模型独立参数 ──────────────────────────────────────
+  Chat: deepseek-chat
+  Fable: deepseek-v4-pro
+  Haiku: deepseek-v4-pro
+  Mythos: deepseek-v4-pro
+  Opus: deepseek-v4-pro
+  Reasoner: deepseek-reasoner
+  Sonnet: deepseek-v4-pro
 model_params:
-  deepseek-v4-pro:
-    max_tokens: 8192
-    temperature: 0.7
   deepseek-chat:
     max_tokens: 4096
     temperature: 0.7
   deepseek-reasoner:
     max_tokens: 8192
     temperature: 0.3
+  deepseek-v4-pro:
+    max_tokens: 8192
+    temperature: 0.7
+  gpt-3.5-turbo:
+    max_tokens: 4096
+    temperature: 0.7
+  gpt-4o:
+    max_tokens: 4096
+    temperature: 0.7
+  gpt-4o-mini:
+    max_tokens: 4096
+    temperature: 0.7
+provider: DeepSeek
+provider_endpoints:
+  DeepSeek: https://api.deepseek.com
+  Ollama: http://localhost:11434/v1
+  OpenAI: https://api.openai.com/v1
+provider_models:
+  DeepSeek:
+  - deepseek-chat
+  - deepseek-v4-pro
+  - deepseek-reasoner
+  Ollama:
+  - llama3
+  - qwen2.5
+  - deepseek-r1
+  OpenAI:
+  - gpt-4o
+  - gpt-4o-mini
+  - gpt-3.5-turbo
