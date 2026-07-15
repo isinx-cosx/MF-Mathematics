@@ -1,0 +1,87 @@
+# ── 基础计算：代数运算 ────────────────────────────────────────
+id: basic-calculation
+title: "基础计算 — 代数化简与求导"
+difficulty: beginner
+category: calculation
+duration: "5 分钟"
+order: 2
+summary: >
+  学习如何输入表达式、选择计算模式、查看结果。
+  从多项式化简和求导开始，掌握最基本的计算流程。
+
+steps:
+  - target: "toolbar.calc_button"
+    text: "点击工具栏的「计算」按钮，进入计算模式。"
+    highlight: circle
+    placement: bottom
+    action: click
+
+  - target: "main_window.mode_selector"
+    text: "在下拉菜单中选择「代数」。代数模块支持化简、展开、因式分解、求导、积分等。"
+    highlight: rect
+    placement: right
+    action: select
+    action_value: "代数"
+
+  - target: "calc_block.input"
+    text: >
+      在输入框中输入你的数学表达式。<br>
+      试试输入：<b>x^2 + 2*x + 1</b><br>
+      或使用数学键盘输入符号。
+    highlight: rect
+    placement: top
+    action: type
+    action_value: "x^2 + 2*x + 1"
+
+  - target: "calc_block.action_dropdown"
+    text: "选择操作类型。对于多项式，选择「化简」。"
+    highlight: rect
+    placement: right
+    action: select
+    action_value: "化简"
+
+  - target: "calc_block.calc_button"
+    text: >
+      点击「计算」按钮！<br>
+      结果会弹出显示：结果、推导步骤、数学含义。
+    highlight: circle
+    placement: left
+    action: click
+
+  - target: "calc_block.ai_accel_button"
+    text: >
+      如果表达式特别复杂，可以点击「AI 加速」让 AI 辅助计算。<br>
+      注意：需要先配置 API Key。
+    highlight: circle
+    placement: top
+    action: wait
+
+examples:
+  - label: "化简多项式"
+    expr: "x^2 + 2*x + 1"
+    mode: "代数"
+    action: "化简"
+  - label: "展开乘积"
+    expr: "(x+1)*(x-1)"
+    mode: "代数"
+    action: "展开"
+  - label: "因式分解"
+    expr: "x^2 - 1"
+    mode: "代数"
+    action: "因式分解"
+  - label: "求导 sin(x^2)"
+    expr: "sin(x^2)"
+    mode: "代数"
+    action: "求导"
+  - label: "不定积分"
+    expr: "x*sin(x)"
+    mode: "代数"
+    action: "不定积分"
+
+faq:
+  - q: "输入表达式的格式是什么？"
+    a: "支持自然数学格式：x^2 表示 x²，* 表示乘法，sin/cos/log 等函数直接用。也可用键盘输入特殊符号。"
+  - q: "为什么显示「计算失败」？"
+    a: "可能的原因：表达式语法错误、该操作不支持此类型表达式、或表达式超出复杂度限制。请检查输入。"
+  - q: "如何查看详细的推导步骤？"
+    a: "计算结果弹出后，点击「步骤」按钮，AI 会生成像老师手写一样的逐步推导过程。"

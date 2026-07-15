@@ -42,16 +42,43 @@ def simplify_polynomial(expr: Union[str, sp.Expr]) -> MathObject:
     """
     try:
         ex = _to_sympy(expr)
+        s_orig = str(ex)
         simplified = sp.simplify(ex)
         factored = sp.factor(ex)
+        s_s = str(simplified)
+        s_f = str(factored)
+
+        # 智能选择最简形式：
+        # 1. 如果 simplify 和 factor 结果相同 → 任选
+        # 2. 如果 factor 有效（不同于原始）且复杂度不超过 simplify 的 3 倍 → 选 factor
+        # 3. 否则选 simplify（适用于三角化简等 factor 无法处理的情况）
+        ops_s = sp.count_ops(simplified)
+        ops_f = sp.count_ops(factored)
+
+        if s_f != s_orig and s_f != s_s and ops_f <= max(ops_s * 3, ops_s + 10):
+            # factor 产生了有意义的不同结果
+            best = factored
+            alt = simplified
+        elif ops_s <= ops_f:
+            best = simplified
+            alt = factored
+        else:
+            best = factored
+            alt = simplified
+
+        steps = [
+            f"原始表达式: {ex}",
+            f"合并同类项: {simplified}",
+        ]
+        if s_f != s_s:
+            steps.append(f"可因式分解为: {factored}")
+        else:
+            steps.append("已是最简形式")
+
         return MathObject(
-            result=str(simplified),
-            steps=[
-                f"原始表达式: {ex}",
-                f"合并同类项: {simplified}",
-                f"可因式分解为: {factored}" if str(factored) != str(simplified) else "已是最简形式",
-            ],
-            meaning=f"化简结果: {simplified}",
+            result=str(best),
+            steps=steps,
+            meaning=f"化简结果: {best}",
         )
     except Exception as e:
         return MathObject(error=str(e))

@@ -92,40 +92,55 @@ class CalcBlock(BaseCalcBlock):
         dlg.exec()
 
     def _do_dispatch(self, mod: str, act: str, expr: str):
-        """通过 calc_engine 统一调度（矩阵/向量 → matrix= 关键字传递）。"""
+        """通过 calc_engine 统一调度（智能参数解析）。"""
         from ast import literal_eval
         import re as _re
 
         op = self.calc_mode_combo.currentText()
 
-        if "=" in expr and expr.count("=") <= 2:
-            parts = _re.split(r'[,;]\s*(?=[a-zA-Z_])', expr)
+        # 1. 尝试 key=value 格式解析
+        if "=" in expr and not expr.strip().startswith(("[", "(")):
+            # 用逗号或分号分隔
+            parts = _re.split(r'[,;]\s*', expr)
             kwargs = {}
+            all_kv = True
             for p in parts:
+                p = p.strip()
                 if "=" in p:
                     k, v = p.split("=", 1)
-                    kwargs[k.strip()] = literal_eval(v.strip())
-            return calculate_direct(op, **kwargs)
-        else:
+                    k = k.strip(); v = v.strip()
+                    try: kwargs[k] = literal_eval(v)
+                    except (ValueError, SyntaxError): kwargs[k] = v
+                elif p:
+                    # 没有 = 的部分 → 尝试作为值或 var=value
+                    all_kv = False
+            if kwargs and all_kv:
+                return calculate_direct(op, **kwargs)
+
+        # 2. 尝试 literal_eval
+        try:
             val = literal_eval(expr)
-            if isinstance(val, (list, tuple)):
-                # 矩阵/向量类参数 → 以关键字 matrix=/vector= 传递
-                if op in ("高斯消元", "矩阵秩", "求解方程组", "零空间",
-                          "特征值", "特征向量", "特征多项式", "可对角化",
-                          "对角化", "二次型", "正定性判定",
-                          "施密特正交化", "正交投影"):
-                    return calculate_direct(op, matrix=val)
-                elif op in ("范数",):
-                    return calculate_direct(op, vector=val)
-                elif op in ("点积", "夹角", "正交性"):
-                    # 需要两个向量 → 展平传 u=, v=
-                    if len(val) == 2:
-                        return calculate_direct(op, u=val[0], v=val[1])
-                    return calculate_direct(op, matrix=val)
-                else:
-                    return calculate_direct(op, matrix=val)
+        except (ValueError, SyntaxError):
+            # 3. 不是字面量 → 作为表达式字符串
+            return calculate_direct(op, expr=expr)
+
+        # 4. 字面量成功 → 根据操作类型路由参数
+        if isinstance(val, (list, tuple)):
+            if op in ("高斯消元", "矩阵秩", "求解方程组", "零空间",
+                      "特征值", "特征向量", "特征多项式", "可对角化",
+                      "对角化", "二次型", "正定性判定",
+                      "施密特正交化", "正交投影"):
+                return calculate_direct(op, matrix=val)
+            elif op in ("范数",):
+                return calculate_direct(op, vector=val)
+            elif op in ("点积", "夹角", "正交性"):
+                if len(val) == 2:
+                    return calculate_direct(op, v1=val[0], v2=val[1])
+                return calculate_direct(op, matrix=val)
             else:
-                return calculate_direct(op, val)
+                return calculate_direct(op, matrix=val)
+        else:
+            return calculate_direct(op, val=val)
 
 
 if __name__ == "__main__":

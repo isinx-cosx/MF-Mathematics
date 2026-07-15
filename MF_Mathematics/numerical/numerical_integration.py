@@ -13,11 +13,17 @@ from ..core.math_object import MathObject
 from ..core.registry import register
 
 
-def _parse_func(f: Union[str, Callable[[float], float]]) -> Callable[[float], float]:
-    """将字符串表达式或可调用对象统一为可调用函数（使用 sympy 安全解析）。"""
+def _parse_func(f: Union[str, Callable[[float], float]],
+                var: str = "x") -> Callable[[float], float]:
+    """将字符串表达式或可调用对象统一为可调用函数。
+
+    Args:
+        f: 字符串表达式或可调用对象。
+        var: 自变量名（默认 "x"）。
+    """
     if isinstance(f, str):
         import sympy as sp
-        return sp.lambdify(sp.Symbol("x"), sp.sympify(f), "numpy")
+        return sp.lambdify(sp.Symbol(var), sp.sympify(f), "numpy")
     return f
 
 
@@ -27,6 +33,7 @@ def trapezoidal_rule(
     a: float,
     b: float,
     n: int = 100,
+    var: str = "x",
 ) -> MathObject:
     """梯形法则（复合）数值积分。
 
@@ -42,7 +49,7 @@ def trapezoidal_rule(
         MathObject: result 为积分近似值（float）。
     """
     try:
-        f_fn = _parse_func(f)
+        f_fn = _parse_func(f, var)
         x = np.linspace(a, b, n + 1)
         y = np.array([f_fn(xi) for xi in x])
         h = (b - a) / n
@@ -67,6 +74,7 @@ def simpson_rule(
     a: float,
     b: float,
     n: int = 100,
+    var: str = "x",
 ) -> MathObject:
     """辛普森法则（复合）数值积分。
 
@@ -84,7 +92,7 @@ def simpson_rule(
     try:
         if n % 2 != 0:
             n += 1
-        f_fn = _parse_func(f)
+        f_fn = _parse_func(f, var)
         x = np.linspace(a, b, n + 1)
         y = np.array([f_fn(xi) for xi in x])
         h = (b - a) / n
@@ -147,7 +155,7 @@ def gauss_quadrature(
         nodes = data["nodes"]
         weights = data["weights"]
 
-        f_fn = _parse_func(f)
+        f_fn = _parse_func(f, var)
         # 变换到 [a,b]
         mid = (b + a) / 2
         half = (b - a) / 2
@@ -189,7 +197,7 @@ def numerical_derivative(
         MathObject: result 为导数值（float）。
     """
     try:
-        f_fn = _parse_func(f)
+        f_fn = _parse_func(f, var)
         if method == "forward":
             deriv = (f_fn(x + h) - f_fn(x)) / h
             order = "O(h)"
@@ -235,7 +243,7 @@ def optimal_step(
         MathObject: result 为最优步长（float）。
     """
     try:
-        f_fn = _parse_func(f)
+        f_fn = _parse_func(f, var)
         eps_machine = np.finfo(float).eps
 
         # 估计函数值的量级

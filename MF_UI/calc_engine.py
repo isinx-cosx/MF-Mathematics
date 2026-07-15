@@ -29,6 +29,12 @@ import MF_Mathematics.complex_analysis   # noqa
 import MF_Mathematics.linear_algebra     # noqa
 import MF_Mathematics.probability        # noqa
 import MF_Mathematics.numerical          # noqa
+import MF_Mathematics.real_analysis      # noqa
+import MF_Mathematics.functional_analysis  # noqa
+import MF_Mathematics.harmonic_analysis  # noqa
+import MF_Mathematics.measure_theory     # noqa
+import MF_Mathematics.algebraic_topology # noqa
+import MF_Mathematics.number_theory      # noqa
 
 from MF_Mathematics.core.registry import dispatch
 from MF_Mathematics.core.math_object import MathObject
@@ -229,17 +235,111 @@ def _normalize_kwargs(action: str, kwargs: dict) -> dict:
     """将 UI 层参数名映射为后端函数期望的参数名。"""
     kw = dict(kwargs)
 
-    # func → f（仅数值类函数）
+    # func → f（数值类函数），同时处理 integrate_numeric 的 f → expr
     _FUNC_TO_F = {"trapezoidal_rule", "simpson_rule", "gauss_quadrature",
                   "euler_method", "rk4", "implicit_euler"}
     if action in _FUNC_TO_F and "func" in kw:
         kw.setdefault("f", kw.pop("func"))
+    # integrate_numeric 使用 expr 而非 f
+    if action == "integrate_numeric" and "f" in kw:
+        kw.setdefault("expr", kw.pop("f"))
 
-    # mean/std → mu/sigma（概率分布）
+    # mean/std → mu/sigma（概率分布 normal 等）
     if action in ("normal",) and "mean" in kw:
         kw.setdefault("mu", kw.pop("mean"))
     if action in ("normal",) and "std" in kw:
         kw.setdefault("sigma", kw.pop("std"))
+
+    # 数值 ODE: x0 → t0, n → t_end（euler_method, rk4, implicit_euler）
+    if action in ("euler_method", "rk4", "implicit_euler"):
+        if "x0" in kw:
+            kw.setdefault("t0", kw.pop("x0"))
+        if "n" in kw and "h" in kw:
+            n_val = kw.pop("n")
+            h_val = kw.get("h", kw.get("h_val", 0.1))
+            t0_val = kw.get("t0", kw.get("t0_val", 0))
+            try:
+                kw.setdefault("t_end", float(t0_val) + float(h_val) * int(n_val))
+            except (ValueError, TypeError):
+                pass
+
+    # 数值矩阵: matrix → A（lu_decomposition, qr_algorithm, power_method 等）
+    _MATRIX_TO_A = {"lu_decomposition", "qr_algorithm", "power_method",
+                    "jacobi_iteration", "gauss_seidel", "conjugate_gradient",
+                    "solve_linear_system"}
+    if action in _MATRIX_TO_A and "matrix" in kw:
+        kw.setdefault("A", kw.pop("matrix"))
+
+    # 线性代数: expr → matrix（eigenvalues, rank, gaussian_elimination 等）
+    _EXPR_TO_MATRIX = {
+        "gaussian_elimination", "rank", "solve_linear_system", "nullspace",
+        "eigenvalues", "eigenvectors", "characteristic_polynomial",
+        "is_diagonalizable", "diagonalize", "gram_schmidt",
+        "orthogonal_projection", "quadratic_form", "is_positive_definite",
+    }
+    if action in _EXPR_TO_MATRIX and "expr" in kw:
+        val = kw.pop("expr")
+        if isinstance(val, str):
+            try:
+                from ast import literal_eval as _le
+                val = _le(val)
+            except (ValueError, SyntaxError):
+                pass
+        kw.setdefault("matrix", val)
+
+    # 线性代数向量: expr → vector（norm）
+    if action in ("norm",) and "expr" in kw:
+        val = kw.pop("expr")
+        if isinstance(val, str):
+            try:
+                from ast import literal_eval as _le
+                val = _le(val)
+            except (ValueError, SyntaxError):
+                pass
+        kw.setdefault("vector", val)
+
+    # 概率/统计: expr → data
+    if action in ("expectation", "variance", "sample_mean", "sample_variance",
+                  "moment_estimate", "covariance", "correlation_coefficient") and "expr" in kw:
+        val = kw.pop("expr")
+        if isinstance(val, str):
+            try:
+                from ast import literal_eval as _le
+                val = _le(val)
+            except (ValueError, SyntaxError):
+                pass
+        kw.setdefault("data", val)
+
+    # 数值插值: points → x_points, y_points
+    if action in ("lagrange_interpolation", "newton_interpolation", "cubic_spline",
+                  "least_squares_fit"):
+        if "points" in kw:
+            pts = kw.pop("points")
+            if isinstance(pts, (list, tuple)) and len(pts) > 0:
+                if isinstance(pts[0], (list, tuple)):
+                    # [(x1,y1), (x2,y2), ...]
+                    kw.setdefault("x_points", [p[0] for p in pts])
+                    kw.setdefault("y_points", [p[1] for p in pts])
+                else:
+                    kw.setdefault("x_points", pts)
+                    kw.setdefault("y_points", pts)
+
+    # 概率回归: x → x_data, y → y_data
+    if action in ("linear_regression", "predict", "residuals") and "x" in kw:
+        kw.setdefault("x_data", kw.pop("x"))
+    if action in ("linear_regression", "predict", "residuals") and "y" in kw:
+        kw.setdefault("y_data", kw.pop("y"))
+
+    # 线性代数内积: v1/v2 → u/v（dot 函数期望 u, v 参数名）
+    if action in ("dot", "angle", "is_orthogonal") and "v1" in kw:
+        kw.setdefault("u", kw.pop("v1"))
+    if action in ("dot", "angle", "is_orthogonal") and "v2" in kw:
+        kw.setdefault("v", kw.pop("v2"))
+
+    # 概率正态分布: 无参调用时给默认值
+    if action == "normal" and "mu" not in kw and "sigma" not in kw:
+        kw.setdefault("mu", 0)
+        kw.setdefault("sigma", 1)
 
     return kw
 
@@ -254,14 +354,32 @@ def _build_kwargs(action: str, action_name: str, params: list[str]) -> dict | No
         return None
 
     # ── 求导类 ──
-    if action in ("diff", "diff_at", "implicit_diff", "parametric_diff"):
+    if action == "diff":
         expr = params[0]
         var = params[1] if len(params) > 1 else "x"
         kwargs: dict = {"expr": expr, "var": var}
-        if action == "diff" and len(params) > 2:
+        if len(params) > 2:
             try: kwargs["order"] = int(params[2])
             except ValueError: kwargs["order"] = 1
         return kwargs
+
+    if action == "diff_at":
+        expr = params[0]
+        var = params[1] if len(params) > 1 else "x"
+        point = params[2] if len(params) > 2 else "0"
+        return {"expr": expr, "var": var, "point": point}
+
+    if action == "implicit_diff":
+        eq = params[0]
+        var = params[1] if len(params) > 1 else "x"
+        dep_var = params[2] if len(params) > 2 else "y"
+        return {"eq": eq, "var": var, "dep_var": dep_var}
+
+    if action == "parametric_diff":
+        x_expr = params[0]
+        y_expr = params[1] if len(params) > 1 else ""
+        t = params[2] if len(params) > 2 else "t"
+        return {"x_expr": x_expr, "y_expr": y_expr, "t": t}
 
     # ── 积分类 ──
     if action in ("integrate", "integrate_numeric", "improper_integral"):

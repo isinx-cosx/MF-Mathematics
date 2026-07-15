@@ -1,0 +1,56 @@
+# ── 数值分析 ────────────────────────────────────────────────
+id: numerical-analysis
+title: "数值分析 — 插值、积分与微分方程"
+difficulty: intermediate
+category: calculation
+duration: "5 分钟"
+order: 8
+summary: >
+  学习数值分析方法：拉格朗日/牛顿插值、数值积分、ODE 求解。
+
+steps:
+  - target: "main_window.mode_selector"
+    text: "切换计算模式为「数值分析」。"
+    highlight: rect
+    placement: right
+    action: select
+    action_value: "数值分析"
+
+  - target: "calc_block.action_dropdown"
+    text: "选择数值方法：插值、数值积分、ODE 求解、误差分析等。"
+    highlight: rect
+    placement: right
+    action: wait
+
+  - target: "calc_block.input"
+    text: >
+      ODE 示例：<b>y'=y/x, y(1)=1</b><br>
+      支持 y'、y''、dy/dx 等多种导数格式。
+    highlight: rect
+    placement: top
+    action: type
+    action_value: "y'=y/x, y(1)=1"
+
+examples:
+  - label: "拉格朗日插值"
+    expr: "points=[(0,1),(1,2),(2,4)]"
+    mode: "数值分析"
+    action: "拉格朗日插值"
+  - label: "数值积分"
+    expr: "sin(x), x=0..pi"
+    mode: "数值分析"
+    action: "辛普森积分"
+  - label: "ODE: y'=y/x"
+    expr: "y'=y/x, y(1)=1"
+    mode: "数值分析"
+    action: "ODE 求解"
+  - label: "RK4 方法"
+    expr: "y'=x+y, y(0)=1, h=0.1, N=10"
+    mode: "数值分析"
+    action: "RK4"
+
+faq:
+  - q: "ODE 支持哪些格式？"
+    a: "支持 y'=...、y''=...、dy/dx=...、f(x)'=... 等多种写法。"
+  - q: "数值积分精度如何？"
+    a: "支持梯形法、辛普森法、高斯求积等，可在设置中调整精度参数。"

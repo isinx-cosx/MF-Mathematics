@@ -1,0 +1,30 @@
+# ── 主题切换与界面定制 ──────────────────────────────────────
+id: themes-appearance
+title: "主题切换与界面定制"
+difficulty: beginner
+category: settings
+duration: "2 分钟"
+order: 13
+summary: >
+  学习切换亮色/暗色主题，调整界面外观，让软件更符合你的使用习惯。
+
+steps:
+  - target: "main_window.theme_toggle"
+    text: >
+      点击工具栏右侧的主题切换按钮。<br>
+      一键切换亮色 ↔ 暗色模式。
+    highlight: circle
+    placement: bottom
+    action: click
+
+  - target: "main_window.toolbar"
+    text: "工具栏和菜单栏会立即响应主题切换。所有按钮和图标都会适配。"
+    highlight: rect
+    placement: bottom
+    action: wait
+
+faq:
+  - q: "暗色模式所有界面都支持吗？"
+    a: "主要界面已完成适配。部分高级功能（如几何做图）的画布颜色可独立设置。"
+  - q: "可以自定义颜色吗？"
+    a: "可以编辑 MF_UI/styles/ 下的 QSS 文件来自定义主题样式。"

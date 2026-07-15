@@ -32,7 +32,17 @@ def condition_number(
     try:
         if isinstance(f, str):
             import sympy as sp
-            f_fn = sp.lambdify(sp.Symbol("x"), sp.sympify(f), "numpy")
+            # 从表达式字符串中提取变量名
+            var = "x"
+            import re as _re_cn
+            symbols = _re_cn.findall(r'[a-zA-Z]\b', f)
+            if symbols:
+                for s in symbols:
+                    if s not in ("sin", "cos", "tan", "exp", "log", "sqrt", "abs",
+                                 "sinh", "cosh", "tanh", "asin", "acos", "atan"):
+                        var = s
+                        break
+            f_fn = sp.lambdify(sp.Symbol(var), sp.sympify(f), "numpy")
             expr = f
         else:
             f_fn = f

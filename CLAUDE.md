@@ -1,151 +1,82 @@
-# CLAUDE.md
+# CLAUDE.md — MF-Mathematics 项目代码规范
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+> 本文件用于指导 AI（如 Claude）生成符合 MF-Mathematics 项目风格的 Python 代码。**不包含任何功能指导**，仅规范代码风格、结构与沟通方式。
 
-## Project overview
+---
 
-Multifunctional-Mathematics is a Python mathematics toolkit (`MF_Mathematics`) covering 12 branches of pure and applied mathematics. A companion UI layer (`MF_UI`) provides graphical workspaces, plotting, and step-by-step calculation views. An AI service module (`MF_AI`) provides LLM-powered math assistance.
+## 1. 语言与框架
+- 使用 **Python 3.10+**。
+- GUI 框架为 **PySide6**（Qt for Python）。
+- 数学计算依赖 **SymPy**、**NumPy**、**SciPy**（视模块而定）。
 
-## Run tests
+---
 
-```bash
-# Run all module tests (preferred entry point)
-python -m MF_Mathematics.tests.test_all
+## 2. 代码风格
+- **缩进**：4 个空格（不使用 Tab）。
+- **行长度**：建议不超过 100 字符，特殊情况可放宽至 120。
+- **命名约定**：
+  - 类名：`CamelCase`（如 `CalcBlock`、`MainWindow`）
+  - 函数/方法名：`snake_case`（如 `calculate`、`on_delete_clicked`）
+  - 变量名：`snake_case`
+  - 私有成员（方法或属性）：以单下划线 `_` 开头（如 `_build_toolbar`）
+  - 常量：`UPPER_SNAKE_CASE`
+- **类型注解**：所有函数参数和返回值必须添加类型注解（`typing` 或 Python 3.10+ 原生类型）。
+- **文档字符串**：使用 **Google 风格**或简洁的描述性注释，至少说明函数功能、参数和返回值。
 
-# Simpler explicit runner
-python -m MF_Mathematics.tests.test_runner
+---
 
-# Run a single module's self_test
-python -m MF_Mathematics.number_theory.core_algorithms
+## 3. 错误处理
+- 所有可能抛出异常的操作（如文件读写、数学计算、网络请求）必须使用 `try/except` 捕获。
+- 捕获异常后，根据上下文：
+  - 返回 `MathObject` 并设置 `error` 字段（计算模块）。
+  - 向用户显示友好错误消息（GUI 模块）。
+  - 记录日志（`logging` 模块）。
+- 禁止使用裸露的 `except:`，应明确捕获 `Exception` 或其子类。
 
-# Run a package-level self_test (discovers all submodules)
-python -c "import MF_Mathematics.number_theory; print(MF_Mathematics.number_theory.self_test())"
+---
 
-# Top-level self_test (all packages)
-python -c "import MF_Mathematics; print(MF_Mathematics.self_test())"
-```
+## 4. 注释与文档
+- 注释使用 **中文**，清晰说明代码意图。
+- 复杂逻辑前添加简要注释说明。
+- 每个 `.py` 文件顶部应包含模块级文档字符串（`"""..."""`），说明该模块用途。
 
-There is no build step, linting configuration, or external test framework. Tests are `self_test()` functions inside each module file, using bare `assert` statements.
+---
 
-## Core architecture
+## 5. 项目结构约定
+- 所有子界面（工作区）放在 `calc/` 或 `plot/` 相应子目录。
+- 通用组件（如 `CalcBlock`、`MathInput`）放在 `components/` 或 `common/` 目录。
+- 配置文件集中管理（`config.py` 或 `settings.py`）。
+- 避免循环导入：使用延迟导入（`import` 放在函数内部）或通过信号/槽解耦。
 
-### Unified return type: `MathObject`
+---
 
-Every public mathematical function returns a [`MathObject`](MF_Mathematics/core/math_object.py) dataclass with these fields:
+## 6. 测试与自检
+- 每个模块（`.py` 文件）应包含 `self_test()` 函数，返回 `(passed, failed, errors)` 元组。
+- 测试用例覆盖核心功能、边界条件和异常路径。
+- 所有测试应能独立运行，不依赖外部环境（除非明确声明）。
 
-| Field | Purpose |
-|---|---|
-| `result` | Primary result (number, expression string, dict, etc.) |
-| `steps` | List of human-readable derivation steps |
-| `meaning` | Conceptual interpretation |
-| `error` | Error message string (empty = success; check `.ok`) |
-| `module` / `action` | Auto-set by the `@register` decorator |
+---
 
-### Function registry
+## 7. GUI 开发规范（PySide6）
+- 使用布局管理器（`QVBoxLayout`、`QHBoxLayout`、`QGridLayout`），避免硬编码绝对位置。
+- 样式使用 QSS（`setStyleSheet`），且亮色/暗色主题需适配。
+- 信号/槽连接使用 `@Slot` 装饰器（可选），但需明确连接。
+- 长时间运行的任务（如 AI 调用、数学计算）放在 `QThread` 中执行，避免阻塞主界面。
 
-The [`registry`](MF_Mathematics/core/registry.py) module provides a decorator-based dispatch system:
+---
 
-- `@register(module="calculus", action="diff")` — decorates a function, registers it as `"calculus.diff"` in a global dict, and auto-injects `module`/`action` into the returned `MathObject`.
-- `dispatch(module, action, *args, **kwargs)` — calls a registered function by key.
-- `get_registered_functions(module=None)` — query registered functions.
+## 8. 版本控制与提交
+- 每次提交前确保代码能运行（`python main.py` 无报错）。
+- 提交信息使用中文，简述改动内容（如"修复步骤查看器缓存问题"）。
 
-### Package structure
+---
 
-Each mathematics sub-package under [`MF_Mathematics/`](MF_Mathematics/) follows the same pattern:
-- `__init__.py` — re-exports public functions, provides `self_test()` that discovers and runs all submodule tests.
-- Individual `.py` files — each contains `@register`-decorated functions and a `self_test()`.
+## 9. 固定词（必须遵守）
+每次 AI 完成一个任务（如生成代码、修复 Bug、回答问题时），在回复末尾**必须**加上以下固定词之一（任选）：
 
-The 12 mathematics sub-packages are:
+- `✨ MVS 完成`
+- `✅ MF-Math 就绪`
+- `🧩 MVS 段落实装`
+- `🚀 MVS 迭代完成`
 
-| Package | Key topics |
-|---|---|
-| `algebra` | Expressions, equations, inequalities, functions, sequences, combinatorics |
-| `calculus` | Limits, derivatives (implicit/parametric), integrals |
-| `linear_algebra` | Vector spaces, linear transforms, eigenvalues |
-| `probability` | Probability spaces, random variables, distributions, statistics, regression |
-| `real_analysis` | Real numbers, sequence/function limits, differentiability, Riemann integral |
-| `complex_analysis` | Holomorphic functions, C-R equations, complex integrals, residues, zeta |
-| `numerical` | Interpolation, numerical integration, ODE solvers, error analysis |
-| `functional_analysis` | Normed spaces, linear operators, spectral theory, dual spaces |
-| `harmonic_analysis` | Fourier series/transform, convolutions, distributions |
-| `measure_theory` | σ-algebras, measurable functions, Lebesgue integral, convergence theorems |
-| `algebraic_topology` | Simplicial complexes, homotopy, homology/cohomology, Betti numbers |
-| `number_theory` | GCD, modular arithmetic, prime sieves, continued fractions, zeta interface |
-
-### UI layer (`MF_UI/`)
-
-- [`MF_UI/calc_engine.py`](MF_UI/calc_engine.py) — bridges the UI to `MF_Mathematics` via the registry dispatch.
-- [`MF_UI/main_window.py`](MF_UI/main_window.py) — application entry point. Toolbar: 计算 / 绘图 / AI / 搜索 / 历史 / 设置.
-- [`MF_UI/calc/`](MF_UI/calc/) — per-topic workspaces (algebra, linear_algebra, numerical, probability). All four share `BaseCalcBlock` + `BaseWorkspace`. All four have three-level guard (REJECT/BLOCK/WARN) + AI acceleration.
-- [`MF_UI/plot/`](MF_UI/plot/) — 5 plot modes: normal (2D), 3D, complex, vector_field, arbitrary (geometric drawing).
-- [`MF_UI/plot/arbitrary/`](MF_UI/plot/arbitrary/) — GeoGebra-style geometric workspace (QGraphicsView). Shapes: point, segment, circle, vector, line, ellipse, rectangle, polygon. Undo/redo, grid snap, pan/zoom.
-- [`MF_UI/plot/mpl_setup.py`](MF_UI/plot/mpl_setup.py) — shared matplotlib init (Qt5Agg backend + Chinese font detection).
-- [`MF_UI/ai_dialog.py`](MF_UI/ai_dialog.py) — AI chat dialog (QThread streaming), opened from toolbar "AI" button.
-- [`MF_UI/styles/`](MF_UI/styles/) — light.qss / dark.qss theme files.
-
-### AI module (`MF_AI/`)
-
-- [`MF_AI/config.py`](MF_AI/config.py) — Config singleton (env vars + .env + config.yaml priority chain).
-- [`MF_AI/config.yaml`](MF_AI/config.yaml) — model mapping (Sonnet→deepseek-v4-pro), per-model params, api_base.
-- [`MF_AI/client.py`](MF_AI/client.py) — AIClient (openai lib → httpx fallback), chat + stream_chat, role-based model resolution.
-- [`MF_AI/models.py`](MF_AI/models.py) — ChatMessage / ChatRequest / ChatResponse dataclasses.
-- [`MF_AI/exceptions.py`](MF_AI/exceptions.py) — AIError hierarchy (AIConfigError, AIAuthError, AIRateLimitError, AITimeoutError, AIResponseError).
-- Public API: `from MF_AI import chat, stream_chat, set_api_key, set_model`.
-
-### AI accelerator
-
-[`MF_Mathematics/utils/ai_accelerator.py`](MF_Mathematics/utils/ai_accelerator.py) — wraps `MF_AI.chat()` for math-specific use cases:
-- `generate_steps(question, expr)` — step-by-step math derivation (consumes "steps" quota, 5/day)
-- `accelerate(expr, mode)` — AI-assisted complex computation (consumes "accelerations" quota, 3/day)
-- `chat(question)` — free-form AI dialog (no quota)
-- `QuotaManager` — daily usage tracking in `usage.json`
-- Singleton: `get_accelerator()`
-
-### Configuration
-
-- [`config.json`](config.json) — runtime guardrails: math complexity limits, plot ranges, numerical precision caps.
-- [`MF_AI/config.yaml`](MF_AI/config.yaml) — AI model mapping and parameters (user-editable).
-- `.env` — API keys (AI_API_KEY, AI_BASE_URL, etc.), never committed.
-
-### Dependencies
-
-- `numpy` — used across most modules for numerical computation.
-- `sympy` — used in calculus, complex analysis, and anywhere symbolic manipulation is needed.
-- `PySide6` — Qt for Python, all UI code.
-- `matplotlib` — used in 3D, complex, and vector_field plot modes.
-- `openai` (optional) — preferred backend for MF_AI. Falls back to `httpx` if not installed.
-
-## Code conventions
-
-- All public math functions use the `@register(module="...", action="...")` decorator.
-- Every `.py` module that contains `@register`-decorated functions also has a `self_test()` that exercises them with `assert` statements and prints `[PASS]`/`[FAIL]`.
-- Error handling: catch exceptions inside the `@register`-decorated function and return `MathObject(error=str(e))` — never let exceptions propagate to callers.
-- Docstrings are in Chinese with type annotations in English. Function signatures use `from __future__ import annotations`.
-- Chinese comments and docstrings throughout the codebase.
-
-## Frontend design guidelines
-
-When generating or modifying PySide6 UI code:
-- Prefer dark theme styles defined in `MF_UI/styles/dark.qss`.
-- Use `QSS` for styling rather than inline `setStyleSheet` where possible.
-- Layouts should be responsive to window resizing.
-- All dialogs should be modal and centered on the parent window.
-- Plot modes must NOT cross-import from each other (e.g., plot_3d/ must not import from basic/).
-
-## Code review expectations
-
-When reviewing code changes:
-- All public functions must have docstrings (Chinese preferred, type hints required).
-- Any `except Exception` block must include an error message explaining what went wrong.
-- Check that no configurations are hardcoded; values like thresholds, colors, or limits must be read from `config.json` or `MF_AI/config.yaml`.
-- Ensure UI and core logic separation: `MF_Mathematics` modules must not import `PySide6`.
-- New AI features should use `MF_AI` client, not raw HTTP calls.
-
-## Project file map (non-obvious locations)
-
-| Path | Purpose |
-|---|---|
-| `_archive/` | Archived unused modules (latex_render.py, math_input.py, user_system.py) — safe to delete |
-| `usage.json` | AI quota daily tracking (gitignored, runtime data) |
-| `CODE_SCAN_REPORT.txt` | Last code audit report (2026-07-15) |
-| `CODE_AUDIT_REPORT.txt` | Older audit report (may be stale) |
+**示例**：

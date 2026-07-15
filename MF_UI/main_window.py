@@ -3,11 +3,12 @@ import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from PySide6.QtCore import Qt, QSize
-from PySide6.QtGui import QAction, QFont
+from PySide6.QtGui import QAction, QFont, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QMainWindow, QToolBar, QStatusBar,
     QStackedWidget, QWidget, QVBoxLayout, QHBoxLayout,
-    QLabel, QApplication, QFrame, QComboBox,
+    QLabel, QApplication, QFrame, QComboBox, QDialog, QMessageBox,
+    QPushButton, QLineEdit,
 )
 from calc.algebra import Workspace as AlgebraWorkspace
 from calc.linear_algebra import Workspace as LinearAlgebraWorkspace
@@ -85,6 +86,13 @@ class MainWindow(QMainWindow):
         self._dark_qss_path = os.path.join(base_dir, "styles", "dark.qss")
         self._apply_theme(self._light_qss_path)
 
+        # 注册教程系统 UI 元素
+        self._register_tutorial_elements()
+
+        # 首次启动：显示欢迎对话框
+        QApplication.instance().processEvents()
+        self._check_first_launch()
+
 
     # ---------- 窗口居中 ----------
     def _center_on_screen(self):
@@ -132,6 +140,16 @@ class MainWindow(QMainWindow):
         view_menu.addAction(act_dark)
 
         help_menu = menu_bar.addMenu("帮助")
+        act_help_browser = QAction("帮助文档\tF1", self)
+        act_help_browser.triggered.connect(self._open_help_browser)
+        help_menu.addAction(act_help_browser)
+        act_walkthrough = QAction("交互式引导", self)
+        act_walkthrough.triggered.connect(self._open_guided_walkthrough)
+        help_menu.addAction(act_walkthrough)
+        act_examples = QAction("示例任务库", self)
+        act_examples.triggered.connect(self._open_example_library)
+        help_menu.addAction(act_examples)
+        help_menu.addSeparator()
         act_about = QAction("关于", self)
         act_about.triggered.connect(lambda: self._status_msg("关于 MF-Mathematics"))
         help_menu.addAction(act_about)
@@ -176,11 +194,26 @@ class MainWindow(QMainWindow):
         act_settings = toolbar.addAction("设置")
         act_settings.triggered.connect(self._open_settings)
 
-        self._act_keyboard = toolbar.addAction("数学键盘")
-        self._act_keyboard.setCheckable(True)
-        self._act_keyboard.triggered.connect(self._toggle_math_keyboard)
+        toolbar.addSeparator()
+        self._user_action = toolbar.addAction("登录")
+        self._user_action.triggered.connect(self._on_user_clicked)
 
-        self._math_keyboard: object | None = None
+        toolbar.addSeparator()
+        act_help = toolbar.addAction("帮助")
+        act_help.triggered.connect(self._open_help_browser)
+
+        # F1 快捷键
+        self._shortcut_f1 = QShortcut(QKeySequence(Qt.Key.Key_F1), self)
+        self._shortcut_f1.activated.connect(self._open_help_browser)
+
+        # ── 教程系统 ──
+        self._tutorial_elements: dict[str, QWidget] = {}
+        self._walkthrough: object | None = None
+        self._help_browser: object | None = None
+        self._example_library: object | None = None
+
+        # ── 用户系统 ──
+        self._user_status_label: QLabel | None = None
 
     def _on_toolbar_action(self, action):
         if action is self._btn_calc:
@@ -231,28 +264,59 @@ class MainWindow(QMainWindow):
 
     # ---------- 中央区域 ----------
     def _build_central_area(self):
-        # 直接让右侧工作区成为中央部件，不再使用分割器
-        right_panel = self._build_right_panel()
-        self.setCentralWidget(right_panel)
-
-    # ================================================================
-    #  右侧堆叠区域
-    # ================================================================
-    def _build_right_panel(self):
         self._stacked_widget = QStackedWidget()
         # ── 计算模式 (index 0-3) ──
         self._stacked_widget.addWidget(AlgebraWorkspace())
         self._stacked_widget.addWidget(LinearAlgebraWorkspace())
         self._stacked_widget.addWidget(ProbabilityWorkspace())
         self._stacked_widget.addWidget(NumericalWorkspace())
-        # ── 绘图模式 (index 4-7): 实际 PlotWorkspace ──
+        # ── 绘图模式 (index 4-8) ──
         self._stacked_widget.addWidget(PlotWorkspace("普通模式 — 2D 函数绘图"))
         self._stacked_widget.addWidget(PlotWorkspace("3D 模式 — 三维曲面绘图"))
         self._stacked_widget.addWidget(PlotWorkspace("复数模式 — 复平面域着色绘图"))
         self._stacked_widget.addWidget(PlotWorkspace("向量场模式 — 向量场绘图"))
-        # ── index 8: 任意做图 ──
         self._stacked_widget.addWidget(PlotWorkspace("任意做图 — 自由几何对象绘制"))
-        return self._stacked_widget
+
+        # 内置键盘面板
+        self._build_keyboard_panel()
+
+        # 切换按钮 — 左下角
+        self._kb_toggle_btn = QPushButton("⌨️ 键盘")
+        self._kb_toggle_btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self._kb_toggle_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._kb_toggle_btn.setStyleSheet(
+            "QPushButton {"
+            " background: #3b82f6; color: #ffffff; border: none;"
+            " border-radius: 6px; padding: 6px 14px;"
+            " font-size: 12px; font-weight: 500;"
+            "}"
+            "QPushButton:hover { background: #2563eb; }")
+        self._kb_toggle_btn.clicked.connect(self._toggle_keyboard_panel)
+        btn_row = QHBoxLayout()
+        btn_row.setContentsMargins(8, 2, 0, 2)
+        btn_row.addWidget(self._kb_toggle_btn)
+        btn_row.addStretch()
+
+        # 容器：stacked_widget (stretch=1) + btn_row + keyboard_panel (stretch=0)
+        container = QWidget()
+        layout = QVBoxLayout(container)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+        layout.addWidget(self._stacked_widget, 1)
+        layout.addLayout(btn_row)
+        layout.addWidget(self.keyboard_panel, 0)
+        self.setCentralWidget(container)
+
+    # ================================================================
+    #  内置键盘面板
+    # ================================================================
+    def _build_keyboard_panel(self):
+        from MF_UI.math_keyboard import KeyboardPanel
+        self.keyboard_panel = KeyboardPanel(self)
+
+    # ================================================================
+    #  右侧堆叠区域（已合并到 _build_central_area）
+    # ================================================================
 
     def _make_placeholder_page(self, title: str, desc: str) -> QWidget:
         page = QWidget()
@@ -280,6 +344,13 @@ class MainWindow(QMainWindow):
         self._status_bar = QStatusBar()
         self.setStatusBar(self._status_bar)
         self._status_msg("就绪")
+
+        # 用户状态标签
+        self._user_status_label = QLabel("未登录")
+        self._user_status_label.setStyleSheet(
+            "font-size: 11px; color: #94a3b8; padding: 0 8px;")
+        self._status_bar.addPermanentWidget(self._user_status_label)
+        self._refresh_user_status()
         brand_label = QLabel("MF-Vis-Science \u00b7 开放工作室")
         brand_label.setObjectName("brand_label")
         self._status_bar.addPermanentWidget(brand_label)
@@ -325,22 +396,23 @@ class MainWindow(QMainWindow):
         self._search_panel.raise_()
         self._search_panel.activateWindow()
 
-    def _toggle_math_keyboard(self):
-        """显示/隐藏数学键盘。"""
-        from MF_UI.math_keyboard import MathKeyboard
-        if self._math_keyboard is None:
-            self._math_keyboard = MathKeyboard(self)
-            self._math_keyboard.closed.connect(self._on_keyboard_closed)
-            # 同步当前主题
-            self._math_keyboard.set_dark_theme(self._current_theme == "dark")
-        if self._math_keyboard.isVisible():
-            self._math_keyboard.hide()
+    def _toggle_keyboard_panel(self) -> None:
+        """切换内置键盘面板显隐。"""
+        if self.keyboard_panel.isVisible():
+            self.keyboard_panel.setVisible(False)
+            self._kb_toggle_btn.setText("⌨️ 键盘")
         else:
-            self._math_keyboard.show()
+            h = max(self.height() // 5, 80)
+            self.keyboard_panel.setFixedHeight(h)
+            self.keyboard_panel.setVisible(True)
+            self._kb_toggle_btn.setText("▼ 收起")
 
-    def _on_keyboard_closed(self):
-        """键盘关闭时同步按钮状态。"""
-        self._act_keyboard.setChecked(False)
+    def resizeEvent(self, event) -> None:
+        """窗口大小变化时更新键盘面板高度。"""
+        super().resizeEvent(event)
+        if hasattr(self, 'keyboard_panel') and self.keyboard_panel.isVisible():
+            h = max(self.height() // 5, 60)
+            self.keyboard_panel.setFixedHeight(h)
 
     def _get_calc_context(self) -> tuple[str, str]:
         """获取当前激活的计算块上下文（表达式 + 模式）。"""
@@ -370,8 +442,6 @@ class MainWindow(QMainWindow):
             return
         self._current_theme = "light"
         self._apply_theme(self._light_qss_path)
-        if self._math_keyboard is not None:
-            self._math_keyboard.set_dark_theme(False)
         self._status_msg("已切换到亮色主题")
 
     def _switch_to_dark(self):
@@ -379,8 +449,6 @@ class MainWindow(QMainWindow):
             return
         self._current_theme = "dark"
         self._apply_theme(self._dark_qss_path)
-        if self._math_keyboard is not None:
-            self._math_keyboard.set_dark_theme(True)
         self._status_msg("已切换到暗色主题")
 
     def _apply_theme(self, qss_path: str):
@@ -389,3 +457,205 @@ class MainWindow(QMainWindow):
                 self.setStyleSheet(f.read())
         except FileNotFoundError:
             self._status_msg(f"样式文件未找到: {qss_path}")
+
+    # ═══════════════════════════════════════════════════════════
+    #  教程系统集成
+    # ═══════════════════════════════════════════════════════════
+
+    def _register_tutorial_elements(self) -> None:
+        """注册 UI 元素供教程引导使用。"""
+        self._tutorial_elements = {
+            "main_window.toolbar": self.findChild(QToolBar) or self,
+            "main_window.mode_selector": self._sub_combo,
+            "main_window.theme_toggle": self,
+            "main_window.help_button": self,
+            "toolbar.calc_button": self,
+            "toolbar.plot_button": self,
+            "toolbar.ai_button": self,
+            "toolbar.search_button": self,
+            "toolbar.settings_button": self,
+        }
+
+    def _check_first_launch(self) -> None:
+        """首次启动时显示欢迎对话框。"""
+        try:
+            from MF_Tutorial.engine import TutorialEngine
+            engine = TutorialEngine()
+            engine.load_all()
+            if engine.is_first_launch():
+                self._show_welcome_dialog()
+            engine.mark_launched()
+        except Exception as e:
+            print(f"[MainWindow] 欢迎对话框加载失败: {e}")
+
+    def _show_welcome_dialog(self) -> None:
+        """显示欢迎对话框并在用户接受后启动引导。"""
+        try:
+            from MF_Tutorial.welcome_dialog import WelcomeDialog
+            dlg = WelcomeDialog(self)
+            if dlg.exec() == QDialog.DialogCode.Accepted:
+                # 用户选择开始引导
+                self._open_guided_walkthrough()
+        except Exception as e:
+            print(f"[MainWindow] 欢迎对话框出错: {e}")
+
+    def _open_help_browser(self) -> None:
+        """打开帮助文档浏览器。"""
+        try:
+            from MF_Tutorial.help_browser import HelpBrowser
+            if self._help_browser is None:
+                self._help_browser = HelpBrowser(self)
+            self._help_browser.show()
+            self._help_browser.raise_()
+            self._help_browser.activateWindow()
+        except Exception as e:
+            self._status_msg(f"帮助文档加载失败: {e}")
+
+    def _open_guided_walkthrough(self) -> None:
+        """启动交互式引导向导。"""
+        try:
+            from MF_Tutorial.walkthrough import GuidedWalkthrough
+            from MF_Tutorial.engine import TutorialEngine
+
+            # 确保引擎已加载
+            engine = TutorialEngine()
+            if not engine.get_all():
+                engine.load_all()
+
+            # 确保 UI 元素已注册
+            if not self._tutorial_elements:
+                self._register_tutorial_elements()
+
+            self._walkthrough = GuidedWalkthrough(self)
+            self._walkthrough.register_elements(self._tutorial_elements)
+            self._walkthrough.set_on_finished(
+                lambda: self._status_msg("引导完成！按 F1 随时查看帮助文档。")
+            )
+            self._walkthrough.start("quick-start")
+        except Exception as e:
+            self._status_msg(f"引导加载失败: {e}")
+
+    def _open_example_library(self) -> None:
+        """打开示例任务库。"""
+        try:
+            from MF_Tutorial.example_library import ExampleLibrary
+            if self._example_library is None:
+                self._example_library = ExampleLibrary(self)
+                self._example_library.example_selected.connect(
+                    self._on_example_selected
+                )
+            self._example_library.show()
+            self._example_library.raise_()
+            self._example_library.activateWindow()
+        except Exception as e:
+            self._status_msg(f"示例库加载失败: {e}")
+
+    def _on_example_selected(self, example: object) -> None:
+        """用户选择了示例任务 → 加载到计算工作区。"""
+        self.load_tutorial_example(example)
+
+    def load_tutorial_example(self, example: object) -> None:
+        """加载教程示例到当前工作区。
+
+        Args:
+            example: Example 数据类实例。
+        """
+        try:
+            # 切换到计算模式
+            if self._current_mode != 0:
+                self._switch_mode(0)
+
+            # 根据 example.mode 切换到对应子模式
+            mode_lower = example.mode.lower() if hasattr(example, 'mode') else ""
+            calc_modes_map = {
+                "代数": 0, "线性代数": 1, "概率统计": 2, "概率论与数理统计": 2,
+                "数值分析": 3, "数值": 3,
+            }
+            for key, idx in calc_modes_map.items():
+                if key in mode_lower or mode_lower in key:
+                    self._sub_combo.setCurrentIndex(idx)
+                    break
+
+            # 获取当前工作区
+            workspace = self._stacked_widget.currentWidget()
+            if workspace is None:
+                return
+
+            # 查找 CalcBlock 并填入表达式和模式
+            def find_calc_block(widget):
+                if hasattr(widget, 'input_box') and hasattr(widget, 'calc_mode_combo'):
+                    return widget
+                for child in widget.children() if hasattr(widget, 'children') else []:
+                    r = find_calc_block(child)
+                    if r:
+                        return r
+                return None
+
+            block = find_calc_block(workspace)
+            if block:
+                if example.expr:
+                    block.input_box.setText(example.expr)
+                if example.action and hasattr(block, 'calc_mode_combo'):
+                    combo = block.calc_mode_combo
+                    for i in range(combo.count()):
+                        if example.action in combo.itemText(i):
+                            combo.setCurrentIndex(i)
+                            break
+
+            self._status_msg(f"已加载示例: {example.label}")
+        except Exception as e:
+            self._status_msg(f"示例加载失败: {e}")
+
+    # ═══════════════════════════════════════════════════════════
+    #  用户系统
+    # ═══════════════════════════════════════════════════════════
+
+    def _on_user_clicked(self) -> None:
+        """处理登录/用户按钮点击。"""
+        try:
+            from MF_User.manager import UserManager
+            mgr = UserManager()
+            if mgr.is_logged_in:
+                # 已登录 → 登出
+                mgr.logout()
+                self._refresh_user_status()
+                self._status_msg("已登出")
+            else:
+                self._open_login_dialog()
+        except Exception as e:
+            self._status_msg(f"用户系统错误: {e}")
+
+    def _open_login_dialog(self) -> None:
+        """打开登录对话框。"""
+        try:
+            from MF_User.login_dialog import LoginDialog
+            dlg = LoginDialog(self)
+            if dlg.exec() == QDialog.DialogCode.Accepted:
+                from MF_User.manager import UserManager
+                mgr = UserManager()
+                if mgr.current_user:
+                    self._status_msg(f"欢迎，{mgr.current_user.username}！")
+            self._refresh_user_status()
+        except Exception as e:
+            self._status_msg(f"登录失败: {e}")
+
+    def _refresh_user_status(self) -> None:
+        """刷新工具栏登录按钮和状态栏用户标签。"""
+        try:
+            from MF_User.manager import UserManager
+            mgr = UserManager()
+            if mgr.is_logged_in and mgr.current_user:
+                self._user_action.setText(mgr.current_user.username)
+                if self._user_status_label:
+                    self._user_status_label.setText(
+                        f"当前用户: {mgr.current_user.username}")
+                    self._user_status_label.setStyleSheet(
+                        "font-size: 11px; color: #10b981; padding: 0 8px;")
+            else:
+                self._user_action.setText("登录")
+                if self._user_status_label:
+                    self._user_status_label.setText("未登录")
+                    self._user_status_label.setStyleSheet(
+                        "font-size: 11px; color: #94a3b8; padding: 0 8px;")
+        except Exception:
+            pass  # MF_User 模块不可用时静默失败

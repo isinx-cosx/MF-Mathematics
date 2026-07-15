@@ -174,7 +174,7 @@ def power_series(
 @register(module="calculus", action="power_series_radius")
 def power_series_radius(
     expr: Union[str, sp.Expr],
-    var: str = "x",
+    var: str = "n",
 ) -> MathObject:
     """计算幂级数的收敛半径（比值法）。
 

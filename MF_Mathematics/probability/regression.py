@@ -102,8 +102,10 @@ def predict(
             - result: 预测值或预测值列表。
     """
     try:
-        beta0 = model.get("intercept")
-        beta1 = model.get("slope")
+        # 兼容 MathObject 和 dict 两种输入
+        _model = model.result if hasattr(model, 'result') and isinstance(model.result, dict) else model
+        beta0 = _model.get("intercept")
+        beta1 = _model.get("slope")
         if beta0 is None or beta1 is None:
             return MathObject(error="模型字典必须包含 'intercept' 和 'slope'。")
 
@@ -144,8 +146,10 @@ def residuals(
             - result: {"residuals": [...], "SSE": ..., "MSE": ...}。
     """
     try:
-        beta0 = model.get("intercept")
-        beta1 = model.get("slope")
+        # 兼容 MathObject 和 dict 两种输入
+        _model = model.result if hasattr(model, 'result') and isinstance(model.result, dict) else model
+        beta0 = _model.get("intercept")
+        beta1 = _model.get("slope")
         if beta0 is None or beta1 is None:
             return MathObject(error="模型字典必须包含 'intercept' 和 'slope'。")
 

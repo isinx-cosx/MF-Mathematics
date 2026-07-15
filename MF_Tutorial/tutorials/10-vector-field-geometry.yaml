@@ -1,0 +1,59 @@
+# ── 向量场与几何做图 ────────────────────────────────────────
+id: vector-field-geometry
+title: "向量场与几何做图"
+difficulty: advanced
+category: plot
+duration: "6 分钟"
+order: 10
+summary: >
+  学习绘制 2D/3D 向量场，以及 GeoGebra 风格的任意几何做图。
+
+steps:
+  - target: "main_window.mode_selector"
+    text: "选择「向量场」或「任意做图」。"
+    highlight: rect
+    placement: right
+    action: wait
+
+  - target: "plot_workspace.add_function"
+    text: >
+      向量场示例：<b>[-y, x]</b> — 旋转场<br>
+      添加多个向量函数可叠加显示。
+    highlight: rect
+    placement: right
+    action: click
+
+  - target: "geometry_canvas"
+    text: >
+      几何做图工具栏：<br>
+      • 点、线段、圆、向量<br>
+      • 直线、椭圆、矩形、多边形<br>
+      • 撤销/重做、网格吸附<br>
+      • 拖拽/缩放画布
+    highlight: rect
+    placement: bottom
+    action: wait
+
+examples:
+  - label: "旋转向量场"
+    expr: "F(x,y)=[-y, x]"
+    mode: "向量场"
+    description: "绕原点的旋转向量场"
+  - label: "梯度场"
+    expr: "F(x,y)=[2x, 2y]"
+    mode: "向量场"
+    description: "f(x,y)=x²+y² 的梯度"
+  - label: "画三角形"
+    expr: ""
+    mode: "任意做图"
+    description: "用几何工具画任意三角形并标注"
+  - label: "外接圆构造"
+    expr: ""
+    mode: "任意做图"
+    description: "作三角形的外接圆"
+
+faq:
+  - q: "向量场支持 3D 吗？"
+    a: "支持。输入三个分量的向量函数即可生成 3D 向量场。"
+  - q: "几何做图可以导出吗？"
+    a: "可以导出为图片，也支持撤销/重做操作历史。"

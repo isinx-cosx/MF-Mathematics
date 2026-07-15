@@ -105,7 +105,10 @@ def integrate_numeric(
     try:
         x = sp.Symbol(var)
         ex = _to_sympy(expr)
-        f = sp.lambdify(x, ex, "math")
+        try:
+            f = sp.lambdify(x, ex, "numpy")
+        except Exception:
+            f = sp.lambdify(x, ex, "math")
 
         if method == "auto" or method == "quad":
             # 先尝试 sympy 高精度数值积分

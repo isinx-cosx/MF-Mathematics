@@ -21,3 +21,5 @@ Thumbs.db
 
 # Project-specific
 .claude/
+usage.json
+tutorial_progress.json

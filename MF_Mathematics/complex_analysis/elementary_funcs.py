@@ -16,6 +16,19 @@ from ..core.registry import register
 
 # ── 工具：sympy 复数 ↔ Python complex ─────────────────────────────────
 
+def _normalize_i(expr: str) -> str:
+    """将字符串中的虚数单位 i 标准化为 SymPy 大写 I。
+
+    不触碰 sin/cos/log/exp/pi 等函数名中的 i。
+    """
+    import re as _re_i
+    # 匹配独立 i（不在单词中）：前面是数字/运算符/空格，后面是运算符/空格/结尾
+    expr = _re_i.sub(r'(?<=[\d+\-*/\s(])i(?=[+\-*/\s)]|$)', 'I', expr)
+    # 也处理开头的 i（如 "i+1"）
+    expr = _re_i.sub(r'^i(?=[+\-*/\s]|$)', 'I', expr)
+    return expr
+
+
 def _to_complex(val: Any) -> complex:
     """将 sympy 表达式或 Python 值转换为 complex。"""
     if isinstance(val, complex):
@@ -50,14 +63,22 @@ def exp_complex(
     """
     try:
         if isinstance(z, str):
+            z = _normalize_i(z)
             z_sym = sp.sympify(z)
             result = sp.exp(z_sym)
+            # 尝试数值化
+            try:
+                numeric = complex(sp.N(result))
+            except Exception:
+                numeric = None
             steps = [
                 f"输入: z = {z}",
                 f"e^{z} = {result}",
             ]
+            if numeric is not None:
+                steps.append(f"数值: {numeric}")
             return MathObject(
-                result=str(result),
+                result=str(numeric) if numeric is not None else str(result),
                 steps=steps,
                 meaning="e^z 在整个复平面上全纯，|e^z| = e^{Re(z)}，arg(e^z) = Im(z)。",
             )
@@ -113,6 +134,7 @@ def log_complex(
     """
     try:
         if isinstance(z, str):
+            z = _normalize_i(z)
             z_val = complex(sp.N(sp.sympify(z)))
         elif isinstance(z, (tuple, list)):
             z_val = complex(float(z[0]), float(z[1]))
@@ -185,7 +207,7 @@ def sqrt_complex(
                            np.exp(half_log.real) * np.sin(half_log.imag))
 
         if isinstance(z, str):
-            z_str = z
+            z_str = _normalize_i(z)
         elif isinstance(z, (tuple, list)):
             z_str = f"{z[0]}+{z[1]}i"
         elif isinstance(z, complex):
@@ -238,7 +260,7 @@ def mobius_transform(
             )
 
         if isinstance(z, str):
-            z_sym = sp.sympify(z)
+            z_sym = sp.sympify(_normalize_i(z))
             a_sym = sp.sympify(str(a))
             b_sym = sp.sympify(str(b))
             c_sym = sp.sympify(str(c))

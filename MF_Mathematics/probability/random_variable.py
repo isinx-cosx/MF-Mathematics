@@ -140,7 +140,7 @@ def pdf(
         return MathObject(error=str(e))
 
 
-@register(module="probability", action="expectation")
+@register(module="probability", action="expectation_rv")
 def expectation(
     expr: Union[str, sp.Expr],
     var: str = "x",

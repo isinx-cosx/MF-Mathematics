@@ -3,7 +3,7 @@ context_length: 1048576
 default_model: deepseek-v4-pro
 local_model:
   auto_detect: true
-  enabled: false
+  enabled: true
   path: ''
 model_map:
   Chat: deepseek-chat

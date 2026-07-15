@@ -1,0 +1,69 @@
+# ── 步骤推导与 AI 加速 ──────────────────────────────────────
+id: ai-steps-accelerate
+title: "步骤推导与 AI 加速"
+difficulty: intermediate
+category: ai
+duration: "4 分钟"
+order: 5
+summary: >
+  学习使用 AI 生成详细推导步骤，以及利用 AI 加速处理复杂计算。
+
+steps:
+  - target: "calc_block.input"
+    text: "先输入一个需要推导的表达式，例如：<b>derivative(x^2*sin(x), x)</b>"
+    highlight: rect
+    placement: top
+    action: type
+    action_value: "derivative(x^2*sin(x), x)"
+
+  - target: "calc_block.calc_button"
+    text: "点击「计算」得到结果。"
+    highlight: circle
+    placement: left
+    action: click
+
+  - target: "result_dialog.steps_button"
+    text: >
+      在结果对话框中点击「步骤」按钮。<br>
+      AI 会生成详细的逐步推导过程，<br>
+      就像老师在黑板上书写一样！
+    highlight: circle
+    placement: bottom
+    action: click
+
+  - target: "step_viewer.content"
+    text: >
+      步骤查看器展示推导过程：<br>
+      • LaTeX 公式渲染<br>
+      • 每步都有解释说明<br>
+      • 支持复制纯文本
+    highlight: rect
+    placement: left
+    action: wait
+
+  - target: "calc_block.ai_accel_button"
+    text: >
+      对于 SymPy 难以处理的高复杂度表达式，<br>
+      点击「AI 加速」让 AI 直接计算。<br>
+      每天免费 3 次（配置 API Key 后无限制）。
+    highlight: circle
+    placement: top
+    action: wait
+
+examples:
+  - label: "求导步骤"
+    expr: "derivative(x^2*sin(x), x)"
+    mode: "代数"
+    action: "求导"
+    description: "AI 展示乘积法则的逐步应用"
+  - label: "积分步骤"
+    expr: "integrate(x*exp(x), x)"
+    mode: "代数"
+    action: "不定积分"
+    description: "分部积分法的详细推导"
+
+faq:
+  - q: "步骤推导和 AI 加速有什么区别？"
+    a: "步骤推导是解释型的，展示推导过程。AI 加速是计算型的，处理常规引擎无法完成的复杂计算。"
+  - q: "每天能用多少次？"
+    a: "步骤推导 5 次/天，AI 加速 3 次/天。配置 API Key 后无限制。"

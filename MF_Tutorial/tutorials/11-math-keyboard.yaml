@@ -1,0 +1,56 @@
+# ── 数学键盘 ────────────────────────────────────────────────
+id: math-keyboard
+title: "数学键盘 — 符号输入利器"
+difficulty: beginner
+category: tools
+duration: "3 分钟"
+order: 11
+summary: >
+  学习使用浮动数学键盘，快速输入各种数学符号、希腊字母和运算符。
+
+steps:
+  - target: "main_window.keyboard_button"
+    text: "点击工具栏的键盘图标，打开数学符号键盘。"
+    highlight: circle
+    placement: bottom
+    action: click
+
+  - target: "math_keyboard.panel"
+    text: >
+      键盘包含 6 个分类标签：<br>
+      • 基础运算 (+, -, ×, ÷, =, ≠)<br>
+      • 希腊字母 (α, β, γ, π, θ)<br>
+      • 微积分 (∫, ∂, ∇, lim, ∞)<br>
+      • 集合逻辑 (∈, ∀, ∃, ∪, ∩)<br>
+      • 矩阵向量<br>
+      • 常用函数
+    highlight: rect
+    placement: top
+    action: wait
+
+  - target: "math_keyboard.titlebar"
+    text: >
+      键盘可以：<br>
+      • 拖拽标题栏移动位置<br>
+      • 拖拽右下角缩放大小<br>
+      • 点击 ✕ 关闭<br>
+      点击符号即可输入到当前输入框。
+    highlight: rect
+    placement: bottom
+    action: wait
+
+examples:
+  - label: "输入积分符号"
+    expr: "∫"
+    mode: "数学键盘"
+    description: "打开键盘 → 微积分 → 点击 ∫"
+  - label: "输入希腊字母"
+    expr: "α, β, γ"
+    mode: "数学键盘"
+    description: "打开键盘 → 希腊字母 → 点击对应符号"
+
+faq:
+  - q: "键盘挡住了我的输入怎么办？"
+    a: "键盘可拖拽到任意位置，也可拖拽右下角缩小。不需要时点 ✕ 关闭。"
+  - q: "支持快捷键输入吗？"
+    a: "部分符号支持 LaTeX 风格输入：\\pi → π, \\int → ∫ 等。"

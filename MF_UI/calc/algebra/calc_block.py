@@ -196,8 +196,12 @@ class CalcBlock(BaseCalcBlock):
 
     def get_mode_list(self) -> list[str]:
         return [
-            "求导", "定积分", "不定积分", "极限", "解方程/组", "解不等式/组",
-            "表达式化简", "泰勒展开", "级数求和", "级数敛散性",
+            "求导", "某点导数", "隐函数求导", "参数方程求导",
+            "定积分", "不定积分", "数值积分", "反常积分",
+            "极限", "连续性判断", "间断点分类", "洛必达法则",
+            "单调性", "局部极值", "全局最值",
+            "解方程/组", "解不等式/组",
+            "表达式化简", "泰勒展开", "幂级数展开", "级数求和", "级数敛散性",
             "复数运算",
             "常微分方程", "偏微分方程",
         ]
@@ -413,19 +417,37 @@ class CalcBlock(BaseCalcBlock):
         if op == "表达式化简":
             if "=" in expr and not expr.strip().startswith("("):
                 return MathObject(error="请切换到解方程/组模式求解方程")
-            has_paren = "(" in expr and ")" in expr
+
+            # 总是先调用化简（已内置 factor vs simplify 对比）
+            r1 = calculate_direct("化简", expr=expr)
+
+            # 对特殊形式也尝试专用函数，取最佳结果
             has_fraction = "/" in expr
             has_sqrt = "sqrt" in expr or "**0.5" in expr
-            if has_sqrt:
-                return calculate_direct("化简根式", expr=expr)
-            if has_fraction:
-                return calculate_direct("化简分式", expr=expr)
-            if has_paren:
-                return calculate_direct("展开", expr=expr)
-            r1 = calculate_direct("化简", expr=expr)
+
+            if has_sqrt and r1.ok:
+                r_sqrt = calculate_direct("化简根式", expr=expr)
+                if r_sqrt.ok:
+                    try:
+                        import sympy as _sp2
+                        if _sp2.count_ops(_sp2.sympify(str(r_sqrt.result))) < _sp2.count_ops(_sp2.sympify(str(r1.result))):
+                            return r_sqrt
+                    except Exception:
+                        pass
+
+            if has_fraction and r1.ok:
+                r_frac = calculate_direct("化简分式", expr=expr)
+                if r_frac.ok:
+                    try:
+                        import sympy as _sp2
+                        if _sp2.count_ops(_sp2.sympify(str(r_frac.result))) < _sp2.count_ops(_sp2.sympify(str(r1.result))):
+                            return r_frac
+                    except Exception:
+                        pass
+
             if r1.ok:
                 r2 = calculate_direct("因式分解", expr=expr)
-                if r2.ok and r2.result != r1.result:
+                if r2.ok and str(r2.result) != str(r1.result):
                     r1.steps.append(f"可因式分解为: {r2.result}")
             return r1
 
@@ -509,6 +531,104 @@ class CalcBlock(BaseCalcBlock):
                     return calculate_direct("解二次不等式", expr=expr, var=var)
                 else:
                     return calculate_direct("解线性不等式", expr=expr, var=var)
+
+        # ========== 某点导数 ==========
+        if op == "某点导数":
+            parts = [p.strip() for p in expr.split(",")]
+            func = parts[0]; var = parts[1] if len(parts) > 1 else "x"
+            point = parts[2] if len(parts) > 2 else "0"
+            return calculate_direct("某点导数", expr=func, var=var, point=point)
+
+        # ========== 隐函数求导 ==========
+        if op == "隐函数求导":
+            parts = [p.strip() for p in expr.split(",")]
+            eq = parts[0]; var = parts[1] if len(parts) > 1 else "x"
+            dep_var = parts[2] if len(parts) > 2 else "y"
+            return calculate_direct("隐函数求导", eq=eq, var=var, dep_var=dep_var)
+
+        # ========== 参数方程求导 ==========
+        if op == "参数方程求导":
+            parts = [p.strip() for p in expr.split(",")]
+            x_expr = parts[0]; y_expr = parts[1] if len(parts) > 1 else ""
+            t_var = parts[2] if len(parts) > 2 else "t"
+            return calculate_direct("参数方程求导", x_expr=x_expr, y_expr=y_expr, t=t_var)
+
+        # ========== 数值积分 ==========
+        if op == "数值积分":
+            parts = [p.strip() for p in expr.split(",")]
+            func = parts[0]; var = parts[1] if len(parts) > 1 else "x"
+            kwargs = {"f": func, "var": var}
+            if len(parts) >= 4:
+                kwargs["a"] = float(parts[2]) if len(parts) > 2 else 0
+                kwargs["b"] = float(parts[3]) if len(parts) > 3 else 1
+            return calculate_direct("数值积分", **kwargs)
+
+        # ========== 反常积分 ==========
+        if op == "反常积分":
+            parts = [p.strip() for p in expr.split(",")]
+            func = parts[0]; var = parts[1] if len(parts) > 1 else "x"
+            a = parts[2] if len(parts) > 2 else "-oo"
+            b = parts[3] if len(parts) > 3 else "oo"
+            return calculate_direct("反常积分", expr=func, var=var, a=a, b=b)
+
+        # ========== 连续性判断 ==========
+        if op == "连续性判断":
+            parts = [p.strip() for p in expr.split(",")]
+            func = parts[0]; var = parts[1] if len(parts) > 1 else "x"
+            point = parts[2] if len(parts) > 2 else "0"
+            return calculate_direct("连续性判断", expr=func, var=var, point=point)
+
+        # ========== 间断点分类 ==========
+        if op == "间断点分类":
+            parts = [p.strip() for p in expr.split(",")]
+            func = parts[0]; var = parts[1] if len(parts) > 1 else "x"
+            point = parts[2] if len(parts) > 2 else "0"
+            return calculate_direct("间断点分类", expr=func, var=var, point=point)
+
+        # ========== 洛必达法则 ==========
+        if op == "洛必达法则":
+            parts = [p.strip() for p in expr.split(",")]
+            func = parts[0]; var = parts[1] if len(parts) > 1 else "x"
+            point = parts[2] if len(parts) > 2 else "0"
+            return calculate_direct("洛必达法则", expr=func, var=var, point=point)
+
+        # ========== 单调性 ==========
+        if op == "单调性":
+            parts = [p.strip() for p in expr.split(",")]
+            func = parts[0]; var = parts[1] if len(parts) > 1 else "x"
+            return calculate_direct("单调性", expr=func, var=var)
+
+        # ========== 局部极值 ==========
+        if op == "局部极值":
+            parts = [p.strip() for p in expr.split(",")]
+            func = parts[0]; var = parts[1] if len(parts) > 1 else "x"
+            return calculate_direct("局部极值", expr=func, var=var)
+
+        # ========== 全局最值 ==========
+        if op == "全局最值":
+            parts = [p.strip() for p in expr.split(",")]
+            func = parts[0]; var = parts[1] if len(parts) > 1 else "x"
+            interval_start = parts[2] if len(parts) > 2 else "0"
+            interval_end = parts[3] if len(parts) > 3 else "1"
+            try:
+                a_val = float(interval_start); b_val = float(interval_end)
+                interval = (a_val, b_val)
+            except ValueError:
+                interval = (0, 1)
+            return calculate_direct("全局最值", expr=func, var=var, interval=interval)
+
+        # ========== 幂级数展开 ==========
+        if op == "幂级数展开":
+            parts = [p.strip() for p in expr.split(",")]
+            func = parts[0]; var = parts[1] if len(parts) > 1 else "x"
+            point_str = parts[2] if len(parts) > 2 else "0"
+            try:
+                point_val = int(point_str) if point_str.isdigit() or point_str.lstrip('-').isdigit() else float(point_str)
+            except (ValueError, AttributeError):
+                point_val = point_str  # 符号如 "a", "pi" 保持原样
+            try: order = int(parts[3]) if len(parts) > 3 else 5
+            except ValueError: order = 5
+            return calculate_direct("幂级数展开", expr=func, var=var, point=point_val, n=order)
 
         # ========== 常微分方程 ==========
         if op == "常微分方程":

@@ -96,26 +96,44 @@ class CalcBlock(BaseCalcBlock):
         dlg.exec()
 
     def _do_dispatch(self, mod: str, act: str, expr: str):
-        """通过 calc_engine 统一调度。"""
+        """通过 calc_engine 统一调度（智能参数解析）。"""
         from ast import literal_eval
         import re as _re
 
         op = self.calc_mode_combo.currentText()
 
-        if "=" in expr and expr.count("=") <= 3:
-            parts = _re.split(r'[,;]\s*(?=[a-zA-Z_])', expr)
+        # 1. 尝试 key=value 格式解析
+        if "=" in expr and not expr.strip().startswith(("[", "(")):
+            parts = _re.split(r'[,;]\s*', expr)
             kwargs = {}
+            all_kv = True
             for p in parts:
+                p = p.strip()
                 if "=" in p:
                     k, v = p.split("=", 1)
-                    kwargs[k.strip()] = literal_eval(v.strip())
-            return calculate_direct(op, **kwargs)
-        else:
+                    k = k.strip(); v = v.strip()
+                    try: kwargs[k] = literal_eval(v)
+                    except (ValueError, SyntaxError): kwargs[k] = v
+                elif p:
+                    all_kv = False
+            if kwargs and all_kv:
+                return calculate_direct(op, **kwargs)
+
+        # 2. 尝试 literal_eval
+        try:
             val = literal_eval(expr)
-            if isinstance(val, (list, tuple)):
-                return calculate_direct(op, matrix=val)
-            else:
-                return calculate_direct(op, val)
+        except (ValueError, SyntaxError):
+            # 3. 不是字面量 → 作为表达式字符串
+            return calculate_direct(op, expr=expr)
+
+        # 4. 字面量成功 → 根据类型路由
+        if isinstance(val, (list, tuple)):
+            if op in ("线性回归", "预测", "残差"):
+                if len(val) == 2:
+                    return calculate_direct(op, x_data=val[0], y_data=val[1])
+            return calculate_direct(op, data=val)
+        else:
+            return calculate_direct(op, val=val)
 
 
 if __name__ == "__main__":
