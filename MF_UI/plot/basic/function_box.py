@@ -294,14 +294,16 @@ class FunctionBox(QWidget):
             """在相邻字母变量间插入 *。"""
             _KNOWN_F = {"sin","cos","tan","cot","sec","csc","sinh","cosh","tanh","coth",
                         "arcsin","arccos","arctan","asin","acos","atan",
-                        "ln","log","sqrt","exp","abs"}
+                        "ln","log","sqrt","exp","abs","exp","pi","E","Pi"}
             def _insert_mul(m: re.Match) -> str:
                 pre = m.group(1)
                 return m.group(0) if pre in _KNOWN_F else pre + "*("
             s = re.sub(r"([a-zA-Z]+)\(", _insert_mul, s)
-            # 纯字母表达式：逐字符间插入 *（abc → a*b*c）
-            if "(" not in s and re.match(r"^[a-zA-Z]+$", s):
-                return "*".join(s)
+            # 不含括号的表达式：拆分连续字母（bx+c → b*x+c）
+            if "(" not in s:
+                s = re.sub(r"([a-zA-Z])([a-zA-Z])",
+                           lambda m: m.group(0) if m.group(0) in _KNOWN_F
+                           else m.group(1) + "*" + m.group(2), s)
             return s
 
         if self._expr_type == "implicit":
