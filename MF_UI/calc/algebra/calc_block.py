@@ -139,13 +139,14 @@ class CalcBlock(BaseCalcBlock):
     # ── 覆写：完整分派流程 ───────────────────────────────────
 
     def on_calc_clicked(self) -> None:
-        expr = self.input_box.text().strip()
-        if not expr:
+        original_expr = self.input_box.text().strip()   # 用户原始输入（步骤查看器用）
+        if not original_expr:
             return
 
         op = self.calc_mode_combo.currentText()
 
         # ── 翻译 ──
+        expr = original_expr
         try:
             expr = MathTranslator.human_to_computer(expr)
         except Exception:
@@ -185,7 +186,7 @@ class CalcBlock(BaseCalcBlock):
                     obj = ai.accelerate(ai_prompt, mode=op)
                     self._last_result = obj
                     dlg = ResultDialog(f"AI 加速 — {op}", self)
-                    dlg.set_context(expr, op)
+                    dlg.set_context(original_expr, op)
                     dlg.set_result(obj)
                     dlg.exec()
                     return
@@ -230,6 +231,7 @@ class CalcBlock(BaseCalcBlock):
 
             self._last_result = obj
             dlg = ResultDialog(f"计算结果 — {op}", self)
+            dlg.set_context(original_expr, op)
             dlg.set_result(obj)
             dlg.exec()
             return
@@ -248,6 +250,7 @@ class CalcBlock(BaseCalcBlock):
 
         self._last_result = obj
         dlg = ResultDialog(f"计算结果 — {op}", self)
+        dlg.set_context(original_expr, op)
         dlg.set_result(obj)
         dlg.exec()
 

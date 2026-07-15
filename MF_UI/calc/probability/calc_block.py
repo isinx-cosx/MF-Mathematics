@@ -55,6 +55,7 @@ class CalcBlock(BaseCalcBlock):
                     obj = ai.accelerate(expr, mode=op)
                     self._last_result = obj
                     dlg = ResultDialog(f"AI 加速 — {op}", self)
+                    dlg.set_context(expr, op)
                     dlg.set_result(obj)
                     dlg.exec()
                     return
@@ -83,6 +84,7 @@ class CalcBlock(BaseCalcBlock):
 
         self._last_result = obj
         dlg = ResultDialog(f"计算结果 — {op}", self)
+        dlg.set_context(expr, op)
         dlg.set_result(obj)
         dlg.exec()
 
