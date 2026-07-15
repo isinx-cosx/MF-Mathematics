@@ -119,10 +119,19 @@ class AIAccelerator:
 
     # ── 配额检查 ──────────────────────────────────────────
 
+    @property
+    def _has_api_key(self) -> bool:
+        """是否配置了 API Key — 有 Key 则无限制。"""
+        return bool(self._ai_cfg.api_key)
+
     def check_quota(self, kind: str = "steps") -> bool:
+        if self._has_api_key:
+            return True
         return self._quota.remaining(kind) > 0
 
     def quota_remaining(self, kind: str = "steps") -> int:
+        if self._has_api_key:
+            return 999999  # 无限制
         return self._quota.remaining(kind)
 
     @property
