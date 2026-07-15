@@ -135,7 +135,7 @@ class FunctionBox(QWidget):
         self.setGraphicsEffect(shadow)
 
         root = QVBoxLayout(self)
-        root.setSpacing(3); root.setContentsMargins(6, 4, 6, 4)
+        root.setSpacing(4); root.setContentsMargins(8, 6, 8, 6)
 
         # 主行：序号 | 显示 | 输入 | 删除
         row = QHBoxLayout(); row.setSpacing(4)
@@ -146,8 +146,9 @@ class FunctionBox(QWidget):
         row.addWidget(self._index_lbl)
 
         self._vis_btn = QPushButton("●")
-        self._vis_btn.setFixedSize(20, 20)
-        self._vis_btn.setStyleSheet(_VIS_STYLE + f"color:{self._color};")
+        self._vis_btn.setFixedSize(24, 24)
+        self._vis_btn.setStyleSheet(
+            _VIS_STYLE + f"color:{self._color}; font-size:16px; font-weight:bold;")
         self._vis_btn.setToolTip("隐藏")
         self._vis_btn.clicked.connect(self._toggle_visibility)
         row.addWidget(self._vis_btn)
@@ -272,12 +273,16 @@ class FunctionBox(QWidget):
 
         # ── 预处理：隐式乘法 → sympy 兼容 ──
         def _fix_adjacent_letters(s: str) -> str:
-            """在相邻字母变量间插入 *（ax→a*x，ab→a*b，含括号的表达式不处理）。"""
-            # 已含括号 → MathTranslator 已处理函数调用，跳过
-            if "(" in s:
-                return s
+            """在相邻字母变量间插入 *。"""
+            _KNOWN_F = {"sin","cos","tan","cot","sec","csc","sinh","cosh","tanh","coth",
+                        "arcsin","arccos","arctan","asin","acos","atan",
+                        "ln","log","sqrt","exp","abs"}
+            def _insert_mul(m: re.Match) -> str:
+                pre = m.group(1)
+                return m.group(0) if pre in _KNOWN_F else pre + "*("
+            s = re.sub(r"([a-zA-Z]+)\(", _insert_mul, s)
             # 纯字母表达式：逐字符间插入 *（abc → a*b*c）
-            if re.match(r"^[a-zA-Z]+$", s):
+            if "(" not in s and re.match(r"^[a-zA-Z]+$", s):
                 return "*".join(s)
             return s
 
