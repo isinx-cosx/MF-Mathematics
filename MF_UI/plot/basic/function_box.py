@@ -2,8 +2,9 @@
 """FunctionBox — 函数输入卡片（精简 UI）。
 
 信号:
-  - changed()               表达式 / 可见性 / 参数变化
-  - removed(box)            删除按钮点击
+  - changed()               表达式 / 可见性变化
+  - removed(box)            删除按钮
+  - param_added(str)        请求为参数创建滑块
 """
 
 from __future__ import annotations
@@ -16,7 +17,7 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QGraphicsDropShadowEffect, QHBoxLayout, QLabel,
-    QLineEdit, QPushButton, QSlider, QVBoxLayout, QWidget,
+    QLineEdit, QPushButton, QVBoxLayout, QWidget,
 )
 
 # ── 预设颜色 ──────────────────────────────────────────────────
@@ -24,17 +25,17 @@ _PRESET_COLORS = [
     "#e74c3c", "#3498db", "#2ecc71", "#f39c12",
     "#9b59b6", "#1abc9c", "#e67e22", "#e84393",
 ]
-_COLOR_INDEX = 0
+_COLOR_IDX = 0
 
 
 def next_color() -> str:
-    global _COLOR_INDEX
-    c = _PRESET_COLORS[_COLOR_INDEX % len(_PRESET_COLORS)]
-    _COLOR_INDEX += 1
+    global _COLOR_IDX
+    c = _PRESET_COLORS[_COLOR_IDX % len(_PRESET_COLORS)]
+    _COLOR_IDX += 1
     return c
 
 
-# ── 已知函数名 ──────────────────────────────────────────────
+# ── 常量 ────────────────────────────────────────────────────
 _FUNCS_PATTERN = (
     "sin|cos|tan|cot|sec|csc|sinh|cosh|tanh|coth|"
     "arcsin|arccos|arctan|asin|acos|atan|"
@@ -72,13 +73,15 @@ _DEL_STYLE = """
     }
     QPushButton:hover { color: #ef4444; background: #fee2e2; border-radius: 4px; }
 """
-_VIS_STYLE = """
-    QPushButton { background: transparent; border: none; font-size: 14px; padding: 0 2px; }
+_VIS_STYLE = "QPushButton { background: transparent; border: none; font-size: 14px; padding: 0 2px; }"
+_WARN_STYLE = "QPushButton { background: transparent; border: none; font-size: 13px; padding: 0 2px; color: #d97706; }"
+_ADD_PARAM_STYLE = """
+    QPushButton {
+        background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 3px;
+        padding: 1px 6px; font-size: 11px; color: #475569;
+    }
+    QPushButton:hover { background: #e2e8f0; border-color: #94a3b8; }
 """
-_WARN_STYLE = """
-    QPushButton { background: transparent; border: none; font-size: 13px; padding: 0 2px; color: #d97706; }
-"""
-_ERR_STYLE = "color: #dc2626; font-size: 11px; padding: 0 4px;"
 
 
 @dataclass
@@ -96,15 +99,17 @@ def parse_input(text: str, default_var: str) -> _Parsed:
 
 
 class FunctionBox(QWidget):
-    """函数输入卡片。
+    """函数输入卡片 — 精简 UI，参数由独立滑块框管理。
 
     信号:
-      changed()  — 表达式 / 可见性 / 参数变化
-      removed(box) — 删除按钮
+      changed()        — 表达式/可见性变化 → 重绘
+      removed(box)     — 删除
+      param_added(str) — 请求创建参数滑块
     """
 
     changed = Signal()
     removed = Signal(object)
+    param_added = Signal(str)
 
     def __init__(self, index: int = 1, color: str = "",
                  mode: str = "normal", parent: QWidget | None = None):
@@ -119,10 +124,9 @@ class FunctionBox(QWidget):
         self._independent_var = self._default_var
         self._expr_type = "explicit"
         self._valid_expr = ""
-        self._error = ""           # 错误信息（空=无错误）
-        self._visible = True       # 可见状态（独立于错误）
-        self._updating = False
-        self._params: dict[str, tuple[QSlider, QLineEdit]] = {}
+        self._error = ""
+        self._visible = True
+        self._added_params: set[str] = set()  # 已添加滑块的参数
 
         self._build_ui()
 
@@ -138,7 +142,7 @@ class FunctionBox(QWidget):
         root = QVBoxLayout(self)
         root.setSpacing(3); root.setContentsMargins(6, 4, 6, 4)
 
-        # ── 主行：序号 | 显示 | 输入 | 删除 ──
+        # 主行：序号 | 显示 | 输入 | 删除
         row = QHBoxLayout(); row.setSpacing(4)
 
         self._index_lbl = QLabel(f"{self._index}.")
@@ -149,13 +153,13 @@ class FunctionBox(QWidget):
         self._vis_btn = QPushButton("●")
         self._vis_btn.setFixedSize(20, 20)
         self._vis_btn.setStyleSheet(_VIS_STYLE + f"color:{self._color};")
-        self._vis_btn.setToolTip("切换显示/隐藏")
+        self._vis_btn.setToolTip("隐藏")
         self._vis_btn.clicked.connect(self._toggle_visibility)
         row.addWidget(self._vis_btn)
 
         self._input = QLineEdit()
         self._input.setFixedHeight(28)
-        self._input.setPlaceholderText("表达式")
+        self._input.setPlaceholderText("f(x)=")
         self._input.setStyleSheet(_INPUT_STYLE)
         self._input.textChanged.connect(self._on_text)
         row.addWidget(self._input, 1)
@@ -166,19 +170,12 @@ class FunctionBox(QWidget):
         self._del_btn.setToolTip("删除")
         self._del_btn.clicked.connect(lambda: self.removed.emit(self))
         row.addWidget(self._del_btn)
-
         root.addLayout(row)
 
-        # ── 错误提示 ──
-        self._error_label = QLabel("")
-        self._error_label.setStyleSheet(_ERR_STYLE)
-        self._error_label.setWordWrap(True); self._error_label.hide()
-        root.addWidget(self._error_label)
-
-        # ── 参数滑块区 ──
-        self._slider_area = QVBoxLayout()
-        self._slider_area.setSpacing(2)
-        root.addLayout(self._slider_area)
+        # 添加滑块按钮区
+        self._param_btns = QHBoxLayout()
+        self._param_btns.setSpacing(4)
+        root.addLayout(self._param_btns)
 
     # ── 属性 ─────────────────────────────────────────────────
 
@@ -204,16 +201,13 @@ class FunctionBox(QWidget):
 
     @property
     def is_derivative(self) -> bool:
-        if self._expr_type == "implicit":
-            return False
-        raw = self._input.text().strip()
-        d, _, _ = _parse_derivative(raw, self._independent_var)
+        if self._expr_type == "implicit": return False
+        d, _, _ = _parse_derivative(self._input.text().strip(), self._independent_var)
         return d is not None
 
     @property
     def referenced_function(self) -> str:
-        if self._expr_type == "implicit":
-            return ""
+        if self._expr_type == "implicit": return ""
         _, _, ref = _parse_derivative(self._input.text().strip(), self._independent_var)
         return ref
 
@@ -223,38 +217,29 @@ class FunctionBox(QWidget):
 
     @property
     def detected_params(self) -> set[str]:
-        if not self._valid_expr:
-            return set()
+        if not self._valid_expr: return set()
         try:
             syms = sp.sympify(self._valid_expr).free_symbols
         except Exception:
             return set()
         excluded = {sp.Symbol(v) for v in self._independent_vars}
         excluded.add(sp.Symbol(self._independent_var))
-        if self._expr_type == "implicit":
-            excluded.add(sp.Symbol("y"))
+        if self._expr_type == "implicit": excluded.add(sp.Symbol("y"))
         return {str(s) for s in syms - excluded - _CONSTANTS}
 
-    def get_params(self) -> dict[str, float]:
-        return {k: s.value() / 100.0 for k, (s, _) in self._params.items()}
-
     def resolve_derivative(self, definitions: dict[str, str]) -> str:
-        if not self.is_derivative:
-            return self.expr
+        if not self.is_derivative: return self.expr
         ref = self.referenced_function
-        if not ref or ref not in definitions:
-            return self.expr
+        if not ref or ref not in definitions: return self.expr
         try:
-            d = sp.Derivative(sp.sympify(definitions[ref]),
-                              sp.Symbol(self._independent_var))
+            d = sp.Derivative(sp.sympify(definitions[ref]), sp.Symbol(self._independent_var))
             return str(d.doit())
         except Exception:
             return self.expr
 
-    # ── 可见性切换 ───────────────────────────────────────────
+    # ── 可见性 ───────────────────────────────────────────────
 
     def _update_vis_button(self) -> None:
-        """根据 _error / _visible 刷新显示按钮。"""
         if self._error:
             self._vis_btn.setText("⚠")
             self._vis_btn.setStyleSheet(_WARN_STYLE)
@@ -269,8 +254,7 @@ class FunctionBox(QWidget):
             self._vis_btn.setToolTip("显示")
 
     def _toggle_visibility(self) -> None:
-        if self._error:
-            return  # 有错误时不允许切换
+        if self._error: return
         self._visible = not self._visible
         self._update_vis_button()
         self.changed.emit()
@@ -278,141 +262,106 @@ class FunctionBox(QWidget):
     # ── 输入处理 ─────────────────────────────────────────────
 
     def _on_text(self, _: str) -> None:
-        if self._updating:
-            return
         raw = self._input.text().strip()
-
         if not raw:
-            self._error_label.hide(); self._valid_expr = ""
-            self._error = ""; self._update_vis_button()
-            self._clear_sliders(); self.changed.emit(); return
+            self._valid_expr = ""; self._error = ""
+            self._update_vis_button(); self._update_param_buttons()
+            self.changed.emit(); return
 
-        # 分类
         classification = self._classify(raw)
         self._expr_type = classification["type"]
         if self._expr_type == "error":
-            msg = classification.get("message", "无法识别")
-            self._error_label.setText(msg); self._error_label.show()
-            self._error = msg; self._update_vis_button()
-            self._valid_expr = ""; self._clear_sliders(); return
+            self._error = classification.get("message", "无法识别")
+            self._valid_expr = ""
+            self._update_vis_button(); self._update_param_buttons(); return
 
-        # 获取表达式
         if self._expr_type == "implicit":
             s = _normalize_implicit(raw)
             self._valid_expr = _preprocess(s) if s else ""
-            self._func_name = ""
-            self._independent_var = "x"
+            self._func_name = ""; self._independent_var = "x"
         else:
             d_expr, d_var, _ = _parse_derivative(raw, self._independent_var)
             if d_expr is not None:
                 try:
                     d = sp.sympify(d_expr)
-                    result = sp.diff(d.args[0], d.args[1]) if hasattr(d, 'func') and d.func == sp.Derivative else d.doit()
-                    self._valid_expr = str(result)
+                    r = sp.diff(d.args[0], d.args[1]) if hasattr(d, 'func') and d.func == sp.Derivative else d.doit()
+                    self._valid_expr = str(r)
                 except Exception:
                     self._valid_expr = _preprocess(d_expr) if d_expr else ""
-                self._func_name = ""
-                self._independent_var = d_var
+                self._func_name = ""; self._independent_var = d_var
             else:
                 parsed = parse_input(raw, self._independent_var)
-                self._func_name = parsed.name
-                self._independent_var = parsed.var
+                self._func_name = parsed.name; self._independent_var = parsed.var
                 s = parsed.raw_expr
                 if self._mode == "complex":
                     s = re.sub(r'\bx\b', 'z', s); s = re.sub(r'\by\b', 'z', s)
                 self._valid_expr = _preprocess(s) if s else ""
 
-        # 验证
         try:
             sp.sympify(self._valid_expr)
-            self._error_label.hide()
             self._error = ""
         except Exception as exc:
-            self._error_label.setText(f"解析错误: {exc}")
-            self._error_label.show()
             self._error = f"解析错误: {str(exc)[:20]}"
-            self._update_vis_button()
-            self._valid_expr = ""; self._clear_sliders(); return
+            self._valid_expr = ""
+            self._update_vis_button(); self._update_param_buttons(); return
 
         self._update_vis_button()
-        # 参数滑块
-        self._rebuild_sliders()
+        self._update_param_buttons()
         self.changed.emit()
 
     # ── 分类 ─────────────────────────────────────────────────
 
     def _classify(self, raw: str) -> dict:
         raw = raw.strip()
-        if not raw:
-            return {"type": "explicit"}
+        if not raw: return {"type": "explicit"}
         if re.match(r"^([a-zA-Z]\w*)\s*\(\s*([a-zA-Z])\s*\)\s*=\s*(.+)$", raw):
             return {"type": "explicit"}
-        if "=" not in raw:
-            return {"type": "explicit"}
+        if "=" not in raw: return {"type": "explicit"}
         all_ids = set(re.findall(r'[a-zA-Z]\w*', raw))
         vars_found = all_ids - _KNOWN_IDS
-        has_xy = ('x' in vars_found or 'X' in vars_found) and \
-                 ('y' in vars_found or 'Y' in vars_found)
+        has_xy = ('x' in vars_found or 'X' in vars_found) and ('y' in vars_found or 'Y' in vars_found)
         if len(vars_found) > 2:
-            return {"type": "error", "message": f"隐式方程仅支持 x 和 y，检测到 {len(vars_found)} 个变量。"}
-        elif has_xy:
-            return {"type": "implicit"}
+            return {"type": "error", "message": "隐式方程仅支持 x 和 y"}
+        elif has_xy: return {"type": "implicit"}
         elif len(vars_found) == 1 and ('x' in vars_found or 'y' in vars_found):
             return {"type": "implicit"}
         return {"type": "explicit"}
 
-    # ── 参数滑块 ─────────────────────────────────────────────
+    # ── 添加滑块按钮 ─────────────────────────────────────────
 
-    def _clear_sliders(self) -> None:
-        for s, e in self._params.values():
-            s.deleteLater(); e.deleteLater()
-        self._params.clear()
-        while self._slider_area.count():
-            item = self._slider_area.takeAt(0)
+    def _update_param_buttons(self) -> None:
+        while self._param_btns.count():
+            item = self._param_btns.takeAt(0)
             if item.widget(): item.widget().deleteLater()
 
-    def _rebuild_sliders(self) -> None:
-        self._clear_sliders()
-        names = sorted(self.detected_params)
-        for name in names:
-            r = QHBoxLayout(); r.setSpacing(4)
-            lbl = QLabel(f"{name} ="); lbl.setFixedWidth(26)
-            lbl.setStyleSheet("font-size:11px; color:#475569;")
-            r.addWidget(lbl)
+        if self._error or not self._valid_expr: return
+        params = self.detected_params - self._added_params
+        if not params: return
 
-            s = QSlider(Qt.Orientation.Horizontal)
-            s.setRange(-500, 500); s.setValue(100)
-            r.addWidget(s, 1)
+        lbl = QLabel("添加滑块:")
+        lbl.setStyleSheet("font-size: 11px; color: #94a3b8;")
+        self._param_btns.addWidget(lbl)
+        for name in sorted(params):
+            btn = QPushButton(name)
+            btn.setStyleSheet(_ADD_PARAM_STYLE)
+            btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            btn.clicked.connect(lambda _, n=name: self._on_add_param(n))
+            self._param_btns.addWidget(btn)
+        self._param_btns.addStretch()
 
-            e = QLineEdit("1.00"); e.setFixedWidth(48)
-            e.setStyleSheet("font-size:11px; padding:1px 3px; border:1px solid #d1d5db; border-radius:3px;")
-            r.addWidget(e)
+    def _on_add_param(self, name: str) -> None:
+        self._added_params.add(name)
+        self._update_param_buttons()
+        self.param_added.emit(name)
 
-            s.valueChanged.connect(lambda v, ed=e: self._on_slider_move(v, ed))
-            e.editingFinished.connect(lambda sl=s, ed=e: self._on_edit_done(sl, ed))
-
-            self._slider_area.addLayout(r)
-            self._params[name] = (s, e)
-
-    def _on_slider_move(self, value: int, edit: QLineEdit) -> None:
-        if self._updating: return
-        v = value / 100.0
-        self._updating = True; edit.setText(f"{v:.2f}"); self._updating = False
-        self.changed.emit()
-
-    def _on_edit_done(self, slider: QSlider, edit: QLineEdit) -> None:
-        if self._updating: return
-        try:
-            v = float(edit.text()); v = max(-5.0, min(5.0, v))
-            self._updating = True; edit.setText(f"{v:.2f}")
-            slider.setValue(int(round(v * 100))); self._updating = False
-            self.changed.emit()
-        except ValueError:
-            edit.setText("0.00")
+    def mark_param_removed(self, name: str) -> None:
+        """外部通知：参数滑块已删除，允许重新添加。"""
+        self._added_params.discard(name)
+        self._update_param_buttons()
 
 
 # ═══════════════════════════════════════════════════════════════════════
-#  模块级辅助函数
+#  辅助函数
 # ═══════════════════════════════════════════════════════════════════════
 
 def _parse_derivative(raw: str, default_var: str = "x") -> tuple[str | None, str, str]:
