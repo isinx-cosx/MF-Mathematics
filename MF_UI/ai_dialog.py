@@ -10,7 +10,74 @@ from PySide6.QtWidgets import (
     QLineEdit, QPushButton, QTextEdit, QVBoxLayout, QWidget,
 )
 
+import base64
+import re
+from io import BytesIO
+
 from MF_AI import stream_chat, get_config
+
+# ── LaTeX 渲染 ─────────────────────────────────────────────
+
+def _latex_to_html(latex: str, dark: bool = False) -> str:
+    """将 LaTeX 渲染为 base64 图片并返回 <img> 标签。"""
+    try:
+        import matplotlib as _mpl
+        _mpl.use("agg")
+        _mpl.rcParams["mathtext.fontset"] = "cm"
+        import matplotlib.pyplot as _plt
+
+        face = "#1e293b" if dark else "#fafbfc"
+        text_color = "#e2e8f0" if dark else "#0f172a"
+        safe = latex.strip()
+        # 使用原始字符串构造 mathtext
+        math_text = "$" + safe + "$"
+
+        # 估算宽度（每个字符约 0.12 英寸）
+        w = max(len(safe) * 0.12 + 0.8, 2.0)
+        fig = _plt.figure(figsize=(w, 0.6), dpi=130, facecolor=face)
+        fig.text(0.5, 0.5, math_text,
+                 fontsize=13, va="center", ha="center", color=text_color)
+        fig.canvas.draw()
+
+        buf = BytesIO()
+        fig.savefig(buf, format="png", dpi=150, bbox_inches="tight",
+                    pad_inches=0.08, transparent=False, facecolor=face)
+        _plt.close(fig)
+        buf.seek(0)
+        b64 = base64.b64encode(buf.read()).decode()
+        return f'<img src="data:image/png;base64,{b64}" style="vertical-align:middle;">'
+    except Exception:
+        return f"<i>{latex}</i>"
+
+
+def _render_response(text: str) -> str:
+    """将文本中的 LaTeX 渲染为 HTML。
+
+    $$...$$ → 块级公式（居中）
+    $...$   → 行内公式
+    其他     → 原样，换行转 <br>
+    """
+    # 1. 转义 HTML
+    text = text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+    # 2. 处理 $$...$$ 块级公式
+    def _replace_block(m):
+        formula = m.group(1).strip()
+        img = _latex_to_html(formula)
+        return f'<div align="center">{img}</div>'
+    text = re.sub(r'\$\$(.+?)\$\$', _replace_block, text, flags=re.DOTALL)
+
+    # 3. 处理 $...$ 行内公式
+    def _replace_inline(m):
+        formula = m.group(1).strip()
+        return _latex_to_html(formula)
+    text = re.sub(r'\$(.+?)\$', _replace_inline, text)
+
+    # 4. 换行
+    text = text.replace("\n", "<br>")
+
+    return text
+
 
 _SYSTEM_PROMPT = (
     "你是 MF-Mathematics 的 AI 数学助手。"
@@ -73,6 +140,7 @@ class AIDialog(QDialog):
         self._messages: list[dict] = [{"role": "system", "content": _SYSTEM_PROMPT}]
         self._worker: _AIStreamWorker | None = None
         self._last_full_response = ""
+        self._ai_text_start: int = 0   # cursor position where AI text starts
 
         self._build_ui()
 
@@ -177,6 +245,13 @@ class AIDialog(QDialog):
         if self._last_full_response:
             self._messages.append(
                 {"role": "assistant", "content": self._last_full_response})
+            # 替换 AI 纯文本为 LaTeX 渲染后的 HTML
+            html = _render_response(self._last_full_response)
+            cursor = self._chat_view.textCursor()
+            cursor.setPosition(self._ai_text_start)
+            cursor.movePosition(QTextCursor.MoveOperation.End,
+                                QTextCursor.MoveMode.KeepAnchor)
+            cursor.insertHtml(html)
         self._chat_view.append("")
         self._set_sending(False)
 
@@ -199,6 +274,8 @@ class AIDialog(QDialog):
             cursor = self._chat_view.textCursor()
             cursor.movePosition(QTextCursor.MoveOperation.End)
             cursor.insertHtml('<span style="color:#3b82f6;">AI: </span>')
+            # 记录 AI 回复起始位置
+            self._ai_text_start = cursor.position()
         else:
             self._status_lbl.setText("就绪")
             self._status_lbl.setStyleSheet(
