@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
     QGraphicsDropShadowEffect, QHBoxLayout, QLabel,
     QLineEdit, QPushButton, QVBoxLayout, QWidget,
 )
+from MF_UI.utils.translator import MathTranslator
 
 # ── 预设颜色 ──────────────────────────────────────────────────
 _PRESET_COLORS = [
@@ -36,12 +37,6 @@ def next_color() -> str:
 
 
 # ── 常量 ────────────────────────────────────────────────────
-_FUNCS_PATTERN = (
-    "sin|cos|tan|cot|sec|csc|sinh|cosh|tanh|coth|"
-    "arcsin|arccos|arctan|asin|acos|atan|"
-    "ln|log|log10|sqrt|exp|abs|ceiling|floor|"
-    "limit|diff|integrate|Sum|sum|solve"
-)
 _KNOWN_IDS = {
     'sin', 'cos', 'tan', 'cot', 'sec', 'csc',
     'sinh', 'cosh', 'tanh', 'coth',
@@ -275,9 +270,21 @@ class FunctionBox(QWidget):
             self._valid_expr = ""
             self._update_vis_button(); self._update_param_buttons(); return
 
+        # ── 预处理：隐式乘法 → sympy 兼容 ──
+        def _fix_adjacent_letters(s: str) -> str:
+            """在相邻字母变量间插入 *（ax→a*x，ab→a*b，含括号的表达式不处理）。"""
+            # 已含括号 → MathTranslator 已处理函数调用，跳过
+            if "(" in s:
+                return s
+            # 纯字母表达式：逐字符间插入 *（abc → a*b*c）
+            if re.match(r"^[a-zA-Z]+$", s):
+                return "*".join(s)
+            return s
+
         if self._expr_type == "implicit":
             s = _normalize_implicit(raw)
-            self._valid_expr = _preprocess(s) if s else ""
+            s = MathTranslator.human_to_computer(s) if s else ""
+            self._valid_expr = _fix_adjacent_letters(s) if s else ""
             self._func_name = ""; self._independent_var = "x"
         else:
             d_expr, d_var, _ = _parse_derivative(raw, self._independent_var)
@@ -287,7 +294,8 @@ class FunctionBox(QWidget):
                     r = sp.diff(d.args[0], d.args[1]) if hasattr(d, 'func') and d.func == sp.Derivative else d.doit()
                     self._valid_expr = str(r)
                 except Exception:
-                    self._valid_expr = _preprocess(d_expr) if d_expr else ""
+                    s = MathTranslator.human_to_computer(d_expr) if d_expr else ""
+                    self._valid_expr = _fix_adjacent_letters(s) if s else ""
                 self._func_name = ""; self._independent_var = d_var
             else:
                 parsed = parse_input(raw, self._independent_var)
@@ -295,7 +303,8 @@ class FunctionBox(QWidget):
                 s = parsed.raw_expr
                 if self._mode == "complex":
                     s = re.sub(r'\bx\b', 'z', s); s = re.sub(r'\by\b', 'z', s)
-                self._valid_expr = _preprocess(s) if s else ""
+                s = MathTranslator.human_to_computer(s) if s else ""
+                self._valid_expr = _fix_adjacent_letters(s) if s else ""
 
         try:
             sp.sympify(self._valid_expr)
@@ -375,29 +384,6 @@ def _parse_derivative(raw: str, default_var: str = "x") -> tuple[str | None, str
     m = re.match(r"^\((.+)\)\s*'$", raw)
     if m: return f"Derivative({m.group(1).strip()}, {default_var})", default_var, ""
     return None, "", ""
-
-
-def _preprocess(s: str) -> str:
-    s = re.sub(r'\be\^\(', 'exp(', s)
-    s = re.sub(r'\be\^(\w+)', r'exp(\1)', s)
-    s = s.replace('^', '**')
-    s = re.sub(rf'\b({_FUNCS_PATTERN})(\d+)([a-zA-Z])', r'\1(\2*\3)', s)
-    s = re.sub(rf'\b({_FUNCS_PATTERN})([a-zA-Z])', r'\1(\2)', s)
-    s = re.sub(rf'\b({_FUNCS_PATTERN})(\d+)', r'\1(\2)', s)
-    s = re.sub(r'\bln\b', 'log', s)
-    s = re.sub(r'\blg\b', 'log10', s)
-    s = re.sub(r'\barcsin\b', 'asin', s)
-    s = re.sub(r'\barccos\b', 'acos', s)
-    s = re.sub(r'\barctan\b', 'atan', s)
-    s = re.sub(r'\bceil\b', 'ceiling', s)
-    s = re.sub(r"(\d)([a-zA-Zα-ω])", r"\1*\2", s)
-    s = re.sub(r"\)\s*\(", ")*(", s)
-    s = re.sub(r"\)(\d)", r")*\1", s)
-    s = re.sub(r"\)([a-zA-Z])", r")*\1", s)
-    s = re.sub(r"(\d)\s*\(", r"\1*(", s)
-    s = re.sub(r"(?<![a-zA-Z])([a-zA-Z])\s*\(", r"\1*(", s)
-    s = re.sub(r"([a-zA-Z])\s+([a-zA-Z])", r"\1*\2", s)
-    return s
 
 
 def _normalize_implicit(s: str) -> str:
