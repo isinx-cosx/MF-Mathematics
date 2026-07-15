@@ -95,11 +95,13 @@ class GeometryCanvas(QWidget):
     shape_selected = Signal(object)      # int | None
     shape_modified = Signal()
 
-    # ── 颜色常量 ──────────────────────────────────────────
+    # ── 颜色常量（与普通模式 plot_canvas.py 一致）───────
     AXIS_COLOR  = "#334155"
-    GRID_COLOR  = "#dee2e6"
-    GRID_MAJOR  = "#c0c7cf"
-    BG_COLOR    = "#f8fafc"
+    GRID_COLOR  = "#e8ecf0"
+    TICK_COLOR  = "#94a3b8"
+    TEXT_COLOR  = "#334155"
+    EDGE_COLOR  = "#b0b8c0"
+    BG_COLOR    = "#fafbfc"
     PREVIEW_COLOR = "#6366f1"
     HIGHLIGHT_COLOR = "#3b82f6"
 
@@ -189,58 +191,95 @@ class GeometryCanvas(QWidget):
         self._canvas.draw_idle()
 
     def _draw_grid(self) -> None:
-        """绘制网格线 + 刻度标签。"""
+        """绘制网格线 + 刻度标记 + 刻度标签（与普通模式同款样式）。"""
         ax = self._ax
         x0, x1 = ax.get_xlim()
         y0, y1 = ax.get_ylim()
         rng = max(x1 - x0, y1 - y0)
+        if rng <= 0:
+            return
 
-        # 自适应步长
-        step = _nice_step(rng)
-        minor_divisions = 5
-        minor_step = step / minor_divisions
+        step = _calculate_step(rng)
+        xa_ok = y0 <= 0 <= y1  # X 轴在视野内
+        ya_ok = x0 <= 0 <= x1  # Y 轴在视野内
 
-        # 主网格
+        # ── 网格线 ──
         for v in _grid_values(x0, x1, step):
-            ax.axvline(v, color=self.GRID_MAJOR, linewidth=0.6, linestyle="-", zorder=0)
+            ax.axvline(v, color=self.GRID_COLOR, linewidth=0.5, linestyle="-", zorder=0)
         for v in _grid_values(y0, y1, step):
-            ax.axhline(v, color=self.GRID_MAJOR, linewidth=0.6, linestyle="-", zorder=0)
+            ax.axhline(v, color=self.GRID_COLOR, linewidth=0.5, linestyle="-", zorder=0)
 
-        # 次网格
-        for v in _grid_values(x0, x1, minor_step):
-            ax.axvline(v, color=self.GRID_COLOR, linewidth=0.3, linestyle="-", zorder=0)
-        for v in _grid_values(y0, y1, minor_step):
-            ax.axhline(v, color=self.GRID_COLOR, linewidth=0.3, linestyle="-", zorder=0)
+        # ── X 轴刻度（在轴上或边缘）──
+        if xa_ok:
+            base_y = 0.0
+            tick_color = self.TICK_COLOR
+            text_color = self.TEXT_COLOR
+        else:
+            base_y = y0
+            tick_color = self.EDGE_COLOR
+            text_color = self.EDGE_COLOR
+            # 边缘虚线
+            ax.axhline(base_y, color=self.EDGE_COLOR, linewidth=0.8,
+                       linestyle="--", zorder=4)
 
-        # 刻度标签（使用 text 而非 tick labels，避免 matplotlib 默认行为）
         for v in _grid_values(x0, x1, step):
-            if abs(v) < 1e-10: continue
-            ax.text(v, 0, _fmt_tick(v, step), fontsize=7, color="#64748b",
-                    ha="center", va="top", zorder=5)
+            if abs(v) < step * 0.001:  # 原点跳过（另画 O）
+                continue
+            tick_h = _tick_height(rng)
+            ax.plot([v, v], [base_y - tick_h, base_y + tick_h],
+                    color=tick_color, linewidth=0.8, zorder=6)
+            ax.text(v, base_y + tick_h + _tick_height(rng) * 0.3,
+                    _format_tick(v, step), fontsize=8, color=text_color,
+                    ha="center", va="bottom", zorder=7)
+
+        # ── Y 轴刻度 ──
+        if ya_ok:
+            base_x = 0.0
+            tick_color = self.TICK_COLOR
+            text_color = self.TEXT_COLOR
+        else:
+            base_x = x0
+            tick_color = self.EDGE_COLOR
+            text_color = self.EDGE_COLOR
+            ax.axvline(base_x, color=self.EDGE_COLOR, linewidth=0.8,
+                       linestyle="--", zorder=4)
+
         for v in _grid_values(y0, y1, step):
-            if abs(v) < 1e-10: continue
-            ax.text(0, v, _fmt_tick(v, step), fontsize=7, color="#64748b",
-                    ha="right", va="center", zorder=5)
+            if abs(v) < step * 0.001:
+                continue
+            tick_h = _tick_height(rng)
+            ax.plot([base_x - tick_h, base_x + tick_h], [v, v],
+                    color=tick_color, linewidth=0.8, zorder=6)
+            ax.text(base_x - tick_h - _tick_height(rng) * 0.3, v,
+                    _format_tick(v, step), fontsize=8, color=text_color,
+                    ha="right", va="center", zorder=7)
 
     def _draw_axes(self) -> None:
-        """绘制坐标轴。"""
+        """绘制坐标轴（与普通模式同款：2px 粗线 + 原点 O + 轴名 x/y）。"""
         ax = self._ax
         x0, x1 = ax.get_xlim()
         y0, y1 = ax.get_ylim()
-        ax.axhline(0, color=self.AXIS_COLOR, linewidth=1.5, zorder=4)
-        ax.axvline(0, color=self.AXIS_COLOR, linewidth=1.5, zorder=4)
-        # 原点 "O"
-        ax.text(0, 0, "O", fontsize=9, fontweight="bold", color=self.AXIS_COLOR,
-                ha="right", va="top", zorder=6)
-        # 轴标签
-        ax.text(x1, 0, "x", fontsize=9, fontweight="bold", color=self.AXIS_COLOR,
-                ha="left", va="bottom", zorder=6)
-        ax.text(0, y1, "y", fontsize=9, fontweight="bold", color=self.AXIS_COLOR,
-                ha="left", va="bottom", zorder=6)
-        # 箭头
-        arr = (x1 - x0) * 0.02
-        ax.plot(x1 - arr, 0, marker=(3, 0, 0), markersize=6, color=self.AXIS_COLOR, zorder=5)
-        ax.plot(0, y1 - arr, marker=(3, 0, 90), markersize=6, color=self.AXIS_COLOR, zorder=5)
+        xa_ok = y0 <= 0 <= y1
+        ya_ok = x0 <= 0 <= x1
+
+        # 坐标轴 — 2px 粗线
+        if xa_ok:
+            ax.axhline(0, color=self.AXIS_COLOR, linewidth=2.0, zorder=4)
+        if ya_ok:
+            ax.axvline(0, color=self.AXIS_COLOR, linewidth=2.0, zorder=4)
+
+        # 原点 O
+        if xa_ok and ya_ok:
+            ax.text(0.05, -0.05, "O", fontsize=10, fontweight="bold",
+                    color="#0f172a", ha="left", va="top", zorder=7)
+
+        # 轴名 x / y（视口右下角 / 左上角）
+        ax.text(x1 - _tick_height(x1 - x0) * 0.5, 0, "x",
+                fontsize=10, fontweight="bold", color=self.AXIS_COLOR,
+                ha="center", va="top" if xa_ok else "bottom", zorder=7)
+        ax.text(0, y1 - _tick_height(y1 - y0) * 0.5, "y",
+                fontsize=10, fontweight="bold", color=self.AXIS_COLOR,
+                ha="left" if ya_ok else "right", va="center", zorder=7)
 
     def _draw_shapes(self) -> None:
         """渲染所有已完成的图形。"""
@@ -423,7 +462,7 @@ class GeometryCanvas(QWidget):
         x0, x1 = self._ax.get_xlim()
         y0, y1 = self._ax.get_ylim()
         rng = max(x1 - x0, y1 - y0)
-        return _nice_step(rng) / 5
+        return _calculate_step(rng) / 5
 
     def _pick_shape(self, mx: float, my: float) -> int | None:
         """找到点击位置最近的可命中图形 ID。
@@ -854,8 +893,86 @@ class GeometryCanvas(QWidget):
 
 
 # ═══════════════════════════════════════════════════════════════
-#  渲染辅助
+#  渲染辅助（与普通模式 plot_canvas.py 同款算法）
 # ═══════════════════════════════════════════════════════════════
+
+_NICE_TABLE = (
+    0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 50,
+    100, 200, 500, 1000, 2000, 5000,
+    10000, 20000, 50000,
+    100000, 200000, 500000,
+    1000000, 2000000, 5000000, 10000000,
+)
+
+
+def _calculate_step(rng: float) -> float:
+    """自适应步长 — rng / 20 向上取整到 nice 值。"""
+    if rng <= 0:
+        return 1.0
+    raw = rng / 20.0
+    for n in _NICE_TABLE:
+        if n >= raw:
+            return n
+    return _NICE_TABLE[-1]
+
+
+def _format_tick(v: float, step: float = 1.0) -> str:
+    """刻度数值格式化（与 plot_canvas.format_tick 相同）。
+
+    步长决定小数位数；极大/极小值用科学计数法。
+    """
+    if not math.isfinite(v):
+        return "∞" if v > 0 else "-∞" if v < 0 else "NaN"
+    if abs(v) < 1e-12:
+        return "0"
+    av = abs(v)
+
+    # 科学计数法: 极大值 (≥1e5) 或步长极小时的小值
+    if av >= 1e5 or (step > 0 and step < 0.0001 and 0 < av < 0.001):
+        e = int(math.floor(math.log10(av) + 1e-12))
+        coeff = v / (10 ** e)
+        if step >= 1:       return f"{coeff:.3g}e{e}"
+        elif step >= 0.1:   return f"{coeff:.4g}e{e}"
+        elif step >= 0.01:  return f"{coeff:.5g}e{e}"
+        else:               return f"{coeff:.6g}e{e}"
+
+    # 步长 → 小数位数
+    if step >= 1:           decimals = 0
+    elif step >= 0.1:       decimals = 1
+    elif step >= 0.01:      decimals = 2
+    elif step >= 0.001:     decimals = 3
+    elif step >= 0.0001:    decimals = 4
+    else:                   decimals = 5
+
+    s = f"{v:.{decimals}f}"
+    if "." in s:
+        s = s.rstrip("0").rstrip(".")
+    if s.startswith("-."):
+        s = "-0" + s[1:]
+    if s.startswith("."):
+        s = "0" + s
+    return s
+
+
+def _tick_height(rng: float) -> float:
+    """刻度线半高（数据坐标），约为视口范围的 0.4%。"""
+    return rng * 0.004
+
+
+def _grid_values(lo: float, hi: float, step: float) -> list[float]:
+    """生成网格线 / 刻度位置列表。"""
+    if step <= 0:
+        return []
+    start = math.floor(lo / step) * step
+    vals = []
+    v = start
+    while v <= hi + step * 0.001:
+        if abs(v) < step * 0.001:
+            v = 0.0
+        vals.append(v)
+        v += step
+    return vals
+
 
 def _draw_infinite_line(ax, x1, y1, x2, y2, color, lw, zorder):
     """绘制穿过两点并延伸到视口边界的直线。"""
@@ -864,7 +981,6 @@ def _draw_infinite_line(ax, x1, y1, x2, y2, color, lw, zorder):
     x0, x1v = xlim; y0, y1v = ylim
 
     pts = []
-    # 求直线与四条视口边界的交点
     dx, dy = x2 - x1, y2 - y1
     if abs(dx) < 1e-10:
         pts = [(x1, y0), (x1, y1v)]
@@ -872,64 +988,18 @@ def _draw_infinite_line(ax, x1, y1, x2, y2, color, lw, zorder):
         pts = [(x0, y1), (x1v, y1)]
     else:
         m = dy / dx
-        # 左边界
         yl = y1 + m * (x0 - x1)
         if y0 <= yl <= y1v: pts.append((x0, yl))
-        # 右边界
         yr = y1 + m * (x1v - x1)
         if y0 <= yr <= y1v: pts.append((x1v, yr))
-        # 下边界
         xb = x1 + (y0 - y1) / m
         if x0 <= xb <= x1v and len(pts) < 2: pts.append((xb, y0))
-        # 上边界
         xt = x1 + (y1v - y1) / m
         if x0 <= xt <= x1v and len(pts) < 2: pts.append((xt, y1v))
 
     if len(pts) >= 2:
         ax.plot([pts[0][0], pts[1][0]], [pts[0][1], pts[1][1]],
                 "-", color=color, linewidth=lw, zorder=zorder)
-
-
-def _nice_step(rng: float) -> float:
-    """计算合适的网格/刻度步长。"""
-    if rng <= 0:
-        return 1.0
-    raw = rng / 10.0
-    table = (0.01, 0.02, 0.05, 0.1, 0.2, 0.5,
-             1, 2, 5, 10, 20, 50, 100, 200, 500, 1000)
-    for n in table:
-        if n >= raw:
-            return n
-    return table[-1]
-
-
-def _grid_values(lo: float, hi: float, step: float) -> list[float]:
-    """生成网格线位置列表。"""
-    if step <= 0:
-        return []
-    start = math.floor(lo / step) * step
-    vals = []
-    v = start
-    while v <= hi + step * 0.001:
-        if abs(v) < step * 0.001:
-            v = 0.0  # 避免浮点误差让 0 偏移
-        vals.append(v)
-        v += step
-    return vals
-
-
-def _fmt_tick(v: float, step: float) -> str:
-    """格式化刻度标签。"""
-    if abs(v) < 1e-12:
-        return "0"
-    if step >= 1:
-        return f"{int(v)}"
-    elif step >= 0.1:
-        return f"{v:.1f}".rstrip("0").rstrip(".")
-    elif step >= 0.01:
-        return f"{v:.2f}".rstrip("0").rstrip(".")
-    else:
-        return f"{v:.3f}".rstrip("0").rstrip(".")
 
 
 # ── 几何距离 ──────────────────────────────────────────────
