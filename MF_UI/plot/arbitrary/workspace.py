@@ -120,12 +120,12 @@ class ArbitraryWorkspace(QWidget):
         body = QHBoxLayout()
         body.setSpacing(0); body.setContentsMargins(0, 0, 0, 0)
 
+        # ── 画布（先创建，左侧面板 _build_left_panel 引用 self._canvas）──
+        self._canvas = GeometryCanvas(self)
+
         # ── 左侧面板 ──
         self._left_panel = self._build_left_panel()
         body.addWidget(self._left_panel)
-
-        # ── 右侧画布 ──
-        self._canvas = GeometryCanvas(self)
         body.addWidget(self._canvas, 1)
 
         root.addLayout(body)
