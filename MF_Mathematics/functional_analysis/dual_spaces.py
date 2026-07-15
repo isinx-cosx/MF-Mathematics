@@ -5,7 +5,7 @@
 
 from __future__ import annotations
 
-from typing import Callable, Sequence, Union
+from typing import Sequence, Union
 
 import numpy as np
 

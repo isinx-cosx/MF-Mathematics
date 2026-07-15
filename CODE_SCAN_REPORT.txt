@@ -1,0 +1,161 @@
+═══════════════════════════════════════════════════════════════
+  Multifunctional-Mathematics 代码扫描报告
+  扫描日期: 2026-07-15
+  扫描范围: MF_Mathematics/, MF_UI/, MF_AI/, 根目录
+═══════════════════════════════════════════════════════════════
+
+■ 高优先级 — 应立即清理
+
+1. 空白占位文件（7 个，0 字节，无任何功能）
+   - MF_UI/plot/complex/placeholder.py
+   - MF_UI/plot/vector_field/placeholder.py
+   - MF_UI/plot/arbitrary/placeholder.py
+   - MF_UI/calc/workspace.py
+   - MF_UI/__init__.py
+   - MF_UI/calc/__init__.py
+   - MF_UI/components/__init__.py
+   原因: 占位文件，不会被任何模块导入，纯粹残留。
+
+2. 三个完全相同的 stub step_viewer.py（每个 7 行，class StepViewer(QWidget): pass）
+   - MF_UI/calc/linear_algebra/step_viewer.py
+   - MF_UI/calc/numerical/step_viewer.py
+   - MF_UI/calc/probability/step_viewer.py
+   原因: __init__.py 中 import 已被注释掉，完全死代码。仅 algebra/step_viewer.py 有真实实现。
+
+3. MF_UI/main_window.py:250-267 — _make_placeholder_page() 方法
+   原因: 定义但从未被调用。第 269 行还有不可达的重复 return。
+
+4. MF_UI/main_window.py:9 — 未使用的导入
+   QSplitter, QListWidget, QListWidgetItem 导入但从未引用。
+
+5. MF_Mathematics/temp/ 整个目录
+   - test_ca_integral.py（临时测试，含硬编码绝对路径）
+   - test_remaining.py（同上）
+   - err.txt（空文件）
+   原因: temp 目录名即表明是临时文件。官方测试入口在 tests/test_all.py。
+
+6. linear_transform_demo.py（根目录，434 行）
+   原因: 独立的线性变换演示程序，从未被任何项目模块导入。
+   自带 docstring 注明"可直接移植到 MF_UI/plot/"——说明它从未被移植。
+
+7. MF_AI/client.py 中的未使用导入
+   - 第 10 行: import time — 未被使用
+   - 第 17 行: from MF_AI.models import ChatMessage, ChatRequest, ChatResponse — 未被使用
+
+8. __pycache__ 目录（29 个，约 249 个 .pyc 文件）
+   位置: 所有子包中（MF_Mathematics/ 16 个、MF_UI/ 13 个）
+   原因: 已存在于 .gitignore 但仍需清理已跟踪的 .pyc。
+
+9. Git 已跟踪的 .pyc 文件
+   MF_UI/__pycache__/main_window.cpython-313.pyc
+   原因: __pycache__ 已在 .gitignore 中，但此文件在规则添加前被提交。需 git rm --cached。
+
+───────────────────────────────────────────────────────────────
+
+■ 中优先级 — 重复代码 / 未使用模块
+
+10. _to_sympy() 函数在 15 个文件中完全重复（每处 3 行）
+    文件: algebra/expression.py, algebra/equation.py, algebra/function.py,
+          algebra/inequality.py, calculus/limits.py, calculus/derivatives.py,
+          calculus/derivatives_app.py, calculus/integrals.py,
+          calculus/integrals_app.py, calculus/series.py,
+          real_analysis/sequence_limit.py, real_analysis/function_limit.py,
+          real_analysis/function_series.py, real_analysis/riemann_integral.py,
+          real_analysis/differentiability.py
+    建议: 提取到 core/utils.py 作为共享函数。
+
+11. _to_matrix() 在 4 个文件中完全重复（每处 3 行）
+    文件: linear_algebra/eigen.py, linear_algebra/linear_transforms.py,
+          linear_algebra/linear_systems.py, linear_algebra/quadratic_forms.py
+
+12. _to_vector() 在 3 个文件中几乎相同
+    文件: linear_algebra/linear_transforms.py, linear_algebra/linear_systems.py,
+          linear_algebra/inner_product.py
+
+13. _parse_func() 在 12 个文件中重复
+    文件: harmonic_analysis/fourier_series.py, fourier_transform.py,
+          convolution.py, distributions.py, time_frequency.py, zeta_harmonic.py,
+          measure_theory/lebesgue_integral.py, measurable_functions.py,
+          convergence_theorems.py, product_measure.py,
+          complex_analysis/holomorphic.py, numerical/numerical_integration.py
+
+14. self_test() 发现 + 调用逻辑在 12 个子包的 __init__.py 中完全重复
+    建议: 提取一个 shared_self_test(pkg_name, pkg_path) 到 core/。
+
+15. MF_UI/ 下 3 个从未被导入的完整模块
+    - MF_UI/utils/latex_render.py（195 行）— LaTeX 渲染，与 calc/math_display.py 重复
+    - MF_UI/components/math_input.py（226 行）— Desmos 风格数学输入组件
+    - MF_UI/auth/user_system.py（173 行）— SHA-256 用户认证系统
+    原因: 没有任何文件导入它们，auth/ 目录甚至没有 __init__.py。
+
+16. _sep() 辅助函数在 2 个文件重复
+    - MF_UI/plot/complex/workspace.py:308
+    - MF_UI/plot/arbitrary/workspace.py:434
+
+17. _make_placeholder() 逻辑重复于:
+    - MF_UI/main_window.py:250（_make_placeholder_page）
+    - MF_UI/plot/basic/workspace.py:154（_make_placeholder）
+    两者创建相同的 QFrame + "placeholder_frame" + minHeight 400。
+
+18. 4 个 calc_block.py 中几乎完全相同的 if __name__ == "__main__" 测试块
+    文件: calc/algebra/calc_block.py, calc/probability/calc_block.py,
+          calc/linear_algebra/calc_block.py, calc/numerical/calc_block.py
+
+19. 4 个 calc/*/__init__.py 中完全相同的注释掉的 import
+    #from .step_viewer import StepViewer（在 linear_algebra, numerical, probability 中）
+
+20. MF_Mathematics/tests/__init__.py — run_all_tests() 回归测试仅检测 algebra
+    原因: 专门测试入口已迁移到 test_all.py，此处是未更新的旧代码。
+
+───────────────────────────────────────────────────────────────
+
+■ 低优先级 — 过时文字 / 配置
+
+21. 过时的"功能预留/开发中"文档字符串
+    - MF_UI/plot/arbitrary/__init__.py:2 — "任意做图模式（功能预留）"（已完整实现）
+    - MF_UI/main_window.py:52 — Tooltip 称复数模式为"功能预留"（已实现）
+    - MF_UI/main_window.py:58 — Tooltip 称任意做图为"功能预留"（已实现）
+    - MF_UI/plot/basic/workspace.py:104 — "向量场绘制（功能预留）"（已实现）
+    - MF_UI/calc/math_display.py:311 — "步骤按钮（功能开发中）"
+
+22. MF_AI/models.py — ChatMessage / ChatRequest / ChatResponse
+    原因: 数据完善（含工厂方法、序列化），但外部消费者从未实例化它们。
+    仅内部 client.py 导入了它们但从未使用。要么集成到调用方，要么移除 client.py 中的导入。
+
+23. QSS 中的无效选择器
+    - dark.qss 和 light.qss 中的 #placeholder_frame / #dev_label 选择器
+    原因: 样式化对象是由从未被调用的 _make_placeholder_page() 创建的。
+
+24. MF_UI/main_window.py:9 已导入未使用
+    QSplitter, QListWidget, QListWidgetItem
+
+25. MF_Mathematics/utils/ai_accelerator.py:20 — 未使用的 import time
+    MF_Mathematics/functional_analysis/core_theorems.py:9 — 未使用的 Any, Callable
+    MF_Mathematics/functional_analysis/dual_spaces.py:8 — 未使用的 Callable
+
+26. 工作树的根目录文件未加入 .gitignore
+    usage.json — AI 用量跟踪数据，存在被意外提交的风险。
+
+27. CODE_AUDIT_REPORT.txt（根目录，18KB）
+    原因: 2026-07-15 生成的人工审计，部分发现已过时。仅限一次性参考。
+
+28. .vscode/mcp.json — 空的 MCP 配置文件
+    原因: 无需填充或删除。
+
+───────────────────────────────────────────────────────────────
+统计摘要
+───────────────────────────────────────────────────────────────
+  高优先级问题: 9 项
+  中优先级问题: 11 项
+  低优先级问题: 8 项
+  共计: 28 项
+
+  空文件/占位文件: 7 个
+  __pycache__ 目录: 29 个（约 249 个 .pyc）
+  temp/ 目录残留: 3 个
+  未使用的完整模块: 3 个 (latex_render.py, math_input.py, user_system.py)
+  重复函数: 34 处（分布在 12-15 个文件不等）
+  未使用的导入: 7 处
+  过时注释/docstring: 5 处
+  孤立的独立 demo: 1 个 (linear_transform_demo.py)
+═══════════════════════════════════════════════════════════════

@@ -6,9 +6,8 @@ from PySide6.QtCore import Qt, QSize
 from PySide6.QtGui import QAction, QFont
 from PySide6.QtWidgets import (
     QMainWindow, QToolBar, QStatusBar,
-    QSplitter, QListWidget, QListWidgetItem,
     QStackedWidget, QWidget, QVBoxLayout, QHBoxLayout,
-    QLabel, QApplication, QFrame,QComboBox
+    QLabel, QApplication, QFrame, QComboBox,
 )
 from calc.algebra import Workspace as AlgebraWorkspace
 from calc.linear_algebra import Workspace as LinearAlgebraWorkspace

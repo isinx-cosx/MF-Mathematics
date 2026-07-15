@@ -6,7 +6,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Callable, Sequence, Union
+from typing import Sequence, Union
 
 import numpy as np
 from scipy import linalg
