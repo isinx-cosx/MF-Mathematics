@@ -14,6 +14,7 @@ from MF_UI.plot.basic.function_box import FunctionBox
 from MF_UI.plot.basic.slider_function_box import SliderFunctionBox
 from MF_UI.plot.plot_3d import Plot3D
 from MF_UI.plot.plot_3d.function_box import FunctionBox as FB3D
+from MF_UI.plot.complex.workspace import ComplexWorkspace
 
 
 def _load_plot_colors() -> list[str]:
@@ -117,6 +118,11 @@ class PlotWorkspace(QWidget):
             self._canvas_3d.status_message.connect(self._status.setText)
             root.addWidget(self._canvas_3d, 1)
             self._canvas = None
+        elif self._mode == "complex":
+            self._complex = ComplexWorkspace()
+            self._complex.status_message.connect(self._status.setText)
+            root.addWidget(self._complex, 1)
+            self._canvas = None; self._canvas_3d = None
         else:
             root.addWidget(self._make_placeholder(title, "功能开发中，敬请期待..."), 1)
             self._canvas = None; self._canvas_3d = None
