@@ -191,7 +191,27 @@ class GeometryCanvas(QWidget):
         self._canvas.draw_idle()
 
     def _draw_grid(self) -> None:
-        """绘制网格线 + 刻度标记 + 刻度标签（与普通模式同款样式）。"""
+        """网格线 — 同 drawForeground：遍历步长，画贯穿视口的线。"""
+        ax = self._ax
+        x0, x1 = ax.get_xlim()
+        y0, y1 = ax.get_ylim()
+        step = _calculate_step(max(x1 - x0, y1 - y0))
+
+        gx = math.floor(x0 / step) * step
+        while gx <= x1:
+            ax.axvline(gx, color=self.GRID_COLOR, linewidth=0.5, linestyle="-", zorder=0)
+            gx += step
+        gy = math.floor(y0 / step) * step
+        while gy <= y1:
+            ax.axhline(gy, color=self.GRID_COLOR, linewidth=0.5, linestyle="-", zorder=0)
+            gy += step
+
+    def _draw_axes(self) -> None:
+        """坐标轴 + 刻度 + 标签 — 完整复刻 drawForeground 逐行逻辑。
+
+        与原版唯一区别：QPainter 固定像素 → matplotlib 通过 _dpp 将
+        像素换算为数据坐标，保证缩放下视觉大小不变。
+        """
         ax = self._ax
         x0, x1 = ax.get_xlim()
         y0, y1 = ax.get_ylim()
@@ -200,86 +220,86 @@ class GeometryCanvas(QWidget):
             return
 
         step = _calculate_step(rng)
-        xa_ok = y0 <= 0 <= y1  # X 轴在视野内
-        ya_ok = x0 <= 0 <= x1  # Y 轴在视野内
-
-        # ── 网格线 ──
-        for v in _grid_values(x0, x1, step):
-            ax.axvline(v, color=self.GRID_COLOR, linewidth=0.5, linestyle="-", zorder=0)
-        for v in _grid_values(y0, y1, step):
-            ax.axhline(v, color=self.GRID_COLOR, linewidth=0.5, linestyle="-", zorder=0)
-
-        # ── X 轴刻度（在轴上或边缘）──
-        if xa_ok:
-            base_y = 0.0
-            tick_color = self.TICK_COLOR
-            text_color = self.TEXT_COLOR
-        else:
-            base_y = y0
-            tick_color = self.EDGE_COLOR
-            text_color = self.EDGE_COLOR
-            # 边缘虚线
-            ax.axhline(base_y, color=self.EDGE_COLOR, linewidth=0.8,
-                       linestyle="--", zorder=4)
-
-        for v in _grid_values(x0, x1, step):
-            if abs(v) < step * 0.001:  # 原点跳过（另画 O）
-                continue
-            tick_h = _tick_height(rng)
-            ax.plot([v, v], [base_y - tick_h, base_y + tick_h],
-                    color=tick_color, linewidth=0.8, zorder=6)
-            ax.text(v, base_y + tick_h + _tick_height(rng) * 0.3,
-                    _format_tick(v, step), fontsize=8, color=text_color,
-                    ha="center", va="bottom", zorder=7)
-
-        # ── Y 轴刻度 ──
-        if ya_ok:
-            base_x = 0.0
-            tick_color = self.TICK_COLOR
-            text_color = self.TEXT_COLOR
-        else:
-            base_x = x0
-            tick_color = self.EDGE_COLOR
-            text_color = self.EDGE_COLOR
-            ax.axvline(base_x, color=self.EDGE_COLOR, linewidth=0.8,
-                       linestyle="--", zorder=4)
-
-        for v in _grid_values(y0, y1, step):
-            if abs(v) < step * 0.001:
-                continue
-            tick_h = _tick_height(rng)
-            ax.plot([base_x - tick_h, base_x + tick_h], [v, v],
-                    color=tick_color, linewidth=0.8, zorder=6)
-            ax.text(base_x - tick_h - _tick_height(rng) * 0.3, v,
-                    _format_tick(v, step), fontsize=8, color=text_color,
-                    ha="right", va="center", zorder=7)
-
-    def _draw_axes(self) -> None:
-        """绘制坐标轴（与普通模式同款：2px 粗线 + 原点 O + 轴名 x/y）。"""
-        ax = self._ax
-        x0, x1 = ax.get_xlim()
-        y0, y1 = ax.get_ylim()
+        dpp = self._dpp()          # 1 像素 = 多少数据坐标
+        half = 4 * dpp             # TICK_PX = 4（半高）
+        axis_lw = 2.0 * dpp        # AXIS_PX = 2.0
+        font_size = 9 * dpp * 0.85 # FONT_PX ≈ 9，matplotlib 字号是点，略调
         xa_ok = y0 <= 0 <= y1
         ya_ok = x0 <= 0 <= x1
 
-        # 坐标轴 — 2px 粗线
+        # ── 坐标轴（固定 2px 粗线）──
         if xa_ok:
-            ax.axhline(0, color=self.AXIS_COLOR, linewidth=2.0, zorder=4)
+            ax.axhline(0, color=self.AXIS_COLOR, linewidth=axis_lw, zorder=4)
         if ya_ok:
-            ax.axvline(0, color=self.AXIS_COLOR, linewidth=2.0, zorder=4)
+            ax.axvline(0, color=self.AXIS_COLOR, linewidth=axis_lw, zorder=4)
 
-        # 原点 O
+        # ── 步长像素宽度 & 刻度数值字体 ──
+        fs = max(6, min(12, font_size))
+
+        # ── X 轴刻度 ──
+        sx = math.floor(x0 / step) * step
+        while sx <= x1:
+            if abs(sx) >= step * 0.001:       # 跳过原点位
+                base_y = 0.0 if xa_ok else y0  # 轴离开视野 → 边缘
+                if not xa_ok:
+                    ax.axhline(y0, color=self.EDGE_COLOR, linewidth=0.5,
+                               linestyle="--", zorder=3)
+                ax.plot([sx, sx], [base_y - half, base_y + half],
+                        color=self.TICK_COLOR if xa_ok else self.EDGE_COLOR,
+                        linewidth=0.6, zorder=6)
+                ax.text(sx, base_y + half + 2 * dpp,
+                        _format_tick(sx, step), fontsize=fs,
+                        color=self.TEXT_COLOR if xa_ok else self.EDGE_COLOR,
+                        ha="center", va="top", zorder=7)
+            sx += step
+
+        # ── Y 轴刻度 ──
+        sy = math.floor(y0 / step) * step
+        while sy <= y1:
+            if abs(sy) >= step * 0.001:
+                base_x = 0.0 if ya_ok else x0
+                if not ya_ok:
+                    ax.axvline(x0, color=self.EDGE_COLOR, linewidth=0.5,
+                               linestyle="--", zorder=3)
+                ax.plot([base_x - half, base_x + half], [sy, sy],
+                        color=self.TICK_COLOR if ya_ok else self.EDGE_COLOR,
+                        linewidth=0.6, zorder=6)
+                ax.text(base_x - half - 4 * dpp, sy,
+                        _format_tick(sy, step), fontsize=fs,
+                        color=self.TEXT_COLOR if ya_ok else self.EDGE_COLOR,
+                        ha="right", va="center", zorder=7)
+            sy += step
+
+        # ── 原点 O ──
         if xa_ok and ya_ok:
-            ax.text(0.05, -0.05, "O", fontsize=10, fontweight="bold",
-                    color="#0f172a", ha="left", va="top", zorder=7)
+            ax.text(3 * dpp, 1 * dpp, "O", fontsize=10, fontweight="bold",
+                    color="#0f172a", ha="left", va="bottom", zorder=7)
 
-        # 轴名 x / y（视口右下角 / 左上角）
-        ax.text(x1 - _tick_height(x1 - x0) * 0.5, 0, "x",
-                fontsize=10, fontweight="bold", color=self.AXIS_COLOR,
-                ha="center", va="top" if xa_ok else "bottom", zorder=7)
-        ax.text(0, y1 - _tick_height(y1 - y0) * 0.5, "y",
-                fontsize=10, fontweight="bold", color=self.AXIS_COLOR,
-                ha="left" if ya_ok else "right", va="center", zorder=7)
+        # ── 轴名 ──
+        ax.text(x1 - 18 * dpp, 8 * dpp if xa_ok else -14 * dpp,
+                "x", fontsize=10, fontweight="bold",
+                color=self.AXIS_COLOR, ha="center", va="bottom", zorder=7)
+        ax.text(5 * dpp if ya_ok else -5 * dpp, y1 - 11 * dpp,
+                "y", fontsize=10, fontweight="bold",
+                color=self.AXIS_COLOR, ha="left", va="center", zorder=7)
+
+    def _dpp(self) -> float:
+        """每像素对应的数据坐标量（取 x/y 方向的较大值）。
+
+        等价于 QGraphicsView.resetTransform() 下的像素→场景比例。
+        """
+        try:
+            ax = self._ax
+            bbox = ax.get_window_extent()
+            if bbox is not None and bbox.width > 1 and bbox.height > 1:
+                x0, x1 = ax.get_xlim()
+                y0, y1 = ax.get_ylim()
+                return max((x1 - x0) / bbox.width, (y1 - y0) / bbox.height)
+        except Exception:
+            pass
+        rng = max(self._ax.get_xlim()[1] - self._ax.get_xlim()[0],
+                  self._ax.get_ylim()[1] - self._ax.get_ylim()[0])
+        return rng / 400.0 if rng > 0 else 0.01
 
     def _draw_shapes(self) -> None:
         """渲染所有已完成的图形。"""
@@ -952,11 +972,6 @@ def _format_tick(v: float, step: float = 1.0) -> str:
     if s.startswith("."):
         s = "0" + s
     return s
-
-
-def _tick_height(rng: float) -> float:
-    """刻度线半高（数据坐标），约为视口范围的 0.4%。"""
-    return rng * 0.004
 
 
 def _grid_values(lo: float, hi: float, step: float) -> list[float]:
