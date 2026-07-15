@@ -101,7 +101,7 @@ class PlotWorkspace(QWidget):
         desc_map = {
             "normal": "支持：显式 y=f(x)、隐式 f(x,y)=0、参数滑块",
             "3d": "支持：三维曲面 z=f(x,y)",
-            "vector": "支持：2D/3D 向量场绘制（功能预留）",
+            "vector": "支持：2D/3D 向量场绘制",
         }
         desc_label = QLabel(desc_map.get(self._mode, desc_map["normal"]))
         desc_label.setObjectName("plot_desc_label")
@@ -141,7 +141,7 @@ class PlotWorkspace(QWidget):
             root.addWidget(self._canvas, 1)
             self._canvas_3d = None
         else:
-            root.addWidget(self._make_placeholder(title, "功能开发中，敬请期待..."), 1)
+            root.addWidget(self._make_placeholder(title, "未知绘图模式"), 1)
             self._canvas = None; self._canvas_3d = None
 
         if self._mode == "normal":
