@@ -93,8 +93,12 @@ class BaseCalcBlock(QWidget):
         """返回 {模式名: (module, action)} 映射。"""
         raise NotImplementedError
 
+    def _get_module_name(self) -> str:
+        """返回计算引擎模块名（如 "linear_algebra"）。"""
+        raise NotImplementedError
+
     def on_calc_clicked(self) -> None:
-        """默认分派逻辑 — 子类可覆盖。"""
+        """默认分派逻辑 — 子类可覆盖（algebra 有独特逻辑）。"""
         expr = self.input_box.text().strip()
         if not expr:
             return
@@ -123,6 +127,75 @@ class BaseCalcBlock(QWidget):
             dlg = ResultDialog("错误", self)
             dlg.set_result(MathObject(error=str(e)[:120]))
             dlg.exec()
+
+    # ── 守卫+AI 通用计算流程 ──────────────────────────────────
+
+    def _guarded_calculate(self, expr: str, op: str) -> None:
+        """带三级守卫 + AI 加速 + 翻译的通用计算流程。
+
+        子类（linear_algebra / numerical / probability）在
+        on_calc_clicked 中调用此方法，仅需覆写 _get_module_name()
+        和 _do_dispatch()。
+        """
+        from MF_Mathematics.utils.math_guard import ComplexityGuard, GuardLevel
+        from MF_Mathematics.utils.ai_accelerator import get_accelerator
+        from MF_UI.utils.math_guard_ui import show_guard_dialog, show_quota_exceeded
+        from PySide6.QtWidgets import QApplication
+
+        # ── 数学翻译 ──
+        try:
+            from MF_Mathematics.utils.translator import MathTranslator
+            expr = MathTranslator.human_to_computer(expr)
+        except Exception:
+            pass
+
+        # ── 三级守卫 ──
+        guard_result = ComplexityGuard.check(expr, mode=op)
+
+        if guard_result.level == GuardLevel.REJECT:
+            show_guard_dialog(self, guard_result)
+            return
+
+        if guard_result.level == GuardLevel.BLOCK:
+            choice = show_guard_dialog(self, guard_result)
+            if choice == "ai":
+                ai = get_accelerator()
+                if ai.check_quota("accelerations"):
+                    obj = ai.accelerate(expr, mode=op)
+                    self._last_result = obj
+                    dlg = ResultDialog(f"AI 加速 — {op}", self)
+                    dlg.set_context(expr, op)
+                    dlg.set_result(obj)
+                    dlg.exec()
+                    return
+                else:
+                    show_quota_exceeded(self, "AI 加速")
+                    choice = "cancel"
+            if choice == "cancel":
+                return
+
+        if guard_result.level == GuardLevel.WARN:
+            choice = show_guard_dialog(self, guard_result)
+            if choice == "cancel":
+                return
+
+        # ── 执行计算 ──
+        QApplication.processEvents()
+        obj: MathObject | None = None
+        try:
+            obj = self._do_dispatch(self._get_module_name(), op, expr)
+        except Exception as e:
+            obj = MathObject(error=str(e))
+        QApplication.processEvents()
+
+        if obj is None:
+            obj = MathObject(error="暂不支持此功能")
+
+        self._last_result = obj
+        dlg = ResultDialog(f"计算结果 — {op}", self)
+        dlg.set_context(expr, op)
+        dlg.set_result(obj)
+        dlg.exec()
 
     def _preprocess_expr(self, expr: str) -> str:
         """分派前预处理表达式（子类可覆盖）。"""

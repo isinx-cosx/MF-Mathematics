@@ -1,18 +1,15 @@
 # -*- coding: utf-8 -*-
-"""线性代数计算块 — 通过 calc_engine.calculate_direct 统一调度 + 三级守卫 + AI 加速。"""
+"""线性代数计算块 — 通过 calc_engine.calculate_direct 统一调度。"""
 
 from __future__ import annotations
 
 import MF_Mathematics.linear_algebra  # noqa
-from MF_Mathematics.core.math_object import MathObject
-from MF_Mathematics.utils.math_guard import ComplexityGuard, GuardLevel
-from MF_Mathematics.utils.ai_accelerator import get_accelerator
 from MF_UI.calc.base_calc_block import BaseCalcBlock
 from calc_engine import calculate_direct
 
 
 class CalcBlock(BaseCalcBlock):
-    """线性代数计算块 — 含守卫 + AI 加速。"""
+    """线性代数计算块 — 守卫 + AI 加速继承自 BaseCalcBlock。"""
 
     def get_mode_list(self) -> list[str]:
         return [
@@ -25,71 +22,15 @@ class CalcBlock(BaseCalcBlock):
     def get_action_map(self) -> dict[str, tuple[str, str]]:
         return {}
 
+    def _get_module_name(self) -> str:
+        return "linear_algebra"
+
     def on_calc_clicked(self) -> None:
         expr = self.input_box.text().strip()
         if not expr:
             return
-
         op = self.calc_mode_combo.currentText()
-
-        # ── 数学翻译 ──
-        try:
-            from MF_Mathematics.utils.translator import MathTranslator
-            expr = MathTranslator.human_to_computer(expr)
-        except Exception:
-            pass
-
-        # ── 三级守卫 ──
-        from MF_UI.utils.math_guard_ui import show_guard_dialog, show_quota_exceeded
-        from calc.math_display import ResultDialog
-        from PySide6.QtWidgets import QApplication
-
-        guard_result = ComplexityGuard.check(expr, mode=op)
-
-        if guard_result.level == GuardLevel.REJECT:
-            show_guard_dialog(self, guard_result)
-            return
-
-        if guard_result.level == GuardLevel.BLOCK:
-            choice = show_guard_dialog(self, guard_result)
-            if choice == "ai":
-                ai = get_accelerator()
-                if ai.check_quota("accelerations"):
-                    obj = ai.accelerate(expr, mode=op)
-                    self._last_result = obj
-                    dlg = ResultDialog(f"AI 加速 — {op}", self)
-                    dlg.set_context(expr, op)
-                    dlg.set_result(obj)
-                    dlg.exec()
-                    return
-                else:
-                    show_quota_exceeded(self, "AI 加速")
-                    choice = "cancel"
-            if choice == "cancel":
-                return
-
-        if guard_result.level == GuardLevel.WARN:
-            choice = show_guard_dialog(self, guard_result)
-            if choice == "cancel":
-                return
-
-        # ── 执行计算 ──
-        QApplication.processEvents()
-        obj: MathObject | None = None
-        try:
-            obj = self._do_dispatch("linear_algebra", op, expr)
-        except Exception as e:
-            obj = MathObject(error=str(e))
-        QApplication.processEvents()
-
-        if obj is None:
-            obj = MathObject(error="暂不支持此功能")
-
-        self._last_result = obj
-        dlg = ResultDialog(f"计算结果 — {op}", self)
-        dlg.set_context(expr, op)
-        dlg.set_result(obj)
-        dlg.exec()
+        self._guarded_calculate(expr, op)
 
     def _do_dispatch(self, mod: str, act: str, expr: str):
         """通过 calc_engine 统一调度（智能参数解析）。"""
