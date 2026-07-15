@@ -10,8 +10,8 @@ from PySide6.QtWidgets import (
     QMessageBox, QPushButton, QSpinBox, QVBoxLayout, QWidget,
 )
 
+from MF_UI.plot import mpl_setup  # noqa — 中文字体 + 后端初始化
 import matplotlib
-matplotlib.use("Qt5Agg")
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
 

@@ -15,8 +15,8 @@ from PySide6.QtWidgets import (
     QMessageBox, QPushButton, QSpinBox, QVBoxLayout, QWidget,
 )
 
+from MF_UI.plot import mpl_setup  # noqa — 中文字体 + 后端初始化
 import matplotlib
-matplotlib.use("Qt5Agg")
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
 import matplotlib.colors as mcolors
@@ -228,7 +228,19 @@ class ComplexWorkspace(QWidget):
             z_sym = sp.Symbol("z")
             s = _preprocess_complex(self._func_expr)
             expr = sp.sympify(s)
-            f = sp.lambdify(z_sym, expr, ["numpy","sympy"])
+
+            # 检测特殊函数 — numpy 不支持复参数 zeta/gamma/erf/erfc
+            _SPECIAL = {'zeta', 'gamma', 'erf', 'erfc', 'li', 'Ei', 'Si', 'Ci',
+                        'hyper', 'meijerg', 'besselj', 'bessely', 'besseli', 'besselk'}
+            _expr_str = str(expr)
+            _has_special = any(fn in _expr_str for fn in _SPECIAL)
+
+            if _has_special:
+                f = sp.lambdify(z_sym, expr, "mpmath")
+                _f_vec = np.vectorize(lambda val: complex(f(val)))
+            else:
+                f = sp.lambdify(z_sym, expr, ["numpy", "sympy"])
+                _f_vec = None
         except Exception as e:
             self._show_waiting()
             self.status_message.emit(f"表达式错误: {e}"); return
@@ -239,7 +251,10 @@ class ComplexWorkspace(QWidget):
         Z = X + 1j * Y
 
         try:
-            W = np.asarray(f(Z), dtype=complex)
+            if _f_vec is not None:
+                W = _f_vec(Z)
+            else:
+                W = np.asarray(f(Z), dtype=complex)
         except Exception as e:
             self._show_waiting()
             self.status_message.emit(f"计算错误: {e}"); return
