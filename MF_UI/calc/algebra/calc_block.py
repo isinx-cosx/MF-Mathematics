@@ -14,6 +14,8 @@ from MF_Mathematics.utils.config_manager import config as _cfg
 from MF_UI.calc.base_calc_block import BaseCalcBlock
 from calc_engine import calculate_direct
 
+from PySide6.QtCore import QThread, QTimer, Signal
+
 
 def _show_integral_bounds_dialog(
     parent, expr: str, default_var: str = "x"
@@ -277,7 +279,11 @@ class CalcBlock(BaseCalcBlock):
 
         # ── 极限专项防御 ──
         if op == "极限":
-            import threading
+            # 防止重复启动极限计算
+            if hasattr(self, '_limit_worker') and self._limit_worker is not None:
+                if self._limit_worker.isRunning():
+                    return
+
             parts = [p.strip() for p in expr.split(",")]
             var = parts[1] if len(parts) > 1 else "x"
             point = parts[2] if len(parts) > 2 else "0"
@@ -287,27 +293,61 @@ class CalcBlock(BaseCalcBlock):
                 return
 
             timeout = _cfg.get("math_guard", "limit", "timeout_seconds", default=5)
-            lim_obj: list[MathObject | None] = [None]
 
-            def _run_limit():
-                try:
-                    lim_obj[0] = self._do_calculate(op, expr)
-                except Exception as e:
-                    lim_obj[0] = MathObject(error=str(e))
+            # 使用 QThread 代替 threading.Thread，避免阻塞 UI 线程
+            class _LimitWorker(QThread):
+                result_ready = Signal(object)
 
-            t = threading.Thread(target=_run_limit, daemon=True)
-            t.start()
-            t.join(timeout)
-            if t.is_alive():
-                obj = MathObject(error=f"极限计算超过 {timeout} 秒，建议使用 AI 辅助。")
-            else:
-                obj = lim_obj[0] or MathObject(error="暂不支持此功能")
+                def __init__(self, parent, op, expr):
+                    super().__init__(parent)
+                    self._op = op
+                    self._expr = expr
 
-            self._last_result = obj
-            dlg = ResultDialog(f"计算结果 — {op}", self)
-            dlg.set_context(original_expr, op)
-            dlg.set_result(obj)
-            dlg.exec()
+                def run(self):
+                    try:
+                        obj = self.parent()._do_calculate(self._op, self._expr)
+                    except Exception as e:
+                        obj = MathObject(error=str(e))
+                    if not self.isInterruptionRequested():
+                        self.result_ready.emit(obj)
+
+            worker = _LimitWorker(self, op, expr)
+            worker.setObjectName("LimitWorker")
+            self._limit_worker = worker
+
+            # 超时定时器
+            timeout_timer = QTimer(worker)
+            timeout_timer.setSingleShot(True)
+
+            def _on_timeout():
+                worker.requestInterruption()
+                timeout_obj = MathObject(
+                    error=f"极限计算超过 {timeout} 秒，建议使用 AI 辅助。"
+                )
+                self._last_result = timeout_obj
+                dlg = ResultDialog(f"计算结果 — {op}", self)
+                dlg.set_context(original_expr, op)
+                dlg.set_result(timeout_obj)
+                dlg.exec()
+
+            def _on_result(obj: MathObject):
+                timeout_timer.stop()
+                self._limit_worker = None
+                self._last_result = obj
+                dlg = ResultDialog(f"计算结果 — {op}", self)
+                dlg.set_context(original_expr, op)
+                dlg.set_result(obj)
+                dlg.exec()
+
+            def _on_cleanup():
+                timeout_timer.stop()
+                self._limit_worker = None
+
+            timeout_timer.timeout.connect(_on_timeout)
+            worker.result_ready.connect(_on_result)
+            worker.finished.connect(_on_cleanup)
+            timeout_timer.start(int(timeout * 1000))
+            worker.start()
             return
 
         # ── 执行计算 ──
