@@ -13,6 +13,7 @@ from MF_UI.plot.basic.plot_canvas import PlotCanvas
 from MF_UI.plot.basic.function_box import FunctionBox
 from MF_UI.plot.basic.slider_function_box import SliderFunctionBox
 from MF_UI.plot.plot_3d import Plot3D
+from MF_UI.plot.plot_3d.function_box import FunctionBox as FunctionBox3D
 
 
 def _load_plot_colors() -> list[str]:
@@ -147,12 +148,14 @@ class PlotWorkspace(QWidget):
         if self._mode not in ("normal", "3d"): return
         color = _COLORS[self._color_idx % len(_COLORS)]
         self._color_idx += 1
-        box = FunctionBox(index=self._next_index, color=color, mode=self._mode, parent=self)
+        cls = FunctionBox3D if self._mode == "3d" else FunctionBox
+        box = cls(index=self._next_index, color=color, mode=self._mode, parent=self)
         self._next_index += 1
 
         box.changed.connect(self._on_changed)
         box.removed.connect(self._on_box_removed)
-        box.param_added.connect(self._add_slider_box)
+        if hasattr(box, 'param_added'):
+            box.param_added.connect(self._add_slider_box)
 
         self._insert_widget(box)
         self._sync_global_sliders()
