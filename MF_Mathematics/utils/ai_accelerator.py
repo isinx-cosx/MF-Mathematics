@@ -188,9 +188,9 @@ class AIAccelerator:
         Returns:
             MathObject — 含 result（AI 回复）和 steps（解析的步骤）。
         """
-        if not self._quota.consume("steps"):
+        if not self._has_api_key and not self._quota.consume("steps"):
             return MathObject(
-                error="今日步骤生成次数已用完（5 次/天），请明日再试。"
+                error="今日步骤生成次数已用完（5 次/天），请明日再试或配置 API Key。"
             )
 
         system = (
@@ -204,7 +204,8 @@ class AIAccelerator:
 
         result_text = self._call_ai(prompt, system, role=role)
         if result_text is None:
-            self._quota.refund("steps")
+            if not self._has_api_key:
+                self._quota.refund("steps")
             return MathObject(
                 error="AI 调用失败。请检查 API Key 配置或网络连接。"
             )
@@ -228,9 +229,9 @@ class AIAccelerator:
         Returns:
             MathObject — 含 AI 计算结果。
         """
-        if not self._quota.consume("accelerations"):
+        if not self._has_api_key and not self._quota.consume("accelerations"):
             return MathObject(
-                error="今日 AI 加速次数已用完（3 次/天），请明日再试。"
+                error="今日 AI 加速次数已用完（3 次/天），请明日再试或配置 API Key。"
             )
 
         system = (
@@ -242,7 +243,8 @@ class AIAccelerator:
 
         result_text = self._call_ai(prompt, system, role=role)
         if result_text is None:
-            self._quota.refund("accelerations")
+            if not self._has_api_key:
+                self._quota.refund("accelerations")
             return MathObject(
                 error="AI 加速调用失败。请检查 API Key 配置或网络连接。"
             )
