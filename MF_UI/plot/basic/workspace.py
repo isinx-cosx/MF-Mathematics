@@ -17,7 +17,7 @@ from PySide6.QtWidgets import (
     QScrollArea, QSlider, QVBoxLayout, QWidget,
 )
 from MF_UI.plot.basic.plot_canvas import PlotCanvas
-from MF_UI.plot.basic.function_box import BaseFunctionBox, FunctionBox2D
+from MF_UI.plot.basic.function_box import BaseFunctionBox, FunctionBox2D, FunctionBox3D
 from MF_UI.plot.plot_3d import Plot3D
 
 
@@ -169,7 +169,9 @@ class PlotWorkspace(QWidget):
             self._canvas = None
             self._canvas_3d = None
 
-        self._add()
+        # 2D 模式初始添加一个函数框，3D 模式不添加
+        if self._mode == "normal":
+            self._add()
 
     @property
     def canvas(self):
@@ -316,9 +318,11 @@ class PlotWorkspace(QWidget):
             self._on_box_removed(b)
 
     def _add(self) -> None:
+        if self._mode != "normal":
+            return  # 仅 2D 模式支持添加函数框
         color = _COLORS[self._color_idx % len(_COLORS)]
         self._color_idx += 1
-        cls = FunctionBox2D  # 3D 模式复用普通函数框
+        cls = FunctionBox2D
         box = cls(
             index=self._next_index, color=color, mode=self._mode, parent=self)
         self._next_index += 1
