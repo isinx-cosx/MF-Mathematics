@@ -269,16 +269,11 @@ class PlotWorkspace(QWidget):
             for b in self._boxes:
                 if not isinstance(b, FB3D): continue
                 if not b.is_visible or not b.exprs: continue
-                if b.form == 0:
-                    # 显式 z=f(x,y)
+                if len(b.exprs) == 1:
                     self._canvas_3d.add_surface(b.exprs[0], color=b.color)
-                elif b.form == 1:
-                    # 隐式 f(x,y,z)=0 — 曲面上的零等值面
-                    self._canvas_3d.add_surface(b.exprs[0], color=b.color)
-                elif b.form in (2, 3):
-                    # 参数曲面/曲线 — 暂以第一个表达式为主
-                    if b.exprs:
-                        self._canvas_3d.add_surface(b.exprs[0], color=b.color)
+                elif len(b.exprs) == 3:
+                    for s in b.exprs:
+                        self._canvas_3d.add_surface(s, color=b.color)
             return
 
         # 2D
