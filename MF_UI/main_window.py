@@ -171,7 +171,7 @@ class MainWindow(QMainWindow):
         act_history = toolbar.addAction("历史")
         act_history.triggered.connect(lambda: self._status_msg("历史记录"))
         act_AI = toolbar.addAction("AI")
-        act_AI.triggered.connect(lambda: self._status_msg("AI"))
+        act_AI.triggered.connect(self._open_ai_dialog)
         act_settings = toolbar.addAction("设置")
         act_settings.triggered.connect(lambda: self._status_msg("设置"))
 
@@ -279,6 +279,12 @@ class MainWindow(QMainWindow):
 
     def _status_msg(self, msg: str):
         self._status_bar.showMessage(msg, 5000)
+
+    def _open_ai_dialog(self):
+        """打开 AI 助手对话框。"""
+        from MF_UI.ai_dialog import AIDialog
+        dlg = AIDialog(self)
+        dlg.exec()
 
     # ---------- 主题切换 ----------
     def _switch_to_light(self):
