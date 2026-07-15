@@ -123,6 +123,33 @@ class FunctionBox(QWidget):
         raw = self._input.text().strip()
         return f"{self._index}. {raw}" if raw else f"{self._index}."
 
+    # ── 兼容 workspace 信号连接的 stub 属性 ──────────────────
+    @property
+    def detected_params(self) -> set[str]:
+        return set()
+
+    @property
+    def is_derivative(self) -> bool:
+        return False
+
+    @property
+    def referenced_function(self) -> str:
+        return ""
+
+    @property
+    def independent_var(self) -> str:
+        return "x"
+
+    @property
+    def expr_type(self) -> str:
+        return "explicit"
+
+    def resolve_derivative(self, definitions: dict) -> str:
+        return self.expr
+
+    def refresh_param_hint(self, existing: set[str]) -> None:
+        pass
+
     def _on_text(self, _txt: str) -> None:
         raw = self._input.text().strip()
         if not raw:
