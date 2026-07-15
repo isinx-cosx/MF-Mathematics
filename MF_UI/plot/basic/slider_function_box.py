@@ -80,7 +80,7 @@ class SliderFunctionBox(QWidget):
         row.addWidget(self._vis_btn)
 
         # 参数名 + 值
-        self._val_btn = QPushButton(f"{self._param_name} = 1.00")
+        self._val_btn = QPushButton(f"{self._param_name} = 1.0")
         self._val_btn.setFixedWidth(72)
         self._val_btn.setStyleSheet(
             "QPushButton { font-size: 11px; color: #475569; background: #f1f5f9;"
@@ -91,7 +91,7 @@ class SliderFunctionBox(QWidget):
         row.addWidget(self._val_btn)
 
         # 行内编辑器（默认隐藏）
-        self._edit = QLineEdit("1.00")
+        self._edit = QLineEdit("1.0")
         self._edit.setFixedWidth(72)
         self._edit.setStyleSheet(
             "QLineEdit { font-size: 11px; padding: 1px 4px;"
@@ -150,12 +150,12 @@ class SliderFunctionBox(QWidget):
     def _on_slider(self, val: int) -> None:
         if self._updating: return
         v = val / 100.0
-        self._val_btn.setText(f"{self._param_name} = {v:.2f}")
+        self._val_btn.setText(f"{self._param_name} = {v:.1f}")
         self.valueChanged.emit(self._param_name, v)
 
     def _start_edit(self) -> None:
         self._val_btn.hide()
-        self._edit.setText(f"{self.value:.2f}")
+        self._edit.setText(f"{self.value:.1f}")
         self._edit.show()
         self._edit.setFocus()
         self._edit.selectAll()
@@ -170,6 +170,6 @@ class SliderFunctionBox(QWidget):
         self._updating = True
         self._slider.setValue(int(round(v * 100)))
         self._updating = False
-        self._val_btn.setText(f"{self._param_name} = {v:.2f}")
+        self._val_btn.setText(f"{self._param_name} = {v:.1f}")
         self._val_btn.show()
         self.valueChanged.emit(self._param_name, v)
