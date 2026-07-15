@@ -7,14 +7,12 @@
 from __future__ import annotations
 
 import json
-import time
 from typing import Generator
 
 from MF_AI.config import Config
 from MF_AI.exceptions import (
     AIError, AIAuthError, AIRateLimitError, AITimeoutError, AIResponseError,
 )
-from MF_AI.models import ChatMessage, ChatRequest, ChatResponse
 
 # ── 后端检测 ──────────────────────────────────────────────
 _OPENAI_AVAILABLE = False
