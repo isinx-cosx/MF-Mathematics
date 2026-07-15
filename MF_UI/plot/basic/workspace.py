@@ -12,8 +12,7 @@ from PySide6.QtWidgets import (
 from MF_UI.plot.basic.plot_canvas import PlotCanvas
 from MF_UI.plot.basic.function_box import FunctionBox
 from MF_UI.plot.basic.slider_function_box import SliderFunctionBox
-from MF_UI.plot.plot_3d import Plot3D
-from MF_UI.plot.plot_3d.function_box import FunctionBox as FB3D
+from MF_UI.plot.plot_3d import Plot3DWorkspace
 from MF_UI.plot.complex.workspace import ComplexWorkspace
 from MF_UI.plot.vector_field.workspace import VectorFieldWorkspace
 from MF_UI.plot.arbitrary.workspace import ArbitraryWorkspace
@@ -67,6 +66,12 @@ class PlotWorkspace(QWidget):
         self._status.setStyleSheet("font-size:11px;"); self._status.setWordWrap(True)
 
         # ── 复数 / 向量场 / 任意做图：独立全屏工作区 ──
+        if self._mode == "3d":
+            self._workspace_3d = Plot3DWorkspace()
+            self._workspace_3d.status_message.connect(self._status.setText)
+            root.addWidget(self._workspace_3d, 1)
+            self._canvas = None; self._canvas_3d = None
+            return
         if self._mode == "complex":
             self._complex = ComplexWorkspace()
             self._complex.status_message.connect(self._status.setText)
@@ -135,16 +140,11 @@ class PlotWorkspace(QWidget):
             self._canvas.status_message.connect(self._status.setText)
             root.addWidget(self._canvas, 1)
             self._canvas_3d = None
-        elif self._mode == "3d":
-            self._canvas_3d = Plot3D()
-            self._canvas_3d.status_message.connect(self._status.setText)
-            root.addWidget(self._canvas_3d, 1)
-            self._canvas = None
         else:
             root.addWidget(self._make_placeholder(title, "功能开发中，敬请期待..."), 1)
             self._canvas = None; self._canvas_3d = None
 
-        if self._mode in ("normal", "3d"):
+        if self._mode == "normal":
             self._add_function_box()
 
     @property
@@ -168,10 +168,10 @@ class PlotWorkspace(QWidget):
     # ── 函数框管理 ──────────────────────────────────────────
 
     def _add_function_box(self) -> None:
-        if self._mode not in ("normal", "3d"): return
+        if self._mode != "normal": return
         color = _COLORS[self._color_idx % len(_COLORS)]
         self._color_idx += 1
-        cls = FB3D if self._mode == "3d" else FunctionBox
+        cls = FunctionBox
         box = cls(index=self._next_index, color=color, mode=self._mode, parent=self)
         self._next_index += 1
 
@@ -285,19 +285,6 @@ class PlotWorkspace(QWidget):
             if m:
                 name = m.group(1)
                 if name not in _KNOWN: definitions[name] = b.expr
-
-        # 3D
-        if self._mode == "3d" and self._canvas_3d is not None:
-            self._canvas_3d.clear_surfaces()
-            for b in self._boxes:
-                if not isinstance(b, FB3D): continue
-                if not b.is_visible or not b.exprs: continue
-                if len(b.exprs) == 1:
-                    self._canvas_3d.add_surface(b.exprs[0], color=b.color)
-                elif len(b.exprs) == 3:
-                    for s in b.exprs:
-                        self._canvas_3d.add_surface(s, color=b.color)
-            return
 
         # 2D
         if self._canvas is None: return

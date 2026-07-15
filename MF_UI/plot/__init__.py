@@ -11,14 +11,14 @@
 
 from .basic import PlotCanvas, FunctionBox, PlotWorkspace
 from .basic.slider_function_box import SliderFunctionBox
-from .plot_3d import Plot3D, Plot3DCanvas
+from .plot_3d import Plot3D, Plot3DCanvas, Plot3DWorkspace
 from .complex import ComplexWorkspace
 from .vector_field import VectorFieldWorkspace
 from .arbitrary import ArbitraryWorkspace
 
 __all__ = [
     "PlotCanvas", "FunctionBox", "PlotWorkspace",
-    "SliderFunctionBox", "Plot3D", "Plot3DCanvas",
+    "SliderFunctionBox", "Plot3D", "Plot3DCanvas", "Plot3DWorkspace",
     "ComplexWorkspace", "VectorFieldWorkspace",
     "ArbitraryWorkspace",
 ]
