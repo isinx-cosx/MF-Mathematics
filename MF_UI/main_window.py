@@ -3,11 +3,11 @@ import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from PySide6.QtCore import Qt, QSize
-from PySide6.QtGui import QAction, QFont, QKeySequence, QShortcut
+from PySide6.QtGui import QAction, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QMainWindow, QToolBar, QStatusBar,
     QStackedWidget, QWidget, QVBoxLayout, QHBoxLayout,
-    QLabel, QApplication, QFrame, QComboBox, QDialog, QMessageBox,
+    QLabel, QApplication, QComboBox, QDialog, QMessageBox,
     QPushButton, QLineEdit,
 )
 from calc.algebra import Workspace as AlgebraWorkspace
@@ -313,31 +313,6 @@ class MainWindow(QMainWindow):
     def _build_keyboard_panel(self):
         from MF_UI.math_keyboard import KeyboardPanel
         self.keyboard_panel = KeyboardPanel(self)
-
-    # ================================================================
-    #  右侧堆叠区域（已合并到 _build_central_area）
-    # ================================================================
-
-    def _make_placeholder_page(self, title: str, desc: str) -> QWidget:
-        page = QWidget()
-        layout = QVBoxLayout(page)
-        layout.setContentsMargins(32, 32, 32, 32)
-        layout.setSpacing(16)
-
-        placeholder_frame = QFrame()
-        placeholder_frame.setObjectName("placeholder_frame")
-        placeholder_frame.setFrameStyle(QFrame.NoFrame)
-        placeholder_frame.setMinimumHeight(400)
-        frame_layout = QVBoxLayout(placeholder_frame)
-        frame_layout.setAlignment(Qt.AlignCenter)
-        dev_label = QLabel("功能开发中")
-        dev_label.setObjectName("dev_label")
-        dev_label.setAlignment(Qt.AlignCenter)
-        frame_layout.addWidget(dev_label)
-        layout.addWidget(placeholder_frame, stretch=1)
-        return page
-
-        return page
 
     # ---------- 状态栏 ----------
     def _build_status_bar(self):

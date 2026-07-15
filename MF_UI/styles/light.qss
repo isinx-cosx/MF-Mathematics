@@ -385,17 +385,6 @@ QScrollArea {
     font-size: 13px;
     background: transparent;
 }
-#placeholder_frame {
-    background-color: #f8fafc;
-    border: 2px dashed #cbd5e1;
-    border-radius: 12px;
-}
-#dev_label {
-    color: #94a3b8;
-    font-size: 18px;
-    background: transparent;
-}
-
 /* ---- 绘图区滑块控件 ---- */
 #slider_edit {
     border: 1px solid #d1d5db; border-radius: 3px;
