@@ -48,35 +48,9 @@ _KNOWN_IDS = {
 _CONSTANTS = {sp.E, sp.pi, sp.Symbol("e")}
 
 # ── 样式 ────────────────────────────────────────────────────
-_CARD_STYLE = """
-    FunctionBox {
-        background: #f9fafb; border: 1px solid #e2e8f0;
-        border-radius: 8px; padding: 8px; margin: 2px 0;
-    }
-"""
-_INPUT_STYLE = """
-    QLineEdit {
-        border: 1px solid #d1d5db; border-radius: 4px;
-        padding: 3px 8px; font-size: 13px; background: #fff; color: #1e293b;
-    }
-    QLineEdit:focus { border-color: #3b82f6; }
-"""
-_DEL_STYLE = """
-    QPushButton {
-        background: transparent; border: none; color: #94a3b8;
-        font-size: 18px; font-weight: bold; padding: 0 4px;
-    }
-    QPushButton:hover { color: #ef4444; background: #fee2e2; border-radius: 4px; }
-"""
-_VIS_STYLE = "QPushButton { background: transparent; border: none; font-size: 14px; padding: 0 2px; }"
+# 注意：FunctionBox、QLineEdit、#func_del_btn 的样式
+# 已由 light.qss / dark.qss 统一管理，此处仅保留功能性/动态样式
 _WARN_STYLE = "QPushButton { background: transparent; border: none; font-size: 13px; padding: 0 2px; color: #d97706; }"
-_ADD_PARAM_STYLE = """
-    QPushButton {
-        background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 3px;
-        padding: 1px 6px; font-size: 11px; color: #475569;
-    }
-    QPushButton:hover { background: #e2e8f0; border-color: #94a3b8; }
-"""
 
 
 @dataclass
@@ -129,7 +103,7 @@ class FunctionBox(QWidget):
     # ── UI ───────────────────────────────────────────────────
 
     def _build_ui(self) -> None:
-        self.setStyleSheet(_CARD_STYLE)
+        # 卡片样式由 QSS FunctionBox 选择器管理
         shadow = QGraphicsDropShadowEffect(self)
         shadow.setBlurRadius(8); shadow.setOffset(0, 1)
         shadow.setColor(QColor(0, 0, 0, 30))
@@ -143,7 +117,7 @@ class FunctionBox(QWidget):
 
         self._index_lbl = QLabel(f"{self._index}.")
         self._index_lbl.setFixedWidth(22)
-        self._index_lbl.setStyleSheet("font-weight:600; font-size:13px; color:#1e293b;")
+        self._index_lbl.setObjectName("func_index_lbl")
         row.addWidget(self._index_lbl)
 
         self._vis_btn = QPushButton("")
@@ -162,13 +136,13 @@ class FunctionBox(QWidget):
         self._input = QLineEdit()
         self._input.setFixedHeight(28)
         self._input.setPlaceholderText("f(x)=")
-        self._input.setStyleSheet(_INPUT_STYLE)
+        # 输入框样式由 QSS FunctionBox QLineEdit 选择器管理
         self._input.textChanged.connect(self._on_text)
         row.addWidget(self._input, 1)
 
         self._del_btn = QPushButton("×")
         self._del_btn.setFixedSize(25, 25)
-        self._del_btn.setStyleSheet(_DEL_STYLE)
+        self._del_btn.setObjectName("func_del_btn")
         self._del_btn.setToolTip("删除")
         self._del_btn.clicked.connect(lambda: self.removed.emit(self))
         row.addWidget(self._del_btn)
@@ -379,11 +353,11 @@ class FunctionBox(QWidget):
         if not params: return
 
         lbl = QLabel("添加滑块:")
-        lbl.setStyleSheet("font-size: 11px; color: #94a3b8;")
+        lbl.setObjectName("param_add_lbl")
         self._param_btns.addWidget(lbl)
         for name in sorted(params):
             btn = QPushButton(name)
-            btn.setStyleSheet(_ADD_PARAM_STYLE)
+            btn.setObjectName("param_add_btn")
             btn.setCursor(Qt.CursorShape.PointingHandCursor)
             btn.clicked.connect(lambda _, n=name: self._on_add_param(n))
             self._param_btns.addWidget(btn)

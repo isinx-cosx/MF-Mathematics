@@ -15,19 +15,8 @@ from PySide6.QtWidgets import (
     QLineEdit, QPushButton, QSlider, QVBoxLayout, QWidget,
 )
 
-_CARD_STYLE = """
-    SliderFunctionBox {
-        background: #f9fafb; border: 1px solid #e2e8f0;
-        border-radius: 8px; padding: 8px; margin: 2px 0;
-    }
-"""
-_DEL_STYLE = """
-    QPushButton {
-        background: transparent; border: none; color: #94a3b8;
-        font-size: 18px; font-weight: bold; padding: 0 4px;
-    }
-    QPushButton:hover { color: #ef4444; background: #fee2e2; border-radius: 4px; }
-"""
+# 卡片样式由 QSS SliderFunctionBox 选择器管理
+# 删除按钮样式由 QSS #slider_del_btn 管理
 _VIS_STYLE = "QPushButton { background: transparent; border: none; font-size: 14px; padding: 0 2px; }"
 
 
@@ -54,7 +43,7 @@ class SliderFunctionBox(QWidget):
         self._build_ui()
 
     def _build_ui(self) -> None:
-        self.setStyleSheet(_CARD_STYLE)
+        # 卡片样式由 QSS SliderFunctionBox 选择器管理
         shadow = QGraphicsDropShadowEffect(self)
         shadow.setBlurRadius(8); shadow.setOffset(0, 1)
         shadow.setColor(QColor(0, 0, 0, 30))
@@ -68,7 +57,7 @@ class SliderFunctionBox(QWidget):
         # 序号
         idx_lbl = QLabel(f"{self._index}.")
         idx_lbl.setFixedWidth(22)
-        idx_lbl.setStyleSheet("font-weight:600; font-size:13px; color:#1e293b;")
+        idx_lbl.setObjectName("slider_index_lbl")
         row.addWidget(idx_lbl)
 
         # 显示按钮
@@ -82,10 +71,7 @@ class SliderFunctionBox(QWidget):
         # 参数名 + 值
         self._val_btn = QPushButton(f"{self._param_name} = 1.0")
         self._val_btn.setFixedWidth(72)
-        self._val_btn.setStyleSheet(
-            "QPushButton { font-size: 11px; color: #475569; background: #f1f5f9;"
-            " border: 1px solid #d1d5db; border-radius: 3px; padding: 1px 4px; }"
-            "QPushButton:hover { background: #e2e8f0; }")
+        self._val_btn.setObjectName("slider_val_btn")
         self._val_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self._val_btn.clicked.connect(self._start_edit)
         row.addWidget(self._val_btn)
@@ -93,9 +79,7 @@ class SliderFunctionBox(QWidget):
         # 行内编辑器（默认隐藏）
         self._edit = QLineEdit("1.0")
         self._edit.setFixedWidth(72)
-        self._edit.setStyleSheet(
-            "QLineEdit { font-size: 11px; padding: 1px 4px;"
-            " border: 1px solid #3b82f6; border-radius: 3px; }")
+        self._edit.setObjectName("slider_edit")
         self._edit.hide()
         self._edit.editingFinished.connect(self._finish_edit)
         row.addWidget(self._edit)
@@ -110,7 +94,7 @@ class SliderFunctionBox(QWidget):
         # 删除
         del_btn = QPushButton("×")
         del_btn.setFixedSize(25, 25)
-        del_btn.setStyleSheet(_DEL_STYLE)
+        del_btn.setObjectName("slider_del_btn")
         del_btn.setToolTip("删除滑块")
         del_btn.clicked.connect(lambda: self.removed.emit(self))
         row.addWidget(del_btn)

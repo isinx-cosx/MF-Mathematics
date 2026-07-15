@@ -293,6 +293,33 @@ FunctionBox QLineEdit:focus {
     spacing: 4px;
 }
 
+/* 函数框序号标签 */
+#func_index_lbl {
+    font-weight: 600;
+    font-size: 13px;
+    color: #cdd6f4;
+}
+
+/* 参数滑块标签 */
+#param_add_lbl {
+    font-size: 11px;
+    color: #6c7086;
+}
+
+/* 参数添加按钮 */
+#param_add_btn {
+    background: #313244;
+    border: 1px solid #45475a;
+    border-radius: 3px;
+    padding: 1px 6px;
+    font-size: 11px;
+    color: #a6adc8;
+}
+#param_add_btn:hover {
+    background: #45475a;
+    border-color: #585b70;
+}
+
 /* ============================================
    滚动条 — 全局 + 计算区 + 绘图区
    ============================================ */
@@ -392,6 +419,27 @@ QScrollArea {
     background: transparent;
 }
 /* ---- 绘图区滑块控件 ---- */
+SliderFunctionBox {
+    background-color: #252540;
+    border: 1px solid #313244;
+    border-radius: 8px;
+    padding: 8px;
+    margin: 2px 0;
+}
+#slider_index_lbl {
+    font-weight: 600;
+    font-size: 13px;
+    color: #cdd6f4;
+}
+#slider_val_btn {
+    font-size: 11px;
+    color: #a6adc8;
+    background: #313244;
+    border: 1px solid #45475a;
+    border-radius: 3px;
+    padding: 1px 4px;
+}
+#slider_val_btn:hover { background: #45475a; }
 #slider_edit {
     border: 1px solid #45475a; border-radius: 3px;
     padding: 1px 4px; font-size: 11px; background: #1e1e2e; color: #cdd6f4; width: 52px;
