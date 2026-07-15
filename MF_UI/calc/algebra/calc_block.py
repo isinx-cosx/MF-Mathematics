@@ -514,37 +514,92 @@ class CalcBlock(BaseCalcBlock):
         if op == "常微分方程":
             try:
                 import sympy as _sp
-                # 解析 dy/dx = expr 或 f'(x) = expr 或直接 dsolve
+                import re as _re
+
+                # 1. 分离左右
                 if "=" in expr:
                     lhs, rhs = expr.split("=", 1)
                     lhs = lhs.strip(); rhs = rhs.strip()
                 else:
-                    rhs = expr; lhs = "f(x)"
-                # 构建 sympy 函数
-                x = _sp.Symbol("x")
-                f = _sp.Function("f")(x)
-                # 尝试识别 lhs 中的函数名
-                import re as _re
-                func_match = _re.match(r"([a-zA-Z]+)\(x\)", lhs)
-                if func_match:
-                    fname = func_match.group(1)
-                    f = _sp.Function(fname)(x)
-                # 将 rhs 中的 f(x) 替换
-                rhs_sym = _sp.sympify(rhs.replace("f(x)", "f").replace(f"{fname}(x)" if func_match else "f(x)", "f"))
-                eq = _sp.Eq(f.diff(x), rhs_sym) if func_match else _sp.Eq(_sp.Function("f")(x).diff(x), rhs_sym)
+                    rhs = expr; lhs = "y'"
+
+                # 2. 识别自变量（默认 x）
+                x_sym = _sp.Symbol("x")
+
+                # 3. 识别 lhs 中的函数名和导数阶数
+                # 支持: y', y'', y''', dy/dx, d2y/dx2, f'(x)
+                fname = "y"
+                order = 1
+                var = "x"
+
+                # y''' / y'' / y'
+                m_deriv = _re.match(r"^([a-zA-Z]+)('+)$", lhs)
+                # dy/dx 或 d2y/dx2
+                m_leibniz = _re.match(r"^d(\d*)([a-zA-Z]+)/d([a-zA-Z]+)\^?\d*$", lhs)
+                # f(x)' 或 f(x)''
+                m_func = _re.match(r"^([a-zA-Z]+)\(([a-zA-Z]+)\)('+)$", lhs)
+
+                if m_deriv:
+                    fname = m_deriv.group(1)
+                    order = len(m_deriv.group(2))
+                elif m_leibniz:
+                    order = int(m_leibniz.group(1)) if m_leibniz.group(1) else 1
+                    fname = m_leibniz.group(2)
+                    var = m_leibniz.group(3)
+                elif m_func:
+                    fname = m_func.group(1)
+                    var = m_func.group(2)
+                    order = len(m_func.group(3))
+
+                x_sym = _sp.Symbol(var)
+                f = _sp.Function(fname)(x_sym)
+
+                # 4. 构建导数项
+                if order == 1:
+                    deriv = f.diff(x_sym)
+                else:
+                    deriv = f.diff(x_sym, order)
+
+                # 5. 解析 rhs — 将函数名替换为 sympy Function 引用
+                #    例如 rhs="y/x" → y 是 Function("y")(x)
+                rhs_clean = rhs
+                # 先替换 f(x) 形式
+                rhs_clean = _re.sub(rf'\b{fname}\s*\(\s*{var}\s*\)', f'{fname}_func', rhs_clean)
+                if not rhs_clean:
+                    rhs_clean = rhs
+                try:
+                    # 建立局部变量映射
+                    local_dict = {fname: f, var: x_sym,
+                                  "sin": _sp.sin, "cos": _sp.cos, "tan": _sp.tan,
+                                  "exp": _sp.exp, "log": _sp.log, "sqrt": _sp.sqrt,
+                                  "pi": _sp.pi, "E": _sp.E, "oo": _sp.oo}
+                    rhs_sym = _sp.sympify(rhs, locals=local_dict)
+                except Exception:
+                    # 回退：直接 sympify
+                    rhs_sym = _sp.sympify(rhs)
+
+                eq = _sp.Eq(deriv, rhs_sym)
                 sol = _sp.dsolve(eq)
-                result = _sp.simplify(sol)
-                return MathObject(result=str(result),
-                    steps=[f"微分方程: {eq}", f"通解: {result}"],
-                    meaning=f"常微分方程的通解为 {result}")
+                result = _sp.simplify(sol.rhs) if hasattr(sol, 'rhs') else sol
+
+                return MathObject(
+                    result=str(sol),
+                    steps=[
+                        f"微分方程: {eq}",
+                        f"类型: {order} 阶常微分方程",
+                        f"通解: {sol}",
+                    ],
+                    meaning=f"常微分方程 {eq} 的通解为 {sol}",
+                )
             except Exception as e:
-                return MathObject(error=f"ODE 求解失败: {e}\n格式: dy/dx = 表达式 或 f(x) = 表达式")
+                return MathObject(
+                    error=f"ODE 求解失败: {e}\n"
+                          f"支持格式: y'=f(x,y), y''+y=0, dy/dx=f(x,y), f(x)'=expr")
         if op == "偏微分方程":
             try:
                 import sympy as _sp
                 x, y = _sp.symbols("x y")
                 f = _sp.Function("f")(x, y)
-                # 尝试 pdsolve（可能不支持所有类型）
                 if "=" in expr:
                     lhs, rhs = expr.split("=", 1)
                     eq = _sp.Eq(_sp.sympify(lhs.strip()), _sp.sympify(rhs.strip()))
@@ -553,7 +608,6 @@ class CalcBlock(BaseCalcBlock):
                 try:
                     sol = _sp.pdsolve(eq)
                 except Exception:
-                    # 回退：返回特征线分析
                     return MathObject(
                         result="PDE 解析求解暂不支持此类型",
                         steps=[f"PDE: {eq}", "请使用数值方法或 AI 辅助求解"],
