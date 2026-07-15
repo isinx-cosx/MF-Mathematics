@@ -121,7 +121,8 @@ class FunctionBox(QWidget):
         self._valid_expr = ""
         self._error = ""
         self._visible = True
-        self._added_params: set[str] = set()  # 已添加滑块的参数
+        self._added_params: set[str] = set()       # 本框已请求的滑块
+        self._existing_global: set[str] = set()   # 全局已存在的滑块
 
         self._build_ui()
 
@@ -374,7 +375,7 @@ class FunctionBox(QWidget):
             if item.widget(): item.widget().deleteLater()
 
         if self._error or not self._valid_expr: return
-        params = self.detected_params - self._added_params
+        params = self.detected_params - self._added_params - self._existing_global
         if not params: return
 
         lbl = QLabel("添加滑块:")
@@ -387,6 +388,11 @@ class FunctionBox(QWidget):
             btn.clicked.connect(lambda _, n=name: self._on_add_param(n))
             self._param_btns.addWidget(btn)
         self._param_btns.addStretch()
+
+    def set_existing_sliders(self, names: set[str]) -> None:
+        """更新全局已有滑块列表，刷新添加按钮。"""
+        self._existing_global = names
+        self._update_param_buttons()
 
     def _on_add_param(self, name: str) -> None:
         self._added_params.add(name)

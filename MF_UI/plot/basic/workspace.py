@@ -155,6 +155,14 @@ class PlotWorkspace(QWidget):
         box.param_added.connect(self._add_slider_box)
 
         self._insert_widget(box)
+        self._sync_global_sliders()
+
+    def _sync_global_sliders(self) -> None:
+        """通知所有函数框当前全局已有的滑块名称。"""
+        names = set(self._sliders.keys())
+        for b in self._boxes:
+            if isinstance(b, FunctionBox):
+                b.set_existing_sliders(names)
 
     def _add_slider_box(self, param_name: str) -> None:
         if param_name in self._sliders: return
@@ -168,6 +176,7 @@ class PlotWorkspace(QWidget):
         self._sliders[param_name] = sb
 
         self._insert_widget(sb)
+        self._sync_global_sliders()
 
     def _insert_widget(self, w: QWidget) -> None:
         idx = self._list_layout.indexOf(self._btn_add)
@@ -204,6 +213,7 @@ class PlotWorkspace(QWidget):
             if isinstance(b, FunctionBox):
                 b.mark_param_removed(name)
         self._remove_widget(sb)
+        self._sync_global_sliders()
         self._rebuild_curves()
 
     def _remove_widget(self, w: QWidget) -> None:
