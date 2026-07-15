@@ -291,19 +291,24 @@ class FunctionBox(QWidget):
 
         # ── 预处理：隐式乘法 → sympy 兼容 ──
         def _fix_adjacent_letters(s: str) -> str:
-            """在相邻字母变量间插入 *。"""
+            """在相邻字母变量间插入 *（bx→b*x, a(x)→a*(x)）。"""
             _KNOWN_F = {"sin","cos","tan","cot","sec","csc","sinh","cosh","tanh","coth",
                         "arcsin","arccos","arctan","asin","acos","atan",
-                        "ln","log","sqrt","exp","abs","exp","pi","E","Pi"}
-            def _insert_mul(m: re.Match) -> str:
-                pre = m.group(1)
-                return m.group(0) if pre in _KNOWN_F else pre + "*("
-            s = re.sub(r"([a-zA-Z]+)\(", _insert_mul, s)
-            # 不含括号的表达式：拆分连续字母（bx+c → b*x+c）
-            if "(" not in s:
-                s = re.sub(r"([a-zA-Z])([a-zA-Z])",
-                           lambda m: m.group(0) if m.group(0) in _KNOWN_F
-                           else m.group(1) + "*" + m.group(2), s)
+                        "ln","log","sqrt","exp","abs","pi","E","Pi"}
+            # 1. 非函数名后跟 ( → 插入 *
+            s = re.sub(r"([a-zA-Z]+)\(",
+                       lambda m: m.group(0) if m.group(1) in _KNOWN_F else m.group(1) + "*(", s)
+            # 2. 已知函数名 → \x00N 标记保护（不含字母，不会被 split）
+            _markers: dict[str, str] = {}
+            for i, fn in enumerate(sorted(_KNOWN_F, key=len, reverse=True)):
+                marker = f"\x00{i}\x00"
+                _markers[marker] = fn
+                s = s.replace(fn, marker)
+            # 3. 剩余相邻字母间插入 *
+            s = re.sub(r"([a-zA-Z])([a-zA-Z])", r"\1*\2", s)
+            # 4. 恢复函数名
+            for marker, fn in _markers.items():
+                s = s.replace(marker, fn)
             return s
 
         if self._expr_type == "implicit":
