@@ -75,6 +75,9 @@ _DEL_STYLE = """
 _VIS_STYLE = """
     QPushButton { background: transparent; border: none; font-size: 14px; padding: 0 2px; }
 """
+_WARN_STYLE = """
+    QPushButton { background: transparent; border: none; font-size: 13px; padding: 0 2px; color: #d97706; }
+"""
 _ERR_STYLE = "color: #dc2626; font-size: 11px; padding: 0 4px;"
 
 
@@ -116,6 +119,8 @@ class FunctionBox(QWidget):
         self._independent_var = self._default_var
         self._expr_type = "explicit"
         self._valid_expr = ""
+        self._error = ""           # 错误信息（空=无错误）
+        self._visible = True       # 可见状态（独立于错误）
         self._updating = False
         self._params: dict[str, tuple[QSlider, QLineEdit]] = {}
 
@@ -183,7 +188,7 @@ class FunctionBox(QWidget):
 
     @property
     def is_visible(self) -> bool:
-        return self._vis_btn.text() == "●"
+        return self._visible
 
     @property
     def color(self) -> str:
@@ -248,13 +253,26 @@ class FunctionBox(QWidget):
 
     # ── 可见性切换 ───────────────────────────────────────────
 
-    def _toggle_visibility(self) -> None:
-        if self._vis_btn.text() == "●":
-            self._vis_btn.setText("○")
-            self._vis_btn.setStyleSheet(_VIS_STYLE + "color:#94a3b8;")
-        else:
+    def _update_vis_button(self) -> None:
+        """根据 _error / _visible 刷新显示按钮。"""
+        if self._error:
+            self._vis_btn.setText("⚠")
+            self._vis_btn.setStyleSheet(_WARN_STYLE)
+            self._vis_btn.setToolTip(self._error)
+        elif self._visible:
             self._vis_btn.setText("●")
             self._vis_btn.setStyleSheet(_VIS_STYLE + f"color:{self._color};")
+            self._vis_btn.setToolTip("隐藏")
+        else:
+            self._vis_btn.setText("○")
+            self._vis_btn.setStyleSheet(_VIS_STYLE + "color:#94a3b8;")
+            self._vis_btn.setToolTip("显示")
+
+    def _toggle_visibility(self) -> None:
+        if self._error:
+            return  # 有错误时不允许切换
+        self._visible = not self._visible
+        self._update_vis_button()
         self.changed.emit()
 
     # ── 输入处理 ─────────────────────────────────────────────
@@ -266,14 +284,16 @@ class FunctionBox(QWidget):
 
         if not raw:
             self._error_label.hide(); self._valid_expr = ""
+            self._error = ""; self._update_vis_button()
             self._clear_sliders(); self.changed.emit(); return
 
         # 分类
         classification = self._classify(raw)
         self._expr_type = classification["type"]
         if self._expr_type == "error":
-            self._error_label.setText(classification.get("message", "无法识别"))
-            self._error_label.show()
+            msg = classification.get("message", "无法识别")
+            self._error_label.setText(msg); self._error_label.show()
+            self._error = msg; self._update_vis_button()
             self._valid_expr = ""; self._clear_sliders(); return
 
         # 获取表达式
@@ -306,11 +326,15 @@ class FunctionBox(QWidget):
         try:
             sp.sympify(self._valid_expr)
             self._error_label.hide()
+            self._error = ""
         except Exception as exc:
             self._error_label.setText(f"解析错误: {exc}")
             self._error_label.show()
+            self._error = f"解析错误: {str(exc)[:20]}"
+            self._update_vis_button()
             self._valid_expr = ""; self._clear_sliders(); return
 
+        self._update_vis_button()
         # 参数滑块
         self._rebuild_sliders()
         self.changed.emit()
