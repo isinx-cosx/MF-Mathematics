@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
-"""复数模式工作区 — 复变函数可视化。
+"""复数模式工作区 — 复变函数可视化（侧边栏 + 画布）。
 
-支持三种绘制模式: 相位图 / 3D 模长曲面 / 向量场式。
-非实时重绘: 修改参数后需点击"重绘"按钮。
+支持: 相位图 / 3D 模长曲面 / 向量场式
+特殊函数: zeta(z), gamma(z), erf(z)...
+数学输入: e^z, sinz, |z|...
 """
 
 from __future__ import annotations
@@ -21,15 +22,49 @@ from matplotlib.figure import Figure
 import matplotlib.colors as mcolors
 
 
+def _preprocess_complex(s: str) -> str:
+    """自然数学输入 → sympy 兼容格式。"""
+    import re
+    # e^ → exp(（e^z → exp(z), e^(...) → exp(...)）
+    s = re.sub(r"\be\^\((.+)\)", r"exp(\1)", s)
+    s = re.sub(r"\be\^(\w+)", r"exp(\1)", s)
+    s = s.replace("^", "**")
+    # 函数别名
+    for a, c in [("ln","log"),("arcsin","asin"),("arccos","acos"),
+                 ("arctan","atan"),("sen","sin"),("tg","tan")]:
+        s = re.sub(rf"\b{a}\b", c, s)
+    # 已知函数名保护
+    KF = {"sin","cos","tan","cot","sec","csc","sinh","cosh","tanh","coth",
+          "asin","acos","atan","arcsin","arccos","arctan",
+          "ln","log","sqrt","exp","abs","gamma","zeta","erf","erfc",
+          "pi","E","I","oo","z"}
+    mk = {}
+    for i, fn in enumerate(sorted(KF, key=len, reverse=True)):
+        m = f"\x00{i}\x00"; mk[m] = fn; s = s.replace(fn, m)
+    # 隐式乘法
+    s = re.sub(r"(\d)\s*\(", r"\1*(", s)
+    s = re.sub(r"\)\s*\(", ")*(", s)
+    s = re.sub(r"\)([a-zA-Z])", r")*\1", s)
+    s = re.sub(r"([a-zA-Z])\s*\(", r"\1*(", s)
+    s = re.sub(r"([a-zA-Z])\s+([a-zA-Z])", r"\1*\2", s)
+    s = re.sub(r"([a-zA-Z])([a-zA-Z])", r"\1*\2", s)
+    for m, fn in mk.items(): s = s.replace(m, fn)
+    s = re.sub(r"(\d)([a-zA-Z])", r"\1*\2", s)
+    # func+letter → func(letter)（sinz → sin(z)）
+    F = "sin|cos|tan|cot|sec|csc|sinh|cosh|tanh|coth|arcsin|arccos|arctan|asin|acos|atan|ln|log|sqrt|exp|abs|gamma|zeta|erf"
+    s = re.sub(rf"\b({F})([a-zA-Z])", r"\1(\2)", s)
+    return s
+
+
 class ComplexWorkspace(QWidget):
-    """复数模式工作区。"""
+    """复数模式工作区 — 左侧控制面板 + 右侧画布。"""
 
     status_message = Signal(str)
 
     def __init__(self, parent: QWidget | None = None):
         super().__init__(parent)
         self._func_expr = ""
-        self._mode = 0           # 0=相位图 1=3D模长 2=向量场
+        self._mode = 0
         self._x_min, self._x_max = -5.0, 5.0
         self._y_min, self._y_max = -5.0, 5.0
         self._resolution = 200
@@ -37,28 +72,30 @@ class ComplexWorkspace(QWidget):
         self._build_ui()
         self._show_waiting()
 
-    # ── UI ───────────────────────────────────────────────────
-
     def _build_ui(self) -> None:
-        root = QVBoxLayout(self)
-        root.setSpacing(8); root.setContentsMargins(12, 12, 12, 12)
+        root = QHBoxLayout(self)
+        root.setSpacing(0); root.setContentsMargins(0, 0, 0, 0)
 
-        # ── 标题 ──
-        title = QLabel("复数模式 — 复变函数可视化")
-        title.setStyleSheet("font-size:16px;font-weight:600;color:#0f172a;")
-        root.addWidget(title)
+        # ── 左侧面板 (280px) ──
+        left = QWidget(); left.setFixedWidth(280)
+        left.setStyleSheet("background:#f8fafc;border-right:1px solid #e2e8f0;")
+        ll = QVBoxLayout(left); ll.setSpacing(8)
+        ll.setContentsMargins(12, 12, 12, 12)
 
-        # ── 函数输入行 ──
-        fr = QHBoxLayout(); fr.setSpacing(6)
-        fr.addWidget(QLabel("f(z) ="))
+        t = QLabel("复数模式")
+        t.setStyleSheet("font-size:16px;font-weight:600;color:#0f172a;")
+        ll.addWidget(t)
+
+        # 函数输入
+        ll.addWidget(QLabel("f(z) ="))
         self._input = QLineEdit()
-        self._input.setPlaceholderText("z**2, sin(z), exp(z)...")
+        self._input.setPlaceholderText("e^z, sin(z), zeta(z), gamma(z)...")
         self._input.setStyleSheet(
             "QLineEdit{border:1px solid #d1d5db;border-radius:4px;"
             "padding:6px 10px;font-size:14px;background:#fff;}"
             "QLineEdit:focus{border-color:#3b82f6;}")
         self._input.returnPressed.connect(self._apply)
-        fr.addWidget(self._input, 1)
+        ll.addWidget(self._input)
 
         btn_apply = QPushButton("应用")
         btn_apply.setStyleSheet(
@@ -66,162 +103,135 @@ class ComplexWorkspace(QWidget):
             "border-radius:4px;padding:6px 16px;font-size:13px;font-weight:500;}"
             "QPushButton:hover{background:#2563eb;}")
         btn_apply.clicked.connect(self._apply)
-        fr.addWidget(btn_apply)
-        root.addLayout(fr)
+        ll.addWidget(btn_apply)
 
-        # ── 模式选择 ──
-        mr = QHBoxLayout(); mr.setSpacing(4)
-        mr.addWidget(QLabel("模式:"))
+        # 分隔
+        ll.addWidget(_sep())
+
+        # 模式选择
+        ll.addWidget(QLabel("绘制模式"))
         self._btn_phase = QPushButton("相位图")
-        self._btn_3d = QPushButton("3D 模长")
-        self._btn_vec = QPushButton("向量场")
+        self._btn_3d = QPushButton("3D 模长曲面")
+        self._btn_vec = QPushButton("向量场式")
         for b, i in [(self._btn_phase,0),(self._btn_3d,1),(self._btn_vec,2)]:
             b.setCheckable(True); b.setChecked(i==0)
             b.setStyleSheet(self._mode_btn_style(i==0))
             b.clicked.connect(lambda _, idx=i: self._set_mode(idx))
-            mr.addWidget(b)
-        mr.addStretch()
-        root.addLayout(mr)
+            ll.addWidget(b)
 
-        # ── 范围 + 分辨率 + 重绘 ──
-        pr = QHBoxLayout(); pr.setSpacing(8)
+        ll.addWidget(_sep())
 
-        pr.addWidget(QLabel("x:"))
-        self._xmin = QDoubleSpinBox(); self._xmin.setRange(-1000,1000)
-        self._xmin.setValue(-5); self._xmin.setDecimals(1)
-        self._xmin.setStyleSheet("QDoubleSpinBox{width:60px;}")
-        pr.addWidget(self._xmin)
-        pr.addWidget(QLabel("~"))
-        self._xmax = QDoubleSpinBox(); self._xmax.setRange(-1000,1000)
-        self._xmax.setValue(5); self._xmax.setDecimals(1)
-        pr.addWidget(self._xmax)
+        # 范围
+        ll.addWidget(QLabel("绘图范围"))
+        for lbl, attr0, attr1 in [("x","_x_min","_x_max"),("y","_y_min","_y_max")]:
+            r = QHBoxLayout(); r.setSpacing(4)
+            r.addWidget(QLabel(f"{lbl}:"))
+            s0 = QDoubleSpinBox(); s0.setRange(-1000,1000); s0.setValue(-5)
+            s0.setDecimals(1); s0.valueChanged.connect(lambda v,a=attr0: setattr(self,a,v))
+            r.addWidget(s0)
+            r.addWidget(QLabel("~"))
+            s1 = QDoubleSpinBox(); s1.setRange(-1000,1000); s1.setValue(5)
+            s1.setDecimals(1); s1.valueChanged.connect(lambda v,a=attr1: setattr(self,a,v))
+            r.addWidget(s1); ll.addLayout(r)
 
-        pr.addWidget(QLabel("  y:"))
-        self._ymin = QDoubleSpinBox(); self._ymin.setRange(-1000,1000)
-        self._ymin.setValue(-5); self._ymin.setDecimals(1)
-        pr.addWidget(self._ymin)
-        pr.addWidget(QLabel("~"))
-        self._ymax = QDoubleSpinBox(); self._ymax.setRange(-1000,1000)
-        self._ymax.setValue(5); self._ymax.setDecimals(1)
-        pr.addWidget(self._ymax)
-
-        pr.addWidget(QLabel("  分辨率:"))
+        # 分辨率
+        rr = QHBoxLayout(); rr.setSpacing(4)
+        rr.addWidget(QLabel("分辨率:"))
         self._res = QSpinBox(); self._res.setRange(50,1000)
-        self._res.setValue(200); self._res.setSuffix("px")
-        pr.addWidget(self._res)
+        self._res.setValue(200); self._res.setSuffix("px"); rr.addWidget(self._res)
+        rr.addStretch(); ll.addLayout(rr)
 
+        # 重绘
         self._btn_redraw = QPushButton("重绘")
         self._btn_redraw.setStyleSheet(
             "QPushButton{background:#10b981;color:#fff;border:none;"
-            "border-radius:4px;padding:6px 20px;font-size:13px;font-weight:500;}"
+            "border-radius:4px;padding:8px 20px;font-size:14px;font-weight:500;}"
             "QPushButton:hover{background:#059669;}")
         self._btn_redraw.clicked.connect(self._redraw)
-        pr.addWidget(self._btn_redraw)
-        pr.addStretch()
-        root.addLayout(pr)
+        ll.addWidget(self._btn_redraw)
 
-        # ── 画布区 ──
+        ll.addStretch()
+        root.addWidget(left)
+
+        # ── 右侧画布 ──
+        right = QWidget()
+        rl = QVBoxLayout(right); rl.setContentsMargins(0,0,0,0)
         self._fig = Figure(facecolor="#f8fafc")
         self._canvas = FigureCanvasQTAgg(self._fig)
         self._canvas.setMinimumHeight(400)
-        root.addWidget(self._canvas, 1)
+        rl.addWidget(self._canvas)
 
-        # 默认隐藏 canvas，显示等待提示
         self._waiting_label = QLabel("等待输入函数")
         self._waiting_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._waiting_label.setStyleSheet(
-            "font-size:18px;color:#94a3b8;background:transparent;")
-        root.addWidget(self._waiting_label)
+        self._waiting_label.setStyleSheet("font-size:18px;color:#94a3b8;background:transparent;")
+        rl.addWidget(self._waiting_label)
         self._canvas.hide()
+        root.addWidget(right, 1)
 
     def _mode_btn_style(self, active: bool) -> str:
         if active:
             return ("QPushButton{background:#3b82f6;color:#fff;border:none;"
-                    "border-radius:4px;padding:4px 12px;font-size:12px;font-weight:500;}")
+                    "border-radius:4px;padding:6px 12px;font-size:12px;font-weight:500;"
+                    "text-align:left;}")
         return ("QPushButton{background:#f1f5f9;color:#475569;border:1px solid #d1d5db;"
-                "border-radius:4px;padding:4px 12px;font-size:12px;}")
+                "border-radius:4px;padding:6px 12px;font-size:12px;text-align:left;}")
 
     def _set_mode(self, idx: int) -> None:
         self._mode = idx
         for b, i in [(self._btn_phase,0),(self._btn_3d,1),(self._btn_vec,2)]:
             b.setStyleSheet(self._mode_btn_style(i==idx))
 
-    # ── 应用 / 重绘 ──────────────────────────────────────────
-
     def _apply(self) -> None:
         raw = self._input.text().strip()
         if not raw:
-            self._func_expr = ""
-            self._show_waiting()
-            self.status_message.emit("就绪")
-            return
-
-        # 测试表达式是否有效
+            self._func_expr = ""; self._show_waiting()
+            self.status_message.emit("就绪"); return
         try:
             import sympy as sp
-            z_sym = sp.Symbol("z")
-            sp.sympify(raw.replace("I","1j").replace("i","1j"))
+            s = _preprocess_complex(raw)
+            sp.sympify(s)
         except Exception:
-            self._func_expr = ""
-            self._show_waiting()
-            self.status_message.emit("表达式无效")
-            return
-
+            self._func_expr = ""; self._show_waiting()
+            self.status_message.emit("表达式无效"); return
         self._func_expr = raw
-        self._hide_waiting()
-        self._redraw()
+        self._hide_waiting(); self._redraw()
 
     def _redraw(self) -> None:
-        if not self._func_expr:
-            self._show_waiting(); return
-
-        x_min = self._xmin.value(); x_max = self._xmax.value()
-        y_min = self._ymin.value(); y_max = self._ymax.value()
+        if not self._func_expr: self._show_waiting(); return
+        x0, x1 = self._x_min, self._x_max
+        y0, y1 = self._y_min, self._y_max
         res = self._res.value()
-
-        # 范围过大警告
-        rng = max(x_max - x_min, y_max - y_min)
+        rng = max(x1-x0, y1-y0)
         if rng > 100:
             r = QMessageBox.warning(self, "范围过大",
-                f"绘图范围 {rng:.0f}×{rng:.0f} 过大，可能导致卡顿。是否继续？",
-                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+                f"绘图范围 {rng:.0f} 过大，可能导致卡顿。继续？",
+                QMessageBox.StandardButton.Yes|QMessageBox.StandardButton.No)
             if r != QMessageBox.StandardButton.Yes: return
-
-        # 分辨率过高警告
         if res > 600:
             r = QMessageBox.warning(self, "分辨率过高",
-                f"分辨率 {res}×{res} 可能导致卡顿。是否继续？",
-                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+                f"分辨率 {res} 可能导致卡顿。继续？",
+                QMessageBox.StandardButton.Yes|QMessageBox.StandardButton.No)
             if r != QMessageBox.StandardButton.Yes: return
-
         self._hide_waiting()
-        self._compute_and_draw(x_min, x_max, y_min, y_max, res)
+        self._compute_and_draw(x0, x1, y0, y1, res)
 
-    # ── 状态切换 ─────────────────────────────────────────────
+    def _show_waiting(self):
+        self._fig.clear(); self._canvas.draw_idle()
+        self._canvas.hide(); self._waiting_label.show()
 
-    def _show_waiting(self) -> None:
-        self._fig.clear()
-        self._canvas.draw_idle()
-        self._canvas.hide()
-        self._waiting_label.show()
-
-    def _hide_waiting(self) -> None:
-        self._waiting_label.hide()
-        self._canvas.show()
-
-    # ── 计算与绘制 ───────────────────────────────────────────
+    def _hide_waiting(self):
+        self._waiting_label.hide(); self._canvas.show()
 
     def _compute_and_draw(self, x0, x1, y0, y1, res):
         try:
             import sympy as sp
             z_sym = sp.Symbol("z")
-            raw = self._func_expr.replace("I","1j").replace("i","1j")
-            expr = sp.sympify(raw)
-            f = sp.lambdify(z_sym, expr, "numpy")
+            s = _preprocess_complex(self._func_expr)
+            expr = sp.sympify(s)
+            f = sp.lambdify(z_sym, expr, ["numpy","sympy"])
         except Exception as e:
             self._show_waiting()
-            self.status_message.emit(f"表达式错误: {e}")
-            return
+            self.status_message.emit(f"表达式错误: {e}"); return
 
         xs = np.linspace(x0, x1, res)
         ys = np.linspace(y0, y1, res)
@@ -229,36 +239,25 @@ class ComplexWorkspace(QWidget):
         Z = X + 1j * Y
 
         try:
-            W = f(Z)
+            W = np.asarray(f(Z), dtype=complex)
         except Exception as e:
             self._show_waiting()
-            self.status_message.emit(f"计算错误: {e}")
-            return
+            self.status_message.emit(f"计算错误: {e}"); return
 
         W = np.nan_to_num(W, nan=0.0, posinf=0.0, neginf=0.0)
-        mag = np.abs(W)
-        arg = np.angle(W)
+        mag = np.abs(W); arg = np.angle(W)
 
         self._fig.clear()
-
-        if self._mode == 0:
-            self._draw_phase(X, Y, arg, mag)
-        elif self._mode == 1:
-            self._draw_3d_surface(X, Y, mag)
-        elif self._mode == 2:
-            self._draw_vector(X, Y, mag, arg)
-
+        if self._mode == 0: self._draw_phase(X, Y, arg, mag)
+        elif self._mode == 1: self._draw_3d_surface(X, Y, mag)
+        elif self._mode == 2: self._draw_vector(X, Y, mag, arg)
         self._canvas.draw_idle()
         self.status_message.emit(
-            f"已绘制: {self._func_expr} | {['相位图','3D模长','向量场'][self._mode]} "
-            f"| 范围[{x0:.0f},{x1:.0f}]×[{y0:.0f},{y1:.0f}] | {res}×{res}")
-
-    # ── 相位图 ───────────────────────────────────────────────
+            f"已绘制: {self._func_expr} | {['相位图','3D模长','向量场'][self._mode]}")
 
     def _draw_phase(self, X, Y, arg, mag):
         ax = self._fig.add_subplot(111)
-        H = (arg + np.pi) / (2 * np.pi)  # 0~1
-        # HSV: H=辐角, S=1, V=亮度随模长变化
+        H = (arg + np.pi) / (2 * np.pi)
         S = np.ones_like(H)
         V = np.clip(mag / (mag.max() + 1e-10), 0.3, 1.0)
         HSV = np.stack([H, S, V], axis=-1)
@@ -267,32 +266,31 @@ class ComplexWorkspace(QWidget):
         ax.set_xlabel("Re(z)"); ax.set_ylabel("Im(z)")
         ax.set_title(f"相位图: {self._func_expr}")
 
-    # ── 3D 模长曲面 ──────────────────────────────────────────
-
     def _draw_3d_surface(self, X, Y, mag):
         ax = self._fig.add_subplot(111, projection="3d")
-        ax.plot_surface(X, Y, mag, cmap="viridis", linewidth=0,
+        mag_clipped = np.clip(mag, 0, np.percentile(mag, 99))
+        ax.plot_surface(X, Y, mag_clipped, cmap="viridis", linewidth=0,
                         antialiased=True, alpha=0.9)
         ax.set_xlabel("Re(z)"); ax.set_ylabel("Im(z)"); ax.set_zlabel("|f(z)|")
         ax.set_title(f"模长曲面: {self._func_expr}")
         ax.view_init(elev=30, azim=-60)
 
-    # ── 向量场式 ─────────────────────────────────────────────
-
     def _draw_vector(self, X, Y, mag, arg):
         ax = self._fig.add_subplot(111)
-        # 降采样以避免箭头过密
         skip = max(1, len(X) // 40)
         Xs = X[::skip, ::skip]; Ys = Y[::skip, ::skip]
         mag_s = mag[::skip, ::skip]; arg_s = arg[::skip, ::skip]
-
-        U = mag_s * np.cos(arg_s)
-        V = mag_s * np.sin(arg_s)
+        U = mag_s * np.cos(arg_s); V = mag_s * np.sin(arg_s)
         colors = (arg_s + np.pi) / (2 * np.pi)
-
         ax.quiver(Xs, Ys, U, V, colors, cmap="hsv", alpha=0.8,
                   scale=mag_s.max() * 2 if mag_s.max() > 0 else 1,
                   width=0.002)
         ax.set_xlabel("Re(z)"); ax.set_ylabel("Im(z)")
         ax.set_aspect("equal")
         ax.set_title(f"向量场: {self._func_expr}")
+
+
+def _sep() -> QFrame:
+    s = QFrame(); s.setFixedHeight(1)
+    s.setStyleSheet("background:#e2e8f0;border:none;")
+    return s
