@@ -100,10 +100,10 @@ class SliderFunctionBox(QWidget):
         self._edit.editingFinished.connect(self._finish_edit)
         row.addWidget(self._edit)
 
-        # 滑块
+        # 滑块（步长 0.1, 范围 -5~5）
         self._slider = QSlider(Qt.Orientation.Horizontal)
-        self._slider.setRange(-1000, 1000)
-        self._slider.setValue(100)
+        self._slider.setRange(-50, 50)
+        self._slider.setValue(10)  # default 1.0
         self._slider.valueChanged.connect(self._on_slider)
         row.addWidget(self._slider, 1)
 
@@ -129,7 +129,7 @@ class SliderFunctionBox(QWidget):
 
     @property
     def value(self) -> float:
-        return self._slider.value() / 100.0
+        return self._slider.value() / 10.0
 
     @property
     def color(self) -> str:
@@ -149,7 +149,7 @@ class SliderFunctionBox(QWidget):
 
     def _on_slider(self, val: int) -> None:
         if self._updating: return
-        v = val / 100.0
+        v = val / 10.0
         self._val_btn.setText(f"{self._param_name} = {v:.1f}")
         self.valueChanged.emit(self._param_name, v)
 
@@ -164,11 +164,11 @@ class SliderFunctionBox(QWidget):
         self._edit.hide()
         try:
             v = float(self._edit.text())
-            v = max(-10.0, min(10.0, v))
+            v = max(-5.0, min(5.0, v))
         except ValueError:
             v = self.value
         self._updating = True
-        self._slider.setValue(int(round(v * 100)))
+        self._slider.setValue(int(round(v * 10)))
         self._updating = False
         self._val_btn.setText(f"{self._param_name} = {v:.1f}")
         self._val_btn.show()
