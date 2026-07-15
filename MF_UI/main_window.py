@@ -243,8 +243,8 @@ class MainWindow(QMainWindow):
         self._stacked_widget.addWidget(PlotWorkspace("3D 模式 — 三维曲面绘图"))
         self._stacked_widget.addWidget(PlotWorkspace("复数模式 — 复平面域着色绘图"))
         self._stacked_widget.addWidget(PlotWorkspace("向量场模式 — 向量场绘图"))
-        # ── index 8: 任意做图（占位）──
-        self._stacked_widget.addWidget(self._make_placeholder_page("任意做图", "手动画圆、线段、直线等自由几何对象（功能预留）"))
+        # ── index 8: 任意做图 ──
+        self._stacked_widget.addWidget(PlotWorkspace("任意做图 — 自由几何对象绘制"))
         return self._stacked_widget
 
     def _make_placeholder_page(self, title: str, desc: str) -> QWidget:

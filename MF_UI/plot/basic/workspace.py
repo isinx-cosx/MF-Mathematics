@@ -15,6 +15,8 @@ from MF_UI.plot.basic.slider_function_box import SliderFunctionBox
 from MF_UI.plot.plot_3d import Plot3D
 from MF_UI.plot.plot_3d.function_box import FunctionBox as FB3D
 from MF_UI.plot.complex.workspace import ComplexWorkspace
+from MF_UI.plot.vector_field.workspace import VectorFieldWorkspace
+from MF_UI.plot.arbitrary.workspace import ArbitraryWorkspace
 
 
 def _load_plot_colors() -> list[str]:
@@ -64,11 +66,23 @@ class PlotWorkspace(QWidget):
         self._status = QLabel("就绪")
         self._status.setStyleSheet("font-size:11px;"); self._status.setWordWrap(True)
 
-        # ── 复数模式：整个区域使用 ComplexWorkspace ──
+        # ── 复数 / 向量场 / 任意做图：独立全屏工作区 ──
         if self._mode == "complex":
             self._complex = ComplexWorkspace()
             self._complex.status_message.connect(self._status.setText)
             root.addWidget(self._complex, 1)
+            self._canvas = None; self._canvas_3d = None
+            return
+        if self._mode == "vector":
+            self._vector = VectorFieldWorkspace()
+            self._vector.status_message.connect(self._status.setText)
+            root.addWidget(self._vector, 1)
+            self._canvas = None; self._canvas_3d = None
+            return
+        if self._mode == "arbitrary":
+            self._arbitrary = ArbitraryWorkspace()
+            self._arbitrary.status_message.connect(self._status.setText)
+            root.addWidget(self._arbitrary, 1)
             self._canvas = None; self._canvas_3d = None
             return
 
