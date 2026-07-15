@@ -408,6 +408,18 @@ QScrollArea {
     border: none;
 }
 
+/* ---- 键盘切换按钮 ---- */
+#kb_toggle_btn {
+    background: #3b82f6;
+    color: #ffffff;
+    border: none;
+    border-radius: 6px;
+    padding: 6px 14px;
+    font-size: 12px;
+    font-weight: 500;
+}
+#kb_toggle_btn:hover { background: #2563eb; }
+
 /* ---- 占位页面 ---- */
 #page_title {
     color: #cdd6f4;

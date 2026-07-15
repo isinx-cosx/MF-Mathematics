@@ -36,7 +36,7 @@ class VectorFieldWorkspace(QWidget):
         root.setContentsMargins(12, 12, 12, 12)
 
         t = QLabel("向量场模式 — F(x, y) = (P, Q)")
-        t.setStyleSheet("font-size:16px;font-weight:600;color:#0f172a;")
+        t.setObjectName("plot_title_label")
         root.addWidget(t)
 
         # 分量输入

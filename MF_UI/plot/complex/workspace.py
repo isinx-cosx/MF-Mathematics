@@ -78,12 +78,12 @@ class ComplexWorkspace(QWidget):
 
         # ── 左侧面板 (280px) ──
         left = QWidget(); left.setFixedWidth(280)
-        left.setStyleSheet("background:#f8fafc;border-right:1px solid #e2e8f0;")
+        left.setObjectName("plot_left_panel")
         ll = QVBoxLayout(left); ll.setSpacing(8)
         ll.setContentsMargins(12, 12, 12, 12)
 
         t = QLabel("复数模式")
-        t.setStyleSheet("font-size:16px;font-weight:600;color:#0f172a;")
+        t.setObjectName("plot_title_label")
         ll.addWidget(t)
 
         # 函数输入

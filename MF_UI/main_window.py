@@ -284,13 +284,7 @@ class MainWindow(QMainWindow):
         self._kb_toggle_btn = QPushButton("⌨️ 键盘")
         self._kb_toggle_btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self._kb_toggle_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self._kb_toggle_btn.setStyleSheet(
-            "QPushButton {"
-            " background: #3b82f6; color: #ffffff; border: none;"
-            " border-radius: 6px; padding: 6px 14px;"
-            " font-size: 12px; font-weight: 500;"
-            "}"
-            "QPushButton:hover { background: #2563eb; }")
+        self._kb_toggle_btn.setObjectName("kb_toggle_btn")
         self._kb_toggle_btn.clicked.connect(self._toggle_keyboard_panel)
         btn_row = QHBoxLayout()
         btn_row.setContentsMargins(8, 2, 0, 2)

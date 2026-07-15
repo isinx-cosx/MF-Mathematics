@@ -75,10 +75,7 @@ class FunctionBox(QWidget):
         self._build_ui()
 
     def _build_ui(self) -> None:
-        self.setStyleSheet("""
-            FunctionBox { background:#f9fafb; border:1px solid #e2e8f0;
-                          border-radius:8px; padding:8px; margin:2px 0; }
-        """)
+        # 卡片/输入框/删除按钮样式由 QSS FunctionBox 选择器统一管理
         s = QGraphicsDropShadowEffect(self); s.setBlurRadius(8); s.setOffset(0,1)
         s.setColor(QColor(0,0,0,30)); self.setGraphicsEffect(s)
         root = QVBoxLayout(self); root.setSpacing(4)
@@ -88,7 +85,7 @@ class FunctionBox(QWidget):
 
         idx = QLabel(f"{self._index}.")
         idx.setFixedWidth(22)
-        idx.setStyleSheet("font-weight:600; font-size:13px; color:#1e293b;")
+        idx.setObjectName("func_index_lbl")
         r1.addWidget(idx)
 
         self._vis = QPushButton("")
@@ -102,18 +99,11 @@ class FunctionBox(QWidget):
         self._input = QLineEdit()
         self._input.setFixedHeight(28)
         self._input.setPlaceholderText("sin(x)*cos(y), x^2+y^2+z^2=1, x=u*cos(v);y=u*sin(v);z=u")
-        self._input.setStyleSheet(
-            "QLineEdit{border:1px solid #d1d5db;border-radius:4px;"
-            "padding:3px 8px;font-size:13px;background:#fff;color:#1e293b;}"
-            "QLineEdit:focus{border-color:#3b82f6;}")
         self._input.textChanged.connect(self._on_text)
         r1.addWidget(self._input, 1)
 
         self._del_btn = QPushButton("×"); self._del_btn.setFixedSize(25,25)
-        self._del_btn.setStyleSheet(
-            "QPushButton{background:transparent;border:none;color:#94a3b8;"
-            "font-size:18px;font-weight:bold;padding:0 4px;}"
-            "QPushButton:hover{color:#ef4444;background:#fee2e2;border-radius:4px;}")
+        self._del_btn.setObjectName("func_del_btn")
         self._del_btn.clicked.connect(lambda: self.removed.emit(self))
         r1.addWidget(self._del_btn)
         root.addLayout(r1)
