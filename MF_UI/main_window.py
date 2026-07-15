@@ -174,6 +174,12 @@ class MainWindow(QMainWindow):
         act_settings = toolbar.addAction("设置")
         act_settings.triggered.connect(self._open_settings)
 
+        self._act_keyboard = toolbar.addAction("数学键盘")
+        self._act_keyboard.setCheckable(True)
+        self._act_keyboard.triggered.connect(self._toggle_math_keyboard)
+
+        self._math_keyboard: object | None = None
+
     def _on_toolbar_action(self, action):
         if action is self._btn_calc:
             self._btn_plot.setChecked(False)
@@ -308,6 +314,23 @@ class MainWindow(QMainWindow):
         dlg = SettingsDialog(self, open_ai_tab=open_ai_tab)
         dlg.exec()
 
+    def _toggle_math_keyboard(self):
+        """显示/隐藏数学键盘。"""
+        from MF_UI.math_keyboard import MathKeyboard
+        if self._math_keyboard is None:
+            self._math_keyboard = MathKeyboard(self)
+            self._math_keyboard.closed.connect(self._on_keyboard_closed)
+            # 同步当前主题
+            self._math_keyboard.set_dark_theme(self._current_theme == "dark")
+        if self._math_keyboard.isVisible():
+            self._math_keyboard.hide()
+        else:
+            self._math_keyboard.show()
+
+    def _on_keyboard_closed(self):
+        """键盘关闭时同步按钮状态。"""
+        self._act_keyboard.setChecked(False)
+
     def _get_calc_context(self) -> tuple[str, str]:
         """获取当前激活的计算块上下文（表达式 + 模式）。"""
         try:
@@ -336,6 +359,8 @@ class MainWindow(QMainWindow):
             return
         self._current_theme = "light"
         self._apply_theme(self._light_qss_path)
+        if self._math_keyboard is not None:
+            self._math_keyboard.set_dark_theme(False)
         self._status_msg("已切换到亮色主题")
 
     def _switch_to_dark(self):
@@ -343,6 +368,8 @@ class MainWindow(QMainWindow):
             return
         self._current_theme = "dark"
         self._apply_theme(self._dark_qss_path)
+        if self._math_keyboard is not None:
+            self._math_keyboard.set_dark_theme(True)
         self._status_msg("已切换到暗色主题")
 
     def _apply_theme(self, qss_path: str):
