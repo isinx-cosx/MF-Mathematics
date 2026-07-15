@@ -185,6 +185,7 @@ class CalcBlock(BaseCalcBlock):
                     obj = ai.accelerate(ai_prompt, mode=op)
                     self._last_result = obj
                     dlg = ResultDialog(f"AI 加速 — {op}", self)
+                    dlg.set_context(expr, op)
                     dlg.set_result(obj)
                     dlg.exec()
                     return

@@ -317,8 +317,8 @@ class ResultDialog(QDialog):
         self.resize(660, 520)
         self.setMinimumSize(460, 320)
         self._result_obj: Any = None
-        self._steps_expanded = False
-        self._ai_steps_loading = False
+        self._context_expr = ""
+        self._context_mode = ""
 
         root = QVBoxLayout(self)
         root.setSpacing(12)
@@ -340,17 +340,6 @@ class ResultDialog(QDialog):
             " border-radius:10px; padding:20px; font-size:15px;}"
         )
         self._result_stack.addWidget(self._text_label)
-
-        # 步骤展开区域
-        self._step_view = QTextEdit()
-        self._step_view.setReadOnly(True)
-        self._step_view.setFont(QFont("Microsoft YaHei", 10))
-        self._step_view.setStyleSheet(
-            "QTextEdit{background:#fafbfc; border:2px solid #cbd5e1;"
-            " border-radius:8px; padding:12px; font-size:13px; color:#334155;}"
-        )
-        self._step_view.hide()
-        self._result_stack.addWidget(self._step_view)
 
         self._result_stack.setCurrentIndex(1)
 
@@ -393,95 +382,34 @@ class ResultDialog(QDialog):
     def setDarkTheme(self, enabled: bool) -> None:
         self._math_display.setDarkTheme(enabled)
 
-    def _on_step_clicked(self) -> None:
-        """查看步骤 — 优先本地 steps，其次 AI 生成。"""
-        if self._steps_expanded:
-            self._steps_expanded = False
-            self._step_view.hide()
-            self._result_stack.setCurrentIndex(1)
-            self._step_btn.setText("查看步骤 ▼")
-            return
+    def set_context(self, expr: str = "", mode: str = ""):
+        """设置计算上下文（表达式 + 模式），供步骤查看器使用。"""
+        self._context_expr = expr
+        self._context_mode = mode
 
+    def _on_step_clicked(self) -> None:
+        """查看步骤 — 弹窗 StepViewer（优先本地 steps，其次 AI 生成）。"""
         obj = self._result_obj
         if obj is None:
             return
 
-        # 1. 优先使用本地 steps
-        local_steps = getattr(obj, "steps", None)
-        if local_steps and len(local_steps) > 1:
-            self._show_local_steps(local_steps)
-            return
+        from MF_UI.calc.step_viewer import StepViewer
 
-        # 2. 若无本地步骤，调用 AI 生成
-        self._step_btn.setText("AI 生成中…")
-        self._step_btn.setEnabled(False)
-        self._steps_expanded = True
-        self._step_view.clear()
-        self._step_view.show()
-        self._result_stack.setCurrentIndex(2)
-
-        # 获取上下文
-        expr = getattr(obj, "result", "")
+        # 获取表达式上下文
+        expr = self._context_expr or getattr(obj, "result", "")
         if isinstance(expr, str) and len(expr) > 500:
             expr = expr[:500] + "…"
+        expr = str(expr) if expr else ""
+        mode = self._context_mode or ""
 
-        from PySide6.QtCore import QThread
-        class _StepWorker(QThread):
-            steps_ready = Signal(str)
-            error = Signal(str)
+        viewer = StepViewer(self, expr=expr, mode=mode)
 
-            def run(self):
-                try:
-                    from MF_Mathematics.utils.ai_accelerator import get_accelerator
-                    ai = get_accelerator()
-                    if not ai.check_quota("steps"):
-                        self.error.emit("今日 AI 步骤生成次数已用完（5 次/天）")
-                        return
-                    mo = ai.generate_steps(
-                        f"请为以下计算结果生成详细的分步推导过程",
-                        expr=str(expr) if expr else "",
-                    )
-                    if mo.ok:
-                        self.steps_ready.emit(mo.result)
-                    else:
-                        self.error.emit(mo.error or "AI 步骤生成失败")
-                except Exception as e:
-                    self.error.emit(str(e))
+        # 如果有本地步骤，传入
+        local_steps = getattr(obj, "steps", None)
+        if local_steps and len(local_steps) > 1:
+            viewer.set_local_steps(local_steps)
 
-        self._step_worker = _StepWorker(self)
-        self._step_worker.steps_ready.connect(self._on_ai_steps)
-        self._step_worker.error.connect(self._on_step_error)
-        self._step_worker.start()
-
-    def _show_local_steps(self, steps: list[str]) -> None:
-        """展示本地步骤。"""
-        self._steps_expanded = True
-        self._step_view.clear()
-        self._step_view.show()
-        self._result_stack.setCurrentIndex(2)
-        self._step_btn.setText("收起步骤 ▲")
-
-        lines = []
-        for i, s in enumerate(steps):
-            if s.strip():
-                lines.append(f"【步骤 {i + 1}】{s.strip()}")
-        self._step_view.setPlainText("\n\n".join(lines))
-
-    def _on_ai_steps(self, text: str) -> None:
-        """AI 步骤生成完成。"""
-        self._step_btn.setText("收起步骤 ▲")
-        self._step_btn.setEnabled(True)
-        self._step_view.setPlainText(text)
-
-    def _on_step_error(self, msg: str) -> None:
-        """AI 步骤生成失败。"""
-        self._step_btn.setText("查看步骤 ▼")
-        self._step_btn.setEnabled(True)
-        self._steps_expanded = False
-        self._step_view.hide()
-        self._result_stack.setCurrentIndex(1)
-        from PySide6.QtWidgets import QMessageBox
-        QMessageBox.warning(self, "步骤生成失败", msg)
+        viewer.exec()
 
     def _obj_to_latex(self, obj: Any) -> str:
         r = getattr(obj, "result", None)
