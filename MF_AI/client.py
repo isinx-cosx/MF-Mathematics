@@ -66,7 +66,7 @@ class AIClient:
             import openai
             self._openai_client = openai.OpenAI(
                 api_key=self._config.api_key,
-                base_url=self._config.base_url,
+                base_url=self._config.get_api_base(),
                 timeout=60.0,
             )
             self._backend = "openai"
@@ -76,6 +76,20 @@ class AIClient:
     def _ensure_ready(self) -> None:
         """确保已配置 API Key。"""
         self._config.validate()
+
+    def _resolve_model(self, model: str | None) -> str:
+        """模型名解析：角色名 → 实际模型名 → 默认模型。
+
+        1. 若 model 为 None → 返回 default_model
+        2. 若 model 命中 model_map 中的角色名 → 返回映射的实际模型名
+        3. 否则 → 原样返回（直接指定的模型名）
+        """
+        if model is None:
+            return self._config.get_default_model()
+        # 检查 model 是否是 model_map 中的角色名
+        if model in self._config.model_map:
+            return self._config.model_map[model]
+        return model
 
     # ═══════════════════════════════════════════════════════════
     #  chat — 同步对话
@@ -93,7 +107,7 @@ class AIClient:
 
         Args:
             messages: [{"role":"user","content":"..."}, ...]
-            model: 模型名（默认从 Config 读取）
+            model: 模型名或角色名（如 "Sonnet"）。默认从 Config 读取。
             temperature: 温度（默认从 Config 读取）
             max_tokens: 最大 token（默认从 Config 读取）
 
@@ -109,9 +123,14 @@ class AIClient:
         """
         self._ensure_ready()
 
-        model = model or self._config.model
-        temperature = temperature if temperature is not None else self._config.temperature
-        max_tokens = max_tokens or self._config.max_tokens
+        # 模型解析：角色名 → 实际模型名 → 默认模型
+        model = self._resolve_model(model)
+        # 模型独立参数覆盖
+        model_params = self._config.get_model_params(model)
+        temperature = (temperature if temperature is not None
+                       else model_params.get("temperature", self._config.temperature))
+        max_tokens = (max_tokens or model_params.get("max_tokens",
+                                                      self._config.max_tokens))
 
         # 注入系统提示词
         full_messages = list(messages)
@@ -212,9 +231,13 @@ class AIClient:
         """
         self._ensure_ready()
 
-        model = model or self._config.model
-        temperature = temperature if temperature is not None else self._config.temperature
-        max_tokens = max_tokens or self._config.max_tokens
+        # 模型解析：角色名 → 实际模型名 → 默认模型
+        model = self._resolve_model(model)
+        model_params = self._config.get_model_params(model)
+        temperature = (temperature if temperature is not None
+                       else model_params.get("temperature", self._config.temperature))
+        max_tokens = (max_tokens or model_params.get("max_tokens",
+                                                      self._config.max_tokens))
 
         full_messages = list(messages)
         if self._config.system_prompt and not any(
