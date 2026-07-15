@@ -166,7 +166,9 @@ class MainWindow(QMainWindow):
         toolbar.addSeparator()
 
         act_search = toolbar.addAction("搜索")
-        act_search.triggered.connect(lambda: self._status_msg("搜索"))
+        act_search.triggered.connect(self._open_search_panel)
+
+        self._search_panel: object | None = None
         act_history = toolbar.addAction("历史")
         act_history.triggered.connect(lambda: self._status_msg("历史记录"))
         act_AI = toolbar.addAction("AI")
@@ -313,6 +315,15 @@ class MainWindow(QMainWindow):
         from MF_UI.settings_dialog import SettingsDialog
         dlg = SettingsDialog(self, open_ai_tab=open_ai_tab)
         dlg.exec()
+
+    def _open_search_panel(self):
+        """打开联网搜索面板。"""
+        from MF_UI.search_panel import SearchPanel
+        if self._search_panel is None:
+            self._search_panel = SearchPanel(self)
+        self._search_panel.show()
+        self._search_panel.raise_()
+        self._search_panel.activateWindow()
 
     def _toggle_math_keyboard(self):
         """显示/隐藏数学键盘。"""
