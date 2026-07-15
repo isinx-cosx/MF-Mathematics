@@ -50,7 +50,7 @@ class FunctionBox(QWidget):
     removed = Signal(object)
 
     def __init__(self, index: int = 1, color: str = "#3498db",
-                 parent: QWidget | None = None):
+                 mode: str = "", parent: QWidget | None = None):
         super().__init__(parent)
         self._index = index
         self._color = color
