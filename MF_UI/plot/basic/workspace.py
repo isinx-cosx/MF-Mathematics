@@ -17,7 +17,7 @@ from PySide6.QtWidgets import (
     QScrollArea, QSlider, QVBoxLayout, QWidget,
 )
 from MF_UI.plot.basic.plot_canvas import PlotCanvas
-from MF_UI.plot.basic.function_box import BaseFunctionBox, FunctionBox2D, FunctionBox3D
+from MF_UI.plot.basic.function_box import BaseFunctionBox, FunctionBox2D
 from MF_UI.plot.plot_3d import Plot3D
 
 
@@ -318,7 +318,7 @@ class PlotWorkspace(QWidget):
     def _add(self) -> None:
         color = _COLORS[self._color_idx % len(_COLORS)]
         self._color_idx += 1
-        cls = FunctionBox3D if self._mode == "3d" else FunctionBox2D
+        cls = FunctionBox2D  # 3D 模式复用普通函数框
         box = cls(
             index=self._next_index, color=color, mode=self._mode, parent=self)
         self._next_index += 1
