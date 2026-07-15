@@ -356,42 +356,50 @@ class GeometryCanvas(QGraphicsView):
     # ═══════════════════════════════════════════════════════════
 
     def _rebuild_shape_items(self) -> None:
-        """从 _shapes 重建所有 QGraphicsItem。"""
-        # 清除旧 items
+        """从 _shapes 重建所有 QGraphicsItem。
+
+        笔宽随视图缩放保持恒定像素（与 PlotCanvas._update_curve_pens 同理）。
+        """
         for item in self._shape_items.values():
             self._scene.removeItem(item)
         self._shape_items.clear()
+
+        vs = _view_scale(self)
+        lw_scale = 1.0 / vs if vs > 0 else 1.0
 
         for s in self._shapes:
             if not s.visible:
                 continue
             is_sel = (s.id == self._selected_id)
-            lw = s.line_width + 1.5 if is_sel else s.line_width
+            # 基础笔宽 × 视图缩放 → 恒定像素
+            lw = (s.line_width + 1.5 if is_sel else s.line_width) * lw_scale
             color = QColor(HIGHLIGHT_COLOR if is_sel else s.color)
 
             try:
-                item = self._create_item(s, color, lw)
+                item = self._create_item(s, color, lw, lw_scale)
                 if item:
                     self._scene.addItem(item)
                     self._shape_items[s.id] = item
             except Exception:
                 pass
 
-    def _create_item(self, s: GeometricShape, color: QColor, lw: float) -> QGraphicsItem | None:
+    def _create_item(self, s: GeometricShape, color: QColor,
+                     lw: float, lw_scale: float) -> QGraphicsItem | None:
         """根据图形类型创建 QGraphicsItem。"""
         pen = QPen(color)
         pen.setWidthF(lw)
 
         if s.shape_type == ShapeType.POINT:
             x, y = s.data
-            r = 4.0
+            r = 4.0 * lw_scale
             item = QGraphicsEllipseItem(x - r, y - r, r * 2, r * 2)
             item.setPen(QPen(color))
             item.setBrush(QBrush(color))
             item.setZValue(10)
-            # 标签
+            # 标签（ItemIgnoresTransformations 保证恒定像素）
             label = QGraphicsSimpleTextItem(s.label)
-            label.setPos(x + 6, y + 6)
+            offset = 6 * lw_scale
+            label.setPos(x + offset, y + offset)
             label.setBrush(QBrush(QColor("#1e293b")))
             font = QFont(); font.setPixelSize(10); label.setFont(font)
             label.setZValue(11)
@@ -405,15 +413,17 @@ class GeometryCanvas(QGraphicsView):
             item = QGraphicsLineItem(x1, y1, x2, y2)
             item.setPen(pen); item.setZValue(5)
             # 端点
+            ds = 2.0 * lw_scale
             for px, py in [(x1, y1), (x2, y2)]:
-                dot = QGraphicsEllipseItem(px - 2, py - 2, 4, 4)
+                dot = QGraphicsEllipseItem(px - ds, py - ds, ds * 2, ds * 2)
                 dot.setPen(QPen(color)); dot.setBrush(QBrush(color))
                 dot.setZValue(6); dot.setParentItem(item)
-            # 中点标签
+            # 中点标签（ItemIgnoresTransformations 保证恒定像素）
             mid_x, mid_y = (x1 + x2) / 2, (y1 + y2) / 2
             dist = math.hypot(x2 - x1, y2 - y1)
+            offset = 4 * lw_scale
             lbl = QGraphicsSimpleTextItem(f"{s.label} ({dist:.2f})")
-            lbl.setPos(mid_x + 4, mid_y + 4)
+            lbl.setPos(mid_x + offset, mid_y + offset)
             lbl.setBrush(QBrush(QColor("#475569")))
             font = QFont(); font.setPixelSize(9); lbl.setFont(font)
             lbl.setZValue(7); lbl.setParentItem(item)
@@ -425,12 +435,12 @@ class GeometryCanvas(QGraphicsView):
             path = QPainterPath()
             path.moveTo(x1, y1)
             path.lineTo(x2, y2)
-            # 箭头
+            # 箭头（大小随视图缩放）
             dx, dy = x2 - x1, y2 - y1
             length = math.hypot(dx, dy)
             if length > 0.001:
                 ux, uy = dx / length, dy / length
-                arrow_size = 0.4
+                arrow_size = 0.4 * lw_scale
                 path.moveTo(x2, y2)
                 path.lineTo(x2 - arrow_size * ux + arrow_size * 0.3 * uy,
                             y2 - arrow_size * uy - arrow_size * 0.3 * ux)
@@ -439,8 +449,9 @@ class GeometryCanvas(QGraphicsView):
                             y2 - arrow_size * uy + arrow_size * 0.3 * ux)
             item = QGraphicsPathItem(path)
             item.setPen(pen); item.setZValue(5)
+            offset = 4 * lw_scale
             lbl = QGraphicsSimpleTextItem(s.label or f"({dx:.2f}, {dy:.2f})")
-            lbl.setPos((x1 + x2) / 2 + 4, (y1 + y2) / 2 + 4)
+            lbl.setPos((x1 + x2) / 2 + offset, (y1 + y2) / 2 + offset)
             lbl.setBrush(QBrush(color))
             font = QFont(); font.setPixelSize(9); lbl.setFont(font)
             lbl.setZValue(7); lbl.setParentItem(item)
@@ -453,7 +464,8 @@ class GeometryCanvas(QGraphicsView):
             item.setPen(pen); item.setBrush(QBrush(Qt.BrushStyle.NoBrush))
             item.setZValue(5)
             # 圆心点
-            dot = QGraphicsEllipseItem(cx - 3, cy - 3, 6, 6)
+            ds = 3.0 * lw_scale
+            dot = QGraphicsEllipseItem(cx - ds, cy - ds, ds * 2, ds * 2)
             dot.setPen(QPen(color)); dot.setBrush(QBrush(color))
             dot.setZValue(6); dot.setParentItem(item)
             return item
@@ -475,7 +487,8 @@ class GeometryCanvas(QGraphicsView):
             item = QGraphicsEllipseItem(cx - rx, cy - ry, rx * 2, ry * 2)
             item.setPen(pen); item.setBrush(QBrush(Qt.BrushStyle.NoBrush))
             item.setZValue(5)
-            dot = QGraphicsEllipseItem(cx - 2, cy - 2, 4, 4)
+            ds = 2.0 * lw_scale
+            dot = QGraphicsEllipseItem(cx - ds, cy - ds, ds * 2, ds * 2)
             dot.setPen(QPen(color)); dot.setBrush(QBrush(color))
             dot.setZValue(6); dot.setParentItem(item)
             return item
@@ -496,9 +509,10 @@ class GeometryCanvas(QGraphicsView):
                 item = QGraphicsPolygonItem(poly)
                 item.setPen(pen); item.setBrush(QBrush(Qt.BrushStyle.NoBrush))
                 item.setZValue(5)
-                # 顶点
+                # 顶点（大小随视图缩放）
+                ds = 2.0 * lw_scale
                 for px, py in pts:
-                    dot = QGraphicsEllipseItem(px - 2, py - 2, 4, 4)
+                    dot = QGraphicsEllipseItem(px - ds, py - ds, ds * 2, ds * 2)
                     dot.setPen(QPen(color)); dot.setBrush(QBrush(color))
                     dot.setZValue(6); dot.setParentItem(item)
                 return item
