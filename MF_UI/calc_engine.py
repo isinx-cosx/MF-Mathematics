@@ -205,15 +205,14 @@ def calculate_direct(action_name: str, *args, **kwargs) -> MathObject:
     Args:
         action_name: 下拉框显示名。
         *args / **kwargs: 已解析的位置/关键字参数。
-
-    Returns:
-        MathObject。
     """
     entry = FUNC_MAP.get(action_name)
     if entry is None:
         return MathObject(error=f"功能未实现: {action_name}")
 
     module, action = entry
+    # ── 参数名标准化：UI 友好名 → 后端内部名 ──
+    kwargs = _normalize_kwargs(action, kwargs)
     try:
         result = dispatch(module, action, *args, **kwargs)
     except KeyError:
@@ -224,6 +223,25 @@ def calculate_direct(action_name: str, *args, **kwargs) -> MathObject:
     if not isinstance(result, MathObject):
         result = MathObject(result=str(result))
     return result
+
+
+def _normalize_kwargs(action: str, kwargs: dict) -> dict:
+    """将 UI 层参数名映射为后端函数期望的参数名。"""
+    kw = dict(kwargs)
+
+    # func → f（仅数值类函数）
+    _FUNC_TO_F = {"trapezoidal_rule", "simpson_rule", "gauss_quadrature",
+                  "euler_method", "rk4", "implicit_euler"}
+    if action in _FUNC_TO_F and "func" in kw:
+        kw.setdefault("f", kw.pop("func"))
+
+    # mean/std → mu/sigma（概率分布）
+    if action in ("normal",) and "mean" in kw:
+        kw.setdefault("mu", kw.pop("mean"))
+    if action in ("normal",) and "std" in kw:
+        kw.setdefault("sigma", kw.pop("std"))
+
+    return kw
 
 
 # ═══════════════════════════════════════════════════════════════════════

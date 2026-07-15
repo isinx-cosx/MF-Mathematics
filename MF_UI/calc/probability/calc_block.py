@@ -100,6 +100,8 @@ class CalcBlock(BaseCalcBlock):
         from ast import literal_eval
         import re as _re
 
+        op = self.calc_mode_combo.currentText()
+
         if "=" in expr and expr.count("=") <= 3:
             parts = _re.split(r'[,;]\s*(?=[a-zA-Z_])', expr)
             kwargs = {}
@@ -107,13 +109,13 @@ class CalcBlock(BaseCalcBlock):
                 if "=" in p:
                     k, v = p.split("=", 1)
                     kwargs[k.strip()] = literal_eval(v.strip())
-            return calculate_direct(self.calc_mode_combo.currentText(), **kwargs)
+            return calculate_direct(op, **kwargs)
         else:
-            args = literal_eval(expr)
-            if isinstance(args, (list, tuple)):
-                return calculate_direct(self.calc_mode_combo.currentText(), *args)
+            val = literal_eval(expr)
+            if isinstance(val, (list, tuple)):
+                return calculate_direct(op, matrix=val)
             else:
-                return calculate_direct(self.calc_mode_combo.currentText(), args)
+                return calculate_direct(op, val)
 
 
 if __name__ == "__main__":

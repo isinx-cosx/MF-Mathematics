@@ -92,9 +92,11 @@ class CalcBlock(BaseCalcBlock):
         dlg.exec()
 
     def _do_dispatch(self, mod: str, act: str, expr: str):
-        """通过 calc_engine 统一调度。"""
+        """通过 calc_engine 统一调度（矩阵/向量 → matrix= 关键字传递）。"""
         from ast import literal_eval
         import re as _re
+
+        op = self.calc_mode_combo.currentText()
 
         if "=" in expr and expr.count("=") <= 2:
             parts = _re.split(r'[,;]\s*(?=[a-zA-Z_])', expr)
@@ -103,13 +105,27 @@ class CalcBlock(BaseCalcBlock):
                 if "=" in p:
                     k, v = p.split("=", 1)
                     kwargs[k.strip()] = literal_eval(v.strip())
-            return calculate_direct(self.calc_mode_combo.currentText(), **kwargs)
+            return calculate_direct(op, **kwargs)
         else:
-            args = literal_eval(expr)
-            if isinstance(args, (list, tuple)):
-                return calculate_direct(self.calc_mode_combo.currentText(), *args)
+            val = literal_eval(expr)
+            if isinstance(val, (list, tuple)):
+                # 矩阵/向量类参数 → 以关键字 matrix=/vector= 传递
+                if op in ("高斯消元", "矩阵秩", "求解方程组", "零空间",
+                          "特征值", "特征向量", "特征多项式", "可对角化",
+                          "对角化", "二次型", "正定性判定",
+                          "施密特正交化", "正交投影"):
+                    return calculate_direct(op, matrix=val)
+                elif op in ("范数",):
+                    return calculate_direct(op, vector=val)
+                elif op in ("点积", "夹角", "正交性"):
+                    # 需要两个向量 → 展平传 u=, v=
+                    if len(val) == 2:
+                        return calculate_direct(op, u=val[0], v=val[1])
+                    return calculate_direct(op, matrix=val)
+                else:
+                    return calculate_direct(op, matrix=val)
             else:
-                return calculate_direct(self.calc_mode_combo.currentText(), args)
+                return calculate_direct(op, val)
 
 
 if __name__ == "__main__":
