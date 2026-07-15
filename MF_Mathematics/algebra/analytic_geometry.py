@@ -450,44 +450,59 @@ def circle_general(
 
 def self_test() -> None:
     """自测 analytic_geometry 模块。"""
-    print("=== analytic_geometry self_test ===")
+    import sys
+
+    def _print(*args, **kwargs):
+        """GBK 安全打印 — 将不可编码字符替换为 ? 避免 crash。"""
+        try:
+            print(*args, **kwargs)
+        except UnicodeEncodeError:
+            safe_args = [
+                str(a).encode(sys.stdout.encoding or 'gbk', errors='replace').decode(
+                    sys.stdout.encoding or 'gbk')
+                if isinstance(a, str) else a
+                for a in args
+            ]
+            print(*safe_args, **kwargs)
+
+    _print("=== analytic_geometry self_test ===")
 
     # 1. distance
     r = distance((0, 0), (3, 4))
     assert r.ok and r.result == 5.0
-    print(f"  distance((0,0),(3,4)): {r.result}")
+    _print(f"  distance((0,0),(3,4)): {r.result}")
 
     # 2. midpoint
     r = midpoint((0, 0), (4, 6))
     assert r.ok and r.result == (2.0, 3.0)
-    print(f"  midpoint((0,0),(4,6)): {r.result}")
+    _print(f"  midpoint((0,0),(4,6)): {r.result}")
 
     # 3. line_from_points
     r = line_from_points((0, 0), (1, 1))
     assert r.ok and r.result["slope"] == 1.0
-    print(f"  line_from_points((0,0),(1,1)): {r.result['slope_intercept']}")
+    _print(f"  line_from_points((0,0),(1,1)): {r.result['slope_intercept']}")
 
     # 4. line_from_slope_intercept
     r = line_from_slope_intercept(2, 3)
     assert r.ok
-    print(f"  line_from_slope_intercept(2,3): {r.result['slope_intercept']}")
+    _print(f"  line_from_slope_intercept(2,3): {r.result['slope_intercept']}")
 
     # 5. line_from_point_slope
     r = line_from_point_slope((1, 2), 3)
     assert r.ok
-    print(f"  line_from_point_slope: {r.result['slope_intercept']}")
+    _print(f"  line_from_point_slope: {r.result['slope_intercept']}")
 
     # 6. circle_standard
     r = circle_standard((0, 0), 5)
     assert r.ok and r.result["radius"] == 5
-    print(f"  circle_standard: {r.result['standard']}")
+    _print(f"  circle_standard: {r.result['standard']}")
 
     # 7. circle_general
     r = circle_general(-4, -6, 4)
     assert r.ok
-    print(f"  circle_general: center={r.result['center']}, r={r.result['radius']}")
+    _print(f"  circle_general: center={r.result['center']}, r={r.result['radius']}")
 
-    print("=== analytic_geometry self_test: ALL PASSED ===")
+    _print("=== analytic_geometry self_test: ALL PASSED ===")
 
 
 if __name__ == "__main__":

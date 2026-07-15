@@ -360,14 +360,17 @@ def test_regression() -> bool:
     else:
         print(f"  PASS linear_regression: {r.result['model']}")
 
-    r = predict(r.result, x=4)
+    # 保存回归模型用于残差测试
+    model_result = r.result
+
+    r = predict(model_result, x=4)
     if not r.ok or abs(r.result - 8.0) > 0.01:
         print(f"  FAIL predict: {r.error or r.result}")
         ok = False
     else:
         print(f"  PASS predict")
 
-    r = residuals(r.result, [1, 2, 3], [2, 4, 6])
+    r = residuals(model_result, [1, 2, 3], [2, 4, 6])
     if not r.ok or abs(r.result["SSE"]) > 0.01:
         print(f"  FAIL residuals: {r.error or r.result}")
         ok = False
