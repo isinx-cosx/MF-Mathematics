@@ -32,29 +32,9 @@ _ALLOWED = {"x","y","z","u","v","t"}
 
 
 def _preprocess(s: str) -> str:
-    s = re.sub(r"\be\^\(?", "exp(", s)
-    s = s.replace("^", "**")
-    s = re.sub(r"\bln\b", "log", s)
-    s = re.sub(r"\barcsin\b", "asin", s)
-    s = re.sub(r"\barccos\b", "acos", s)
-    s = re.sub(r"\barctan\b", "atan", s)
-    _KF = {"sin","cos","tan","cot","sec","csc","sinh","cosh","tanh","coth",
-           "asin","acos","atan","arcsin","arccos","arctan",
-           "ln","log","sqrt","exp","abs","pi","E","Pi"}
-    _mk = {}
-    for i, fn in enumerate(sorted(_KF, key=len, reverse=True)):
-        m = f"\x00{i}\x00"; _mk[m] = fn; s = s.replace(fn, m)
-    s = re.sub(r"(\d)\s*\(", r"\1*(", s)
-    s = re.sub(r"\)\s*\(", ")*(", s)
-    s = re.sub(r"\)([a-zA-Z])", r")*\1", s)
-    s = re.sub(r"([a-zA-Z])\s*\(", r"\1*(", s)
-    s = re.sub(r"([a-zA-Z])\s+([a-zA-Z])", r"\1*\2", s)
-    s = re.sub(r"([a-zA-Z])([a-zA-Z])", r"\1*\2", s)
-    for m, fn in _mk.items(): s = s.replace(m, fn)
-    s = re.sub(r"(\d)([a-zA-Z])", r"\1*\2", s)
-    F = "sin|cos|tan|cot|sec|csc|sinh|cosh|tanh|coth|arcsin|arccos|arctan|asin|acos|atan|ln|log|sqrt|exp|abs"
-    s = re.sub(rf"\b({F})([a-zA-Z])", r"\1(\2)", s)
-    return s
+    """表达式预处理 — 委托给 MathTranslator 统一翻译。"""
+    from MF_Mathematics.utils.translator import MathTranslator
+    return MathTranslator.human_to_computer(s)
 
 
 class FunctionBox(QWidget):
