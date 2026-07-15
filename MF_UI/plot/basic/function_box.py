@@ -145,11 +145,16 @@ class FunctionBox(QWidget):
         self._index_lbl.setStyleSheet("font-weight:600; font-size:13px; color:#1e293b;")
         row.addWidget(self._index_lbl)
 
-        self._vis_btn = QPushButton("●")
-        self._vis_btn.setFixedSize(24, 24)
+        self._vis_btn = QPushButton("")
+        self._vis_btn.setFixedSize(16, 16)
         self._vis_btn.setStyleSheet(
-            _VIS_STYLE + f"color:{self._color}; font-size:16px; font-weight:bold;")
+            "QPushButton {"
+            f"  background: {self._color};"
+            "  border: 2px solid rgba(0,0,0,0.15);"
+            "  border-radius: 8px;"
+            "}")
         self._vis_btn.setToolTip("隐藏")
+        self._vis_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self._vis_btn.clicked.connect(self._toggle_visibility)
         row.addWidget(self._vis_btn)
 
@@ -238,15 +243,28 @@ class FunctionBox(QWidget):
     def _update_vis_button(self) -> None:
         if self._error:
             self._vis_btn.setText("⚠")
+            self._vis_btn.setFixedSize(20, 20)
             self._vis_btn.setStyleSheet(_WARN_STYLE)
             self._vis_btn.setToolTip(self._error)
         elif self._visible:
-            self._vis_btn.setText("●")
-            self._vis_btn.setStyleSheet(_VIS_STYLE + f"color:{self._color};")
+            self._vis_btn.setText("")
+            self._vis_btn.setFixedSize(16, 16)
+            self._vis_btn.setStyleSheet(
+                "QPushButton {"
+                f"  background: {self._color};"
+                "  border: 2px solid rgba(0,0,0,0.15);"
+                "  border-radius: 8px;"
+                "}")
             self._vis_btn.setToolTip("隐藏")
         else:
-            self._vis_btn.setText("○")
-            self._vis_btn.setStyleSheet(_VIS_STYLE + "color:#94a3b8;")
+            self._vis_btn.setText("")
+            self._vis_btn.setFixedSize(16, 16)
+            self._vis_btn.setStyleSheet(
+                "QPushButton {"
+                "  background: transparent;"
+                "  border: 2px dashed #94a3b8;"
+                "  border-radius: 8px;"
+                "}")
             self._vis_btn.setToolTip("显示")
 
     def _toggle_visibility(self) -> None:
