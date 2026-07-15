@@ -1,30 +1,24 @@
 # -*- coding: utf-8 -*-
 """GeometryCanvas — 交互式几何作图画布。
 
-基于 matplotlib FigureCanvasQTAgg，支持：
-  - 平面直角坐标系（网格 + 轴 + 刻度标签）
-  - 鼠标点击/拖拽构造几何图形
-  - 实时预览（虚线 + 半透明）
-  - 图形选中、拖拽移动
-  - 滚轮缩放
+QGraphicsView 驱动，坐标系渲染完全复刻 PlotCanvas.drawForeground。
+图形渲染为 QGraphicsItem，鼠标事件复写 QGraphicsView 回调。
 """
 
 from __future__ import annotations
 
 import math
-import numpy as np
 from enum import Enum
-from PySide6.QtCore import Qt, Signal
-from PySide6.QtWidgets import QVBoxLayout, QWidget
-
-from MF_UI.plot import mpl_setup  # noqa — 中文字体 + 后端初始化
-import matplotlib
-from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
-from matplotlib.figure import Figure
-from matplotlib.patches import Circle as MplCircle, Ellipse as MplEllipse
-from matplotlib.patches import Rectangle as MplRectangle, Polygon as MplPolygon
-from matplotlib.patches import FancyArrow
-import matplotlib.lines as mlines
+from PySide6.QtCore import Qt, QPointF, QRectF, Signal
+from PySide6.QtGui import (
+    QBrush, QColor, QFont, QPainter, QPainterPath, QPen,
+    QPolygonF,
+)
+from PySide6.QtWidgets import (
+    QGraphicsEllipseItem, QGraphicsItem, QGraphicsLineItem,
+    QGraphicsPathItem, QGraphicsPolygonItem, QGraphicsScene,
+    QGraphicsSimpleTextItem, QGraphicsView, QVBoxLayout, QWidget,
+)
 
 from MF_UI.plot.arbitrary.shapes import (
     ShapeType, GeometricShape, create_shape, hit_test,
@@ -50,18 +44,14 @@ class Tool(Enum):
 
 class _State(Enum):
     IDLE = "idle"
-    AWAIT_SECOND = "await_second"   # 线段/直线/向量：已有第一点
-    DRAG_RADIUS = "drag_radius"     # 圆：已有圆心，拖拽中
-    AWAIT_H_RAD = "await_h_rad"     # 椭圆：已有中心
-    AWAIT_V_RAD = "await_v_rad"     # 椭圆：已有中心 + 水平半轴
-    AWAIT_CORNER = "await_corner"   # 矩形：已有第一角点
-    BUILD_POLY = "build_poly"       # 多边形：累积顶点中
-    DRAGGING = "dragging"           # 选择/移动：拖拽中
+    AWAIT_SECOND = "await_second"
+    DRAG_RADIUS = "drag_radius"
+    AWAIT_H_RAD = "await_h_rad"
+    AWAIT_V_RAD = "await_v_rad"
+    AWAIT_CORNER = "await_corner"
+    BUILD_POLY = "build_poly"
+    DRAGGING = "dragging"
 
-
-# ═══════════════════════════════════════════════════════════════
-#  工具提示文本
-# ═══════════════════════════════════════════════════════════════
 
 _TOOL_HINTS: dict[Tool, str] = {
     Tool.SELECT:   "选择/移动 — 点击图形选中，拖拽移动",
@@ -77,36 +67,112 @@ _TOOL_HINTS: dict[Tool, str] = {
 
 
 # ═══════════════════════════════════════════════════════════════
-#  GeometryCanvas
+#  坐标系渲染参数（完全复制 PlotCanvas）
 # ═══════════════════════════════════════════════════════════════
 
-class GeometryCanvas(QWidget):
-    """交互式几何作图画布。
+SCENE_RANGE = 20_000_000
+ZOOM_MIN    = 1e-6
+ZOOM_MAX    = 2000
+INITIAL_VIEW = QRectF(-20, -20, 40, 40)
 
-    信号:
-        status_message(str)         — 状态/坐标显示
-        shape_created(GeometricShape) — 图形已创建
-        shape_selected(int | None)  — 选中图形 ID（None = 取消选中）
-        shape_modified()            — 图形被修改（移动/删除/属性变更）
+TICK_PX   = 4
+FONT_PX   = 9
+AXIS_PX   = 2.0
+CURVE_PX  = 2.5
+
+AXIS_COLOR  = QColor("#334155")
+GRID_COLOR  = QColor("#e8ecf0")
+TICK_COLOR  = QColor("#94a3b8")
+EDGE_COLOR  = QColor("#b0b8c0")
+TEXT_COLOR  = QColor("#334155")
+BG_COLOR    = QColor("#fafbfc")
+
+PREVIEW_COLOR   = QColor("#6366f1")
+HIGHLIGHT_COLOR = QColor("#3b82f6")
+
+NICE_TABLE = (
+    0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 50,
+    100, 200, 500, 1000, 2000, 5000,
+    10000, 20000, 50000,
+    100000, 200000, 500000,
+    1000000, 2000000, 5000000, 10000000,
+)
+
+
+def calculate_step(rng: float) -> float:
+    """自适应步长（rng / 20，向上取整到 nice 值）。"""
+    if rng <= 0:
+        return 1.0
+    raw = rng / 20.0
+    for n in NICE_TABLE:
+        if n >= raw:
+            return n
+    return NICE_TABLE[-1]
+
+
+def format_tick(v: float, step: float = 1.0) -> str:
+    """刻度数值格式化。"""
+    if not math.isfinite(v):
+        return "∞" if v > 0 else "-∞" if v < 0 else "NaN"
+    if abs(v) < 1e-12:
+        return "0"
+    av = abs(v)
+    if av >= 1e5 or (step > 0 and step < 0.0001 and 0 < av < 0.001):
+        e = int(math.floor(math.log10(av) + 1e-12))
+        coeff = v / (10 ** e)
+        if step >= 1:       return f"{coeff:.3g}e{e}"
+        elif step >= 0.1:   return f"{coeff:.4g}e{e}"
+        elif step >= 0.01:  return f"{coeff:.5g}e{e}"
+        else:               return f"{coeff:.6g}e{e}"
+    if step >= 1:           decimals = 0
+    elif step >= 0.1:       decimals = 1
+    elif step >= 0.01:      decimals = 2
+    elif step >= 0.001:     decimals = 3
+    elif step >= 0.0001:    decimals = 4
+    else:                   decimals = 5
+    s = f"{v:.{decimals}f}"
+    if "." in s:
+        s = s.rstrip("0").rstrip(".")
+    if s.startswith("-."):
+        s = "-0" + s[1:]
+    if s.startswith("."):
+        s = "0" + s
+    return s
+
+
+# ═══════════════════════════════════════════════════════════════
+#  GeometryCanvas — QGraphicsView（与 PlotCanvas 同架构）
+# ═══════════════════════════════════════════════════════════════
+
+class GeometryCanvas(QGraphicsView):
+    """交互式几何作图画布 — QGraphicsView 驱动。
+
+    坐标系渲染 = 完全复制 PlotCanvas.drawForeground。
+    图形 = QGraphicsItem。
     """
 
     status_message = Signal(str)
     shape_created = Signal(object)
-    shape_selected = Signal(object)      # int | None
+    shape_selected = Signal(object)
     shape_modified = Signal()
-
-    # ── 颜色常量（与普通模式 plot_canvas.py 一致）───────
-    AXIS_COLOR  = "#334155"
-    GRID_COLOR  = "#e8ecf0"
-    TICK_COLOR  = "#94a3b8"
-    TEXT_COLOR  = "#334155"
-    EDGE_COLOR  = "#b0b8c0"
-    BG_COLOR    = "#fafbfc"
-    PREVIEW_COLOR = "#6366f1"
-    HIGHLIGHT_COLOR = "#3b82f6"
 
     def __init__(self, parent: QWidget | None = None):
         super().__init__(parent)
+
+        # ── Scene ──
+        self._scene = QGraphicsScene(self)
+        self._scene.setSceneRect(
+            QRectF(-SCENE_RANGE, -SCENE_RANGE, SCENE_RANGE * 2, SCENE_RANGE * 2))
+        self.setScene(self._scene)
+
+        # ── View ──
+        self.setRenderHint(QPainter.RenderHint.Antialiasing)
+        self.setTransformationAnchor(QGraphicsView.ViewportAnchor.AnchorUnderMouse)
+        self.setResizeAnchor(QGraphicsView.ViewportAnchor.AnchorUnderMouse)
+        self.setDragMode(QGraphicsView.DragMode.NoDrag)
+        self.setBackgroundBrush(QBrush(BG_COLOR))
+        self.scale(1, -1)
+        self.fitInView(INITIAL_VIEW, Qt.AspectRatioMode.KeepAspectRatio)
 
         # ── 状态 ──
         self._tool = Tool.SELECT
@@ -115,355 +181,390 @@ class GeometryCanvas(QWidget):
         self._shapes: list[GeometricShape] = []
         self._selected_id: int | None = None
 
+        # 图形 → QGraphicsItem 映射
+        self._shape_items: dict[int, QGraphicsItem] = {}
+        # 预览 item（虚线）
+        self._preview_items: list[QGraphicsItem] = []
+
         # 临时数据（构建中）
         self._temp_pts: list[tuple[float, float]] = []
         self._cursor_pt: tuple[float, float] = (0.0, 0.0)
-        self._drag_origin: tuple[float, float] | None = None
+        self._drag_origin: QPointF | None = None
         self._drag_shape_id: int | None = None
 
-        # ── 视图 ──
-        self._view_xlim = (-10.0, 10.0)
-        self._view_ylim = (-10.0, 10.0)
-
-        # ── Matplotlib 初始化 ──
-        self._fig = Figure(facecolor=self.BG_COLOR)
-        self._ax = self._fig.add_subplot(111)
-        self._ax.set_facecolor(self.BG_COLOR)
-        self._canvas = FigureCanvasQTAgg(self._fig)
-
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(0)
-        layout.addWidget(self._canvas)
-
-        self._setup_axes()
-        self._connect_events()
-        self._draw_all()
-
-    # ── 初始化 ──────────────────────────────────────────────
-
-    def _setup_axes(self) -> None:
-        """设置坐标轴初始状态。"""
-        ax = self._ax
-        ax.set_xlim(*self._view_xlim)
-        ax.set_ylim(*self._view_ylim)
-        ax.set_aspect("equal")
-        # 隐藏默认轴框/刻度标签（手绘网格 + 标签）
-        ax.set_xticks([]); ax.set_yticks([])
-        for spine in ax.spines.values():
-            spine.set_visible(False)
-
-    def _connect_events(self) -> None:
-        """连接 matplotlib 鼠标事件。"""
-        cid = self._canvas.mpl_connect
-        cid("button_press_event", self._on_press)
-        cid("button_release_event", self._on_release)
-        cid("motion_notify_event", self._on_move)
-        cid("scroll_event", self._on_scroll)
+        self._emit_status()
+        self.status_message.emit(_TOOL_HINTS[Tool.SELECT])
 
     # ═══════════════════════════════════════════════════════════
-    #  渲染
+    #  drawForeground — 完全复制 PlotCanvas 坐标系渲染
     # ═══════════════════════════════════════════════════════════
 
-    def _draw_all(self) -> None:
-        """完整重绘：网格 → 轴 → 图形 → 预览 → 选中高亮。"""
-        ax = self._ax
-        # 保存视图状态
-        xlim = ax.get_xlim()
-        ylim = ax.get_ylim()
+    def drawForeground(self, painter: QPainter, rect: QRectF) -> None:
+        """坐标系渲染 — 逐行复制自 PlotCanvas.drawForeground。"""
+        super().drawForeground(painter, rect)
 
-        ax.clear()
-        self._setup_axes()
+        painter.save()
+        painter.resetTransform()
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
-        self._draw_grid()
-        self._draw_axes()
-        self._draw_shapes()
-        self._draw_preview()
+        vr = self.mapToScene(self.viewport().rect()).boundingRect()
+        x0, x1 = vr.left(), vr.right()
+        y0, y1 = vr.top(), vr.bottom()
+        rng = max(x1 - x0, y1 - y0)
+        if rng <= 0:
+            painter.restore(); return
 
-        # 恢复视图
-        ax.set_xlim(xlim)
-        ax.set_ylim(ylim)
-        ax.set_aspect("equal")
-        ax.set_xticks([]); ax.set_yticks([])
-        for spine in ax.spines.values():
-            spine.set_visible(False)
+        step = calculate_step(rng)
+        ox = self._map_x(0); oy = self._map_y(0)
+        xa_ok = oy is not None and y0 <= 0 <= y1
+        ya_ok = ox is not None and x0 <= 0 <= x1
 
-        self._canvas.draw_idle()
+        # ── 坐标轴（固定 2px 粗线）──
+        vp = self.viewport().rect()
+        painter.setPen(QPen(AXIS_COLOR, AXIS_PX))
+        if xa_ok:
+            painter.drawLine(int(vp.left()), int(oy), int(vp.right()), int(oy))
+        if ya_ok:
+            painter.drawLine(int(ox), int(vp.top()), int(ox), int(vp.bottom()))
 
-    def _draw_grid(self) -> None:
-        """网格线 — 同 drawForeground：遍历步长，画贯穿视口的线。"""
-        ax = self._ax
-        x0, x1 = ax.get_xlim()
-        y0, y1 = ax.get_ylim()
-        step = _calculate_step(max(x1 - x0, y1 - y0))
-
+        # ── 网格线 ──
+        painter.setPen(QPen(GRID_COLOR, 1))
         gx = math.floor(x0 / step) * step
         while gx <= x1:
-            ax.axvline(gx, color=self.GRID_COLOR, linewidth=0.5, linestyle="-", zorder=0)
+            p1 = self.mapFromScene(QPointF(gx, y0))
+            p2 = self.mapFromScene(QPointF(gx, y1))
+            painter.drawLine(p1, p2)
             gx += step
         gy = math.floor(y0 / step) * step
         while gy <= y1:
-            ax.axhline(gy, color=self.GRID_COLOR, linewidth=0.5, linestyle="-", zorder=0)
+            p1 = self.mapFromScene(QPointF(x0, gy))
+            p2 = self.mapFromScene(QPointF(x1, gy))
+            painter.drawLine(p1, p2)
             gy += step
 
-    def _draw_axes(self) -> None:
-        """坐标轴 + 刻度 + 标签 — 完整复刻 drawForeground 逐行逻辑。
+        # ── 字体 ──
+        font = painter.font()
+        font.setPixelSize(FONT_PX)
+        painter.setFont(font)
 
-        与原版唯一区别：QPainter 固定像素 → matplotlib 通过 _dpp 将
-        像素换算为数据坐标，保证缩放下视觉大小不变。
-        """
-        ax = self._ax
-        x0, x1 = ax.get_xlim()
-        y0, y1 = ax.get_ylim()
-        rng = max(x1 - x0, y1 - y0)
-        if rng <= 0:
-            return
-
-        step = _calculate_step(rng)
-        dpp = self._dpp()          # 1 像素 = 多少数据坐标
-        half = 4 * dpp             # TICK_PX = 4（半高）
-        axis_lw = 2.0 * dpp        # AXIS_PX = 2.0
-        font_size = 9 * dpp * 0.85 # FONT_PX ≈ 9，matplotlib 字号是点，略调
-        xa_ok = y0 <= 0 <= y1
-        ya_ok = x0 <= 0 <= x1
-
-        # ── 坐标轴（固定 2px 粗线）──
-        if xa_ok:
-            ax.axhline(0, color=self.AXIS_COLOR, linewidth=axis_lw, zorder=4)
-        if ya_ok:
-            ax.axvline(0, color=self.AXIS_COLOR, linewidth=axis_lw, zorder=4)
-
-        # ── 步长像素宽度 & 刻度数值字体 ──
-        fs = max(6, min(12, font_size))
+        half = TICK_PX
+        spx = self._step_px(step)
 
         # ── X 轴刻度 ──
         sx = math.floor(x0 / step) * step
         while sx <= x1:
-            if abs(sx) >= step * 0.001:       # 跳过原点位
-                base_y = 0.0 if xa_ok else y0  # 轴离开视野 → 边缘
-                if not xa_ok:
-                    ax.axhline(y0, color=self.EDGE_COLOR, linewidth=0.5,
-                               linestyle="--", zorder=3)
-                ax.plot([sx, sx], [base_y - half, base_y + half],
-                        color=self.TICK_COLOR if xa_ok else self.EDGE_COLOR,
-                        linewidth=0.6, zorder=6)
-                ax.text(sx, base_y + half + 2 * dpp,
-                        _format_tick(sx, step), fontsize=fs,
-                        color=self.TEXT_COLOR if xa_ok else self.EDGE_COLOR,
-                        ha="center", va="top", zorder=7)
+            vx = self._map_x(sx)
+            vy = oy if xa_ok else self._map_y(0.0)
+            if vx is not None and vy is not None:
+                painter.setPen(QPen(TICK_COLOR, 1))
+                painter.drawLine(int(vx), int(vy - half), int(vx), int(vy + half))
+                painter.setPen(QPen(TEXT_COLOR, 1))
+                painter.drawText(
+                    int(vx - spx * 0.4), int(vy + half + 2),
+                    int(spx * 0.8), 16,
+                    int(Qt.AlignHCenter | Qt.AlignTop), format_tick(sx, step),
+                )
             sx += step
 
         # ── Y 轴刻度 ──
         sy = math.floor(y0 / step) * step
         while sy <= y1:
-            if abs(sy) >= step * 0.001:
-                base_x = 0.0 if ya_ok else x0
-                if not ya_ok:
-                    ax.axvline(x0, color=self.EDGE_COLOR, linewidth=0.5,
-                               linestyle="--", zorder=3)
-                ax.plot([base_x - half, base_x + half], [sy, sy],
-                        color=self.TICK_COLOR if ya_ok else self.EDGE_COLOR,
-                        linewidth=0.6, zorder=6)
-                ax.text(base_x - half - 4 * dpp, sy,
-                        _format_tick(sy, step), fontsize=fs,
-                        color=self.TEXT_COLOR if ya_ok else self.EDGE_COLOR,
-                        ha="right", va="center", zorder=7)
+            vx = ox if ya_ok else self._map_x(0.0)
+            vy = self._map_y(sy)
+            if vx is not None and vy is not None:
+                painter.setPen(QPen(TICK_COLOR, 1))
+                painter.drawLine(int(vx - half), int(vy), int(vx + half), int(vy))
+                painter.setPen(QPen(TEXT_COLOR, 1))
+                painter.drawText(
+                    int(vx - half - 4 - 40), int(vy - 8), 36, 16,
+                    int(Qt.AlignRight | Qt.AlignVCenter), format_tick(sy, step),
+                )
             sy += step
 
+        # ── 边缘刻度（主轴离开视野时）──
+        if not xa_ok:
+            edge_y = int(vp.bottom() - 20)
+            painter.setPen(QPen(EDGE_COLOR, 1, Qt.PenStyle.DashLine))
+            painter.drawLine(int(vp.left()), edge_y, int(vp.right()), edge_y)
+            sx = math.floor(x0 / step) * step
+            while sx <= x1:
+                vx = self._map_x(sx)
+                if vx is not None:
+                    painter.setPen(QPen(EDGE_COLOR, 1))
+                    painter.drawLine(int(vx), edge_y - half, int(vx), edge_y + half)
+                    painter.setPen(QPen(EDGE_COLOR, 1))
+                    painter.drawText(
+                        int(vx - spx * 0.4), edge_y + half + 2,
+                        int(spx * 0.8), 16,
+                        int(Qt.AlignHCenter | Qt.AlignTop), format_tick(sx, step),
+                    )
+                sx += step
+
+        if not ya_ok:
+            edge_x = int(vp.left() + 20)
+            painter.setPen(QPen(EDGE_COLOR, 1, Qt.PenStyle.DashLine))
+            painter.drawLine(edge_x, int(vp.top()), edge_x, int(vp.bottom()))
+            sy = math.floor(y0 / step) * step
+            while sy <= y1:
+                vy = self._map_y(sy)
+                if vy is not None:
+                    painter.setPen(QPen(EDGE_COLOR, 1))
+                    painter.drawLine(edge_x - half, int(vy), edge_x + half, int(vy))
+                    painter.setPen(QPen(EDGE_COLOR, 1))
+                    painter.drawText(
+                        edge_x + half + 2, int(vy - 8), 40, 16,
+                        int(Qt.AlignLeft | Qt.AlignVCenter), format_tick(sy, step),
+                    )
+                sy += step
+
         # ── 原点 O ──
-        if xa_ok and ya_ok:
-            ax.text(3 * dpp, 1 * dpp, "O", fontsize=10, fontweight="bold",
-                    color="#0f172a", ha="left", va="bottom", zorder=7)
+        o_x = self._map_x(0); o_y = self._map_y(0)
+        if o_x is not None and o_y is not None and (x0 <= 0 <= x1) and (y0 <= 0 <= y1):
+            fb = painter.font(); fb.setPixelSize(10); fb.setBold(True)
+            painter.setFont(fb)
+            painter.setPen(QPen(QColor("#0f172a"), 1))
+            painter.drawText(int(o_x + 3), int(o_y + 1), "O")
 
         # ── 轴名 ──
-        ax.text(x1 - 18 * dpp, 8 * dpp if xa_ok else -14 * dpp,
-                "x", fontsize=10, fontweight="bold",
-                color=self.AXIS_COLOR, ha="center", va="bottom", zorder=7)
-        ax.text(5 * dpp if ya_ok else -5 * dpp, y1 - 11 * dpp,
-                "y", fontsize=10, fontweight="bold",
-                color=self.AXIS_COLOR, ha="left", va="center", zorder=7)
+        fs = painter.font(); fs.setPixelSize(10); fs.setBold(True)
+        painter.setFont(fs)
+        painter.setPen(QPen(AXIS_COLOR, 1))
+        painter.drawText(vp.right() - 18,
+                         int(oy + 8) if xa_ok else vp.bottom() - 14, "x")
+        painter.drawText(int(ox + 5) if ya_ok else 5,
+                         vp.top() + 11, "y")
 
-    def _dpp(self) -> float:
-        """每像素对应的数据坐标量（取 x/y 方向的较大值）。
+        painter.restore()
 
-        等价于 QGraphicsView.resetTransform() 下的像素→场景比例。
-        """
-        try:
-            ax = self._ax
-            bbox = ax.get_window_extent()
-            if bbox is not None and bbox.width > 1 and bbox.height > 1:
-                x0, x1 = ax.get_xlim()
-                y0, y1 = ax.get_ylim()
-                return max((x1 - x0) / bbox.width, (y1 - y0) / bbox.height)
-        except Exception:
-            pass
-        rng = max(self._ax.get_xlim()[1] - self._ax.get_xlim()[0],
-                  self._ax.get_ylim()[1] - self._ax.get_ylim()[0])
-        return rng / 400.0 if rng > 0 else 0.01
+    # ── 坐标映射（复制 PlotCanvas）──────────────────────────
 
-    def _draw_shapes(self) -> None:
-        """渲染所有已完成的图形。"""
+    def _map_x(self, sx: float) -> float | None:
+        pt = self.mapFromScene(QPointF(sx, 0))
+        return pt.x()
+
+    def _map_y(self, sy: float) -> float | None:
+        pt = self.mapFromScene(QPointF(0, sy))
+        return pt.y()
+
+    def _step_px(self, step: float) -> float:
+        return abs(self._map_x(step) - (self._map_x(0) or 0))
+
+    # ═══════════════════════════════════════════════════════════
+    #  图形渲染 — QGraphicsItem
+    # ═══════════════════════════════════════════════════════════
+
+    def _rebuild_shape_items(self) -> None:
+        """从 _shapes 重建所有 QGraphicsItem。"""
+        # 清除旧 items
+        for item in self._shape_items.values():
+            self._scene.removeItem(item)
+        self._shape_items.clear()
+
         for s in self._shapes:
             if not s.visible:
                 continue
             is_sel = (s.id == self._selected_id)
             lw = s.line_width + 1.5 if is_sel else s.line_width
-            color = self.HIGHLIGHT_COLOR if is_sel else s.color
-            alpha = 1.0
-            zorder = 10 if is_sel else 5
+            color = QColor(HIGHLIGHT_COLOR if is_sel else s.color)
 
             try:
-                if s.shape_type == ShapeType.POINT:
-                    x, y = s.data
-                    self._ax.plot(x, y, "o", color=color, markersize=8, zorder=zorder,
-                                  markeredgecolor="white", markeredgewidth=0.5)
-                    self._ax.text(x + 0.3, y + 0.3, s.label, fontsize=9,
-                                  color="#1e293b", zorder=zorder + 1)
-
-                elif s.shape_type == ShapeType.SEGMENT:
-                    (x1, y1), (x2, y2) = s.data
-                    self._ax.plot([x1, x2], [y1, y2], "-", color=color,
-                                  linewidth=lw, zorder=zorder)
-                    # 端点
-                    self._ax.plot([x1, x2], [y1, y2], "o", color=color,
-                                  markersize=4, zorder=zorder + 1)
-                    mid = ((x1 + x2) / 2, (y1 + y2) / 2)
-                    dist = math.hypot(x2 - x1, y2 - y1)
-                    self._ax.text(mid[0] + 0.2, mid[1] + 0.2,
-                                  f"{s.label}\n({dist:.2f})", fontsize=8,
-                                  color="#475569", zorder=zorder + 1)
-
-                elif s.shape_type == ShapeType.LINE:
-                    (x1, y1), (x2, y2) = s.data
-                    _draw_infinite_line(self._ax, x1, y1, x2, y2, color, lw, zorder)
-                    # 控制点
-                    self._ax.plot([x1, x2], [y1, y2], "s", color=color,
-                                  markersize=4, zorder=zorder + 1)
-
-                elif s.shape_type == ShapeType.VECTOR:
-                    (x1, y1), (x2, y2) = s.data
-                    dx, dy = x2 - x1, y2 - y1
-                    self._ax.arrow(x1, y1, dx, dy, head_width=0.3, head_length=0.4,
-                                   fc=color, ec=color, linewidth=lw,
-                                   length_includes_head=True, zorder=zorder)
-                    lbl = s.label or f"({dx:.2f}, {dy:.2f})"
-                    self._ax.text((x1 + x2) / 2 + 0.3, (y1 + y2) / 2 + 0.3,
-                                  lbl, fontsize=8, color=color, zorder=zorder + 1)
-
-                elif s.shape_type == ShapeType.CIRCLE:
-                    (cx, cy), r = s.data
-                    circ = MplCircle((cx, cy), r, fill=False, edgecolor=color,
-                                     linewidth=lw, zorder=zorder)
-                    self._ax.add_patch(circ)
-                    self._ax.plot(cx, cy, "o", color=color, markersize=5, zorder=zorder + 1)
-                    self._ax.text(cx + 0.3, cy + 0.3, f"{s.label}", fontsize=8,
-                                  color="#475569", zorder=zorder + 1)
-
-                elif s.shape_type == ShapeType.ELLIPSE:
-                    (cx, cy), rx, ry = s.data
-                    ell = MplEllipse((cx, cy), 2 * rx, 2 * ry, fill=False,
-                                     edgecolor=color, linewidth=lw, zorder=zorder)
-                    self._ax.add_patch(ell)
-                    self._ax.plot(cx, cy, "o", color=color, markersize=5, zorder=zorder + 1)
-                    self._ax.text(cx + 0.3, cy + 0.3, s.label, fontsize=8,
-                                  color="#475569", zorder=zorder + 1)
-
-                elif s.shape_type == ShapeType.RECTANGLE:
-                    (x1, y1), (x2, y2) = s.data
-                    x, w = min(x1, x2), abs(x2 - x1)
-                    y, h = min(y1, y2), abs(y2 - y1)
-                    rect = MplRectangle((x, y), w, h, fill=False, edgecolor=color,
-                                        linewidth=lw, zorder=zorder)
-                    self._ax.add_patch(rect)
-                    # 对角点
-                    for px, py in [(x1, y1), (x2, y2)]:
-                        self._ax.plot(px, py, "o", color=color, markersize=4, zorder=zorder + 1)
-
-                elif s.shape_type == ShapeType.POLYGON:
-                    pts = s.data
-                    if len(pts) >= 3:
-                        poly = MplPolygon(pts, fill=False, edgecolor=color,
-                                          linewidth=lw, zorder=zorder)
-                        self._ax.add_patch(poly)
-                        for px, py in pts:
-                            self._ax.plot(px, py, "o", color=color, markersize=4, zorder=zorder + 1)
-
-                # 选中高亮效果
-                if is_sel:
-                    self._draw_highlight(s)
-
+                item = self._create_item(s, color, lw)
+                if item:
+                    self._scene.addItem(item)
+                    self._shape_items[s.id] = item
             except Exception:
                 pass
 
-    def _draw_highlight(self, s: GeometricShape) -> None:
-        """绘制选中高亮。"""
-        pass  # is_sel 已经通过颜色/线宽体现，无需额外高亮
+    def _create_item(self, s: GeometricShape, color: QColor, lw: float) -> QGraphicsItem | None:
+        """根据图形类型创建 QGraphicsItem。"""
+        pen = QPen(color)
+        pen.setWidthF(lw)
 
-    def _draw_preview(self) -> None:
-        """绘制构建中的预览图形。"""
-        cx, cy = self._cursor_pt
-        ls = (0, (4, 4))  # 虚线
-        preview_color = self.PREVIEW_COLOR
-        alpha = 0.6
+        if s.shape_type == ShapeType.POINT:
+            x, y = s.data
+            r = 4.0
+            item = QGraphicsEllipseItem(x - r, y - r, r * 2, r * 2)
+            item.setPen(QPen(color))
+            item.setBrush(QBrush(color))
+            item.setZValue(10)
+            # 标签
+            label = QGraphicsSimpleTextItem(s.label)
+            label.setPos(x + 6, y + 6)
+            label.setBrush(QBrush(QColor("#1e293b")))
+            font = QFont(); font.setPixelSize(10); label.setFont(font)
+            label.setZValue(11)
+            label.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIgnoresTransformations)
+            label.setParentItem(item)
+            item.setData(0, "point")
+            return item
+
+        elif s.shape_type == ShapeType.SEGMENT:
+            (x1, y1), (x2, y2) = s.data
+            item = QGraphicsLineItem(x1, y1, x2, y2)
+            item.setPen(pen); item.setZValue(5)
+            # 端点
+            for px, py in [(x1, y1), (x2, y2)]:
+                dot = QGraphicsEllipseItem(px - 2, py - 2, 4, 4)
+                dot.setPen(QPen(color)); dot.setBrush(QBrush(color))
+                dot.setZValue(6); dot.setParentItem(item)
+            # 中点标签
+            mid_x, mid_y = (x1 + x2) / 2, (y1 + y2) / 2
+            dist = math.hypot(x2 - x1, y2 - y1)
+            lbl = QGraphicsSimpleTextItem(f"{s.label} ({dist:.2f})")
+            lbl.setPos(mid_x + 4, mid_y + 4)
+            lbl.setBrush(QBrush(QColor("#475569")))
+            font = QFont(); font.setPixelSize(9); lbl.setFont(font)
+            lbl.setZValue(7); lbl.setParentItem(item)
+            lbl.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIgnoresTransformations)
+            return item
+
+        elif s.shape_type == ShapeType.VECTOR:
+            (x1, y1), (x2, y2) = s.data
+            path = QPainterPath()
+            path.moveTo(x1, y1)
+            path.lineTo(x2, y2)
+            # 箭头
+            dx, dy = x2 - x1, y2 - y1
+            length = math.hypot(dx, dy)
+            if length > 0.001:
+                ux, uy = dx / length, dy / length
+                arrow_size = 0.4
+                path.moveTo(x2, y2)
+                path.lineTo(x2 - arrow_size * ux + arrow_size * 0.3 * uy,
+                            y2 - arrow_size * uy - arrow_size * 0.3 * ux)
+                path.moveTo(x2, y2)
+                path.lineTo(x2 - arrow_size * ux - arrow_size * 0.3 * uy,
+                            y2 - arrow_size * uy + arrow_size * 0.3 * ux)
+            item = QGraphicsPathItem(path)
+            item.setPen(pen); item.setZValue(5)
+            lbl = QGraphicsSimpleTextItem(s.label or f"({dx:.2f}, {dy:.2f})")
+            lbl.setPos((x1 + x2) / 2 + 4, (y1 + y2) / 2 + 4)
+            lbl.setBrush(QBrush(color))
+            font = QFont(); font.setPixelSize(9); lbl.setFont(font)
+            lbl.setZValue(7); lbl.setParentItem(item)
+            lbl.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIgnoresTransformations)
+            return item
+
+        elif s.shape_type == ShapeType.CIRCLE:
+            (cx, cy), r = s.data
+            item = QGraphicsEllipseItem(cx - r, cy - r, r * 2, r * 2)
+            item.setPen(pen); item.setBrush(QBrush(Qt.BrushStyle.NoBrush))
+            item.setZValue(5)
+            # 圆心点
+            dot = QGraphicsEllipseItem(cx - 3, cy - 3, 6, 6)
+            dot.setPen(QPen(color)); dot.setBrush(QBrush(color))
+            dot.setZValue(6); dot.setParentItem(item)
+            return item
+
+        elif s.shape_type == ShapeType.LINE:
+            (x1, y1), (x2, y2) = s.data
+            vr = self.mapToScene(self.viewport().rect()).boundingRect()
+            x0, x1v = vr.left(), vr.right()
+            y0, y1v = vr.top(), vr.bottom()
+            pts = _line_viewport_intersection(x1, y1, x2, y2, x0, x1v, y0, y1v)
+            if len(pts) >= 2:
+                item = QGraphicsLineItem(pts[0][0], pts[0][1], pts[1][0], pts[1][1])
+                item.setPen(pen); item.setZValue(5)
+                return item
+            return None
+
+        elif s.shape_type == ShapeType.ELLIPSE:
+            (cx, cy), rx, ry = s.data
+            item = QGraphicsEllipseItem(cx - rx, cy - ry, rx * 2, ry * 2)
+            item.setPen(pen); item.setBrush(QBrush(Qt.BrushStyle.NoBrush))
+            item.setZValue(5)
+            dot = QGraphicsEllipseItem(cx - 2, cy - 2, 4, 4)
+            dot.setPen(QPen(color)); dot.setBrush(QBrush(color))
+            dot.setZValue(6); dot.setParentItem(item)
+            return item
+
+        elif s.shape_type == ShapeType.RECTANGLE:
+            (x1, y1), (x2, y2) = s.data
+            x, y = min(x1, x2), min(y1, y2)
+            w, h = abs(x2 - x1), abs(y2 - y1)
+            item = self._scene.addRect(x, y, w, h, pen, QBrush(Qt.BrushStyle.NoBrush))
+            if item:
+                item.setZValue(5)
+            return item
+
+        elif s.shape_type == ShapeType.POLYGON:
+            pts = s.data
+            if len(pts) >= 3:
+                poly = QPolygonF([QPointF(x, y) for x, y in pts])
+                item = QGraphicsPolygonItem(poly)
+                item.setPen(pen); item.setBrush(QBrush(Qt.BrushStyle.NoBrush))
+                item.setZValue(5)
+                # 顶点
+                for px, py in pts:
+                    dot = QGraphicsEllipseItem(px - 2, py - 2, 4, 4)
+                    dot.setPen(QPen(color)); dot.setBrush(QBrush(color))
+                    dot.setZValue(6); dot.setParentItem(item)
+                return item
+            return None
+
+        return None
+
+    # ── 预览 ───────────────────────────────────────────────
+
+    def _rebuild_preview(self) -> None:
+        """重建构造预览（虚线 item）。"""
+        for item in self._preview_items:
+            self._scene.removeItem(item)
+        self._preview_items.clear()
 
         if self._state == _State.IDLE:
             return
 
+        cx, cy = self._cursor_pt
+        pen = QPen(PREVIEW_COLOR)
+        pen.setWidthF(1.2)
+        pen.setStyle(Qt.PenStyle.DashLine)
+
         try:
-            if self._state == _State.AWAIT_SECOND:
-                if self._temp_pts:
-                    px, py = self._temp_pts[0]
-                    self._ax.plot([px, cx], [py, cy], "--", color=preview_color,
-                                  linewidth=1.2, alpha=alpha, zorder=3)
+            if self._state == _State.AWAIT_SECOND and self._temp_pts:
+                px, py = self._temp_pts[0]
+                line = self._scene.addLine(px, py, cx, cy, pen)
+                line.setZValue(3); self._preview_items.append(line)
 
-            elif self._state == _State.DRAG_RADIUS:
-                if self._temp_pts:
-                    px, py = self._temp_pts[0]
-                    r = math.hypot(cx - px, cy - py)
-                    circ = MplCircle((px, py), r, fill=False, linestyle="--",
-                                     edgecolor=preview_color, linewidth=1.2, alpha=alpha, zorder=3)
-                    self._ax.add_patch(circ)
-                    self._ax.plot([px, cx], [py, cy], ":", color=preview_color,
-                                  linewidth=0.8, alpha=alpha, zorder=3)
+            elif self._state == _State.DRAG_RADIUS and self._temp_pts:
+                px, py = self._temp_pts[0]
+                r = math.hypot(cx - px, cy - py)
+                circ = self._scene.addEllipse(px - r, py - r, r * 2, r * 2, pen)
+                circ.setZValue(3); self._preview_items.append(circ)
+                line = self._scene.addLine(px, py, cx, cy, QPen(PREVIEW_COLOR, 0.6))
+                line.setZValue(3); self._preview_items.append(line)
 
-            elif self._state == _State.AWAIT_H_RAD:
-                if self._temp_pts:
-                    px, py = self._temp_pts[0]
-                    self._ax.plot([px, cx], [py, py], "--", color=preview_color,
-                                  linewidth=1.2, alpha=alpha, zorder=3)
+            elif self._state == _State.AWAIT_H_RAD and self._temp_pts:
+                px, py = self._temp_pts[0]
+                line = self._scene.addLine(px, py, cx, py, pen)
+                line.setZValue(3); self._preview_items.append(line)
 
-            elif self._state == _State.AWAIT_V_RAD:
-                if len(self._temp_pts) >= 2:
-                    px, py = self._temp_pts[0]
-                    hx, _ = self._temp_pts[1]
-                    rx = abs(hx - px)
-                    ry = abs(cy - py)
-                    if rx > 0.01 and ry > 0.01:
-                        ell = MplEllipse((px, py), 2 * rx, 2 * ry, fill=False,
-                                         linestyle="--", edgecolor=preview_color,
-                                         linewidth=1.2, alpha=alpha, zorder=3)
-                        self._ax.add_patch(ell)
+            elif self._state == _State.AWAIT_V_RAD and len(self._temp_pts) >= 2:
+                px, py = self._temp_pts[0]
+                hx, _ = self._temp_pts[1]
+                rx = abs(hx - px); ry = abs(cy - py)
+                if rx > 0.01 and ry > 0.01:
+                    ell = self._scene.addEllipse(px - rx, py - ry, rx * 2, ry * 2, pen)
+                    ell.setZValue(3); self._preview_items.append(ell)
 
-            elif self._state == _State.AWAIT_CORNER:
-                if self._temp_pts:
-                    px, py = self._temp_pts[0]
-                    x = min(px, cx); w = abs(cx - px)
-                    y = min(py, cy); h = abs(cy - py)
-                    rect = MplRectangle((x, y), w, h, fill=False, linestyle="--",
-                                        edgecolor=preview_color, linewidth=1.2,
-                                        alpha=alpha, zorder=3)
-                    self._ax.add_patch(rect)
+            elif self._state == _State.AWAIT_CORNER and self._temp_pts:
+                px, py = self._temp_pts[0]
+                x = min(px, cx); w = abs(cx - px)
+                y = min(py, cy); h = abs(cy - py)
+                rect = self._scene.addRect(x, y, w, h, pen)
+                rect.setZValue(3); self._preview_items.append(rect)
 
-            elif self._state == _State.BUILD_POLY:
-                if self._temp_pts:
-                    pts = self._temp_pts + [(cx, cy)]
-                    if len(pts) >= 2:
-                        xs = [p[0] for p in pts]; ys = [p[1] for p in pts]
-                        self._ax.plot(xs, ys, "--", color=preview_color,
-                                      linewidth=1.2, alpha=alpha, zorder=3)
-                        for px, py in self._temp_pts:
-                            self._ax.plot(px, py, "s", color=preview_color,
-                                          markersize=5, zorder=4)
+            elif self._state == _State.BUILD_POLY and self._temp_pts:
+                pts = self._temp_pts + [(cx, cy)]
+                if len(pts) >= 2:
+                    for i in range(len(pts) - 1):
+                        a, b = pts[i], pts[i + 1]
+                        line = self._scene.addLine(a[0], a[1], b[0], b[1], pen)
+                        line.setZValue(3); self._preview_items.append(line)
+                    for px, py in self._temp_pts:
+                        dot = self._scene.addEllipse(px - 3, py - 3, 6, 6,
+                                                      QPen(PREVIEW_COLOR), QBrush(PREVIEW_COLOR))
+                        dot.setZValue(4); self._preview_items.append(dot)
         except Exception:
             pass
 
@@ -471,95 +572,52 @@ class GeometryCanvas(QWidget):
     #  鼠标事件
     # ═══════════════════════════════════════════════════════════
 
-    def _snap(self, v: float, step: float) -> float:
-        """网格吸附。"""
+    def _snap(self, v: float) -> float:
         if not self._grid_snap:
             return v
+        step = self._grid_step()
         return round(v / step) * step
 
     def _grid_step(self) -> float:
-        """当前缩放级别下的吸附步长。"""
-        x0, x1 = self._ax.get_xlim()
-        y0, y1 = self._ax.get_ylim()
-        rng = max(x1 - x0, y1 - y0)
-        return _calculate_step(rng) / 5
+        vr = self.mapToScene(self.viewport().rect()).boundingRect()
+        rng = max(vr.width(), vr.height())
+        return calculate_step(rng) / 5
 
     def _pick_shape(self, mx: float, my: float) -> int | None:
-        """找到点击位置最近的可命中图形 ID。
-
-        优先选点，其次按距离排序。"""
         step = self._grid_step()
         threshold = step * 0.8
-        best = None; best_dist = float("inf")
-
+        best, best_dist = None, float("inf")
         for s in self._shapes:
             if not s.visible:
                 continue
             if hit_test(s, mx, my, threshold):
-                # 点到图形距离估算
-                dist = self._shape_approx_dist(s, mx, my)
+                dist = _shape_approx_dist(s, mx, my)
                 if dist < best_dist:
-                    best_dist = dist
-                    best = s.id
+                    best_dist = dist; best = s.id
         return best
 
-    def _shape_approx_dist(self, s: GeometricShape, mx: float, my: float) -> float:
-        """点到图形的近似距离（用于最近选择）。"""
-        if s.shape_type == ShapeType.POINT:
-            x, y = s.data; return math.hypot(mx - x, my - y)
-        elif s.shape_type in (ShapeType.SEGMENT, ShapeType.VECTOR):
-            (x1, y1), (x2, y2) = s.data
-            return _pt_seg_dist(mx, my, x1, y1, x2, y2)
-        elif s.shape_type == ShapeType.CIRCLE:
-            (cx, cy), r = s.data
-            return abs(math.hypot(mx - cx, my - cy) - r)
-        elif s.shape_type == ShapeType.LINE:
-            (x1, y1), (x2, y2) = s.data
-            return _pt_line_dist(mx, my, x1, y1, x2, y2)
-        elif s.shape_type == ShapeType.ELLIPSE:
-            (cx, cy), rx, ry = s.data
-            if rx < 0.01 or ry < 0.01:
-                return float("inf")
-            nx = (mx - cx) / rx; ny = (my - cy) / ry
-            return abs(math.hypot(nx, ny) - 1.0) * (rx + ry) / 2
-        elif s.shape_type in (ShapeType.RECTANGLE, ShapeType.POLYGON):
-            pts = _shape_edges(s)
-            return min(_pt_seg_dist(mx, my, *e[0], *e[1]) for e in pts) if pts else float("inf")
-        return float("inf")
-
-    def _hit_threshold(self) -> float:
-        """碰撞检测阈值（数据坐标）。"""
-        step = self._grid_step()
-        return step * 0.8
-
-    # ── Press ─────────────────────────────────────────────
-
-    def _on_press(self, event) -> None:
-        if event.xdata is None or event.ydata is None:
+    def mousePressEvent(self, event) -> None:
+        if event.button() == Qt.MouseButton.MiddleButton:
+            self.setDragMode(QGraphicsView.DragMode.ScrollHandDrag)
+            e = event.__class__(event.type(), event.pos(), Qt.MouseButton.LeftButton,
+                                event.buttons(), event.modifiers())
+            super().mousePressEvent(e)
             return
 
-        mx, my = float(event.xdata), float(event.ydata)
-        step = self._grid_step()
-        mx = self._snap(mx, step)
-        my = self._snap(my, step)
-
-        # 中键 = 停止任何构建，进入平移模式
-        if event.button == 2:  # MouseButton.MIDDLE
-            self._cancel_construction()
-            return
-
-        # 右键 = 取消 / 闭合多边形
-        if event.button == 3:  # MouseButton.RIGHT
+        if event.button() == Qt.MouseButton.RightButton:
             if self._state == _State.BUILD_POLY and len(self._temp_pts) >= 3:
                 self._commit_polygon()
                 return
             self._cancel_construction()
-            self._draw_all()
+            self._redraw()
             return
 
-        # 左键
-        if event.button != 1:  # MouseButton.LEFT
+        if event.button() != Qt.MouseButton.LeftButton:
+            super().mousePressEvent(event)
             return
+
+        pt = self.mapToScene(event.pos())
+        mx = self._snap(pt.x()); my = self._snap(pt.y())
 
         if self._tool == Tool.SELECT:
             self._handle_select_press(mx, my)
@@ -576,183 +634,138 @@ class GeometryCanvas(QWidget):
         elif self._tool == Tool.POLYGON:
             self._handle_poly_press(mx, my)
 
-    # ── Release ───────────────────────────────────────────
+    def mouseMoveEvent(self, event) -> None:
+        pt = self.mapToScene(event.pos())
+        mx = self._snap(pt.x()); my = self._snap(pt.y())
+        self._cursor_pt = (mx, my)
 
-    def _on_release(self, event) -> None:
-        if event.xdata is None or event.ydata is None:
-            return
+        self.status_message.emit(f"({mx:.2f}, {my:.2f})")
 
-        mx, my = float(event.xdata), float(event.ydata)
-        step = self._grid_step()
-        mx = self._snap(mx, step)
-        my = self._snap(my, step)
-
-        if self._state == _State.DRAG_RADIUS:
-            # 圆：释放鼠标 → 确定半径
-            self._commit_circle(mx, my)
-        elif self._state == _State.DRAGGING:
-            # 拖拽结束
-            self._commit_drag()
-        # 中键释放
-        elif event.button == 2:
-            return
-
-    # ── Move ──────────────────────────────────────────────
-
-    def _on_move(self, event) -> None:
-        if event.xdata is None or event.ydata is None:
-            return
-
-        mx, my = float(event.xdata), float(event.ydata)
-        step = self._grid_step()
-        mx_s = self._snap(mx, step)
-        my_s = self._snap(my, step)
-        self._cursor_pt = (mx_s, my_s)
-
-        # 状态栏坐标
-        self.status_message.emit(f"({mx_s:.2f}, {my_s:.2f})")
-        if self._grid_snap:
-            self.status_message.emit(f"({mx_s:.2f}, {my_s:.2f})  吸附: {step:.2f}")
-
-        # 拖拽移动图形
         if self._state == _State.DRAGGING and self._drag_origin and self._drag_shape_id is not None:
-            ox, oy = self._drag_origin
-            dx, dy = mx_s - ox, my_s - oy
+            ox, oy = self._drag_origin.x(), self._drag_origin.y()
+            dx, dy = mx - ox, my - oy
             for s in self._shapes:
                 if s.id == self._drag_shape_id:
                     translate_shape_inplace(s, dx, dy)
                     break
-            self._drag_origin = (mx_s, my_s)
-            self._draw_all()
+            self._drag_origin = QPointF(mx, my)
+            self._redraw()
             return
 
-        # 构建预览
         if self._state != _State.IDLE:
-            self._draw_all()
+            self._redraw()
 
-    # ── Scroll ────────────────────────────────────────────
+    def mouseReleaseEvent(self, event) -> None:
+        if event.button() == Qt.MouseButton.MiddleButton:
+            self.setDragMode(QGraphicsView.DragMode.NoDrag)
 
-    def _on_scroll(self, event) -> None:
-        """滚轮缩放。"""
-        if event.xdata is None or event.ydata is None:
+        pt = self.mapToScene(event.pos())
+        mx = self._snap(pt.x()); my = self._snap(pt.y())
+
+        if self._state == _State.DRAG_RADIUS:
+            self._commit_circle(mx, my)
+        elif self._state == _State.DRAGGING:
+            self._commit_drag()
+
+    def mouseDoubleClickEvent(self, event) -> None:
+        if self._state == _State.BUILD_POLY and len(self._temp_pts) >= 3:
+            self._commit_polygon()
+
+    def wheelEvent(self, event) -> None:
+        factor = 1.15 if event.angleDelta().y() > 0 else 1.0 / 1.15
+        vs = abs(self.transform().m11())
+        if vs * factor < 1.0 / ZOOM_MAX or vs * factor > 1.0 / ZOOM_MIN:
             return
-        factor = 0.85 if event.button == "up" else 1.15
-        self._zoom_at(event.xdata, event.ydata, factor)
+        self.scale(factor, factor)
+        self._redraw()
+        event.accept()
 
-    def _zoom_at(self, cx: float, cy: float, factor: float) -> None:
-        """以 (cx, cy) 为中心缩放。"""
-        ax = self._ax
-        x0, x1 = ax.get_xlim()
-        y0, y1 = ax.get_ylim()
-
-        # 限制缩放范围
-        new_w = (x1 - x0) * factor
-        new_h = (y1 - y0) * factor
-        if new_w > 10000 or new_h > 10000:
-            return
-        if new_w < 0.01 or new_h < 0.01:
-            return
-
-        rx = (cx - x0) / (x1 - x0)
-        ry = (cy - y0) / (y1 - y0)
-        ax.set_xlim(cx - new_w * rx, cx + new_w * (1 - rx))
-        ax.set_ylim(cy - new_h * ry, cy + new_h * (1 - ry))
-        self._draw_all()
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        vr = self.mapToScene(self.viewport().rect()).boundingRect()
+        if vr.width() > 0 and vr.height() > 0:
+            self.fitInView(vr, Qt.AspectRatioMode.KeepAspectRatio)
 
     # ═══════════════════════════════════════════════════════════
-    #  工具分发
+    #  工具分发（与旧版相同逻辑）
     # ═══════════════════════════════════════════════════════════
 
     def _handle_select_press(self, mx: float, my: float) -> None:
-        """选择工具：点击选中 / 拖拽移动。"""
         sid = self._pick_shape(mx, my)
         if sid is not None:
             self._set_selection(sid)
             self._state = _State.DRAGGING
-            self._drag_origin = (mx, my)
+            self._drag_origin = QPointF(mx, my)
             self._drag_shape_id = sid
         else:
             self._set_selection(None)
             self._state = _State.IDLE
-        self._draw_all()
+        self._redraw()
 
     def _handle_point_press(self, mx: float, my: float) -> None:
-        """点工具：即时创建。"""
         s = create_shape(ShapeType.POINT, (mx, my))
         self._shapes.append(s)
-        self.shape_created.emit(s)
-        self.shape_modified.emit()
-        self._draw_all()
+        self.shape_created.emit(s); self.shape_modified.emit()
+        self._redraw()
 
     def _handle_two_point_press(self, mx: float, my: float) -> None:
-        """线段/向量/直线：两次点击。"""
         if self._state == _State.IDLE:
             self._state = _State.AWAIT_SECOND
             self._temp_pts = [(mx, my)]
-            self._draw_all()
+            self._redraw()
         elif self._state == _State.AWAIT_SECOND:
             self._commit_two_point(mx, my)
 
     def _handle_circle_press(self, mx: float, my: float) -> None:
-        """圆：点击放置圆心。"""
         if self._state == _State.IDLE:
             self._state = _State.DRAG_RADIUS
             self._temp_pts = [(mx, my)]
-            self._draw_all()
+            self._redraw()
 
     def _handle_ellipse_press(self, mx: float, my: float) -> None:
-        """椭圆：三击（中心 → 水平半径 → 垂直半径）。"""
         if self._state == _State.IDLE:
             self._state = _State.AWAIT_H_RAD
             self._temp_pts = [(mx, my)]
-            self._draw_all()
+            self._redraw()
         elif self._state == _State.AWAIT_H_RAD:
             self._state = _State.AWAIT_V_RAD
             self._temp_pts.append((mx, my))
-            self._draw_all()
+            self._redraw()
         elif self._state == _State.AWAIT_V_RAD:
             self._commit_ellipse(mx, my)
 
     def _handle_rect_press(self, mx: float, my: float) -> None:
-        """矩形：两次点击对角。"""
         if self._state == _State.IDLE:
             self._state = _State.AWAIT_CORNER
             self._temp_pts = [(mx, my)]
-            self._draw_all()
+            self._redraw()
         elif self._state == _State.AWAIT_CORNER:
             self._commit_rect(mx, my)
 
     def _handle_poly_press(self, mx: float, my: float) -> None:
-        """多边形：累积顶点。双击闭合在 _on_press 中检测。"""
         if self._state != _State.BUILD_POLY:
             self._state = _State.BUILD_POLY
             self._temp_pts = [(mx, my)]
         else:
-            # 检测双击（同一位置附近 = 闭合意图）
             if self._temp_pts and _dist(mx, my, *self._temp_pts[0]) < self._grid_step() * 0.5 \
                and len(self._temp_pts) >= 3:
                 self._commit_polygon()
             else:
                 self._temp_pts.append((mx, my))
-        self._draw_all()
+        self._redraw()
 
-    # ═══════════════════════════════════════════════════════════
-    #  提交
-    # ═══════════════════════════════════════════════════════════
+    # ── 提交 ───────────────────────────────────────────────
 
     def _commit_two_point(self, mx: float, my: float) -> None:
-        p1 = self._temp_pts[0]
-        p2 = (mx, my)
+        p1 = self._temp_pts[0]; p2 = (mx, my)
         if _dist(*p1, *p2) < 0.001:
             self._cancel_construction(); return
         st = {Tool.SEGMENT: ShapeType.SEGMENT, Tool.VECTOR: ShapeType.VECTOR,
               Tool.LINE: ShapeType.LINE}[self._tool]
         s = create_shape(st, (p1, p2))
         self._shapes.append(s)
-        self.shape_created.emit(s)
-        self.shape_modified.emit()
-        self._cancel_construction()
-        self._draw_all()
+        self.shape_created.emit(s); self.shape_modified.emit()
+        self._cancel_construction(); self._redraw()
 
     def _commit_circle(self, mx: float, my: float) -> None:
         cx, cy = self._temp_pts[0]
@@ -760,58 +773,45 @@ class GeometryCanvas(QWidget):
         if r < 0.01: self._cancel_construction(); return
         s = create_shape(ShapeType.CIRCLE, ((cx, cy), r))
         self._shapes.append(s)
-        self.shape_created.emit(s)
-        self.shape_modified.emit()
-        self._cancel_construction()
-        self._draw_all()
+        self.shape_created.emit(s); self.shape_modified.emit()
+        self._cancel_construction(); self._redraw()
 
     def _commit_ellipse(self, mx: float, my: float) -> None:
         cx, cy = self._temp_pts[0]
         hx, hy = self._temp_pts[1]
-        rx = abs(hx - cx)
-        ry = abs(my - cy)
+        rx = abs(hx - cx); ry = abs(my - cy)
         if rx < 0.01 or ry < 0.01:
-            self._cancel_construction(); self._draw_all(); return
+            self._cancel_construction(); self._redraw(); return
         s = create_shape(ShapeType.ELLIPSE, ((cx, cy), rx, ry))
         self._shapes.append(s)
-        self.shape_created.emit(s)
-        self.shape_modified.emit()
-        self._cancel_construction()
-        self._draw_all()
+        self.shape_created.emit(s); self.shape_modified.emit()
+        self._cancel_construction(); self._redraw()
 
     def _commit_rect(self, mx: float, my: float) -> None:
         p1 = self._temp_pts[0]
         if abs(mx - p1[0]) < 0.01 or abs(my - p1[1]) < 0.01:
-            self._cancel_construction(); self._draw_all(); return
+            self._cancel_construction(); self._redraw(); return
         s = create_shape(ShapeType.RECTANGLE, (p1, (mx, my)))
         self._shapes.append(s)
-        self.shape_created.emit(s)
-        self.shape_modified.emit()
-        self._cancel_construction()
-        self._draw_all()
+        self.shape_created.emit(s); self.shape_modified.emit()
+        self._cancel_construction(); self._redraw()
 
     def _commit_polygon(self) -> None:
         if len(self._temp_pts) < 3:
             self._cancel_construction(); return
         s = create_shape(ShapeType.POLYGON, list(self._temp_pts))
         self._shapes.append(s)
-        self.shape_created.emit(s)
-        self.shape_modified.emit()
-        self._cancel_construction()
-        self._draw_all()
+        self.shape_created.emit(s); self.shape_modified.emit()
+        self._cancel_construction(); self._redraw()
 
     def _commit_drag(self) -> None:
-        """拖拽结束。"""
         if self._drag_shape_id is not None:
             self.shape_modified.emit()
         self._state = _State.IDLE
-        self._drag_origin = None
-        self._drag_shape_id = None
-        self._draw_all()
+        self._drag_origin = None; self._drag_shape_id = None
+        self._redraw()
 
-    # ═══════════════════════════════════════════════════════════
-    #  选择 + 取消
-    # ═══════════════════════════════════════════════════════════
+    # ── 选择 / 取消 ────────────────────────────────────────
 
     def _set_selection(self, sid: int | None) -> None:
         self._selected_id = sid
@@ -820,19 +820,33 @@ class GeometryCanvas(QWidget):
     def _cancel_construction(self) -> None:
         self._state = _State.IDLE
         self._temp_pts.clear()
-        self._drag_origin = None
-        self._drag_shape_id = None
+        self._drag_origin = None; self._drag_shape_id = None
+
+    # ── 重绘 ──────────────────────────────────────────────
+
+    def _redraw(self) -> None:
+        """重建所有图形 + 预览 items，然后触发 viewport 重绘。"""
+        self._rebuild_shape_items()
+        self._rebuild_preview()
+        self._emit_status()
+        self.viewport().update()
+
+    def _emit_status(self) -> None:
+        vr = self.mapToScene(self.viewport().rect()).boundingRect()
+        step = calculate_step(max(vr.width(), vr.height()))
+        self.status_message.emit(
+            f"图形 {len(self._shape_items)}  |  步长 {step:.4g}"
+        )
 
     # ═══════════════════════════════════════════════════════════
     #  公开 API
     # ═══════════════════════════════════════════════════════════
 
     def set_tool(self, tool: Tool) -> None:
-        """切换当前工具。"""
         self._cancel_construction()
         self._tool = tool
         self._set_selection(None)
-        self._draw_all()
+        self._redraw()
         self.status_message.emit(_TOOL_HINTS.get(tool, ""))
 
     def set_grid_snap(self, enabled: bool) -> None:
@@ -847,10 +861,9 @@ class GeometryCanvas(QWidget):
         return self._tool
 
     def set_selected(self, shape_id: int | None) -> None:
-        """外部设置选中。"""
         self._cancel_construction()
         self._set_selection(shape_id)
-        self._draw_all()
+        self._redraw()
 
     def get_selected(self) -> int | None:
         return self._selected_id
@@ -859,165 +872,57 @@ class GeometryCanvas(QWidget):
         return list(self._shapes)
 
     def load_shapes(self, shapes: list[GeometricShape]) -> None:
-        """替换整个图形列表（用于 undo/redo）。"""
         self._shapes = list(shapes)
         self._set_selection(None)
-        self._draw_all()
+        self._redraw()
 
     def delete_shape(self, shape_id: int) -> None:
-        """删除指定图形（不 push undo，由调用方管理）。"""
         self._shapes = [s for s in self._shapes if s.id != shape_id]
         if self._selected_id == shape_id:
             self._set_selection(None)
-        self._draw_all()
+        self._redraw()
         self.shape_modified.emit()
 
     def set_shape_color(self, shape_id: int, color: str) -> None:
         for s in self._shapes:
             if s.id == shape_id:
-                s.color = color
-                self._draw_all()
-                self.shape_modified.emit()
-                return
+                s.color = color; self._redraw()
+                self.shape_modified.emit(); return
 
     def set_shape_label(self, shape_id: int, label: str) -> None:
         for s in self._shapes:
             if s.id == shape_id:
-                s.label = label
-                self._draw_all()
-                self.shape_modified.emit()
-                return
+                s.label = label; self._redraw()
+                self.shape_modified.emit(); return
 
     def reset_view(self) -> None:
-        self._ax.set_xlim(-10, 10)
-        self._ax.set_ylim(-10, 10)
-        self._draw_all()
+        self.fitInView(INITIAL_VIEW, Qt.AspectRatioMode.KeepAspectRatio)
+        self._redraw()
 
     def fit_all(self) -> None:
-        """自适应显示所有图形。"""
         bounds = compute_bounds(self._shapes)
         if bounds is None:
-            self.reset_view()
-            return
+            self.reset_view(); return
         xmin, xmax, ymin, ymax = bounds
         pad_x = max((xmax - xmin) * 0.15, 1.0)
         pad_y = max((ymax - ymin) * 0.15, 1.0)
-        self._ax.set_xlim(xmin - pad_x, xmax + pad_x)
-        self._ax.set_ylim(ymin - pad_y, ymax + pad_y)
-        self._draw_all()
+        self.fitInView(QRectF(xmin - pad_x, ymin - pad_y,
+                               xmax - xmin + 2 * pad_x, ymax - ymin + 2 * pad_y),
+                       Qt.AspectRatioMode.KeepAspectRatio)
+        self._redraw()
 
     def cancel(self) -> None:
-        """取消当前构建操作。"""
         self._cancel_construction()
-        self._draw_all()
+        self._redraw()
 
 
 # ═══════════════════════════════════════════════════════════════
-#  渲染辅助（与普通模式 plot_canvas.py 同款算法）
+#  辅助函数
 # ═══════════════════════════════════════════════════════════════
 
-_NICE_TABLE = (
-    0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 50,
-    100, 200, 500, 1000, 2000, 5000,
-    10000, 20000, 50000,
-    100000, 200000, 500000,
-    1000000, 2000000, 5000000, 10000000,
-)
+def _dist(x1, y1, x2, y2):
+    return math.hypot(x2 - x1, y2 - y1)
 
-
-def _calculate_step(rng: float) -> float:
-    """自适应步长 — rng / 20 向上取整到 nice 值。"""
-    if rng <= 0:
-        return 1.0
-    raw = rng / 20.0
-    for n in _NICE_TABLE:
-        if n >= raw:
-            return n
-    return _NICE_TABLE[-1]
-
-
-def _format_tick(v: float, step: float = 1.0) -> str:
-    """刻度数值格式化（与 plot_canvas.format_tick 相同）。
-
-    步长决定小数位数；极大/极小值用科学计数法。
-    """
-    if not math.isfinite(v):
-        return "∞" if v > 0 else "-∞" if v < 0 else "NaN"
-    if abs(v) < 1e-12:
-        return "0"
-    av = abs(v)
-
-    # 科学计数法: 极大值 (≥1e5) 或步长极小时的小值
-    if av >= 1e5 or (step > 0 and step < 0.0001 and 0 < av < 0.001):
-        e = int(math.floor(math.log10(av) + 1e-12))
-        coeff = v / (10 ** e)
-        if step >= 1:       return f"{coeff:.3g}e{e}"
-        elif step >= 0.1:   return f"{coeff:.4g}e{e}"
-        elif step >= 0.01:  return f"{coeff:.5g}e{e}"
-        else:               return f"{coeff:.6g}e{e}"
-
-    # 步长 → 小数位数
-    if step >= 1:           decimals = 0
-    elif step >= 0.1:       decimals = 1
-    elif step >= 0.01:      decimals = 2
-    elif step >= 0.001:     decimals = 3
-    elif step >= 0.0001:    decimals = 4
-    else:                   decimals = 5
-
-    s = f"{v:.{decimals}f}"
-    if "." in s:
-        s = s.rstrip("0").rstrip(".")
-    if s.startswith("-."):
-        s = "-0" + s[1:]
-    if s.startswith("."):
-        s = "0" + s
-    return s
-
-
-def _grid_values(lo: float, hi: float, step: float) -> list[float]:
-    """生成网格线 / 刻度位置列表。"""
-    if step <= 0:
-        return []
-    start = math.floor(lo / step) * step
-    vals = []
-    v = start
-    while v <= hi + step * 0.001:
-        if abs(v) < step * 0.001:
-            v = 0.0
-        vals.append(v)
-        v += step
-    return vals
-
-
-def _draw_infinite_line(ax, x1, y1, x2, y2, color, lw, zorder):
-    """绘制穿过两点并延伸到视口边界的直线。"""
-    xlim = ax.get_xlim()
-    ylim = ax.get_ylim()
-    x0, x1v = xlim; y0, y1v = ylim
-
-    pts = []
-    dx, dy = x2 - x1, y2 - y1
-    if abs(dx) < 1e-10:
-        pts = [(x1, y0), (x1, y1v)]
-    elif abs(dy) < 1e-10:
-        pts = [(x0, y1), (x1v, y1)]
-    else:
-        m = dy / dx
-        yl = y1 + m * (x0 - x1)
-        if y0 <= yl <= y1v: pts.append((x0, yl))
-        yr = y1 + m * (x1v - x1)
-        if y0 <= yr <= y1v: pts.append((x1v, yr))
-        xb = x1 + (y0 - y1) / m
-        if x0 <= xb <= x1v and len(pts) < 2: pts.append((xb, y0))
-        xt = x1 + (y1v - y1) / m
-        if x0 <= xt <= x1v and len(pts) < 2: pts.append((xt, y1v))
-
-    if len(pts) >= 2:
-        ax.plot([pts[0][0], pts[1][0]], [pts[0][1], pts[1][1]],
-                "-", color=color, linewidth=lw, zorder=zorder)
-
-
-# ── 几何距离 ──────────────────────────────────────────────
 
 def _pt_seg_dist(px, py, x1, y1, x2, y2):
     dx, dy = x2 - x1, y2 - y1
@@ -1034,12 +939,31 @@ def _pt_line_dist(px, py, x1, y1, x2, y2):
     return abs(dx * (y1 - py) - (x1 - px) * dy) / math.hypot(dx, dy)
 
 
-def _dist(x1, y1, x2, y2):
-    return math.hypot(x2 - x1, y2 - y1)
+def _shape_approx_dist(s: GeometricShape, mx: float, my: float) -> float:
+    if s.shape_type == ShapeType.POINT:
+        x, y = s.data; return math.hypot(mx - x, my - y)
+    elif s.shape_type in (ShapeType.SEGMENT, ShapeType.VECTOR):
+        (x1, y1), (x2, y2) = s.data
+        return _pt_seg_dist(mx, my, x1, y1, x2, y2)
+    elif s.shape_type == ShapeType.CIRCLE:
+        (cx, cy), r = s.data
+        return abs(math.hypot(mx - cx, my - cy) - r)
+    elif s.shape_type == ShapeType.LINE:
+        (x1, y1), (x2, y2) = s.data
+        return _pt_line_dist(mx, my, x1, y1, x2, y2)
+    elif s.shape_type == ShapeType.ELLIPSE:
+        (cx, cy), rx, ry = s.data
+        if rx < 0.01 or ry < 0.01:
+            return float("inf")
+        nx = (mx - cx) / rx; ny = (my - cy) / ry
+        return abs(math.hypot(nx, ny) - 1.0) * (rx + ry) / 2
+    elif s.shape_type in (ShapeType.RECTANGLE, ShapeType.POLYGON):
+        edges = _shape_edges(s)
+        return min(_pt_seg_dist(mx, my, *e[0], *e[1]) for e in edges) if edges else float("inf")
+    return float("inf")
 
 
 def _shape_edges(s: GeometricShape) -> list[tuple[tuple[float, float], tuple[float, float]]]:
-    """获取图形的边列表。"""
     if s.shape_type == ShapeType.SEGMENT:
         return [s.data]
     elif s.shape_type == ShapeType.RECTANGLE:
@@ -1052,3 +976,26 @@ def _shape_edges(s: GeometricShape) -> list[tuple[tuple[float, float], tuple[flo
         pts = s.data
         return [(pts[i], pts[(i+1)%len(pts)]) for i in range(len(pts))]
     return []
+
+
+def _line_viewport_intersection(x1, y1, x2, y2, vx0, vx1, vy0, vy1):
+    """直线与视口边界的交点。"""
+    dx, dy = x2 - x1, y2 - y1
+    pts = []
+    if abs(dx) < 1e-10:
+        pts = [(x1, vy0), (x1, vy1)]
+    elif abs(dy) < 1e-10:
+        pts = [(vx0, y1), (vx1, y1)]
+    else:
+        m = dy / dx
+        yl = y1 + m * (vx0 - x1)
+        if vy0 <= yl <= vy1: pts.append((vx0, yl))
+        yr = y1 + m * (vx1 - x1)
+        if vy0 <= yr <= vy1: pts.append((vx1, yr))
+        if len(pts) < 2:
+            xb = x1 + (vy0 - y1) / m
+            if vx0 <= xb <= vx1: pts.append((xb, vy0))
+        if len(pts) < 2:
+            xt = x1 + (vy1 - y1) / m
+            if vx0 <= xt <= vx1: pts.append((xt, vy1))
+    return pts
