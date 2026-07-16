@@ -51,35 +51,7 @@ SYMBOLS: dict[str, list[list[str]]] = {
     ],
 }
 
-# ── 按钮 QSS ─────────────────────────────────────────────────
-
-_BTN_STYLE = """
-    QPushButton {
-        background: #fafafa; color: #1e293b;
-        border: 1px solid #d1d5db; border-radius: 4px;
-        font-size: 13px; padding: 4px 2px;
-    }
-    QPushButton:hover {
-        background: #ffffff; border-color: #3b82f6; color: #0f172a;
-    }
-    QPushButton:pressed {
-        background: #eff6ff; border-color: #2563eb;
-    }
-"""
-
-_TAB_STYLE = """
-    QTabWidget::pane { border: none; background: #ffffff; padding: 2px; }
-    QTabBar::tab {
-        background: transparent; color: #64748b;
-        padding: 3px 8px; border: 1px solid transparent;
-        border-radius: 4px; font-size: 11px;
-    }
-    QTabBar::tab:hover { background: #f1f5f9; color: #1e293b; }
-    QTabBar::tab:selected {
-        background: #ffffff; color: #0f172a; font-weight: 600;
-        border: 1px solid #e2e8f0; border-bottom: 2px solid #3b82f6;
-    }
-"""
+# 键盘样式已迁移到 light.qss / dark.qss（KeyboardPanel, #kb_btn 选择器）
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -91,8 +63,8 @@ class KeyboardPanel(QWidget):
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
+        self.setObjectName("KeyboardPanel")
         self.setVisible(False)
-        self.setStyleSheet(_TAB_STYLE)
 
         root = QVBoxLayout(self)
         root.setContentsMargins(4, 2, 4, 2)
@@ -113,12 +85,12 @@ class KeyboardPanel(QWidget):
             for r, row in enumerate(rows):
                 for c, sym in enumerate(row):
                     btn = QPushButton(sym)
+                    btn.setObjectName("kb_btn")
                     btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
                     btn.setMinimumHeight(24)
                     btn.setSizePolicy(
                         QSizePolicy.Policy.Expanding,
                         QSizePolicy.Policy.Expanding)
-                    btn.setStyleSheet(_BTN_STYLE)
                     btn.setCursor(Qt.CursorShape.PointingHandCursor)
                     btn.clicked.connect(lambda _, s=sym: self._on_key_clicked(s))
                     grid.addWidget(btn, r, c)

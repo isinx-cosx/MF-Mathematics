@@ -420,6 +420,48 @@ QScrollArea {
 }
 #kb_toggle_btn:hover { background: #2563eb; }
 
+/* ---- 虚拟键盘 ---- */
+KeyboardPanel {
+    background: #252540;
+    border-top: 1px solid #313244;
+}
+KeyboardPanel QTabWidget::pane {
+    border: none;
+    background: #252540;
+    padding: 2px;
+}
+KeyboardPanel QTabBar::tab {
+    background: #313244;
+    color: #a6adc8;
+    padding: 4px 10px;
+    border: 1px solid #45475a;
+    border-bottom: none;
+    border-radius: 4px 4px 0 0;
+}
+KeyboardPanel QTabBar::tab:selected {
+    background: #1e1e2e;
+    color: #cdd6f4;
+    border-bottom: 2px solid #3b82f6;
+}
+#kb_btn {
+    background: #313244;
+    color: #cdd6f4;
+    border: 1px solid #45475a;
+    border-radius: 4px;
+    padding: 4px 2px;
+    font-size: 13px;
+    min-width: 36px;
+}
+#kb_btn:hover {
+    background: #45475a;
+    border-color: #585b70;
+}
+#kb_btn:pressed {
+    background: #3b82f6;
+    color: #ffffff;
+    border-color: #2563eb;
+}
+
 /* ---- 占位页面 ---- */
 #page_title {
     color: #cdd6f4;
