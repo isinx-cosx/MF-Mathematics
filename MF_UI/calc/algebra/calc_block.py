@@ -212,6 +212,14 @@ class CalcBlock(BaseCalcBlock):
         # algebra 使用自定义分派逻辑（_do_calculate），不使用 action_map
         return {}
 
+    def _get_compute_target(self, op: str, expr: str) -> tuple[callable, tuple]:
+        """代数计算使用 _do_calculate 而非 _do_dispatch。"""
+        return (self._do_calculate, (op, expr))
+
+    def _get_context_expr(self, expr: str) -> str:
+        """使用用户原始输入作为步骤查看器上下文。"""
+        return getattr(self, '_original_expr', expr)
+
     # ── 覆写：完整分派流程 ───────────────────────────────────
 
     def on_calc_clicked(self) -> None:
@@ -350,23 +358,9 @@ class CalcBlock(BaseCalcBlock):
             worker.start()
             return
 
-        # ── 执行计算 ──
-        QApplication.processEvents()
-        obj: MathObject | None = None
-        try:
-            obj = self._do_calculate(op, expr)
-        except Exception as e:
-            obj = MathObject(error=str(e))
-        QApplication.processEvents()
-
-        if obj is None:
-            obj = MathObject(error="暂不支持此功能")
-
-        self._last_result = obj
-        dlg = ResultDialog(f"计算结果 — {op}", self)
-        dlg.set_context(original_expr, op)
-        dlg.set_result(obj)
-        dlg.exec()
+        # ── 执行计算（后台线程，不阻塞 UI） ──
+        self._original_expr = original_expr
+        self._run_async(expr, op)
 
     # ── 自定义分派逻辑 ───────────────────────────────────────
 

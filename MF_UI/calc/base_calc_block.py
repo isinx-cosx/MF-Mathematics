@@ -136,11 +136,13 @@ class BaseCalcBlock(QWidget):
         子类（linear_algebra / numerical / probability）在
         on_calc_clicked 中调用此方法，仅需覆写 _get_module_name()
         和 _do_dispatch()。
+
+        守卫检查在 UI 线程执行（快速），实际计算在 ComputeWorker
+        后台线程执行（不阻塞 UI）。
         """
         from MF_Mathematics.utils.math_guard import ComplexityGuard, GuardLevel
         from MF_Mathematics.utils.ai_accelerator import get_accelerator
         from MF_UI.utils.math_guard_ui import show_guard_dialog, show_quota_exceeded
-        from PySide6.QtWidgets import QApplication
 
         # ── 数学翻译 ──
         try:
@@ -149,7 +151,7 @@ class BaseCalcBlock(QWidget):
         except Exception:
             pass
 
-        # ── 三级守卫 ──
+        # ── 三级守卫（UI 线程，快速） ──
         guard_result = ComplexityGuard.check(expr, mode=op)
 
         if guard_result.level == GuardLevel.REJECT:
@@ -179,23 +181,75 @@ class BaseCalcBlock(QWidget):
             if choice == "cancel":
                 return
 
-        # ── 执行计算 ──
-        QApplication.processEvents()
-        obj: MathObject | None = None
-        try:
-            obj = self._do_dispatch(self._get_module_name(), op, expr)
-        except Exception as e:
-            obj = MathObject(error=str(e))
-        QApplication.processEvents()
+        # ── 后台计算（不阻塞 UI） ──
+        self._run_async(expr, op)
 
+    def _get_compute_target(self, op: str, expr: str) -> tuple[callable, tuple]:
+        """返回 (target, args) 供 ComputeWorker 执行。子类可覆写。"""
+        return (self._do_dispatch, (self._get_module_name(), op, expr))
+
+    def _run_async(self, expr: str, op: str) -> None:
+        """在 ComputeWorker 后台线程中执行计算，通过信号返回结果。"""
+        from compute_worker import ComputeWorker
+
+        # 防止重复启动
+        if hasattr(self, '_worker') and self._worker is not None:
+            if self._worker.isRunning():
+                return
+
+        # 显示计算中状态
+        self._show_computing(op)
+
+        target, args = self._get_compute_target(op, expr)
+        worker = ComputeWorker(self, target=target, args=args)
+        self._worker = worker
+
+        worker.result_ready.connect(
+            lambda obj: self._on_result(obj, expr, op))
+        worker.error_occurred.connect(
+            lambda err: self._on_error(err, op))
+        worker.finished.connect(self._on_worker_done)
+        worker.start()
+
+    def _show_computing(self, op: str) -> None:
+        """显示计算中状态。"""
+        self.calc_btn.setEnabled(False)
+        self.calc_btn.setText("计算中…")
+
+    def _hide_computing(self) -> None:
+        """隐藏计算中状态。"""
+        self.calc_btn.setEnabled(True)
+        self.calc_btn.setText("计算结果")
+
+    def _get_context_expr(self, expr: str) -> str:
+        """返回用于步骤查看器上下文的表达式。子类可覆写以使用原始输入。"""
+        return expr
+
+    def _on_result(self, obj: MathObject, expr: str, op: str) -> None:
+        """后台计算完成回调（主线程）。"""
+        self._hide_computing()
         if obj is None:
             obj = MathObject(error="暂不支持此功能")
-
         self._last_result = obj
+        ctx = self._get_context_expr(expr)
         dlg = ResultDialog(f"计算结果 — {op}", self)
-        dlg.set_context(expr, op)
+        dlg.set_context(ctx, op)
         dlg.set_result(obj)
         dlg.exec()
+
+    def _on_error(self, err: str, op: str) -> None:
+        """后台计算错误回调（主线程）。"""
+        self._hide_computing()
+        dlg = ResultDialog("计算错误", self)
+        dlg.set_result(MathObject(error=str(err)[:120]))
+        dlg.exec()
+
+    def _on_worker_done(self) -> None:
+        """Worker 完成后的清理。"""
+        self._hide_computing()
+        if hasattr(self, '_worker') and self._worker is not None:
+            self._worker.deleteLater()
+            self._worker = None
 
     def _preprocess_expr(self, expr: str) -> str:
         """分派前预处理表达式（子类可覆盖）。"""
