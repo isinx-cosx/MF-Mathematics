@@ -240,6 +240,12 @@ class SettingsDialog(QDialog):
         self._test_status.setText("测试中…")
         self._test_status.setStyleSheet("color: #3b82f6; font-size: 11px;")
 
+        # 断开旧 worker 信号，避免重复连接
+        if hasattr(self, '_worker') and self._worker is not None:
+            try:
+                self._worker.finished.disconnect(self._on_test_result)
+            except (TypeError, RuntimeError):
+                pass
         self._worker = _TestConnectionWorker(key, url, model, self)
         self._worker.finished.connect(self._on_test_result)
         self._worker.start()

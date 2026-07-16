@@ -179,6 +179,13 @@ class StepViewer(QDialog):
             self._status.setStyleSheet("font-size: 11px; color: #ef4444;")
             return
 
+        # 断开旧 worker 信号，防止重复连接导致回调叠加
+        if hasattr(self, '_worker') and self._worker is not None:
+            try:
+                self._worker.finished.disconnect(self._on_ai_steps)
+                self._worker.error.disconnect(self._on_error)
+            except (TypeError, RuntimeError):
+                pass
         self._worker = _StepWorker(self._expr, self._mode, self)
         self._worker.finished.connect(self._on_ai_steps)
         self._worker.error.connect(self._on_error)

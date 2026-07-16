@@ -530,7 +530,9 @@ def _result_to_latex(result: Any) -> str:
         try:
             from MF_Mathematics.utils.translator import MathTranslator
             return _to_implicit_mul(MathTranslator.computer_to_human(s))
-        except Exception: pass
+        except (ValueError, TypeError, ImportError) as e:
+            import logging
+            logging.debug(f"MathTranslator 转换失败: {e}")
     return r"\mathrm{" + s.replace("\\", "").replace("$", "").replace("_", r"\_") + "}"
 
 

@@ -380,8 +380,9 @@ class GeometryCanvas(QGraphicsView):
                 if item:
                     self._scene.addItem(item)
                     self._shape_items[s.id] = item
-            except Exception:
-                pass
+            except (ValueError, TypeError, AttributeError) as e:
+                import logging
+                logging.warning(f"GeometryCanvas: 图形项创建失败 shape={s.id}: {e}")
 
     def _create_item(self, s: GeometricShape, color: QColor,
                      lw: float, lw_scale: float) -> QGraphicsItem | None:
@@ -582,8 +583,9 @@ class GeometryCanvas(QGraphicsView):
                         dot = self._scene.addEllipse(px - 3, py - 3, 6, 6,
                                                       QPen(PREVIEW_COLOR), QBrush(PREVIEW_COLOR))
                         dot.setZValue(4); self._preview_items.append(dot)
-        except Exception:
-            pass
+        except (ValueError, TypeError, AttributeError) as e:
+            import logging
+            logging.warning(f"GeometryCanvas: 预览重建失败: {e}")
 
     # ═══════════════════════════════════════════════════════════
     #  鼠标事件

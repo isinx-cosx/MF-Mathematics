@@ -141,10 +141,9 @@ QToolBar QToolButton[checked="true"] {
 QStatusBar {
     background-color: #252540;
     color: #a6adc8;
-    border-top: 1px solid #313244;
+    border: 1px solid transparent;
     border-bottom-left-radius: 12px;
     border-bottom-right-radius: 12px;
-    border: 1px solid transparent; 
     padding: 2px 12px;
     font-size: 12px;
 }
@@ -654,6 +653,9 @@ QPushButton#complex_mode_btn[active="false"] {
     padding: 6px 12px;
     font-size: 12px;
     text-align: left;
+}
+QPushButton#complex_mode_btn[active="false"]:hover {
+    background: #45475a;
 }
 #complex_waiting {
     font-size: 18px;

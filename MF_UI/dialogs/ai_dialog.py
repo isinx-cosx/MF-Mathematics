@@ -279,6 +279,13 @@ class AIDialog(QDialog):
         self._append_user(text)
         self._last_full_response = ""
 
+        if hasattr(self, '_worker') and self._worker is not None:
+            try:
+                self._worker.chunk_ready.disconnect(self._on_chunk)
+                self._worker.finished.disconnect(self._on_finished)
+                self._worker.error_occurred.disconnect(self._on_error)
+            except (TypeError, RuntimeError):
+                pass
         self._worker = _AIStreamWorker(list(self._messages), self._model, self)
         self._worker.chunk_ready.connect(self._on_chunk)
         self._worker.finished.connect(self._on_finished)

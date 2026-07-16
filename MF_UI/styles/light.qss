@@ -141,10 +141,9 @@ QToolBar QToolButton[checked="true"] {
 QStatusBar {
     background-color: #ffffff;
     color: #475569;
-    border-top: 1px solid #e2e8f0;
+    border: 1px solid transparent;
     border-bottom-left-radius: 12px;
     border-bottom-right-radius: 12px;
-    border: 1px solid transparent; 
     padding: 2px 12px;
     font-size: 12px;
 }
