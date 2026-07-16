@@ -181,4 +181,8 @@ def apply_dialog_title_bar(dialog: QDialog, title: str = "") -> QWidget:
     dialog.mouseMoveEvent = _move
     dialog.mouseReleaseEvent = _release
 
+    # 圆角 + 阴影
+    from MF_UI.components.dialog_style import apply_shadow
+    apply_shadow(dialog)
+
     return bar

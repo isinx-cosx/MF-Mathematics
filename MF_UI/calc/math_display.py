@@ -366,6 +366,9 @@ class ResultDialog(QDialog):
         btn_row.addWidget(close_btn)
         root.addLayout(btn_row)
 
+        from MF_UI.components.dialog_style import apply_shadow
+        apply_shadow(self)
+
     def set_result(self, obj: Any) -> None:
         self._result_obj = obj
         if obj is None:
