@@ -168,11 +168,62 @@ def apply_frameless(window, title: str = "Multifunctional-Mathematics") -> Custo
     if "border-radius" not in s:
         window.setStyleSheet(s + "QMainWindow { border-radius: 8px; }")
 
-    # 连接窗口控制
-    title_bar.minimize_requested.connect(window.showMinimized)
-    title_bar.maximize_requested.connect(
-        lambda: window.showNormal() if window.isMaximized() else window.showMaximized()
-    )
+    # 保存动画前状态
+    _anim_geo = [None]
+    _animating = [False]
+
+    def _animate_max_restore():
+        if _animating[0]:
+            return
+        from PySide6.QtCore import QPropertyAnimation, QEasingCurve
+        if window.isMaximized():
+            # 还原：从最大化回到之前的位置
+            if _anim_geo[0] is not None:
+                target = _anim_geo[0]
+            else:
+                target = window.normalGeometry()
+            _animating[0] = True
+            window.showNormal()
+            anim = QPropertyAnimation(window, b"geometry")
+            anim.setDuration(200)
+            anim.setStartValue(window.geometry())
+            anim.setEndValue(target)
+            anim.setEasingCurve(QEasingCurve.Type.InOutCubic)
+            anim.finished.connect(lambda: _animating.__setitem__(0, False))
+            anim.start()
+        else:
+            # 保存位置 → 最大化
+            _anim_geo[0] = window.geometry()
+            _animating[0] = True
+            window.showMaximized()
+            screen = window.screen()
+            if screen:
+                target = screen.availableGeometry()
+                anim = QPropertyAnimation(window, b"geometry")
+                anim.setDuration(200)
+                anim.setStartValue(_anim_geo[0])
+                anim.setEndValue(target)
+                anim.setEasingCurve(QEasingCurve.Type.InOutCubic)
+                anim.finished.connect(lambda: _animating.__setitem__(0, False))
+                anim.start()
+            else:
+                _animating[0] = False
+
+    def _animate_minimize():
+        from PySide6.QtCore import QPropertyAnimation, QEasingCurve
+        _animating[0] = True
+        anim = QPropertyAnimation(window, b"windowOpacity")
+        anim.setDuration(150)
+        anim.setStartValue(1.0)
+        anim.setEndValue(0.0)
+        anim.setEasingCurve(QEasingCurve.Type.InCubic)
+        anim.finished.connect(window.showMinimized)
+        anim.finished.connect(lambda: window.setWindowOpacity(1.0))
+        anim.finished.connect(lambda: _animating.__setitem__(0, False))
+        anim.start()
+
+    title_bar.minimize_requested.connect(_animate_minimize)
+    title_bar.maximize_requested.connect(_animate_max_restore)
     title_bar.close_requested.connect(window.close)
 
     # 监听最大化变化以更新按钮图标（通过猴子补丁 changeEvent）

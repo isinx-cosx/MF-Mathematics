@@ -11,6 +11,10 @@ QMainWindow {
     background: #1e1e2e;
     border-radius: 8px;
 }
+QStatusBar {
+    border-bottom-left-radius: 8px;
+    border-bottom-right-radius: 8px;
+}
 
 /* ---- 自定义标题栏 ---- */
 #customTitleBar {
