@@ -56,6 +56,30 @@ QWidget {
     color: #cdd6f4;
 }
 
+/* ---- 全局下拉栏 ---- */
+QComboBox {
+    background-color: #1e1e2e;
+    color: #cdd6f4;
+    border: 1px solid #45475a;
+    border-radius: 4px;
+    padding: 4px 8px;
+}
+QComboBox:hover {
+    background-color: #313244;
+}
+QComboBox QAbstractItemView {
+    background-color: #252540;
+    color: #cdd6f4;
+    selection-background-color: #3b82f6;
+    selection-color: #ffffff;
+    border: 1px solid #45475a;
+    outline: none;
+}
+QComboBox::drop-down {
+    border: none;
+    width: 20px;
+}
+
 /* ---- 菜单栏 ---- */
 QMenuBar {
     background-color: #252540;
@@ -108,10 +132,11 @@ QToolBar QToolButton:hover {
     background-color: #313244;
     color: #cdd6f4;
 }
-QToolBar QToolButton:checked {
+QToolBar QToolButton:checked,
+QToolBar QToolButton[checked="true"] {
     background-color: #3b82f6;
     color: #ffffff;
-    font-weight: 600;
+    font-weight: 700;
     border: 1px solid #2563eb;
 }
 
@@ -502,7 +527,8 @@ KeyboardPanel QTabBar::tab:selected {
     color: #cdd6f4;
     border-bottom: 2px solid #3b82f6;
 }
-#kb_btn {
+#kb_btn,
+KeyboardPanel QPushButton#kb_btn {
     background: #313244;
     color: #cdd6f4;
     border: 1px solid #45475a;
