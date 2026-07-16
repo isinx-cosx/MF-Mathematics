@@ -162,6 +162,12 @@ def apply_frameless(window, title: str = "Multifunctional-Mathematics") -> Custo
 
     window.setCentralWidget(container)
 
+    # 主窗口圆角
+    window.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+    s = window.styleSheet()
+    if "border-radius" not in s:
+        window.setStyleSheet(s + "QMainWindow { border-radius: 8px; }")
+
     # 连接窗口控制
     title_bar.minimize_requested.connect(window.showMinimized)
     title_bar.maximize_requested.connect(

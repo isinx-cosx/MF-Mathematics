@@ -5,6 +5,11 @@
 /* ---- 全局 ---- */
 QMainWindow {
     background-color: #f8fafc;
+    border-radius: 8px;
+}
+#framelessContainer {
+    background: #f8fafc;
+    border-radius: 8px;
 }
 
 /* ---- 自定义标题栏 ---- */
