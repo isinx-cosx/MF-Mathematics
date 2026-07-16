@@ -329,7 +329,7 @@ class MainWindow(QMainWindow):
 
     def _open_ai_dialog(self):
         """打开 AI 助手对话框 — 先检查配置，传递当前计算上下文。"""
-        from MF_UI.ai_dialog import AIDialog
+        from MF_UI.dialogs.ai_dialog import AIDialog
         from MF_AI.config import Config
 
         cfg = Config()
@@ -352,13 +352,13 @@ class MainWindow(QMainWindow):
 
     def _open_settings(self, open_ai_tab: bool = False):
         """打开设置对话框。"""
-        from MF_UI.settings_dialog import SettingsDialog
+        from MF_UI.dialogs.settings_dialog import SettingsDialog
         dlg = SettingsDialog(self, open_ai_tab=open_ai_tab)
         dlg.exec()
 
     def _open_search_panel(self):
         """打开联网搜索面板。"""
-        from MF_UI.search_panel import SearchPanel
+        from MF_UI.dialogs.search_panel import SearchPanel
         if self._search_panel is None:
             self._search_panel = SearchPanel(self)
         self._search_panel.show()

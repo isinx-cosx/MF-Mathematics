@@ -13,7 +13,7 @@ from PySide6.QtWidgets import (
     QPushButton, QTextEdit, QVBoxLayout, QWidget,
 )
 
-from MF_UI.ai_dialog import _render_response
+from MF_UI.dialogs.ai_dialog import _render_response
 
 # ── 教科书风格系统提示词 ──────────────────────────────────
 
