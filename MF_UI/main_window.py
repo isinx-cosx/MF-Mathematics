@@ -61,7 +61,7 @@ PLOT_NAV_ITEMS = [
 
 class MainWindow(QMainWindow):
     def __init__(self):
-        super().__init__()
+        super().__init__(flags=Qt.WindowType.FramelessWindowHint)
         self.setWindowTitle("Multifunctional-Mathematics")
         self.resize(1200, 800)
         self.setMinimumSize(900, 600)
@@ -90,6 +90,12 @@ class MainWindow(QMainWindow):
         self._light_qss_path = os.path.join(base_dir, "styles", "light.qss")
         self._dark_qss_path = os.path.join(base_dir, "styles", "dark.qss")
         self._apply_theme(self._light_qss_path)
+
+        # 自定义标题栏（替换原生标题栏）
+        from components.custom_title_bar import apply_frameless
+        self._title_bar = apply_frameless(self, "MF-Mathematics")
+        # 重新居中（frameless 切换可能改变窗口位置）
+        self._center_on_screen()
 
         # 注册教程系统 UI 元素
         self._register_tutorial_elements()
@@ -329,6 +335,9 @@ class MainWindow(QMainWindow):
         brand_label.setObjectName("brand_label")
         self._status_bar.addPermanentWidget(brand_label)
 
+        from PySide6.QtWidgets import QSizeGrip
+        self._status_bar.addPermanentWidget(QSizeGrip(self))
+
     def _status_msg(self, msg: str):
         self._status_bar.showMessage(msg, 5000)
 
@@ -339,15 +348,10 @@ class MainWindow(QMainWindow):
 
         cfg = Config()
         if not cfg.is_available():
-            from PySide6.QtWidgets import QMessageBox
-            box = QMessageBox(self)
-            box.setWindowTitle("AI 服务未配置")
-            box.setText("未检测到有效的 AI 服务配置。\n请前往 设置 → AI 配置 中配置 API Key 或本地模型。")
-            box.setIcon(QMessageBox.Icon.Information)
-            btn_go = box.addButton("前往设置", QMessageBox.ButtonRole.AcceptRole)
-            box.addButton("取消", QMessageBox.ButtonRole.RejectRole)
-            box.exec()
-            if box.clickedButton() == btn_go:
+            from MF_UI.dialogs.ai_config_prompt import AIConfigPrompt
+            dlg = AIConfigPrompt(self)
+            dlg.exec()
+            if dlg.go_to_settings():
                 self._open_settings(open_ai_tab=True)
             return
 
