@@ -27,6 +27,7 @@ class VectorFieldWorkspace(QWidget):
         self._x0, self._x1 = -5.0, 5.0
         self._y0, self._y1 = -5.0, 5.0
         self._res = 30
+        self._auto_density = True
         self._streamline = False  # False=quiver, True=streamplot
 
         self._build_ui()
@@ -63,8 +64,13 @@ class VectorFieldWorkspace(QWidget):
         rs = QSpinBox(); rs.setRange(10,60); rs.setValue(30)
         rs.valueChanged.connect(lambda v: setattr(self,"_res",v))
         pr.addWidget(rs)
+        self._density_spin = rs  # 保存引用以便自动模式禁用
 
         from PySide6.QtWidgets import QCheckBox
+        auto_cb = QCheckBox("自动"); auto_cb.setChecked(True)
+        auto_cb.toggled.connect(self._on_auto_density)
+        pr.addWidget(auto_cb)
+
         cb = QCheckBox("流线"); cb.setChecked(False)
         cb.toggled.connect(lambda v: setattr(self,"_streamline",v))
         pr.addWidget(cb)
@@ -84,6 +90,43 @@ class VectorFieldWorkspace(QWidget):
         self._waiting.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._waiting.setStyleSheet("font-size:18px;color:#94a3b8;")
         root.addWidget(self._waiting); self._canvas.hide()
+
+    def resizeEvent(self, event) -> None:
+        """窗口大小变化时，若自动密度开启且有内容则重绘。"""
+        super().resizeEvent(event)
+        if self._auto_density and (self._px or self._py):
+            self._redraw()
+
+    def _on_auto_density(self, checked: bool) -> None:
+        """切换自动密度模式。"""
+        self._auto_density = checked
+        self._density_spin.setEnabled(not checked)
+        if checked:
+            self._redraw()
+
+    def _compute_auto_resolution(self) -> int:
+        """根据画布像素尺寸和视口范围自动计算最佳密度。
+
+        目标：约每 22~30 像素一个箭头，确保视觉密度适中。
+        密度范围限制在 [10, 60]，避免过稀或计算量过大。
+        """
+        w = self._canvas.width()
+        h = self._canvas.height()
+        if w <= 0 or h <= 0:
+            return 30  # 画布尚未显示，使用默认值
+
+        # 最大维度像素数决定基础分辨率
+        max_px = max(w, h)
+        # 每 22px 一个箭头 → 视觉密度舒适
+        target_res = max_px / 22
+
+        # 视口范围修正：范围越大需要越高分辨率
+        x_range = self._x1 - self._x0
+        y_range = self._y1 - self._y0
+        range_factor = max(x_range, y_range) / 10.0  # 以 10 为基准
+        target_res *= (1.0 + range_factor * 0.15)  # 适度放大
+
+        return max(10, min(60, int(target_res)))
 
     def _show_waiting(self):
         self._fig.clear(); self._canvas.draw_idle()
@@ -107,8 +150,9 @@ class VectorFieldWorkspace(QWidget):
         except Exception as e:
             self._show_waiting(); self.status_message.emit(f"表达式错误: {e}"); return
 
-        xs = np.linspace(self._x0, self._x1, self._res)
-        ys = np.linspace(self._y0, self._y1, self._res)
+        res = self._compute_auto_resolution() if self._auto_density else self._res
+        xs = np.linspace(self._x0, self._x1, res)
+        ys = np.linspace(self._y0, self._y1, res)
         X, Y = np.meshgrid(xs, ys)
         try:
             U, V = fP(X,Y), fQ(X,Y)
@@ -130,4 +174,6 @@ class VectorFieldWorkspace(QWidget):
         ax.set_title(f"F = ({self._px or 0}, {self._py or 0})")
         self._canvas.draw_idle()
         mode = "流线" if self._streamline else "箭头"
-        self.status_message.emit(f"已绘制({mode}): ({self._px},{self._py}) {self._res}×{self._res}")
+        auto_tag = "[自动]" if self._auto_density else ""
+        self.status_message.emit(
+            f"已绘制({mode}){auto_tag}: ({self._px},{self._py}) {res}×{res}")
