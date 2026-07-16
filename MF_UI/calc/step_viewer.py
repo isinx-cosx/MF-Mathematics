@@ -4,8 +4,6 @@
 from __future__ import annotations
 
 import hashlib
-from functools import lru_cache
-
 from PySide6.QtCore import Qt, QThread, Signal
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
@@ -59,14 +57,6 @@ class _StepWorker(QThread):
                 self.error.emit("AI 返回为空")
         except Exception as e:
             self.error.emit(str(e))
-
-
-# ── 缓存 ─────────────────────────────────────────────────
-
-@lru_cache(maxsize=64)
-def _cached_steps(expr_hash: str) -> str | None:
-    """缓存占位 — 实际实现在 StepViewer 中管理。"""
-    return None
 
 
 # ═══════════════════════════════════════════════════════════════

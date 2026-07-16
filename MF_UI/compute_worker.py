@@ -19,6 +19,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 from PySide6.QtCore import QThread, Signal, QTimer
 
 
@@ -32,7 +34,7 @@ class ComputeWorker(QThread):
     def __init__(
         self,
         parent,
-        target: callable,
+        target: Callable[..., object],
         args: tuple = (),
         kwargs: dict | None = None,
         timeout_ms: int = 0,

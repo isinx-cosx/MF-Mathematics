@@ -17,7 +17,6 @@ import math
 import os
 import random
 import time
-from typing import Callable
 
 from PySide6.QtCore import QThread, Signal, Qt
 from PySide6.QtWidgets import (

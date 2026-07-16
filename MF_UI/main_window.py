@@ -1,16 +1,17 @@
 """MF-Mathematics 主窗口"""
+from __future__ import annotations
+
 import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from PySide6.QtCore import Qt, QEvent, QPoint, QRect, QRectF, QSize
-from PySide6.QtGui import QAction, QActionGroup, QBitmap, QKeySequence, QPainter, QShortcut, QPainterPath, QRegion
+from PySide6.QtCore import Qt, QEvent, QObject, QPoint, QRect, QSize
+from PySide6.QtGui import QAction, QActionGroup, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QMainWindow, QToolBar, QStatusBar,
     QStackedWidget, QWidget, QVBoxLayout, QHBoxLayout,
-    QLabel, QApplication, QComboBox, QDialog, QMessageBox,
+    QLabel, QApplication, QComboBox, QDialog,
     QPushButton, QLineEdit, QToolButton,
 )
-from PySide6.QtCore import QObject
 from calc.algebra import Workspace as AlgebraWorkspace
 from calc.linear_algebra import Workspace as LinearAlgebraWorkspace
 from calc.numerical import Workspace as NumericalWorkspace
@@ -18,46 +19,10 @@ from calc.probability import Workspace as ProbabilityWorkspace
 from plot.basic.workspace import PlotWorkspace
 
 # 运行时自动设置项目根路径
-import sys as _sys
-import os as _os
-_this_dir = _os.path.dirname(_os.path.abspath(__file__))
-_root_dir = _os.path.dirname(_this_dir)
-if _root_dir not in _sys.path:
-    _sys.path.insert(0, _root_dir)
-
-# ---- 数据定义 ----
-CALC_NAV_ITEMS = [
-    ("代数计算",
-     "代数计算",
-     "包含：表达式化简、求导、积分、极限、级数展开、复数运算等"),
-    ("线性代数",
-     "线性代数",
-     "包含：矩阵运算、行列式、特征值、向量计算、线性方程组求解等"),
-    ("概率论与数理统计",
-     "概率论与数理统计",
-     "包含：概率分布、期望、方差、假设检验；统计图绘制功能等"),
-    ("数值分析",
-     "数值分析",
-     "包含：插值、数值积分、ODE 数值解、非线性方程求根等"),
-]
-
-PLOT_NAV_ITEMS = [
-    ("普通模式",
-     "普通绘图模式",
-     "支持：实函数 y=f(x)、隐函数 f(x,y)=0 的绘制"),
-    ("3D模式",
-     "3D 绘图模式",
-     "支持：三维曲面 z=f(x,y)、三维参数方程 (x(t),y(t),z(t))"),
-    ("复数模式",
-     "复数绘图模式",
-     "支持：复平面 RGB 域着色，可切换至 3D 复函数视图"),
-    ("向量场",
-     "向量场模式",
-     "支持：2D/3D 向量场绘制"),
-    ("任意做图",
-     "任意做图模式",
-     "支持：手动画圆、线段、直线等自由几何对象"),
-]
+_this_dir = os.path.dirname(os.path.abspath(__file__))
+_root_dir = os.path.dirname(_this_dir)
+if _root_dir not in sys.path:
+    sys.path.insert(0, _root_dir)
 
 # ═══════════════════════════════════════════════════════════════
 #  EdgeResizeFilter — 无边框窗口边缘缩放（全局事件拦截）
@@ -173,8 +138,6 @@ class MainWindow(QMainWindow):
 
         self._current_theme = "light"
         self._current_mode = 0
-        self._nav_populating = False
-
         # 计算历史栈（撤销/重做）
         self._calc_history: list[str] = []
         self._history_pos = -1
@@ -750,13 +713,6 @@ class MainWindow(QMainWindow):
         self._current_theme = "dark"
         self._apply_theme(self._dark_qss_path)
         self._status_msg("已切换到暗色主题")
-
-    def _toggle_theme(self):
-        """工具栏主题切换按钮。"""
-        if self._current_theme == "light":
-            self._switch_to_dark()
-        else:
-            self._switch_to_light()
 
     def _apply_theme(self, qss_path: str):
         try:

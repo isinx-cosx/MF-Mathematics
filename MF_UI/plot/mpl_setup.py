@@ -37,9 +37,3 @@ except Exception:
     matplotlib.rcParams["font.sans-serif"] = ["SimHei", "Microsoft YaHei", "DejaVu Sans"]
 
 matplotlib.rcParams["axes.unicode_minus"] = False
-
-# 日志输出（仅首次导入）
-_LOGGED = False
-if not _LOGGED:
-    _LOGGED = True
-    # 静默设置，不打印 — 避免污染 UI 输出
