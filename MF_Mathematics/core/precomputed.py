@@ -79,7 +79,7 @@ def _build_table() -> None:
     limits = [
         (sp.sin(x)/x, x, 0, 1),
         ((sp.exp(x)-1)/x, x, 0, 1),
-        ((1-cos(x))/x**2, x, 0, sp.Rational(1,2)),
+        ((1-sp.cos(x))/x**2, x, 0, sp.Rational(1,2)),
         ((1+1/n)**n, n, sp.oo, sp.E),
         (sp.log(1+x)/x, x, 0, 1),
         (sp.tan(x)/x, x, 0, 1),
