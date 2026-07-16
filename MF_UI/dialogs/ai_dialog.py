@@ -18,22 +18,39 @@ from MF_AI import stream_chat, get_config
 
 # ── LaTeX 渲染 ─────────────────────────────────────────────
 
+def _strip_boxed(s: str) -> str:
+    """移除 \\boxed{...} 包装（mathtext 不支持）。"""
+    prefix = '\\boxed{'
+    if not s.startswith(prefix) or not s.endswith('}'):
+        return s
+    # 手动配对括号
+    depth = 0
+    for i, ch in enumerate(s[len(prefix):], len(prefix)):
+        if ch == '{':
+            depth += 1
+        elif ch == '}':
+            if depth == 0:
+                return s[len(prefix):i]
+            depth -= 1
+    return s  # 括号不匹配，保持原样
+
+
 def _fix_latex(latex: str) -> str:
     """将不兼容 mathtext 的 LaTeX 命令转换为兼容形式。"""
     s = latex.strip()
-    # \boxed{...} → \fbox{...}
-    s = re.sub(r'\\boxed\{', r'\\fbox{', s)
-    # \begin{pmatrix}...\end{pmatrix} → \left(\begin{array}...\end{array}\right)
-    s = re.sub(r'\\begin\{pmatrix\}', r'\\left(\\begin{array}', s)
+    # \boxed{content} → content
+    s = _strip_boxed(s)
+    # \begin{pmatrix}...\end{pmatrix}
+    s = re.sub(r'\\begin\{pmatrix\}', r'\\left(\\begin{array}{cc}', s)
     s = re.sub(r'\\end\{pmatrix\}', r'\\end{array}\\right)', s)
     # \begin{cases}...\end{cases}
     s = re.sub(r'\\begin\{cases\}', r'\\left\\{\\begin{array}{ll}', s)
     s = re.sub(r'\\end\{cases\}', r'\\end{array}\\right.', s)
     # \begin{bmatrix}...\end{bmatrix}
-    s = re.sub(r'\\begin\{bmatrix\}', r'\\left[\\begin{array}', s)
+    s = re.sub(r'\\begin\{bmatrix\}', r'\\left[\\begin{array}{cc}', s)
     s = re.sub(r'\\end\{bmatrix\}', r'\\end{array}\\right]', s)
     # \begin{vmatrix}...\end{vmatrix}
-    s = re.sub(r'\\begin\{vmatrix\}', r'\\left|\\begin{array}', s)
+    s = re.sub(r'\\begin\{vmatrix\}', r'\\left|\\begin{array}{cc}', s)
     s = re.sub(r'\\end\{vmatrix\}', r'\\end{array}\\right|', s)
     return s
 
