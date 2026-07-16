@@ -152,7 +152,7 @@ class AIDialog(QDialog):
 
         # 当前选中模型
         from MF_AI.config import Config
-        self._model = Config().get("default_model", default="deepseek-v4-pro")
+        self._model = Config().get_default_model() or "deepseek-v4-pro"
 
         self._build_ui()
 
