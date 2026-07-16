@@ -88,10 +88,17 @@ class VectorFieldWorkspace(QWidget):
         root.addWidget(self._waiting); self._canvas.hide()
 
     def resizeEvent(self, event) -> None:
-        """窗口大小变化时，若自动密度开启且有内容则重绘。"""
+        """窗口大小变化时 debounce 重绘（避免快速拖拽时频繁 lambdify）。"""
         super().resizeEvent(event)
         if self._auto_density and (self._px or self._py):
-            self._redraw()
+            if hasattr(self, '_resize_timer'):
+                self._resize_timer.start(150)  # 重置定时器
+            else:
+                from PySide6.QtCore import QTimer
+                self._resize_timer = QTimer(self)
+                self._resize_timer.setSingleShot(True)
+                self._resize_timer.timeout.connect(self._redraw)
+                self._resize_timer.start(150)
 
     def _on_auto_density(self, checked: bool) -> None:
         """切换自动密度模式。"""

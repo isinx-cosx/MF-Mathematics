@@ -290,15 +290,13 @@ def _render_single(
                  color=text_color)
         fig.canvas.draw()
 
-        buf = BytesIO()
-        fig.savefig(buf, format="png", dpi=dpi,
-                    bbox_inches="tight", pad_inches=0.10,
-                    transparent=False, facecolor=face, edgecolor="none")
-        _plt.close(fig)
-        buf.seek(0)
-        pix = QPixmap()
-        pix.loadFromData(buf.getvalue(), "PNG")
-        buf.close()
+        with BytesIO() as buf:
+            fig.savefig(buf, format="png", dpi=dpi,
+                        bbox_inches="tight", pad_inches=0.10,
+                        transparent=False, facecolor=face, edgecolor="none")
+            _plt.close(fig)
+            pix = QPixmap()
+            pix.loadFromData(buf.getvalue(), "PNG")
         return pix
     except Exception:
         return None

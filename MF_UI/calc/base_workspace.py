@@ -22,6 +22,7 @@ class BaseWorkspace(QWidget):
         super().__init__(parent)
         self._block_counter = 1
         self._blocks: list[BaseCalcBlock] = []
+        self._separators: dict[BaseCalcBlock, QFrame | None] = {}
 
         # ── 布局 ──
         root = QVBoxLayout(self)
@@ -97,9 +98,9 @@ class BaseWorkspace(QWidget):
             sep.setFixedHeight(1)
             sep.setObjectName("calc_separator")
             self._card_layout.insertWidget(idx, sep)
-            cb._separator = sep
+            self._separators[cb] = sep
         else:
-            cb._separator = None
+            self._separators[cb] = None
 
         self._card_layout.insertWidget(idx, cb)
         self._blocks.append(cb)
@@ -108,10 +109,11 @@ class BaseWorkspace(QWidget):
         if len(self._blocks) <= 1:
             return
 
-        if hasattr(block, '_separator') and block._separator is not None:
-            self._card_layout.removeWidget(block._separator)
-            block._separator.deleteLater()
-            block._separator = None
+        sep = self._separators.pop(block, None)
+        if sep is not None:
+            self._card_layout.removeWidget(sep)
+            sep.hide()
+            sep.deleteLater()
 
         self._card_layout.removeWidget(block)
         if block in self._blocks:

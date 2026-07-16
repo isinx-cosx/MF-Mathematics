@@ -33,6 +33,10 @@ def apply_shadow(dialog: QDialog) -> None:
 
     # 获取现有布局，用带边距的容器包裹它
     old_layout = dialog.layout()
+    # 防止双重包裹：如果对话框已有 dialogInner，跳过
+    if dialog.findChild(QWidget, "dialogInner") is not None:
+        return
+
     if old_layout is not None:
         # 将原布局从对话框中取出
         # 创建内容容器（带背景 + 圆角）

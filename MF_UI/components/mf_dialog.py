@@ -121,6 +121,7 @@ def apply_dialog_title_bar(dialog: QDialog, title: str = "") -> QWidget:
         标题栏 QWidget。
     """
     dialog.setWindowFlags(
+        dialog.windowFlags() |
         Qt.WindowType.FramelessWindowHint |
         Qt.WindowType.Dialog
     )
