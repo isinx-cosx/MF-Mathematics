@@ -13,8 +13,7 @@ QMainWindow {
     background: #f8fafc;
     border-radius: 12px;
 }
-#framelessContainer QStackedWidget,
-#framelessContainer QWidget {
+#framelessContainer > QStackedWidget {
     background: transparent;
 }
 /* ---- 自定义标题栏 ---- */
