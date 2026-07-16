@@ -300,7 +300,7 @@ class MainWindow(QMainWindow):
         help_menu.addAction(act_examples)
         help_menu.addSeparator()
         act_about = QAction("关于", self)
-        act_about.triggered.connect(lambda: self._status_msg("关于 MF-Mathematics"))
+        act_about.triggered.connect(self._open_about_dialog)
         help_menu.addAction(act_about)
 
     # ---------- 工具栏 ----------
@@ -823,6 +823,12 @@ class MainWindow(QMainWindow):
             self._example_library.activateWindow()
         except Exception as e:
             self._status_msg(f"示例库加载失败: {e}")
+
+    def _open_about_dialog(self) -> None:
+        """打开关于对话框。"""
+        from MF_UI.dialogs.about_dialog import AboutDialog
+        dlg = AboutDialog(self)
+        dlg.exec()
 
     def _on_example_selected(self, example: object) -> None:
         """用户选择了示例任务 → 加载到计算工作区。"""
