@@ -1,0 +1,173 @@
+# MF-Mathematics 全项目扫描报告与全面规划
+
+## 一、项目全景
+
+| 指标 | 数值 |
+|------|:---:|
+| Python 文件 | **197** |
+| 总代码行 | **~48,500** |
+| 数学子包 | 12（30,000 行） |
+| UI 前端 | MF_UI/ 11,064 行 |
+| AI 服务 | MF_AI/ 1,040 行 |
+| 注册函数 | 362 |
+| Git 提交 | 134 |
+| 测试通过率 | **8/8 PASS** |
+| 剩余 eval() | **0** |
+| TODO/FIXME | **0** |
+| "功能预留" | **0** |
+
+### 模块规模一览
+
+| 模块 | 行数 | 职责 |
+|------|:---:|------|
+| `algebra/` | 3,874 | 代数、方程、函数、几何 |
+| `calculus/` | 2,351 | 极限、导数、积分、级数 |
+| `complex_analysis/` | 3,054 | 复分析、留数、zeta |
+| `real_analysis/` | 2,429 | 实数、极限、积分理论 |
+| `measure_theory/` | 2,359 | 测度、勒贝格积分 |
+| `probability/` | 2,350 | 概率、统计、回归 |
+| `linear_algebra/` | 2,082 | 矩阵、特征值、二次型 |
+| `number_theory/` | 2,137 | 素数、模运算、连分数 |
+| `harmonic_analysis/` | 1,923 | 傅里叶级数/变换 |
+| `functional_analysis/` | 1,860 | 赋范空间、谱理论 |
+| `algebraic_topology/` | 1,813 | 同伦、同调、持久同调 |
+| `numerical/` | 1,740 | 插值、数值积分、ODE |
+| `core/` | 455 | MathObject、注册表、缓存 |
+| `utils/` | 1,360 | 守卫、翻译器、AI缓存 |
+| `tests/` | 2,801 | 12子包测试 + 统一运行器 |
+| `plot/` | 5,306 | 2D/3D/复数/向量场/几何画布 |
+| `calc/` | 2,901 | 4个计算工作区 + 基类 |
+| `dialogs/` | 877 | AI对话、搜索、设置 |
+| `MF_AI/` | 1,040 | AI客户端、配置、模型 |
+| `MF_Tutorial/` | 2,124 | 教程引擎、14篇教程 |
+| `MF_User/` | 753 | 用户注册/登录 |
+| `MF_Online/` | 261 | 联网搜索 |
+
+---
+
+## 二、已完成优化清单（本次会话）
+
+| # | 类别 | 内容 |
+|---|------|------|
+| 1 | 🧹 | 删除死代码（_make_placeholder_page、未使用导入） |
+| 2 | 🧹 | 清理 48 个 __pycache__ 文件 |
+| 3 | 🧹 | 审计报告→docs/、空目录删除 |
+| 4 | 🧹 | 注释导入清理、self_test 返回类型统一 |
+| 5 | 🧵 | ComputeWorker 通用后台线程 |
+| 6 | 🧵 | 全计算模式异步化（26→0 阻塞） |
+| 7 | 🧵 | threading.Thread→QThread、移除 terminate() |
+| 8 | 🎨 | 暗色主题 QSS 迁移（FunctionBox/Slider/工作区） |
+| 9 | 🎨 | 渐近线检测修复（|Δy|>10 + 符号突变） |
+| 10 | 🎨 | 初始视图 x[-8,8] y[-6,6] |
+| 11 | 🔧 | 函数去重→core/helpers.py（32文件） |
+| 12 | 🔧 | self_test 发现→core/test_utils.py（12 __init__） |
+| 13 | 🔧 | BaseCalcBlock 模板方法（-200行重复） |
+| 14 | ⚡ | dispatch LRU 缓存（256项） |
+| 15 | ⚡ | 定积分去重 integrate 调用 |
+| 16 | ⚡ | lambdify CSE 编译 + 表达式缓存 |
+| 17 | ⚡ | QPainterPath 路径缓存 |
+| 18 | ⚡ | drawForeground QPixmap 网格缓存 |
+| 19 | ⚡ | Marching Squares 自适应分辨率 |
+| 20 | ⚡ | 显式曲线自适应采样 |
+| 21 | ⚡ | 矩阵自动数值降级（5×5+ → numpy） |
+| 22 | ⚡ | 预计算 23 条常用公式表 |
+| 23 | ⚡ | calc_engine 延迟导入 6 子包 |
+| 24 | 🤖 | AI 响应持久缓存 + 模型热切换 + 上下文注入 |
+| 25 | 🤖 | LaTeX 渲染修复（boxed/matrix/cases） |
+| 26 | 🤖 | LaTeX 图片缩小 40% |
+| 27 | 📁 | 对话框→dialogs/ 子包 |
+
+---
+
+## 三、现存问题
+
+### P0（紧急）
+
+| 问题 | 位置 | 影响 |
+|------|------|------|
+| 572 处 `except Exception` | 全局（65%文件） | 吞掉真实错误 |
+| ~120 处内联 setStyleSheet | MF_UI/ | 暗色主题失效（对话框/键盘/步骤查看器等） |
+| Worker 无取消（AI/搜索） | ai_dialog, search_panel | 用户无法中止 |
+| 测试 GBK 编码崩溃 | test_probability.py | Windows 无法完整运行 |
+| 无 README/requirements.txt | 根目录 | 新开发者无法上手 |
+
+### P1（重要）
+
+| 问题 | 位置 | 影响 |
+|------|------|------|
+| 7 个菜单项是空壳 | main_window.py | 新建/打开/撤销/重做/清空/关于/历史 |
+| 两个 StepViewer 重复 | calc/ + calc/algebra/ | 新旧两版共存 |
+| 设置通用标签页占位 | settings_dialog.py | 无实际设置 |
+| MF_User 仅内存存储 | MF_User/manager.py | 重启丢失用户数据 |
+| config.json 与 config.yaml 不一致 | 根目录 + MF_AI/ | 不同默认模型/端点/大小写 |
+| 级数测试串行 sp.limit (N×) | series.py | 收敛测试慢 |
+| 测试覆盖率仅 5.8% | tests/ | 远低于 20% 健康标准 |
+| CLAUDE.md 部分过时 | 根目录 | 引用不存在目录 |
+
+### P2（建议）
+
+| 问题 | 位置 | 影响 |
+|------|------|------|
+| test_probability.py GBK 编码 | 第333行 | PYTHONIOENCODING=utf-8 可绕过 |
+| translator/math_guard 重复 | MF_UI/utils/ + MF_Mathematics/utils/ | 功能重叠 |
+| linear_transform_demo 未集成 | _archive/ | 434行代码闲置 |
+| formula_input.html 未使用 | components/ | 孤立文件 |
+| mcp.json 空文件 | .vscode/ | 无意义 |
+| QThread deleteLater 不一致 | 多个 Worker | 潜在泄漏 |
+
+---
+
+## 四、全面规划（6 阶段，12 周）
+
+### Phase 1：质量基础（第 1-2 周）
+- **P0** 572 `except Exception` → 关键路径细化
+- **P0** 71 内联样式 → QSS 选择器补全
+- **P1** requirements.txt 生成
+- **P0** Worker 取消支持
+
+### Phase 2：绘图完善（第 3-4 周）
+- 3D 模式完善（旋转/光照）
+- 复数模式完善（域着色增强）
+- 向量场完善（流线/箭头密度自适应）
+- 任意做图完善（更多工具）
+
+### Phase 3：AI 深化（第 5-6 周）
+- L2 RAG 知识库（教科书嵌入）
+- L3 Agent 推理链（Function Calling）
+- L2 题目理解器（文字题→方程）
+- AI 流式步骤查看器
+
+### Phase 4：用户系统（第 7-8 周）
+- MF_User 持久化（JSON/SQLite）
+- 用户偏好存储（主题/语言/历史）
+- 计算历史记录
+- 云同步（可选）
+
+### Phase 5：测试+文档（第 9-10 周）
+- 边界测试补充（每核心函数 3 用例）
+- CI/CD GitHub Actions
+- API 文档自动生成
+- 14 篇教程更新
+
+### Phase 6：发布准备（第 11-12 周）
+- README 完善
+- 打包（PyInstaller）
+- 性能基准报告
+- 安全审计最终通过
+
+---
+
+## 五、验收标准
+
+| Phase | 核心指标 |
+|------|---------|
+| 1 | except Exception 关键路径归零、暗色主题覆盖率 100% |
+| 2 | 5 种绘图模式均可独立使用 |
+| 3 | RAG 检索 + Agent 推理可用 |
+| 4 | 用户注册/登录/偏好持久化 |
+| 5 | 测试覆盖率提升 50%+ |
+| 6 | 可执行文件打包成功 |
+
+---
+
+*扫描日期: 2026-07-16 | 基于 197 文件、48,500 行全量扫描*
