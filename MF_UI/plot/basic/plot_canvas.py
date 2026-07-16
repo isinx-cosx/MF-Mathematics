@@ -136,7 +136,7 @@ NICE_TABLE = (
 def calculate_step(rng: float) -> float:
     if rng <= 0:
         return 1.0
-    raw = rng / 20.0
+    raw = rng / 40.0
     for n in NICE_TABLE:
         if n >= raw:
             return n
