@@ -113,6 +113,9 @@ class RegisterDialog(QDialog):
 
         self._username_input.setFocus()
 
+        from MF_UI.components.mf_dialog import apply_dialog_title_bar
+        apply_dialog_title_bar(self, "注册")
+
     # ── 事件 ──────────────────────────────────────────────
 
     def _on_register(self) -> None:

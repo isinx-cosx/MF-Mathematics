@@ -8,10 +8,11 @@ QMainWindow {
 }
 
 /* ---- 自定义标题栏 ---- */
-#customTitleBar {
+#customTitleBar, #mfDialogTitleBar {
     background: #ffffff;
     border-bottom: 1px solid #e2e8f0;
 }
+#mfDialogContent { background: #f8fafc; }
 #titlebar_icon {
     font-size: 16px;
     background: transparent;
@@ -703,6 +704,25 @@ QSplitter::handle:hover {
     color: #64748b;
     background: transparent;
     line-height: 1.6;
+}
+
+/* ---- 级数/泰勒对话框 ---- */
+#seriesDialog, #taylorDialog { background: #f8fafc; }
+#seriesDialog QLineEdit, #taylorDialog QLineEdit {
+    border: 1px solid #d1d5db;
+    border-radius: 4px;
+    padding: 6px 10px;
+    font-size: 13px;
+    background: #ffffff;
+    color: #1e293b;
+}
+#seriesDialog QSpinBox, #taylorDialog QSpinBox {
+    border: 1px solid #d1d5db;
+    border-radius: 4px;
+    padding: 6px 10px;
+    font-size: 13px;
+    background: #ffffff;
+    color: #1e293b;
 }
 
 /* ---- 登录/注册/帮助 ---- */

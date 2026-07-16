@@ -4,45 +4,42 @@
 from __future__ import annotations
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QWidget,
+    QHBoxLayout, QLabel, QPushButton, QWidget,
 )
 
+from MF_UI.components.mf_dialog import MFDialog
 
-class AIConfigPrompt(QDialog):
+
+class AIConfigPrompt(MFDialog):
     """MF 风格 AI 配置提示弹窗。"""
 
     def __init__(self, parent: QWidget | None = None) -> None:
-        super().__init__(parent)
-        self.setWindowTitle("AI 服务未配置")
-        self.setFixedSize(420, 240)
+        super().__init__(parent, title="AI 服务未配置", width=420, height=240)
         self.setObjectName("aiConfigPrompt")
-
-        self._build_ui()
         self._result = False
+        self._build_ui()
 
     def _build_ui(self) -> None:
-        root = QVBoxLayout(self)
-        root.setSpacing(16)
-        root.setContentsMargins(28, 24, 28, 20)
+        self.content_layout.setSpacing(14)
+        self.content_layout.setContentsMargins(12, 8, 12, 8)
 
         # 图标 + 标题
         icon_lbl = QLabel("🤖")
         icon_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         icon_lbl.setStyleSheet("font-size: 40px; background: transparent;")
-        root.addWidget(icon_lbl)
+        self.content_layout.addWidget(icon_lbl)
 
         title = QLabel("AI 服务未配置")
         title.setObjectName("ai_prompt_title")
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        root.addWidget(title)
+        self.content_layout.addWidget(title)
 
         desc = QLabel("未检测到有效的 API Key 或本地模型。\n配置后可解锁 AI 加速、步骤生成、智能问答等功能。")
         desc.setObjectName("ai_prompt_desc")
         desc.setAlignment(Qt.AlignmentFlag.AlignCenter)
         desc.setWordWrap(True)
-        root.addWidget(desc)
+        self.content_layout.addWidget(desc)
 
         # 按钮
         btn_row = QHBoxLayout()
@@ -60,7 +57,7 @@ class AIConfigPrompt(QDialog):
         btn_row.addWidget(go_btn)
 
         btn_row.addStretch()
-        root.addLayout(btn_row)
+        self.content_layout.addLayout(btn_row)
 
     def _on_go(self) -> None:
         self._result = True
