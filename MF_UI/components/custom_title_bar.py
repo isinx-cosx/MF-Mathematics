@@ -324,9 +324,6 @@ def apply_frameless(window, title: str = "Multifunctional-Mathematics") -> Custo
                 and tb is not central
                 and not isinstance(tb, _QSB)]
 
-    # 在重布局前取出状态栏（稍后放入容器底部）
-    _sb = window.statusBar()
-
     # 创建容器
     container = QWidget()
     container.setObjectName("framelessContainer")
@@ -352,12 +349,6 @@ def apply_frameless(window, title: str = "Multifunctional-Mathematics") -> Custo
     if central:
         layout.addWidget(central, 1)
 
-    # 状态栏移入容器底部，与窗口边缘无缝贴合
-    if _sb is not None:
-        _sb.setParent(container)
-        layout.addWidget(_sb, 0)
-        window.setStatusBar(None)
-
     # 外层透明容器 — 为阴影留出渲染空间
     outer = QWidget()
     outer.setObjectName("mfShadowHost")
@@ -368,7 +359,7 @@ def apply_frameless(window, title: str = "Multifunctional-Mathematics") -> Custo
     outer_layout.setSpacing(0)
     outer_layout.addWidget(container, 1)
 
-    # 底部拖拽边 — 流畅缩放（紧贴状态栏下方）
+    # 底部拖拽边 — 流畅缩放
     resize_edge = ResizeEdge(outer)
     outer_layout.addWidget(resize_edge, 0)
 

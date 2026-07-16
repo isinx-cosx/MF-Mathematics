@@ -446,9 +446,21 @@ class MainWindow(QMainWindow):
 
     # ---------- 状态栏 ----------
     def _build_status_bar(self):
-        self._status_bar = QStatusBar()
-        self.setStatusBar(self._status_bar)
-        self._status_msg("就绪")
+        self._status_bar = QStatusBar(self)  # 直接挂到主窗口上
+        self._status_bar.setFixedHeight(30)
+        self._status_bar.setStyleSheet("""
+            QStatusBar {
+                background-color: #2d2d2d;
+                color: #cccccc;
+                border-top: 1px solid #3a3a3a;
+                margin: 0px;
+                padding: 0px;
+            }
+            QStatusBar QLabel {
+                color: #cccccc;
+            }
+        """)
+        self._status_bar.showMessage("就绪", 0)
         # 用户状态标签
         self._user_status_label = QLabel("未登录")
         self._user_status_label.setObjectName("user_status_label")
@@ -584,8 +596,13 @@ class MainWindow(QMainWindow):
             self._kb_toggle_btn.setText("▼ 收起")
 
     def resizeEvent(self, event) -> None:
-        """窗口大小变化时更新键盘面板高度。"""
+        """窗口大小变化时更新状态栏位置和键盘面板高度。"""
         super().resizeEvent(event)
+        # 强制状态栏锁定在窗口内部最底部
+        if hasattr(self, '_status_bar'):
+            height = 30
+            self._status_bar.setGeometry(0, self.height() - height, self.width(), height)
+        # 键盘面板自适应
         if hasattr(self, 'keyboard_panel') and self.keyboard_panel.isVisible():
             h = max(self.height() // 5, 60)
             self.keyboard_panel.setFixedHeight(h)
