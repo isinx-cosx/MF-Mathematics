@@ -60,19 +60,43 @@ def solve_linear(expr: Union[str, sp.Expr], var: str = "x") -> MathObject:
 
 @register(module="algebra", action="linear_application")
 def linear_application(problem: str) -> MathObject:
-    """应用题建模（占位，可扩展为 NLP 解析）。
+    """应用题建模 — AI 驱动的文字题→方程转换。
 
     Args:
-        problem: 应用题描述文本。
+        problem: 应用题描述文本（中文或英文）。
 
     Returns:
-        MathObject，result 为建模结果。
+        MathObject，result 包含提取的方程和求解结果。
     """
     try:
+        # 尝试 AI 解析
+        try:
+            from MF_AI import chat
+            prompt = (
+                "你是一个数学应用题解析器。请将以下文字题转化为方程，然后求解。\n"
+                "输出格式：\n"
+                "方程: <提取的方程>\n"
+                "解: <方程的解>\n"
+                f"\n题目: {problem}"
+            )
+            ai_response = chat([{"role": "user", "content": prompt}])
+            if ai_response:
+                return MathObject(
+                    result=ai_response.strip(),
+                    steps=[
+                        f"题目: {problem}",
+                        "AI 解析: 提取数量关系 → 构建方程 → 求解",
+                    ],
+                    meaning=f"应用题解析: {problem[:50]}...",
+                )
+        except Exception:
+            pass
+
+        # AI 不可用时回退
         return MathObject(
-            result="应用题建模功能预留扩展",
-            steps=["收到应用题为文字描述", "当前版本需人工转化为方程后求解"],
-            meaning="该功能用于将文字应用题转化为方程模型，当前为占位实现",
+            result="请使用 AI 助手解析此应用题（工具栏 → AI）",
+            steps=["应用题需连接 AI 服务进行解析"],
+            meaning="文字题→方程，需 AI 辅助",
         )
     except Exception as e:
         return MathObject(error=str(e))

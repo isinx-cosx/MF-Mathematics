@@ -71,6 +71,11 @@ class MainWindow(QMainWindow):
         self._current_mode = 0
         self._nav_populating = False
 
+        # 计算历史栈（撤销/重做）
+        self._calc_history: list[dict] = []
+        self._history_pos = -1
+        self._max_history = 50
+
         self._calc_modes = ["代数计算", "线性代数", "概率论与数理统计", "数值分析"]
         self._plot_modes = ["普通模式", "3D模式", "复数模式", "向量场", "任意做图"]
         self.last_calc_index = 0
@@ -108,27 +113,27 @@ class MainWindow(QMainWindow):
         menu_bar = self.menuBar()
 
         file_menu = menu_bar.addMenu("文件")
-        act_new = QAction("新建工作区", self)
-        act_new.triggered.connect(lambda: self._status_msg("新建工作区"))
-        file_menu.addAction(act_new)
-        act_open = QAction("打开...", self)
-        act_open.triggered.connect(lambda: self._status_msg("打开文件"))
-        file_menu.addAction(act_open)
+        act_save = QAction("保存工作区", self)
+        act_save.triggered.connect(self._save_workspace)
+        file_menu.addAction(act_save)
+        act_load = QAction("加载工作区", self)
+        act_load.triggered.connect(self._load_workspace)
+        file_menu.addAction(act_load)
         file_menu.addSeparator()
         act_exit = QAction("退出", self)
         act_exit.triggered.connect(self.close)
         file_menu.addAction(act_exit)
 
         edit_menu = menu_bar.addMenu("编辑")
-        act_undo = QAction("撤销", self)
-        act_undo.triggered.connect(lambda: self._status_msg("撤销"))
+        act_undo = QAction("撤销\tCtrl+Z", self)
+        act_undo.triggered.connect(self._undo)
         edit_menu.addAction(act_undo)
-        act_redo = QAction("重做", self)
-        act_redo.triggered.connect(lambda: self._status_msg("重做"))
+        act_redo = QAction("重做\tCtrl+Y", self)
+        act_redo.triggered.connect(self._redo)
         edit_menu.addAction(act_redo)
         edit_menu.addSeparator()
-        act_clear = QAction("清空所有", self)
-        act_clear.triggered.connect(lambda: self._status_msg("清空所有"))
+        act_clear = QAction("清空历史", self)
+        act_clear.triggered.connect(self._clear_history)
         edit_menu.addAction(act_clear)
 
         view_menu = menu_bar.addMenu("视图")
@@ -355,6 +360,81 @@ class MainWindow(QMainWindow):
         from MF_UI.dialogs.settings_dialog import SettingsDialog
         dlg = SettingsDialog(self, open_ai_tab=open_ai_tab)
         dlg.exec()
+
+    # ── 撤销/重做 ──────────────────────────────────────────
+
+    def _push_history(self) -> None:
+        """保存当前表达式到历史栈。"""
+        expr = self._get_calc_context()[0]
+        if expr:
+            self._calc_history = self._calc_history[:self._history_pos + 1]
+            self._calc_history.append(expr)
+            if len(self._calc_history) > self._max_history:
+                self._calc_history.pop(0)
+            self._history_pos = len(self._calc_history) - 1
+
+    def _undo(self) -> None:
+        if self._history_pos > 0:
+            self._history_pos -= 1
+            self._restore_expression(self._calc_history[self._history_pos])
+            self._status_msg("已撤销")
+
+    def _redo(self) -> None:
+        if self._history_pos < len(self._calc_history) - 1:
+            self._history_pos += 1
+            self._restore_expression(self._calc_history[self._history_pos])
+            self._status_msg("已重做")
+
+    def _clear_history(self) -> None:
+        self._calc_history.clear()
+        self._history_pos = -1
+        self._status_msg("历史已清空")
+
+    def _restore_expression(self, expr: str) -> None:
+        """将表达式恢复到当前计算块的输入框。"""
+        try:
+            w = self._stacked_widget.currentWidget()
+            if w:
+                for child in w.findChildren(QLineEdit):
+                    if hasattr(child, 'isVisible') and child.isVisible():
+                        child.setText(expr)
+                        return
+        except Exception:
+            pass
+
+    # ── 保存/加载工作区 ─────────────────────────────────────
+
+    def _save_workspace(self) -> None:
+        """保存当前工作区到 JSON 文件。"""
+        import json as _json
+        expr, mode = self._get_calc_context()
+        data = {
+            "expression": expr,
+            "mode": mode,
+            "calc_mode": self._calc_modes[self.last_calc_index] if self._current_mode == 0 else "",
+        }
+        try:
+            path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "workspace_save.json")
+            with open(path, "w", encoding="utf-8") as f:
+                _json.dump(data, f, ensure_ascii=False, indent=2)
+            self._status_msg("工作区已保存")
+        except OSError as e:
+            self._status_msg(f"保存失败: {e}")
+
+    def _load_workspace(self) -> None:
+        """从 JSON 文件加载工作区。"""
+        import json as _json
+        try:
+            path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "workspace_save.json")
+            if not os.path.exists(path):
+                self._status_msg("未找到保存文件")
+                return
+            with open(path, "r", encoding="utf-8") as f:
+                data = _json.load(f)
+            self._restore_expression(data.get("expression", ""))
+            self._status_msg("工作区已加载")
+        except (OSError, json.JSONDecodeError) as e:
+            self._status_msg(f"加载失败: {e}")
 
     def _open_search_panel(self):
         """打开联网搜索面板。"""
