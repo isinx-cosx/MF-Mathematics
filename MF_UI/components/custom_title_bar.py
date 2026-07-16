@@ -324,6 +324,9 @@ def apply_frameless(window, title: str = "Multifunctional-Mathematics") -> Custo
                 and tb is not central
                 and not isinstance(tb, _QSB)]
 
+    # 在重布局前取出状态栏（稍后放入容器底部）
+    _sb = window.statusBar()
+
     # 创建容器
     container = QWidget()
     container.setObjectName("framelessContainer")
@@ -349,17 +352,23 @@ def apply_frameless(window, title: str = "Multifunctional-Mathematics") -> Custo
     if central:
         layout.addWidget(central, 1)
 
-    # 外层透明容器 — 为阴影留出渲染空间（底部无边距，ResizeEdge 在此）
+    # 状态栏移入容器底部，与窗口边缘无缝贴合
+    if _sb is not None:
+        _sb.setParent(container)
+        layout.addWidget(_sb, 0)
+        window.setStatusBar(None)
+
+    # 外层透明容器 — 为阴影留出渲染空间
     outer = QWidget()
     outer.setObjectName("mfShadowHost")
     outer.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
     outer.setStyleSheet("#mfShadowHost { background: transparent; }")
     outer_layout = QVBoxLayout(outer)
-    outer_layout.setContentsMargins(8, 8, 8, 0)  # 底部无边距，留给 ResizeEdge
+    outer_layout.setContentsMargins(8, 8, 8, 0)
     outer_layout.setSpacing(0)
     outer_layout.addWidget(container, 1)
 
-    # 底部拖拽边 — 流畅缩放（紧贴窗口底部）
+    # 底部拖拽边 — 流畅缩放（紧贴状态栏下方）
     resize_edge = ResizeEdge(outer)
     outer_layout.addWidget(resize_edge, 0)
 

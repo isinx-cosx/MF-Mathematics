@@ -451,8 +451,7 @@ class MainWindow(QMainWindow):
         self._status_msg("就绪")
         # 用户状态标签
         self._user_status_label = QLabel("未登录")
-        self._user_status_label.setStyleSheet(
-            "font-size: 11px; color: #94a3b8; padding: 0 8px;")
+        self._user_status_label.setObjectName("user_status_label")
         self._status_bar.addPermanentWidget(self._user_status_label)
         self._refresh_user_status()
         brand_label = QLabel("MF-Vis-Science \u00b7 开放工作室")
@@ -833,13 +832,11 @@ class MainWindow(QMainWindow):
                 if self._user_status_label:
                     self._user_status_label.setText(
                         f"当前用户: {mgr.current_user.username}")
-                    self._user_status_label.setStyleSheet(
-                        "font-size: 11px; color: #10b981; padding: 0 8px;")
+                    self._user_status_label.setStyleSheet("color: #10b981;")
             else:
                 self._user_action.setText("登录")
                 if self._user_status_label:
                     self._user_status_label.setText("未登录")
-                    self._user_status_label.setStyleSheet(
-                        "font-size: 11px; color: #94a3b8; padding: 0 8px;")
+                    self._user_status_label.setStyleSheet("color: #94a3b8;")
         except Exception:
             pass  # MF_User 模块不可用时静默失败
