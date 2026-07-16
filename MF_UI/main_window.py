@@ -176,7 +176,7 @@ class MainWindow(QMainWindow):
         self._nav_populating = False
 
         # 计算历史栈（撤销/重做）
-        self._calc_history: list[dict] = []
+        self._calc_history: list[str] = []
         self._history_pos = -1
         self._max_history = 50
 
@@ -425,6 +425,7 @@ class MainWindow(QMainWindow):
         当 _switch_mode 程序化调用 setChecked 时，
         QActionGroup 会再次 emit triggered，isChecked 守卫确保只处理被选中的按钮。
         """
+        self._push_history()
         if action is self._btn_calc and self._btn_calc.isChecked():
             self._switch_mode(0)
         elif action is self._btn_plot and self._btn_plot.isChecked():
@@ -463,7 +464,8 @@ class MainWindow(QMainWindow):
         self._sub_combo.blockSignals(False)
 
         # ── 3. 切换 stacked widget ──
-        self._on_sub_mode_changed(restore_index)
+        if restore_index < self._sub_combo.count():
+            self._on_sub_mode_changed(restore_index)
 
     def _sync_toolbar_buttons(self) -> None:
         """强制工具栏按钮 checked 状态 + 动态属性 + re-polish。

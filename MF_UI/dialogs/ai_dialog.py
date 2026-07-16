@@ -127,11 +127,15 @@ class _AIStreamWorker(QThread):
     finished = Signal()
     error_occurred = Signal(str)
 
-    def __init__(self, messages: list[dict], parent=None):
+    def __init__(self, messages: list[dict], model: str, parent=None):
         super().__init__(parent)
         self._messages = messages
+        self._model = model
 
     def run(self):
+        from MF_AI.config import Config
+        old_model = Config().get_default_model()
+        Config().set_model(self._model)
         try:
             for chunk in stream_chat(self._messages):
                 if self.isInterruptionRequested():
@@ -141,6 +145,8 @@ class _AIStreamWorker(QThread):
         except Exception as e:
             if not self.isInterruptionRequested():
                 self.error_occurred.emit(str(e))
+        finally:
+            Config().set_model(old_model)  # 恢复全局配置
 
 
 class AIDialog(QDialog):
@@ -273,11 +279,7 @@ class AIDialog(QDialog):
         self._append_user(text)
         self._last_full_response = ""
 
-        # 使用选中模型
-        from MF_AI.config import Config
-        Config().set_model(self._model)
-
-        self._worker = _AIStreamWorker(list(self._messages), self)
+        self._worker = _AIStreamWorker(list(self._messages), self._model, self)
         self._worker.chunk_ready.connect(self._on_chunk)
         self._worker.finished.connect(self._on_finished)
         self._worker.error_occurred.connect(self._on_error)
@@ -325,7 +327,7 @@ class AIDialog(QDialog):
             self._send_btn.setObjectName("ai_stop_btn")
             self._send_btn.style().unpolish(self._send_btn)
             self._send_btn.style().polish(self._send_btn)
-            self._send_btn.clicked.disconnect()
+            self._send_btn.clicked.disconnect(self._send)
             self._send_btn.clicked.connect(self._stop)
             self._status_lbl.setText("思考中…")
             self._status_lbl.setStyleSheet("color: #3b82f6;")
@@ -338,7 +340,7 @@ class AIDialog(QDialog):
             self._send_btn.setObjectName("ai_send_btn")
             self._send_btn.style().unpolish(self._send_btn)
             self._send_btn.style().polish(self._send_btn)
-            self._send_btn.clicked.disconnect()
+            self._send_btn.clicked.disconnect(self._stop)
             self._send_btn.clicked.connect(self._send)
             self._status_lbl.setText("就绪")
             self._status_lbl.setStyleSheet("")

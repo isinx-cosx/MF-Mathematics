@@ -1,0 +1,411 @@
+================================================================================
+  MF-Mathematics 全代码库扫描报告
+  扫描时间: 2026-07-17
+  覆盖范围: 53 文件 / 3 并行代理
+================================================================================
+
+总览
+----
+P0 (崩溃/数据丢失)  : 1
+P1 (功能缺陷)       : 20
+P2 (代码质量)       : 55
+P3 (风格/一致性)    : 22
+合计                : 98
+
+================================================================================
+P0 — 崩溃/数据丢失 (1)
+================================================================================
+
+[P0-01] calc/step_viewer.py:155
+  apply_dialog_title_bar(self, f"步骤推导 — {mode}")
+  mode 变量未定义 → NameError 崩溃。应为 self._mode。
+  同根因: calc/math_display.py:152
+
+================================================================================
+P1 — 功能缺陷 (20)
+================================================================================
+
+── 核心模块 (main_window.py) ──
+
+[P1-01] main_window.py:606-614
+  _push_history 从未被调用 → 撤销/重做历史栈永久为空。
+
+[P1-02] main_window.py:448-466
+  _switch_mode 中 restore_index 越界后仍传给 _on_sub_mode_changed。
+  _on_sub_mode_changed 内 QStackedWidget.setCurrentIndex() 可能收到越界索引。
+  修复: 用 if restore_index < count 守卫。
+
+[P1-03] main_window.py:820
+  load_tutorial_example 直接调 _switch_mode(0)，当前已有 _switch_mode 内同步按钮，
+  但模式切换始终绕过 _on_toolbar_action → QActionGroup.triggered 路径。
+
+── Worker/线程 ──
+
+[P1-04] base_calc_block.py:126
+  except Exception 吞掉 KeyboardInterrupt / SystemExit / MemoryError。
+
+[P1-05] base_calc_block.py:196-206
+  _run_async: hasattr(self, '_worker') 与 worker.start() 之间存在竞态窗口，
+  两次快速调用创建两个并发 worker。
+
+[P1-06] numerical_estimation.py:304-306
+  self._worker.wait(5000) 阻塞 GUI 线程最长 5 秒 → UI 冻结。
+
+[P1-07] numerical_estimation.py:296-302
+  _start 中 worker.start() 若抛异常，UI 停留在"运行中"状态 (按钮禁用、进度条可见)。
+
+[P1-08] calc/algebra/calc_block.py:302-318
+  _LimitWorker.run() 调用 self.parent()._do_calculate()。
+  CalcBlock 被删除后 parent() 返回悬空指针 → segfault。
+
+[P1-09] calc/algebra/calc_block.py:322-324
+  QTimer(worker) 父对象为 worker。worker 结束后 timer 可能仍触发。
+
+[P1-10] compute_worker.py:86,94
+  self.wait(5000) 阻塞调用线程。若从主线程调用 → UI 冻结。
+
+[P1-11] base_calc_block.py:207-211
+  lambda 闭包捕获 expr/op。若 widget 在 worker 完成前被删除，
+  _on_result 中访问 self.calc_btn → 崩溃。
+
+── monkey-patch ──
+
+[P1-12] components/custom_title_bar.py:556-564
+  window.changeEvent = MethodType(...) monkey-patch。
+  其他代码也 patch changeEvent 时前一个 patch 丢失。
+
+[P1-13] components/mf_dialog.py:169-171
+  mousePressEvent/MoveEvent/ReleaseEvent 直接赋值覆盖。
+  二次调用时前一组 handler 丢失。
+
+── 绘图模块 ──
+
+[P1-14] plot/arbitrary/geometry_canvas.py:500-503
+  addRect 已将 item 加入 scene，_rebuild_shape_items 再次 addItem。
+  同一 item 渲染两次 → z-order 错乱、removeItem 行为未定义。
+
+[P1-15] plot/plot_3d/canvas.py:271
+  self._ax.collections[-1] 假定最后一个 collection 是隐式曲面 scatter。
+  若有其他代码在 scatter 之后添加到 collections，引用错误。
+
+[P1-16] plot/basic/function_box.py:296-301
+  导数路径中 _valid_expr 赋值与 sympify 验证之间存在不一致的异常路径。
+
+── 对话框 ──
+
+[P1-17] dialogs/ai_dialog.py:326-329
+  self._send_btn.clicked.disconnect() 断开所有槽 → 破坏外部连接。
+
+[P1-18] dialogs/ai_dialog.py:277-278
+  Config().set_model(self._model) 直接修改全局配置 → 影响所有 AI 功能。
+
+── 工具/样式 ──
+
+[P1-19] utils/math_guard.py:49-53 + utils/math_guard_ui.py:48
+  MF_UI/utils/math_guard.py 是 MF_Mathematics/utils/math_guard.py 的过期副本。
+  GuardLevel 缺少 COMPLEX 成员。math_guard_ui.py:48 引用 GuardLevel.COMPLEX
+  从过期副本导入时 → AttributeError。
+
+[P1-20] styles/dark.qss:136 / styles/light.qss:136
+  QToolBar QToolButton[checked="true"] 属性选择器。
+  虽然 _sync_toolbar_buttons 调用了 setProperty("checked", target)，
+  但 [checked="true"] 和 :checked 同时存在可能在 Qt 样式引擎中产生优先级冲突。
+  建议只保留一种。
+
+================================================================================
+P2 — 代码质量 (55)
+================================================================================
+
+── 架构/设计 ──
+
+[P2-01] 多个 calc/*.py 文件
+  模块级 sys.path.insert(0, ...) 污染全局导入状态。
+
+[P2-02] main_window.py (3处)
+  find_calc_block / find_block 递归搜索函数在 _get_calc_context、
+  load_tutorial_example、_on_example_selected 中重复定义。
+
+[P2-03] calc/algebra/calc_block.py:303-304
+  _LimitWorker 类定义在 on_calc_clicked 方法内 → 每次点击创建新类对象，内存泄漏。
+
+[P2-04] 四个 calc/*/workspace.py (algebra/linear_algebra/numerical/probability)
+  四个文件几乎完全相同 (~10行逻辑各一份)，应提取公共基类。
+
+[P2-05] 三个 calc/*/calc_block.py (linear_algebra/numerical/probability)
+  _do_dispatch 方法 95% 相同，仅操作路由表不同。
+
+[P2-06] main_window.py:29-60 vs 183-184
+  CALC_NAV_ITEMS / PLOT_NAV_ITEMS 模块级常量与 self._calc_modes / self._plot_modes
+  实例属性重复定义，无单一数据源。
+
+[P2-07] plot/basic/function_box.py:30-36
+  _COLOR_IDX 全局计数器跨所有 FunctionBox 实例共享，从不重置。
+
+[P2-08] plot/plot_3d/function_box.py:23-25
+  同 P2-07，3D 版本也有全局 _CI 计数器。
+
+[P2-09] plot/arbitrary/shapes.py:24
+  _id_counter = count(1) 全局迭代器，ID 永不回收。
+
+── 异常处理 ──
+
+[P2-10] plot/arbitrary/geometry_canvas.py:383,584
+  except Exception: pass — 静默吞咽图形项创建/预览异常。
+
+[P2-11] calc/math_display.py:529-533
+  except Exception: pass — MathTranslator 失败静默无输出。
+
+[P2-12] plot/plot_3d/canvas.py:274-275
+  except Exception: pass — 隐式曲面等高线计算失败无提示。
+
+[P2-13] dialogs/settings_dialog.py:258-265
+  _on_save 无异常处理 → 磁盘满/权限错误无声失败。
+
+[P2-14] calc_engine.py:472-475
+  _build_kwargs 中未注册 action 静默回退到位置参数 → 后端收到错误参数，
+  错误消息令人困惑。
+
+[P2-15] calc/step_viewer.py:66-69
+  _cached_steps 是返回 None 的空 lru_cache 装饰函数。死代码。
+
+── QSS/主题 ──
+
+[P2-16] numerical_estimation.py:219-248
+  多处内联 QSS 硬编码颜色 (#0f172a, #22d3ee, #475569, #3b82f6)。
+  主题切换时不跟随。
+
+[P2-17] plot/basic/slider_function_box.py:20
+  _VIS_STYLE 常量内联 QSS color:#94a3b8 — 不跟随主题。
+
+[P2-18] plot/basic/workspace.py:211
+  分隔符内联 QSS "background: #e2e8f0;" — 亮色专用，暗色不适配。
+
+[P2-19] styles/dark.qss:12-15 & 46-48 (同 light.qss)
+  #framelessContainer 规则出现两次 (重复代码块)。
+
+[P2-20] styles/dark.qss:729-736 (同 light.qss:727-734)
+  #arbitrary_export_btn 缺少 background-color。白字 + 透明/亮背景 → 不可见。
+
+[P2-21] styles/dark.qss:675-683
+  QPushButton#complex_mode_btn[active="false"] 缺 :hover (亮色有)。
+
+[P2-22] styles/dark.qss:144-164 & light.qss:144-164
+  QToolButton#tb_calc_btn / #tb_plot_btn 规则与 QToolBar QToolButton
+  通用规则完全重复 (相同的颜色/边距/边框)。功能上无害但冗余。
+
+[P2-23] styles/dark.qss:173 (同 light.qss:173)
+  QStatusBar 中 border: 1px solid transparent 覆盖了 border-top。
+  border-top 声明变成死代码。
+
+── 封装/边界 ──
+
+[P2-24] calc/base_workspace.py:97-101
+  直接写入 cb._separator 破坏 CalcBlock 封装。
+  应用独立映射 dict[CalcBlock, QFrame]。
+
+[P2-25] plot/basic/workspace.py:281
+  b._input.text() 访问 FunctionBox 私有属性。
+
+[P2-26] dialogs/search_panel.py:190-193
+  _find_input 硬编码主窗口内部属性 _stacked_widget → 重构后静默失败。
+
+[P2-27] components/mf_dialog.py:123
+  setWindowFlags(FramelessWindowHint | Dialog) 未保留原有 flags。
+
+[P2-28] components/dialog_style.py:36-47
+  apply_shadow 两次调用导致布局双重包裹。
+
+[P2-29] components/dialog_style.py:60
+  _detect_shadow_color 遍历 topLevelWidgets() → 关闭中含半销毁 widget。
+
+[P2-30] calc/base_workspace.py:112
+  block._separator.deleteLater() 与 removeWidget 之间存在时序窗口。
+
+[P2-31] calc/step_viewer.py:181-183
+  _start 检查 hasattr(self, '_local_steps_text') — 此属性由 set_local_steps
+  设置，但 _start 在 __init__ 中就已调用 → 永远匹配不到。
+
+── 内存/性能 ──
+
+[P2-32] plot/basic/plot_canvas.py:661
+  _cached_lambdify 模块级字典无逐出策略 → 长时间运行无界增长。
+
+[P2-33] plot/basic/plot_canvas.py:644-646
+  循环内逐次 subs 造成 O(n^2) 表达式树复杂度。
+
+[P2-34] dialogs/ai_dialog.py:59-85
+  每个 LaTeX 公式创建新 matplotlib Figure (~30ms/个)。
+
+[P2-35] plot/complex/workspace.py:25-56
+  _preprocess_complex 中 10+ regex 替换与 MathTranslator/sympy 功能重复。
+
+[P2-36] plot/complex/workspace.py:220-222
+  'zeta' in expr_str 字符串匹配 (gamma_param 匹配 "gamma" 误判)。
+
+[P2-37] plot/mpl_setup.py:9
+  matplotlib.use("Qt5Agg") 无条件调用 — 已初始化后无声失败。
+
+[P2-38] plot/vector_field/workspace.py:90-94
+  resizeEvent 调用 _redraw()。快速拖拽时每次像素变化都触发 sympy lambdify +
+  numpy 求值 → 严重卡顿。缺少 debounce timer。
+
+── 线程/异步 ──
+
+[P2-39] calc/step_viewer.py:192-195
+  _start 创建新 worker 前未断开上一个 worker 的信号 → 信号槽累积。
+
+[P2-40] dialogs/settings_dialog.py:242-245
+  _test_connection 未断开旧 worker → 同上。
+
+── 硬编码/魔术数字 ──
+
+[P2-41] plot/basic/slider_function_box.py:89
+  slider.setRange(-50, 50) 硬编码范围 → 映射到 [-5.0, 5.0]。
+
+[P2-42] plot/plot_3d/canvas.py:220,319
+  np.clip(Z, -1e6, 1e6) — 硬编码裁剪值。
+
+[P2-43] plot/plot_3d/canvas.py:258-260
+  使用 pyplot 状态机 API (plt.figure/plt.close) → 干扰当前 self._fig。
+
+[P2-44] calc/math_display.py:293-301
+  BytesIO 手动 close — 若 pix.loadFromData 抛异常则泄漏。
+
+[P2-45] calc/math_display.py:373-375
+  _show_text 每次调用 setStyleSheet → 强制 QSS 重解析。
+
+── 对话框 ──
+
+[P2-46] dialogs/settings_dialog.py:91-92 & search_panel.py:106-107
+  setStyleSheet(self.parent().styleSheet()) 盲目复制父级样式表。
+  父级选择器意外匹配子控件。
+
+[P2-47] dialogs/ai_dialog.py:96
+  HTML 转义在正则变换之前执行 — 正则结果中的特殊字符未转义。
+
+[P2-48] dialogs/settings_dialog.py:140
+  provider 列表硬编码 ["DeepSeek", "OpenAI", "Ollama"]。
+
+── 数据/存储 ──
+
+[P2-49] workspace_save.json
+  仅保存 3 字段 (expression, mode, calc_mode)。不保存:
+  绘图状态、多块结果、主题、窗口几何、键盘面板状态。
+  文件名暗示完整工作区保存，实际只保存单次计算上下文。
+
+================================================================================
+P3 — 风格/一致性 (22)
+================================================================================
+
+[P3-01] main_window.py:5-6
+  未使用导入: QRectF, QBitmap, QPainter, QPainterPath, QRegion, QMessageBox
+
+[P3-02] main_window.py:13
+  QObject 单独从 QtCore 导入 → 应与 line 5 合并
+
+[P3-03] main_window.py:21-22
+  sys/os 别名重复导入 (已在 line 2-3 导入)
+
+[P3-04] main_window.py:176
+  _nav_populating = False — 设置后从未读取。死代码。
+
+[P3-05] main_window.py:179
+  _calc_history: list[dict] — 类型标注错误，实际存储 str
+
+[P3-06] main_window.py:385
+  行尾空白字符
+
+[P3-07] main_window.py
+  缺少 from __future__ import annotations (项目其余 39 个 .py 文件都有)
+
+[P3-08] main_window.py:412-415
+  _walkthrough: object, _help_browser: object, _example_library: object —
+  应用 TYPE_CHECKING 导入正确的类型
+
+[P3-09] main_window.py:749-754
+  _toggle_theme 已定义但从未被任何 UI 元素连接。死代码。
+
+[P3-10] main_window.py:202-203,206-207,563,573,582,600
+  标准库/PySide6 导入在方法内部 (QGraphicsDropShadowEffect, QColor, QSizeGrip)。
+  应移到文件顶部。
+
+[P3-11] main.py:27-34
+  input("按 Enter 键退出...") — GUI 启动时无控制台 → EOFError
+
+[P3-12] compute_worker.py:35 & base_calc_block.py:36
+  target: callable — 应为 Callable[..., Any]
+
+[P3-13] calc_engine.py:291,302,313
+  from ast import literal_eval 三次函数内重复导入
+
+[P3-14] calc_engine.py:30
+  _MODULES: dict[str, object] — 应为 types.ModuleType
+
+[P3-15] calc/math_display.py:45-47
+  LatexLineEdit(QLineEdit) 空类 — body 只有 pass
+
+[P3-16] calc/math_display.py:485-492
+  numpy/sympy 函数内导入 — 应移到模块顶部
+
+[P3-17] dialogs/ai_config_prompt.py:7
+  QFont 导入未使用
+
+[P3-18] utils/translator.py:16-17
+  json/os 导入未使用
+
+[P3-19] numerical_estimation.py:20
+  Callable 导入未使用
+
+[P3-20] components/custom_title_bar.py:349
+  import types 在函数内部 — 应移到文件顶部
+
+[P3-21] components/custom_title_bar.py:120-150
+  WindowControlButton.paintEvent 中 _fill_bg 嵌套函数 — 应提取为方法
+
+[P3-22] components/custom_title_bar.py:443-450
+  _MaskResizeFilter 类定义在 apply_frameless 内部
+
+================================================================================
+与"计算常亮"问题相关的发现
+================================================================================
+
+1. QSS [checked="true"] 选择器
+   dark.qss:136,158-159 和 light.qss:136,158-159 定义了
+   [checked="true"] 动态属性选择器。_sync_toolbar_buttons() 中
+   已调用 btn.setProperty("checked", target) 设置动态属性。
+   但 :checked 伪状态和 [checked="true"] 同时存在于同一个逗号选择器组中，
+   如果 Qt 样式引擎处理顺序与预期不同，可能产生优先级问题。
+
+2. #framelessContainer 重复
+   dark.qss:12-15 和 46-48 (同 light.qss) 重复定义 — 不影响按钮但增加复杂度。
+
+3. QToolButton#tb_calc_btn 规则完全冗余
+   dark.qss:144-164 和 light.qss:144-164 的 ID 选择器规则
+   与通用 QToolBar QToolButton 规则值完全相同 → 冗余但无害。
+
+4. _sync_toolbar_buttons 四层同步
+   main_window.py:468-499 实现了 QAction.setChecked + QToolButton.setChecked +
+   setProperty("checked") + unpolish/polish/update。
+   这是正确的四层防御，覆盖了所有状态同步路径。
+
+================================================================================
+修复优先级建议
+================================================================================
+
+立即修复 (本次):
+  - P0-01: step_viewer.py NameError
+
+近期修复 (下次会话):
+  - P1-01~P1-03: main_window 功能缺陷
+  - P1-04~P1-11: Worker/线程安全
+  - P1-12~P1-13: Monkey-patch 链
+  - P1-14~P1-15: 绘图模块 double-add
+  - P1-19: math_guard 过期副本
+
+技术债务 (排期):
+  - P2-01~P2-09: 重复代码提取
+  - P2-16~P2-23: 硬编码颜色迁移到 QSS
+  - P2-32~P2-38: 性能优化
+  - P3-01~P3-22: 代码清理
+
+================================================================================
