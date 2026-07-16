@@ -189,7 +189,6 @@ class MainWindow(QMainWindow):
         self._build_menu_bar()
         self._build_toolbar()
         self._build_central_area()
-        self._build_status_bar()
 
         base_dir = os.path.dirname(os.path.abspath(__file__))
         self._light_qss_path = os.path.join(base_dir, "styles", "light.qss")
@@ -449,7 +448,7 @@ class MainWindow(QMainWindow):
         btn_row.addWidget(self._kb_toggle_btn)
         btn_row.addStretch()
 
-        # 容器：stacked_widget (stretch=1) + btn_row + keyboard_panel (stretch=0)
+        # 容器：stacked_widget (stretch=1) + btn_row + keyboard_panel + 状态栏
         container = QWidget()
         layout = QVBoxLayout(container)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -457,10 +456,35 @@ class MainWindow(QMainWindow):
         layout.addWidget(self._stacked_widget, 1)
         layout.addLayout(btn_row)
         layout.addWidget(self.keyboard_panel, 0)
-        self.bottom_placeholder = QWidget()
-        self.bottom_placeholder.setFixedHeight(30)
-        self.bottom_placeholder.setObjectName("bottom_placeholder")
-        layout.addWidget(self.bottom_placeholder)
+        # ── 状态栏：直接加入布局底部，固定 30px，暗色主题 ──
+        self._status_bar = QStatusBar(container)
+        self._status_bar.setFixedHeight(30)
+        self._status_bar.setStyleSheet("""
+            QStatusBar {
+                background-color: #252540;
+                color: #a6adc8;
+                border-top: 1px solid #313244;
+                padding: 2px 12px;
+                font-size: 12px;
+            }
+            QStatusBar QLabel {
+                color: #a6adc8;
+                background: transparent;
+            }
+        """)
+        self._status_bar.showMessage("就绪")
+        # 用户状态标签
+        self._user_status_label = QLabel("未登录")
+        self._user_status_label.setObjectName("user_status_label")
+        self._status_bar.addPermanentWidget(self._user_status_label)
+        self._refresh_user_status()
+        brand_label = QLabel("MF-Vis-Science · 开放工作室")
+        brand_label.setObjectName("brand_label")
+        self._status_bar.addPermanentWidget(brand_label)
+
+        from PySide6.QtWidgets import QSizeGrip
+        self._status_bar.addPermanentWidget(QSizeGrip(self))
+        layout.addWidget(self._status_bar, 0)
         self.setCentralWidget(container)
 
     # ================================================================
@@ -470,35 +494,7 @@ class MainWindow(QMainWindow):
         from MF_UI.math_keyboard import KeyboardPanel
         self.keyboard_panel = KeyboardPanel(self)
 
-    # ---------- 状态栏 ----------
-    def _build_status_bar(self):
-        self._status_bar = QStatusBar(self)  # 直接挂到主窗口上
-        self._status_bar.setFixedHeight(30)
-        self._status_bar.setStyleSheet("""
-            QStatusBar {
-                background-color: #2d2d2d;
-                color: #cccccc;
-                border-top: 1px solid #3a3a3a;
-                margin: 0px;
-                padding: 0px;
-            }
-            QStatusBar QLabel {
-                color: #cccccc;
-            }
-        """)
-        self._status_bar.showMessage("就绪", 0)
-        # 用户状态标签
-        self._user_status_label = QLabel("未登录")
-        self._user_status_label.setObjectName("user_status_label")
-        self._status_bar.addPermanentWidget(self._user_status_label)
-        self._refresh_user_status()
-        brand_label = QLabel("MF-Vis-Science \u00b7 开放工作室")
-        brand_label.setObjectName("brand_label")
-        self._status_bar.addPermanentWidget(brand_label)
-
-        from PySide6.QtWidgets import QSizeGrip
-        self._status_bar.addPermanentWidget(QSizeGrip(self))
-
+    # ---------- 状态栏（已在 _build_central_area 中创建并加入布局）----------
     def _status_msg(self, msg: str):
         self._status_bar.showMessage(msg, 5000)
 
@@ -622,13 +618,10 @@ class MainWindow(QMainWindow):
             self._kb_toggle_btn.setText("▼ 收起")
 
     def resizeEvent(self, event) -> None:
-        """窗口大小变化时更新圆角蒙版、状态栏位置、键盘面板高度。"""
+        """窗口大小变化时更新圆角蒙版和键盘面板高度。"""
         super().resizeEvent(event)
         # 圆角蒙版：每次 resize 重新裁剪（最大化时自动 clearMask）
         self._apply_rounded_mask()
-        # 强制状态栏锁定在窗口内部最底部
-        if hasattr(self, '_status_bar'):
-            self._status_bar.setGeometry(0, self.height() - 30, self.width(), 30)
         # 键盘面板自适应
         if hasattr(self, 'keyboard_panel') and self.keyboard_panel.isVisible():
             h = max(self.height() // 5, 60)
