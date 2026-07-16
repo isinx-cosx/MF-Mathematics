@@ -192,7 +192,6 @@ class BaseCalcBlock(QWidget):
     def _run_async(self, expr: str, op: str) -> None:
         """在 ComputeWorker 后台线程中执行计算，通过信号返回结果。"""
         from compute_worker import ComputeWorker
-        import sip
 
         # 防止重复启动 — getattr 原子操作，消除 hasattr/检查 竞态窗口
         existing: ComputeWorker | None = getattr(self, '_worker', None)
@@ -207,11 +206,9 @@ class BaseCalcBlock(QWidget):
         self._worker = worker
 
         worker.result_ready.connect(
-            lambda obj: self._on_result(obj, expr, op)
-            if not sip.isdeleted(self) else None)
+            lambda obj: self._on_result(obj, expr, op))
         worker.error_occurred.connect(
-            lambda err: self._on_error(err, op)
-            if not sip.isdeleted(self) else None)
+            lambda err: self._on_error(err, op))
         worker.finished.connect(self._on_worker_done)
         worker.start()
 
