@@ -171,6 +171,30 @@ FUNC_MAP: dict[str, tuple[str, str]] = {
     "RK4":            ("numerical", "rk4"),
     "隐式欧拉":       ("numerical", "implicit_euler"),
     "刚性检测":       ("numerical", "stiff_detector"),
+
+    # ── 傅里叶分析 ──
+    "傅里叶系数":             ("harmonic_analysis", "fourier_coeff"),
+    "傅里叶级数":             ("harmonic_analysis", "fourier_series"),
+    "复傅里叶系数":           ("harmonic_analysis", "complex_fourier_coeff"),
+    "正交性验证":             ("harmonic_analysis", "orthogonality_check"),
+    "傅里叶变换":             ("harmonic_analysis", "fourier_transform"),
+    "逆傅里叶变换":           ("harmonic_analysis", "inverse_fourier_transform"),
+    "普兰舍利定理":           ("harmonic_analysis", "plancherel_theorem"),
+    "高斯函数傅里叶变换":     ("harmonic_analysis", "ft_of_gaussian"),
+    "卷积":                   ("harmonic_analysis", "convolution"),
+    "卷积定理":               ("harmonic_analysis", "convolution_theorem"),
+    "高斯模糊":               ("harmonic_analysis", "gaussian_blur"),
+    "低通滤波器":             ("harmonic_analysis", "low_pass_filter"),
+    "δ 分布":                 ("harmonic_analysis", "delta_distribution"),
+    "δ 的傅里叶变换":         ("harmonic_analysis", "ft_delta"),
+    "常数的傅里叶变换":       ("harmonic_analysis", "ft_constant"),
+    "缓增分布":               ("harmonic_analysis", "tempered_distribution"),
+    "不确定性原理":           ("harmonic_analysis", "uncertainty_principle"),
+    "短时傅里叶变换":         ("harmonic_analysis", "stft"),
+    "小波变换":               ("harmonic_analysis", "wavelet_transform"),
+    "泊松求和":               ("harmonic_analysis", "poisson_summation"),
+    "Theta 函数":             ("harmonic_analysis", "theta_function"),
+    "函数方程演示":           ("harmonic_analysis", "functional_equation_demo"),
 }
 
 
@@ -346,6 +370,25 @@ def _normalize_kwargs(action: str, kwargs: dict) -> dict:
         kw.setdefault("mu", 0)
         kw.setdefault("sigma", 1)
 
+    # 傅里叶分析: expr → f (后端函数参数名统一为 f)
+    _FOURIER_ACTIONS = {
+        "fourier_coeff", "fourier_series", "complex_fourier_coeff",
+        "fourier_transform", "inverse_fourier_transform",
+        "plancherel_theorem", "ft_of_gaussian",
+        "convolution", "convolution_theorem", "gaussian_blur", "low_pass_filter",
+        "delta_distribution", "ft_delta", "ft_constant", "tempered_distribution",
+        "uncertainty_principle", "stft", "wavelet_transform",
+        "poisson_summation", "theta_function", "functional_equation_demo",
+    }
+    if action in _FOURIER_ACTIONS and "expr" in kw:
+        kw.setdefault("f", kw.pop("expr"))
+    # orthogonality_check: var → n
+    if action == "orthogonality_check" and "var" in kw:
+        try:
+            kw.setdefault("n", int(kw.pop("var")))
+        except (ValueError, TypeError):
+            kw.setdefault("n", 1)
+
     return kw
 
 
@@ -465,6 +508,45 @@ def _build_kwargs(action: str, action_name: str, params: list[str]) -> dict | No
         expr = params[0]
         var = params[1] if len(params) > 1 else "x"
         return {"expr": expr, "var": var}
+
+    # ── 傅里叶分析 — 后端参数名统一为 f ──
+    if action in ("fourier_coeff", "complex_fourier_coeff"):
+        result = {"f": params[0]}
+        if len(params) >= 2:
+            try: result["n"] = int(params[1])
+            except ValueError: result["n"] = 1
+        else:
+            result["n"] = 1
+        return result
+
+    if action == "fourier_series":
+        result = {"f": params[0]}
+        if len(params) >= 2:
+            try: result["n_terms"] = int(params[1])
+            except ValueError: result["n_terms"] = 3
+        else:
+            result["n_terms"] = 3
+        return result
+
+    if action == "inverse_fourier_transform":
+        return {"F": params[0]}  # 逆变换参数名为 F
+
+    if action in ("fourier_transform",
+                  "plancherel_theorem", "convolution", "convolution_theorem",
+                  "gaussian_blur", "low_pass_filter", "delta_distribution",
+                  "ft_delta", "ft_constant", "tempered_distribution",
+                  "uncertainty_principle", "stft", "wavelet_transform",
+                  "poisson_summation", "theta_function", "functional_equation_demo"):
+        return {"f": params[0]}
+
+    if action == "ft_of_gaussian":
+        a = float(params[0]) if params else 1.0
+        return {"a": a}
+
+    if action == "orthogonality_check":
+        n = int(params[0]) if params else 1
+        m = int(params[1]) if len(params) > 1 else 2
+        return {"n": n, "m": m}
 
     # ── 通用回退：单参数 → expr，多参数 → 位置展开 ──
     import logging
