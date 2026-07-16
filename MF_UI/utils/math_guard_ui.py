@@ -103,7 +103,9 @@ def _show_block_dialog(parent: QWidget | None, result: GuardResult) -> str:
     layout.addWidget(btn_box)
 
     dlg.setObjectName("guardDialog")
-    dlg.setStyleSheet("")  # 由主题 QSS 控制
+
+    from MF_UI.components.mf_dialog import apply_dialog_title_bar
+    apply_dialog_title_bar(dlg, result.title)
 
     code = dlg.exec()
     if code == 1:

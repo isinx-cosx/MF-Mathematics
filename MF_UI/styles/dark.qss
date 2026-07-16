@@ -6,6 +6,43 @@
 QMainWindow {
     background-color: #1e1e2e;
 }
+
+/* ---- 自定义标题栏 ---- */
+#customTitleBar, #mfDialogTitleBar {
+    background: #181825;
+    border-bottom: 1px solid #313244;
+}
+#mfDialogContent { background: #1e1e2e; }
+#titlebar_icon {
+    font-size: 16px;
+    background: transparent;
+}
+#titlebar_title {
+    font-size: 12px;
+    font-weight: 600;
+    color: #a6adc8;
+    background: transparent;
+    padding-left: 4px;
+}
+#titlebar_btn_min, #titlebar_btn_max, #titlebar_btn_close {
+    background: transparent;
+    border: none;
+    border-radius: 4px;
+    color: #6c7086;
+    font-size: 13px;
+    font-weight: 600;
+}
+#titlebar_btn_min:hover, #titlebar_btn_max:hover {
+    background: #313244;
+    color: #cdd6f4;
+}
+#titlebar_btn_close:hover {
+    background: #ef4444;
+    color: #ffffff;
+}
+#framelessContainer {
+    background: #1e1e2e;
+}
 QWidget {
     background-color: #1e1e2e;
     color: #cdd6f4;
@@ -657,6 +694,42 @@ QSplitter::handle:hover {
     background-color: #585b70;
 }
 
+/* ---- AI 配置提示 ---- */
+#aiConfigPrompt {
+    background: #1e1e2e;
+}
+#ai_prompt_title {
+    font-size: 16px;
+    font-weight: 700;
+    color: #cdd6f4;
+    background: transparent;
+}
+#ai_prompt_desc {
+    font-size: 13px;
+    color: #a6adc8;
+    background: transparent;
+    line-height: 1.6;
+}
+
+/* ---- 级数/泰勒对话框 ---- */
+#seriesDialog, #taylorDialog { background: #1e1e2e; }
+#seriesDialog QLineEdit, #taylorDialog QLineEdit {
+    border: 1px solid #45475a;
+    border-radius: 4px;
+    padding: 6px 10px;
+    font-size: 13px;
+    background: #181825;
+    color: #cdd6f4;
+}
+#seriesDialog QSpinBox, #taylorDialog QSpinBox {
+    border: 1px solid #45475a;
+    border-radius: 4px;
+    padding: 6px 10px;
+    font-size: 13px;
+    background: #181825;
+    color: #cdd6f4;
+}
+
 /* ---- 登录/注册/帮助 ---- */
 #loginDialog, #registerDialog, #helpBrowser {
     background: #1e1e2e;
@@ -825,6 +898,35 @@ QSplitter::handle:hover {
     border: none;
     width: 20px;
 }
+/* 设置对话框选项卡 */
+#settingsDialog QTabWidget::pane {
+    border: 1px solid #45475a;
+    border-radius: 6px;
+    background: #1e1e2e;
+}
+#settingsDialog QTabBar::tab {
+    background: #313244;
+    color: #a6adc8;
+    padding: 6px 16px;
+    border: 1px solid #45475a;
+    border-bottom: none;
+    border-radius: 4px 4px 0 0;
+    margin-right: 2px;
+}
+#settingsDialog QTabBar::tab:selected {
+    background: #1e1e2e;
+    color: #cdd6f4;
+    border-bottom: 2px solid #3b82f6;
+}
+#settingsDialog QDialogButtonBox QPushButton {
+    background: #3b82f6;
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    padding: 6px 20px;
+    font-size: 13px;
+}
+#settingsDialog QDialogButtonBox QPushButton:hover { background: #2563eb; }
 /* 步骤查看器 */
 #stepViewer {
     background: #1e1e2e;
