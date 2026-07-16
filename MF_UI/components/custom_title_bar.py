@@ -131,6 +131,10 @@ def apply_frameless(window, title: str = "Multifunctional-Mathematics") -> Custo
     central = window.centralWidget()
     menu_bar = window.menuBar()
 
+    # 收集所有工具栏（QMainWindow 子控件）
+    toolbars = [tb for tb in window.findChildren(QWidget)
+                if tb.parent() is window and tb is not central]
+
     # 创建容器
     container = QWidget()
     container.setObjectName("framelessContainer")
@@ -142,10 +146,15 @@ def apply_frameless(window, title: str = "Multifunctional-Mathematics") -> Custo
     title_bar = CustomTitleBar(window, title)
     layout.addWidget(title_bar)
 
-    # 菜单栏（标题栏下方）- 从默认位置移入
+    # 菜单栏（标题栏下方）
     if menu_bar:
         menu_bar.setParent(container)
         layout.addWidget(menu_bar)
+
+    # 工具栏（菜单栏下方）
+    for tb in toolbars:
+        tb.setParent(container)
+        layout.addWidget(tb)
 
     # 原始内容
     if central:
