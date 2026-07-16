@@ -223,7 +223,7 @@ class ArbitraryWorkspace(QWidget):
         export_row = QHBoxLayout()
         export_row.setSpacing(4)
         for fmt, color in [("SVG", "#6366f1"), ("PNG", "#10b981")]:
-            btn = QPushButton(f"📥 {fmt}")
+            btn = QPushButton(f"导出 {fmt}")
             btn.setObjectName("arbitrary_export_btn")
             btn.setStyleSheet(f"background:{color};")
             btn.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -306,10 +306,10 @@ class ArbitraryWorkspace(QWidget):
         sid = item.data(Qt.ItemDataRole.UserRole)
         menu = QMenu(self)
 
-        act_delete = menu.addAction("🗑 删除")
-        act_color = menu.addAction("🎨 修改颜色")
-        act_label = menu.addAction("✏ 修改标签")
-        act_hide = menu.addAction("👁 隐藏/显示")
+        act_delete = menu.addAction("删除")
+        act_color = menu.addAction("修改颜色")
+        act_label = menu.addAction("修改标签")
+        act_hide = menu.addAction("隐藏/显示")
 
         action = menu.exec(self._shape_list.mapToGlobal(pos))
         if action is None:

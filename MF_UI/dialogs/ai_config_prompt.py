@@ -35,12 +35,6 @@ class AIConfigPrompt(QDialog):
         root.setSpacing(16)
         root.setContentsMargins(28, 24, 28, 20)
 
-        # 图标 + 标题
-        icon_lbl = QLabel("🤖")
-        icon_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        icon_lbl.setStyleSheet("font-size: 40px; background: transparent;")
-        root.addWidget(icon_lbl)
-
         title = QLabel("AI 服务未配置")
         title.setObjectName("ai_prompt_title")
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)

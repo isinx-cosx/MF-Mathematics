@@ -261,7 +261,7 @@ class AIDialog(QDialog):
             cursor.insertHtml(
                 '<div style="background:#fef3c7;border:1px solid #f59e0b;'
                 'border-radius:8px;padding:12px 16px;margin:8px 0;">'
-                '<b style="color:#92400e;">🤖 AI 服务未配置</b><br>'
+                '<b style="color:#92400e;">AI 服务未配置</b><br>'
                 '<span style="color:#a16207;font-size:12px;">'
                 '请前往 <b>设置 → AI 配置</b> 中设置 API Key，解锁 AI 加速、步骤生成等功能。</span>'
                 '</div>')

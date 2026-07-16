@@ -414,7 +414,7 @@ class MainWindow(QMainWindow):
         self._build_keyboard_panel()
 
     # 切换按钮 — 左下角
-        self._kb_toggle_btn = QPushButton("⌨️ 键盘")
+        self._kb_toggle_btn = QPushButton("键盘")
         self._kb_toggle_btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self._kb_toggle_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self._kb_toggle_btn.setObjectName("kb_toggle_btn")
@@ -577,7 +577,7 @@ class MainWindow(QMainWindow):
         """切换内置键盘面板显隐。"""
         if self.keyboard_panel.isVisible():
             self.keyboard_panel.setVisible(False)
-            self._kb_toggle_btn.setText("⌨️ 键盘")
+            self._kb_toggle_btn.setText("键盘")
         else:
             h = max(self.height() // 5, 80)
             self.keyboard_panel.setFixedHeight(h)
