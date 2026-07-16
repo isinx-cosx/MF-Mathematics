@@ -261,8 +261,8 @@ CalcBlock QComboBox::drop-arrow {
 
 /* 计算按钮 */
 QPushButton#calc_btn {
-    background-color: #3b82f6;
-    color: #ffffff;
+    background-color: #45475a;
+    color: #cdd6f4;
     border: none;
     border-radius: 4px;
     padding: 6px 16px;
@@ -270,10 +270,10 @@ QPushButton#calc_btn {
     font-weight: 500;
 }
 QPushButton#calc_btn:hover {
-    background-color: #2563eb;
+    background-color: #585b70;
 }
 QPushButton#calc_btn:pressed {
-    background-color: #1d4ed8;
+    background-color: #313244;
 }
 
 /* 删除按钮 */
@@ -493,15 +493,15 @@ QScrollArea {
 
 /* ---- 键盘切换按钮 ---- */
 #kb_toggle_btn {
-    background: #3b82f6;
-    color: #ffffff;
+    background: #45475a;
+    color: #cdd6f4;
     border: none;
     border-radius: 6px;
     padding: 6px 14px;
     font-size: 12px;
     font-weight: 500;
 }
-#kb_toggle_btn:hover { background: #2563eb; }
+#kb_toggle_btn:hover { background: #585b70; }
 
 /* ---- 虚拟键盘 ---- */
 KeyboardPanel {
