@@ -27,6 +27,7 @@ class VectorFieldWorkspace(QWidget):
         self._x0, self._x1 = -5.0, 5.0
         self._y0, self._y1 = -5.0, 5.0
         self._res = 30
+        self._streamline = False  # False=quiver, True=streamplot
 
         self._build_ui()
         self._show_waiting()
@@ -62,6 +63,11 @@ class VectorFieldWorkspace(QWidget):
         rs = QSpinBox(); rs.setRange(10,60); rs.setValue(30)
         rs.valueChanged.connect(lambda v: setattr(self,"_res",v))
         pr.addWidget(rs)
+
+        from PySide6.QtWidgets import QCheckBox
+        cb = QCheckBox("流线"); cb.setChecked(False)
+        cb.toggled.connect(lambda v: setattr(self,"_streamline",v))
+        pr.addWidget(cb)
 
         btn = QPushButton("重绘")
         btn.setStyleSheet("QPushButton{background:#10b981;color:#fff;border:none;"
@@ -115,8 +121,13 @@ class VectorFieldWorkspace(QWidget):
         self._waiting.hide(); self._canvas.show()
         self._fig.clear()
         ax = self._fig.add_subplot(111)
-        ax.quiver(X, Y, U/M, V/M, M, cmap="viridis", scale=30, width=0.003)
+        if self._streamline:
+            ax.streamplot(X, Y, U, V, color=M, cmap="viridis", density=1.5,
+                          linewidth=1, arrowsize=0.8)
+        else:
+            ax.quiver(X, Y, U/M, V/M, M, cmap="viridis", scale=30, width=0.003)
         ax.set_xlabel("x"); ax.set_ylabel("y"); ax.set_aspect("equal")
         ax.set_title(f"F = ({self._px or 0}, {self._py or 0})")
         self._canvas.draw_idle()
-        self.status_message.emit(f"已绘制: ({self._px},{self._py}) {self._res}×{self._res}")
+        mode = "流线" if self._streamline else "箭头"
+        self.status_message.emit(f"已绘制({mode}): ({self._px},{self._py}) {self._res}×{self._res}")
