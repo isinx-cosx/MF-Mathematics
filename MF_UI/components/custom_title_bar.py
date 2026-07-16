@@ -464,11 +464,11 @@ def apply_frameless(window, title: str = "Multifunctional-Mathematics") -> Custo
         return s if s else QApplication.primaryScreen()
 
     def _toggle_shadow(enabled: bool):
-        """动画期间禁用阴影效果，减少重绘开销。"""
+        """动画期间禁用阴影效果，减少重绘开销。最大化时始终禁用（边距归零，阴影溢出）。"""
         if _shadow_effect[0] is None:
             _shadow_effect[0] = container.graphicsEffect()
         if _shadow_effect[0] is not None:
-            _shadow_effect[0].setEnabled(enabled)
+            _shadow_effect[0].setEnabled(enabled and not window.isMaximized())
 
     def _animate_max_restore():
         """最大化/还原动画 — 平滑几何过渡。"""

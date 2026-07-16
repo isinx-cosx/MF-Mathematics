@@ -202,18 +202,19 @@ class MainWindow(QMainWindow):
         from components.custom_title_bar import apply_frameless
         self._title_bar = apply_frameless(self, "Multifunctional-Mathematics")
 
-        # 窗口阴影 — 柔光边缘效果
+        # 窗口阴影 — 柔光边缘效果（最大化时禁用，防止边缘溢出造成视觉缝隙）
         from PySide6.QtWidgets import QGraphicsDropShadowEffect
         from PySide6.QtGui import QColor
+        self._window_shadow: QGraphicsDropShadowEffect | None = None
         _outer = self.centralWidget()
         if _outer is not None:
             _container = _outer.property("framelessContainer")
             if _container is not None:
-                _shadow = QGraphicsDropShadowEffect(_container)
-                _shadow.setBlurRadius(15)
-                _shadow.setOffset(0, 0)
-                _shadow.setColor(QColor(0, 0, 0, 40))
-                _container.setGraphicsEffect(_shadow)
+                self._window_shadow = QGraphicsDropShadowEffect(_container)
+                self._window_shadow.setBlurRadius(15)
+                self._window_shadow.setOffset(0, 0)
+                self._window_shadow.setColor(QColor(0, 0, 0, 40))
+                _container.setGraphicsEffect(self._window_shadow)
 
         # 安装全局边缘缩放过滤器（8px 边角，setUpdatesEnabled 防闪烁）
         self._edge_filter = EdgeResizeFilter(self)
@@ -241,19 +242,42 @@ class MainWindow(QMainWindow):
             self.move(frame.topLeft())
 
     # ---------- 窗口状态变化 ----------
-    def changeEvent(self, event: QEvent) -> None:
-        """窗口状态变化 — 修复无边框最大化缝隙 + 保存/恢复几何。
+    def showEvent(self, event) -> None:
+        """窗口显示时 — 最大化状态强制全屏几何（覆盖任务栏，消除缝隙）。"""
+        super().showEvent(event)
+        if self.isMaximized():
+            screen = self.screen() or QApplication.primaryScreen()
+            if screen is not None:
+                self.setGeometry(screen.geometry())
 
-        无边框窗口（FramelessWindowHint）在 Windows 上调用 showMaximized()
-        可能不会精确填充屏幕可用区域。此方法在最大化后手动纠正几何。
+    def changeEvent(self, event: QEvent) -> None:
+        """窗口状态变化 — 修复无边框最大化缝隙 + 边距/阴影切换 + 几何保存。
+
+        无边框窗口（FramelessWindowHint）在 Windows 上最大化时：
+        1. 外容器 8px 边距（用于阴影）需归零
+        2. QGraphicsDropShadowEffect 需禁用（阴影在边缘外绘制造成视觉缝隙）
+        3. 手动纠正几何为全屏
         """
         super().changeEvent(event)
         if event.type() == QEvent.Type.WindowStateChange:
+            outer = self.centralWidget()
             if self.isMaximized():
-                # 手动设置几何为屏幕可用区域，消除无边框窗口最大化缝隙
+                # 消除外容器边距（mfShadowHost 的 8px 边距用于正常状态阴影）
+                if outer is not None:
+                    outer.layout().setContentsMargins(0, 0, 0, 0)
+                # 禁用阴影 — 最大化时边距归零，阴影溢出窗口边缘会造成视觉缝隙
+                if self._window_shadow is not None:
+                    self._window_shadow.setEnabled(False)
+                # 强制全屏几何
                 screen = self.screen() or QApplication.primaryScreen()
                 if screen is not None:
-                    self.setGeometry(screen.availableGeometry())
+                    self.setGeometry(screen.geometry())
+            else:
+                # 还原外容器边距 + 启用阴影
+                if outer is not None:
+                    outer.layout().setContentsMargins(8, 8, 8, 0)
+                if self._window_shadow is not None:
+                    self._window_shadow.setEnabled(True)
             # 更新标题栏最大化图标状态
             if hasattr(self, '_title_bar') and self._title_bar is not None:
                 self._title_bar.set_maximized(self.isMaximized())
