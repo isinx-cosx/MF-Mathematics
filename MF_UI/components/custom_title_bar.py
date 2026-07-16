@@ -317,9 +317,12 @@ def apply_frameless(window, title: str = "Multifunctional-Mathematics") -> Custo
     central = window.centralWidget()
     menu_bar = window.menuBar()
 
-    # 收集所有工具栏（QMainWindow 子控件）
+    # 收集所有工具栏（QMainWindow 子控件，排除 QStatusBar）
+    from PySide6.QtWidgets import QStatusBar as _QSB
     toolbars = [tb for tb in window.findChildren(QWidget)
-                if tb.parent() is window and tb is not central]
+                if tb.parent() is window
+                and tb is not central
+                and not isinstance(tb, _QSB)]
 
     # 创建容器
     container = QWidget()

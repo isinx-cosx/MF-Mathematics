@@ -225,13 +225,6 @@ class MainWindow(QMainWindow):
         # 首次启动：显示欢迎对话框
         QApplication.instance().processEvents()
         self._check_first_launch()
-        # 强制状态栏在底部
-        if hasattr(self, '_status_bar'):
-            self._status_bar.setParent(None)  # 断开与 QMainWindow 的默认关联
-            self._status_bar = QStatusBar(self)  # 重新创建，直接挂到窗口上
-            self._status_bar.setFixedHeight(30)
-            self._status_bar.setStyleSheet("background-color: #2d2d2d; color: #cccccc;")
-            self._status_bar.showMessage("就绪", 0)
 
     # ---------- 窗口居中 ----------
     def _center_on_screen(self):
@@ -594,10 +587,6 @@ class MainWindow(QMainWindow):
     def resizeEvent(self, event) -> None:
         """窗口大小变化时更新键盘面板高度。"""
         super().resizeEvent(event)
-        if hasattr(self, '_status_bar'):
-            height = 30
-            self._status_bar.setGeometry(0, self.height() - height, self.width(), height)
-
         if hasattr(self, 'keyboard_panel') and self.keyboard_panel.isVisible():
             h = max(self.height() // 5, 60)
             self.keyboard_panel.setFixedHeight(h)
