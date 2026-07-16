@@ -33,16 +33,6 @@ _STEP_SYSTEM_PROMPT = (
 
 # ── 样式 ──────────────────────────────────────────────────
 
-_STYLE = """
-    QDialog { background: #fafbfc; }
-    QTextEdit {
-        border: 1px solid #e2e8f0; border-radius: 8px;
-        background: #fff; font-size: 14px; padding: 12px;
-        line-height: 1.6;
-    }
-"""
-
-
 # ── AI Worker ─────────────────────────────────────────────
 
 class _StepWorker(QThread):
@@ -95,7 +85,7 @@ class StepViewer(QDialog):
         self.setWindowTitle("步骤查看器")
         self.resize(600, 520)
         self.setMinimumSize(440, 360)
-        self.setStyleSheet(_STYLE)
+        self.setObjectName("stepViewer")
 
         self._expr = expr
         self._mode = mode
@@ -119,8 +109,7 @@ class StepViewer(QDialog):
 
         # 标题
         title = QLabel(f"步骤推导 — {self._mode}")
-        title.setStyleSheet(
-            "font-size: 16px; font-weight: 600; color: #0f172a; background: transparent;")
+        title.setObjectName("step_title")
         root.addWidget(title)
 
         # 表达式

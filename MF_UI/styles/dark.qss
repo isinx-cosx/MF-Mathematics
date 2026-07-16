@@ -640,3 +640,21 @@ QSplitter::handle:hover {
     border: none;
     width: 20px;
 }
+/* 步骤查看器 */
+#stepViewer {
+    background: #1e1e2e;
+}
+#stepViewer QTextEdit {
+    border: 1px solid #45475a;
+    border-radius: 8px;
+    background: #181825;
+    font-size: 14px;
+    padding: 12px;
+    color: #cdd6f4;
+}
+#stepViewer QLabel#step_title {
+    font-size: 16px;
+    font-weight: 600;
+    color: #cdd6f4;
+    background: transparent;
+}

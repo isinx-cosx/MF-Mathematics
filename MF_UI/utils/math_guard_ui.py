@@ -70,7 +70,7 @@ def _show_block_dialog(parent: QWidget | None, result: GuardResult) -> str:
     # 消息
     msg = QLabel(result.message)
     msg.setWordWrap(True)
-    msg.setStyleSheet("font-size: 14px; color: #1e293b; line-height: 1.6;")
+    msg.setStyleSheet("font-size: 14px; line-height: 1.6;")
     layout.addWidget(msg)
 
     # 按钮
@@ -102,7 +102,8 @@ def _show_block_dialog(parent: QWidget | None, result: GuardResult) -> str:
     btn_box.addButton(btn_cancel, QDialogButtonBox.ButtonRole.RejectRole)
     layout.addWidget(btn_box)
 
-    dlg.setStyleSheet("QDialog { background: #ffffff; border-radius: 12px; }")
+    dlg.setObjectName("guardDialog")
+    dlg.setStyleSheet("")  # 由主题 QSS 控制
 
     code = dlg.exec()
     if code == 1:
