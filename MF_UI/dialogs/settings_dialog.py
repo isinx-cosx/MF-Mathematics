@@ -93,7 +93,7 @@ class SettingsDialog(QDialog):
         l.setContentsMargins(12, 12, 12, 12)
 
         lbl = QLabel("通用设置（更多选项即将推出）")
-        lbl.setStyleSheet("color: #94a3b8; font-size: 12px;")
+        lbl.setStyleSheet("font-size: 12px;")
         l.addWidget(lbl)
         l.addStretch()
         return w
