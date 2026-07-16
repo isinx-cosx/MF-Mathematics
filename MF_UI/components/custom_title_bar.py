@@ -393,14 +393,17 @@ def apply_frameless(window, title: str = "Multifunctional-Mathematics") -> Custo
     _apply_rounded_mask()
     window._apply_rounded_mask = _apply_rounded_mask  # 暴露给 EdgeResizeFilter
 
-    # resize 时更新蒙版
-    _orig_resize_event = window.resizeEvent
+    # resize 时更新蒙版 — 事件过滤器比 monkey-patch 更可靠
+    from PySide6.QtCore import QObject as _QObj, QEvent as _QE
 
-    def _patched_resize(event):
-        _orig_resize_event(event)
-        _apply_rounded_mask()
+    class _MaskResizeFilter(_QObj):
+        def eventFilter(self, obj, event):
+            if event.type() == _QE.Type.Resize:
+                _apply_rounded_mask()
+            return False
 
-    window.resizeEvent = types.MethodType(_patched_resize, window)
+    _mask_filter = _MaskResizeFilter(window)
+    window.installEventFilter(_mask_filter)
 
     # ── 动画状态与持久引用（防止 GC 回收）──
     _anim_geo = [None]       # 保存的最大化前几何
