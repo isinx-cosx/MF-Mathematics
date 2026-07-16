@@ -429,10 +429,12 @@ class PlotCanvas(QGraphicsView):
     # ═══════════════════════════════════════════════════════════════
 
     def _update_curve_pens(self) -> None:
-        """更新所有曲线笔宽（固定 2px）。"""
+        """按当前 view_scale 更新所有曲线笔宽，保持恒定的像素宽度。"""
+        vs = _view_scale(self)
+        width = CURVE_PX / vs if vs > 0 else 0
         for item in self._curve_items:
             pen = item.pen()
-            pen.setWidthF(2.0)
+            pen.setWidthF(width)
             item.setPen(pen)
 
     # ═══════════════════════════════════════════════════════════════
@@ -584,16 +586,20 @@ class PlotCanvas(QGraphicsView):
             self._scene.removeItem(item)
         self._curve_items.clear()
 
+        vs = _view_scale(self)
+        width = CURVE_PX / vs if vs > 0 else 0
+
         for f in self._curves:
             if not f.get("visible", True) or not f.get("expr"):
                 continue
             if f.get("implicit"):
-                item = self._draw_implicit_curve(f)
+                path = self._draw_implicit_curve(f)
             else:
-                item = self._eval_curve(f)
-            if item is not None:
+                path = self._eval_curve(f)
+            if path is not None:
                 pen = QPen(QColor(f["color"]))
-                pen.setWidthF(2.0)
+                pen.setWidthF(width)
+                item = QGraphicsPathItem(path)
                 item.setPen(pen)
                 item.setZValue(10)
                 self._scene.addItem(item)
@@ -613,7 +619,7 @@ class PlotCanvas(QGraphicsView):
                 self._expr_cache[expr_str] = None
         return self._expr_cache[expr_str]
 
-    def _eval_curve(self, f: dict) -> QGraphicsPathItem | None:
+    def _eval_curve(self, f: dict) -> QPainterPath | None:
         expr_str = f.get("expr", "")
         if not expr_str:
             return None
@@ -632,7 +638,7 @@ class PlotCanvas(QGraphicsView):
         path_key = f"{expr_str}|{sorted(params.items())}|{x0}|{x1}"
 
         if path_key in self._path_cache:
-            return QGraphicsPathItem(self._path_cache[path_key])
+            return self._path_cache[path_key]
 
         # ── 参数替换 ──
         for k, v in params.items():
@@ -661,29 +667,28 @@ class PlotCanvas(QGraphicsView):
         except Exception:
             return None
 
-        # ── QPainterPath 构建 ──
-        # 规则：相邻点 |Δy| > 10 → 断点（moveTo）；NaN/Inf → 跳过不抬笔
+        yr = max(vr.height(), 1.0)
         path = QPainterPath()
         first = True
         for i in range(len(xs) - 1):
             a, b = ys[i], ys[i + 1]
-            if np.isnan(a) or np.isnan(b) or np.isinf(a) or np.isinf(b):
-                continue  # 跳过，不抬笔
-            if abs(b - a) > 10.0:
-                first = True  # 断点，下一有效点 moveTo
-                continue
+            if np.isnan(a) or np.isnan(b):
+                first = True; continue
+            if abs(b - a) > yr * 2:
+                first = True; continue
             if first:
                 path.moveTo(xs[i], a); first = False
-            path.lineTo(xs[i + 1], b)
+            else:
+                path.lineTo(xs[i + 1], b)
 
         if not path.isEmpty():
             if len(self._path_cache) >= 32:
                 self._path_cache.pop(next(iter(self._path_cache)))
             self._path_cache[path_key] = path
-            return QGraphicsPathItem(path)
+            return path
         return None
 
-    def _draw_implicit_curve(self, f: dict) -> QGraphicsPathItem | None:
+    def _draw_implicit_curve(self, f: dict) -> QPainterPath | None:
         """Marching Squares 提取 f(x,y) = 0 等值线。
 
         自适应分辨率 + 场景坐标 + 固定像素笔宽。
@@ -796,7 +801,7 @@ class PlotCanvas(QGraphicsView):
                     path.moveTo(p0[0], p0[1])
                     path.lineTo(p1[0], p1[1])
 
-        return QGraphicsPathItem(path) if not path.isEmpty() else None
+        return path if not path.isEmpty() else None
 
     def _emit_status(self) -> None:
         vr = self.mapToScene(self.viewport().rect()).boundingRect()
