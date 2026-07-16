@@ -711,20 +711,23 @@ class MainWindow(QMainWindow):
             h = max(self.height() // 5, 60)
             self.keyboard_panel.setFixedHeight(h)
 
+    @staticmethod
+    def _find_calc_block(widget: QWidget) -> QWidget | None:
+        """递归查找包含 input_box 和 calc_mode_combo 的 CalcBlock。"""
+        if hasattr(widget, 'input_box') and hasattr(widget, 'calc_mode_combo'):
+            return widget
+        for child in widget.children() if hasattr(widget, 'children') else []:
+            result = MainWindow._find_calc_block(child)
+            if result is not None:
+                return result
+        return None
+
     def _get_calc_context(self) -> tuple[str, str]:
         """获取当前激活的计算块上下文（表达式 + 模式）。"""
         try:
-            sw = self._stacked_widget
-            w = sw.currentWidget()
-            if w:
-                def find_block(widget):
-                    if hasattr(widget, 'input_box') and hasattr(widget, 'calc_mode_combo'):
-                        return widget
-                    for child in widget.children() if hasattr(widget, 'children') else []:
-                        r = find_block(child)
-                        if r: return r
-                    return None
-                block = find_block(w)
+            w = self._stacked_widget.currentWidget()
+            if w is not None:
+                block = self._find_calc_block(w)
                 if block:
                     expr = block.input_box.text().strip()
                     mode = block.calc_mode_combo.currentText()
@@ -897,16 +900,7 @@ class MainWindow(QMainWindow):
                 return
 
             # 查找 CalcBlock 并填入表达式和模式
-            def find_calc_block(widget):
-                if hasattr(widget, 'input_box') and hasattr(widget, 'calc_mode_combo'):
-                    return widget
-                for child in widget.children() if hasattr(widget, 'children') else []:
-                    r = find_calc_block(child)
-                    if r:
-                        return r
-                return None
-
-            block = find_calc_block(workspace)
+            block = self._find_calc_block(workspace)
             if block:
                 if example.expr:
                     block.input_box.setText(example.expr)

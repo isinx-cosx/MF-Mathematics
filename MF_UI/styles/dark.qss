@@ -43,9 +43,6 @@ QMainWindow {
     background: transparent;
     border: none;
 }
-#framelessContainer {
-    background: #1e1e2e;
-}
 #dialogInner {
     background: #1e1e2e;
     border-radius: 10px;
@@ -134,29 +131,6 @@ QToolBar QToolButton:hover {
 }
 QToolBar QToolButton:checked,
 QToolBar QToolButton[checked="true"] {
-    background-color: #45475a;
-    color: #cdd6f4;
-    font-weight: 700;
-    border: 1px solid #585b70;
-}
-
-/* ── 模式切换按钮（计算/绘图）ID 定位 + [checked] 动态属性 ── */
-QToolButton#tb_calc_btn,
-QToolButton#tb_plot_btn {
-    background-color: transparent;
-    color: #a6adc8;
-    padding: 6px 16px;
-    border: 1px solid transparent;
-    border-radius: 6px;
-    font-size: 13px;
-}
-QToolButton#tb_calc_btn:hover,
-QToolButton#tb_plot_btn:hover {
-    background-color: #313244;
-    color: #cdd6f4;
-}
-QToolButton#tb_calc_btn[checked="true"],
-QToolButton#tb_plot_btn[checked="true"] {
     background-color: #45475a;
     color: #cdd6f4;
     font-weight: 700;
@@ -727,6 +701,7 @@ QPushButton#arbitrary_tool_inactive {
 }
 QPushButton#arbitrary_tool_inactive:hover { background: #45475a; }
 #arbitrary_export_btn {
+    background-color: #10b981;
     color: #ffffff;
     border: none;
     border-radius: 4px;

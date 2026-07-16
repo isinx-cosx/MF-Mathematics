@@ -33,13 +33,18 @@ from PySide6.QtWidgets import (
 #  lambdify 缓存 — 避免每次曲线重建重新编译
 # ═══════════════════════════════════════════════════════════════════════
 _lambdify_cache: dict[str, callable] = {}
+_LAMBDIFY_CACHE_MAX = 128
 
 def _cached_lambdify(var_sym, expr, modules="numpy"):
-    """缓存 sp.lambdify 结果，避免重复编译。启用 CSE 减少生成代码量。"""
+    """缓存 sp.lambdify 结果。LRU 驱逐 (FIFO) 防止长期运行内存泄漏。"""
     key = str(expr) + str(var_sym)
-    if key not in _lambdify_cache:
-        _lambdify_cache[key] = sp.lambdify(var_sym, expr, modules, cse=True)
-    return _lambdify_cache[key]
+    if key in _lambdify_cache:
+        return _lambdify_cache[key]
+    if len(_lambdify_cache) >= _LAMBDIFY_CACHE_MAX:
+        _lambdify_cache.pop(next(iter(_lambdify_cache)), None)
+    fn = sp.lambdify(var_sym, expr, modules, cse=True)
+    _lambdify_cache[key] = fn
+    return fn
 
 # ═══════════════════════════════════════════════════════════════════════
 #  Config — 所有阈值从 config.json 读取，此处仅提供回退值
@@ -640,9 +645,10 @@ class PlotCanvas(QGraphicsView):
         if path_key in self._path_cache:
             return self._path_cache[path_key]
 
-        # ── 参数替换 ──
-        for k, v in params.items():
-            expr = expr.subs(sp.Symbol(k), v)
+        # ── 参数替换（批量 subs，O(n) 代替 O(n²)）──
+        if params:
+            subs_dict = {sp.Symbol(k): v for k, v in params.items()}
+            expr = expr.subs(subs_dict)
         var_sym = sp.Symbol(f.get("var", "x"))
         if expr.free_symbols - {var_sym}:
             return None

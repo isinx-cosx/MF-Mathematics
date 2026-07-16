@@ -17,6 +17,7 @@
 from __future__ import annotations
 
 import sys, os
+from ast import literal_eval as _le
 
 _base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _base not in sys.path:
@@ -288,7 +289,6 @@ def _normalize_kwargs(action: str, kwargs: dict) -> dict:
         val = kw.pop("expr")
         if isinstance(val, str):
             try:
-                from ast import literal_eval as _le
                 val = _le(val)
             except (ValueError, SyntaxError):
                 pass
@@ -299,7 +299,6 @@ def _normalize_kwargs(action: str, kwargs: dict) -> dict:
         val = kw.pop("expr")
         if isinstance(val, str):
             try:
-                from ast import literal_eval as _le
                 val = _le(val)
             except (ValueError, SyntaxError):
                 pass
@@ -311,7 +310,6 @@ def _normalize_kwargs(action: str, kwargs: dict) -> dict:
         val = kw.pop("expr")
         if isinstance(val, str):
             try:
-                from ast import literal_eval as _le
                 val = _le(val)
             except (ValueError, SyntaxError):
                 pass
@@ -468,8 +466,8 @@ def _build_kwargs(action: str, action_name: str, params: list[str]) -> dict | No
         var = params[1] if len(params) > 1 else "x"
         return {"expr": expr, "var": var}
 
-    # ── 通用回退：单参数 → expr ──
-    if len(params) == 1:
-        return {"expr": params[0]}
-    # 多参数 → 位置展开
-    return {f"arg{i}": v for i, v in enumerate(params)}
+    # ── 未处理的操作 ──
+    raise ValueError(
+        f"calc_engine._build_kwargs: 未处理的操作 "
+        f"action={action_name!r} params={params!r}"
+    )
