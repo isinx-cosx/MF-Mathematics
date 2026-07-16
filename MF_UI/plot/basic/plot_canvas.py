@@ -648,7 +648,15 @@ class PlotCanvas(QGraphicsView):
             return None
 
         # ── 求值 + Path 构建 ──
-        xs = np.linspace(max(x0, -SCENE_RANGE), min(x1, SCENE_RANGE), 2000)
+        # 自适应采样：远视图少采样，近视图多采样
+        view_width = x1 - x0
+        if view_width > 100:
+            n_samples = 500
+        elif view_width > 10:
+            n_samples = 1000
+        else:
+            n_samples = 2000
+        xs = np.linspace(max(x0, -SCENE_RANGE), min(x1, SCENE_RANGE), n_samples)
         try:
             fn = _cached_lambdify(var_sym, expr, "numpy")
             ys = fn(xs)

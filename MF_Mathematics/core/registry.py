@@ -138,6 +138,19 @@ def dispatch(module: str, action: str, *args: Any, **kwargs: Any) -> Any:
             _cache.move_to_end(ck)
             return _cache[ck]
 
+        # 预计算表查找（首次调用时命中常用表达式）
+        try:
+            from .precomputed import get_precomputed
+            pre = get_precomputed(ck)
+            if pre is not None:
+                _cache_hits += 1
+                if len(_cache) >= _CACHE_SIZE:
+                    _cache.popitem(last=False)
+                _cache[ck] = pre
+                return pre
+        except ImportError:
+            pass
+
         _cache_misses += 1
         result = func(*args, **kwargs)
 
