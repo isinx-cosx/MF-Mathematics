@@ -9,9 +9,9 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, Signal, QPoint, QRect, QSize
+from PySide6.QtCore import Qt, Signal, QPoint, QPointF, QRect, QSize
 from PySide6.QtGui import (
-    QAction, QColor, QFont, QIcon, QPainter, QPen,
+    QAction, QColor, QFont, QIcon, QPainter, QPainterPath, QPen,
 )
 from PySide6.QtWidgets import (
     QFrame, QHBoxLayout, QLabel, QPushButton, QSizePolicy, QWidget,
@@ -82,19 +82,28 @@ class WindowControlButton(QPushButton):
         is_dark = self._detect_dark_theme()
         is_close = self._kind == "close"
 
-        # ── 背景 ──
+        # ── 背景（关闭按钮右上角 8px 圆角，适配窗口圆角）──
+        def _fill_bg(color):
+            if is_close:
+                path = QPainterPath()
+                path.moveTo(r.topLeft())
+                path.lineTo(QPointF(r.right() - 8, r.top()))
+                path.quadTo(r.topRight(), QPointF(r.right(), r.top() + 8))
+                path.lineTo(r.bottomRight())
+                path.lineTo(r.bottomLeft())
+                path.closeSubpath()
+                p.fillPath(path, color)
+            else:
+                p.fillRect(r, color)
+
         if self._hovered:
-            if is_close:
-                p.fillRect(r, QColor("#e81123"))
-            else:
-                p.fillRect(r, QColor(255, 255, 255, 20) if is_dark
-                           else QColor(0, 0, 0, 12))
+            _fill_bg(QColor("#e81123") if is_close
+                     else QColor(255, 255, 255, 20) if is_dark
+                     else QColor(0, 0, 0, 12))
         elif self._pressed:
-            if is_close:
-                p.fillRect(r, QColor("#bf0f1d"))
-            else:
-                p.fillRect(r, QColor(255, 255, 255, 30) if is_dark
-                           else QColor(0, 0, 0, 20))
+            _fill_bg(QColor("#bf0f1d") if is_close
+                     else QColor(255, 255, 255, 30) if is_dark
+                     else QColor(0, 0, 0, 20))
 
         # ── 图标颜色 ──
         if is_close and (self._hovered or self._pressed):
