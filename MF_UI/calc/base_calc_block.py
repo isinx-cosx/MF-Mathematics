@@ -123,7 +123,8 @@ class BaseCalcBlock(QWidget):
             dlg.set_result(result)
             dlg.exec()
 
-        except Exception as e:
+        except (ValueError, TypeError, KeyError, RuntimeError,
+                sympy.SympifyError, AttributeError, ImportError) as e:
             dlg = ResultDialog("错误", self)
             dlg.set_result(MathObject(error=str(e)[:120]))
             dlg.exec()
@@ -148,8 +149,8 @@ class BaseCalcBlock(QWidget):
         try:
             from MF_Mathematics.utils.translator import MathTranslator
             expr = MathTranslator.human_to_computer(expr)
-        except Exception:
-            pass
+        except (ImportError, ValueError, TypeError):
+            pass  # 翻译不可用时使用原始表达式
 
         # ── 三级守卫（UI 线程，快速） ──
         guard_result = ComplexityGuard.check(expr, mode=op)
@@ -191,11 +192,12 @@ class BaseCalcBlock(QWidget):
     def _run_async(self, expr: str, op: str) -> None:
         """在 ComputeWorker 后台线程中执行计算，通过信号返回结果。"""
         from compute_worker import ComputeWorker
+        import sip
 
-        # 防止重复启动
-        if hasattr(self, '_worker') and self._worker is not None:
-            if self._worker.isRunning():
-                return
+        # 防止重复启动 — getattr 原子操作，消除 hasattr/检查 竞态窗口
+        existing: ComputeWorker | None = getattr(self, '_worker', None)
+        if existing is not None and existing.isRunning():
+            return
 
         # 显示计算中状态
         self._show_computing(op)
@@ -205,9 +207,11 @@ class BaseCalcBlock(QWidget):
         self._worker = worker
 
         worker.result_ready.connect(
-            lambda obj: self._on_result(obj, expr, op))
+            lambda obj: self._on_result(obj, expr, op)
+            if not sip.isdeleted(self) else None)
         worker.error_occurred.connect(
-            lambda err: self._on_error(err, op))
+            lambda err: self._on_error(err, op)
+            if not sip.isdeleted(self) else None)
         worker.finished.connect(self._on_worker_done)
         worker.start()
 
@@ -247,8 +251,9 @@ class BaseCalcBlock(QWidget):
     def _on_worker_done(self) -> None:
         """Worker 完成后的清理。"""
         self._hide_computing()
-        if hasattr(self, '_worker') and self._worker is not None:
-            self._worker.deleteLater()
+        worker: ComputeWorker | None = getattr(self, '_worker', None)
+        if worker is not None:
+            worker.deleteLater()
             self._worker = None
 
     def _preprocess_expr(self, expr: str) -> str:

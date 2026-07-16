@@ -302,12 +302,10 @@ class NumericalEstimation(QWidget):
         self._worker.start()
 
     def _stop(self) -> None:
+        """请求中断 worker — 不阻塞调用线程（避免 UI 冻结）。"""
         if self._worker and self._worker.isRunning():
             self._worker.requestInterruption()
-            if not self._worker.wait(5000):
-                import logging
-                logging.warning(
-                    "NumericalEstimation worker 线程 5 秒内未响应 requestInterruption")
+            # 不调用 wait() — 由 worker.finished 信号驱动 _on_finished 清理
             self._worker.deleteLater()
             self._worker = None
         self._reset_ui()

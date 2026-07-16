@@ -352,7 +352,6 @@ def apply_frameless(window, title: str = "Multifunctional-Mathematics") -> Custo
         CustomTitleBar 实例，调用方可 emit 其信号。
     """
     from PySide6.QtWidgets import QVBoxLayout
-    import types
 
     # 保存原始内容
     central = window.centralWidget()
@@ -552,15 +551,12 @@ def apply_frameless(window, title: str = "Multifunctional-Mathematics") -> Custo
     title_bar.maximize_requested.connect(_animate_max_restore)
     title_bar.close_requested.connect(window.close)
 
-    # 监听最大化变化以更新按钮图标（通过猴子补丁 changeEvent）
-    _orig_change = window.changeEvent
-
-    def _patched_change(self, event):
-        from PySide6.QtCore import QEvent
-        _orig_change(event)
-        if event.type() == QEvent.Type.WindowStateChange:
-            title_bar.set_maximized(window.isMaximized())
-
-    window.changeEvent = types.MethodType(_patched_change, window)
+    # 监听最大化变化以更新按钮图标（事件过滤器 → 无 monkey-patch 链断裂风险）
+    class _WindowStateFilter(_QObj):
+        def eventFilter(self, obj, event):
+            if event.type() == _QE.Type.WindowStateChange:
+                title_bar.set_maximized(window.isMaximized())
+            return False  # 不消费事件，继续传递
+    window.installEventFilter(_WindowStateFilter(window))
 
     return title_bar

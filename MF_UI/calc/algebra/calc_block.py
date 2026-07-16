@@ -298,30 +298,35 @@ class CalcBlock(BaseCalcBlock):
 
             timeout = _cfg.get("math_guard", "limit", "timeout_seconds", default=5)
 
-            # 使用 QThread 代替 threading.Thread，避免阻塞 UI 线程
+            # 使用 QThread 代替 threading.Thread，避免阻塞 UI 线程。
+            # ★ 传 target 函数而非依赖 parent() → 防止 widget 销毁后 segfault
+            _calc_target = self._do_calculate  # bound method，持有 self 引用
+
             class _LimitWorker(QThread):
                 result_ready = Signal(object)
 
-                def __init__(self, parent, op, expr):
+                def __init__(self, target, op, expr, parent=None):
                     super().__init__(parent)
+                    self._target = target
                     self._op = op
                     self._expr = expr
 
                 def run(self):
                     try:
-                        obj = self.parent()._do_calculate(self._op, self._expr)
+                        obj = self._target(self._op, self._expr)
                     except Exception as e:
                         obj = MathObject(error=str(e))
                     if not self.isInterruptionRequested():
                         self.result_ready.emit(obj)
 
-            worker = _LimitWorker(self, op, expr)
+            worker = _LimitWorker(_calc_target, op, expr, self)
             worker.setObjectName("LimitWorker")
             self._limit_worker = worker
 
-            # 超时定时器
+            # 超时定时器 — connect finished→stop 防止 worker 结束后 timer 仍触发
             timeout_timer = QTimer(worker)
             timeout_timer.setSingleShot(True)
+            worker.finished.connect(timeout_timer.stop)
 
             def _on_timeout():
                 worker.requestInterruption()

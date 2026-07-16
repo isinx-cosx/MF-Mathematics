@@ -16,7 +16,7 @@ from PySide6.QtGui import (
 )
 from PySide6.QtWidgets import (
     QGraphicsEllipseItem, QGraphicsItem, QGraphicsLineItem,
-    QGraphicsPathItem, QGraphicsPolygonItem, QGraphicsScene,
+    QGraphicsPathItem, QGraphicsPolygonItem, QGraphicsRectItem, QGraphicsScene,
     QGraphicsSimpleTextItem, QGraphicsView, QVBoxLayout, QWidget,
 )
 
@@ -497,9 +497,10 @@ class GeometryCanvas(QGraphicsView):
             (x1, y1), (x2, y2) = s.data
             x, y = min(x1, x2), min(y1, y2)
             w, h = abs(x2 - x1), abs(y2 - y1)
-            item = self._scene.addRect(x, y, w, h, pen, QBrush(Qt.BrushStyle.NoBrush))
-            if item:
-                item.setZValue(5)
+            item = QGraphicsRectItem(x, y, w, h)
+            item.setPen(pen)
+            item.setBrush(QBrush(Qt.BrushStyle.NoBrush))
+            item.setZValue(5)
             return item
 
         elif s.shape_type == ShapeType.POLYGON:

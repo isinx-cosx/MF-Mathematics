@@ -268,10 +268,10 @@ class Plot3D(QWidget):
 
         if len(all_points) > 3:
             pts = np.array(all_points)
-            self._ax.scatter(pts[:, 0], pts[:, 1], pts[:, 2],
+            scatter = self._ax.scatter(pts[:, 0], pts[:, 1], pts[:, 2],
                            c=color, s=2, alpha=0.5, marker='.')
-            # 存储引用以便清除
-            entry["surface_obj"] = self._ax.collections[-1] if self._ax.collections else None
+            # 保存 scatter 返回值（不用 collections[-1]，避免引用错误对象）
+            entry["surface_obj"] = scatter
 
     def _add_parametric_partial(self, entry: dict, spec: dict, color: str,
                                 params: dict | None) -> None:

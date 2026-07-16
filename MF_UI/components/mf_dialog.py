@@ -20,7 +20,7 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, QPoint
+from PySide6.QtCore import Qt, QEvent, QObject, QPoint
 from PySide6.QtWidgets import (
     QDialog, QHBoxLayout, QLabel, QPushButton,
     QSizePolicy, QVBoxLayout, QWidget,
@@ -152,23 +152,23 @@ def apply_dialog_title_bar(dialog: QDialog, title: str = "") -> QWidget:
     layout.insertWidget(0, bar)
 
     # 拖拽功能
+    # 事件过滤器 — 拖拽对话框移动（替代 monkey-patch，可叠加安装）
     _drag_pos = [None]
-    def _press(event):
-        if event.button() == Qt.MouseButton.LeftButton:
-            _drag_pos[0] = event.globalPosition().toPoint()
-        QDialog.mousePressEvent(dialog, event)
-    def _move(event):
-        if _drag_pos[0] is not None and event.buttons() == Qt.MouseButton.LeftButton:
-            d = event.globalPosition().toPoint() - _drag_pos[0]
-            dialog.move(dialog.pos() + d)
-            _drag_pos[0] = event.globalPosition().toPoint()
-        QDialog.mouseMoveEvent(dialog, event)
-    def _release(event):
-        _drag_pos[0] = None
-        QDialog.mouseReleaseEvent(dialog, event)
-    dialog.mousePressEvent = _press
-    dialog.mouseMoveEvent = _move
-    dialog.mouseReleaseEvent = _release
+
+    class _DialogDragFilter(QObject):
+        def eventFilter(self, obj, event):
+            if event.type() == QEvent.Type.MouseButtonPress:
+                if event.button() == Qt.MouseButton.LeftButton:
+                    _drag_pos[0] = event.globalPosition().toPoint()
+            elif event.type() == QEvent.Type.MouseMove:
+                if _drag_pos[0] is not None and event.buttons() == Qt.MouseButton.LeftButton:
+                    d = event.globalPosition().toPoint() - _drag_pos[0]
+                    dialog.move(dialog.pos() + d)
+                    _drag_pos[0] = event.globalPosition().toPoint()
+            elif event.type() == QEvent.Type.MouseButtonRelease:
+                _drag_pos[0] = None
+            return False  # 不消费事件
+    dialog.installEventFilter(_DialogDragFilter(dialog))
 
     # 圆角 + 阴影
     from MF_UI.components.dialog_style import apply_shadow
