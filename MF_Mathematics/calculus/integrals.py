@@ -35,7 +35,8 @@ def integrate(
         ex = to_sympy(expr)
 
         if a is not None and b is not None:
-            # 定积分
+            # 定积分 — 先求原函数（一次 integrate），再求定积分值
+            antiderivative = sp.integrate(ex, x)
             result = sp.integrate(ex, (x, a, b))
             # 尝试数值求解
             try:
@@ -53,7 +54,7 @@ def integrate(
                 steps=[
                     f"被积函数: f({var}) = {ex}",
                     f"定积分: ∫_{{{a}}}^{{{b}}} {ex} d{var}",
-                    f"原函数: F({var}) = {sp.integrate(ex, x)}",
+                    f"原函数: F({var}) = {antiderivative}",
                     f"结果: F({b}) - F({a}) = {result}",
                 ],
                 meaning=f"∫_{{{a}}}^{{{b}}} {ex} d{var} = {result}",

@@ -1,11 +1,55 @@
-"""函数注册表 — 用于注册、查询和调用 MF_Mathematics 中的所有公开函数。"""
+"""函数注册表 — 用于注册、查询和调用 MF_Mathematics 中的所有公开函数。
+
+支持 LRU 缓存避免重复 sympy 计算。
+"""
 
 from __future__ import annotations
 
+from collections import OrderedDict
 from typing import Any, Callable, Optional
 
 _registry: dict[str, tuple[Callable, str, str]] = {}
 """注册表：key = 'module.action'，value = (func, module, action)"""
+
+# ── 计算缓存 ──────────────────────────────────────────────────
+_CACHE_SIZE = 256
+_cache_enabled = True
+_cache: OrderedDict[int, Any] = OrderedDict()
+_cache_hits = 0
+_cache_misses = 0
+
+
+def set_cache_enabled(enabled: bool) -> None:
+    """启用/禁用计算缓存。"""
+    global _cache_enabled
+    _cache_enabled = enabled
+    if not enabled:
+        clear_cache()
+
+
+def clear_cache() -> None:
+    """清空计算缓存。"""
+    global _cache_hits, _cache_misses
+    _cache.clear()
+    _cache_hits = 0
+    _cache_misses = 0
+
+
+def cache_info() -> dict:
+    """返回缓存统计信息。"""
+    return {
+        "enabled": _cache_enabled,
+        "hits": _cache_hits,
+        "misses": _cache_misses,
+        "size": len(_cache),
+        "maxsize": _CACHE_SIZE,
+    }
+
+
+def _make_cache_key(module: str, action: str, args: tuple, kwargs: dict) -> int:
+    """生成缓存键 — 基于所有参数的 hash。"""
+    kw_items = tuple(sorted(kwargs.items())) if kwargs else ()
+    return hash((module, action, args, kw_items))
 
 
 def register(module: str, action: str) -> Callable:
@@ -25,7 +69,6 @@ def register(module: str, action: str) -> Callable:
 
         def wrapper(*args: Any, **kwargs: Any) -> Any:
             result = func(*args, **kwargs)
-            # 如果返回 MathObject，注入 module/action 信息
             from .math_object import MathObject
 
             if isinstance(result, MathObject):
@@ -66,7 +109,7 @@ def list_registered() -> list[dict]:
 
 
 def dispatch(module: str, action: str, *args: Any, **kwargs: Any) -> Any:
-    """分发调用已注册的函数。
+    """分发调用已注册的函数（带 LRU 缓存）。
 
     Args:
         module: 模块名。
@@ -79,10 +122,32 @@ def dispatch(module: str, action: str, *args: Any, **kwargs: Any) -> Any:
     Raises:
         KeyError: 未找到对应的注册函数。
     """
+    global _cache_hits, _cache_misses
+
     key = f"{module}.{action}"
     if key not in _registry:
         raise KeyError(f"未找到注册函数: {key}")
+
     func, _, _ = _registry[key]
+
+    # 缓存查找
+    if _cache_enabled:
+        ck = _make_cache_key(module, action, args, kwargs)
+        if ck in _cache:
+            _cache_hits += 1
+            _cache.move_to_end(ck)
+            return _cache[ck]
+
+        _cache_misses += 1
+        result = func(*args, **kwargs)
+
+        # LRU 淘汰
+        if len(_cache) >= _CACHE_SIZE:
+            _cache.popitem(last=False)
+
+        _cache[ck] = result
+        return result
+
     return func(*args, **kwargs)
 
 
@@ -95,6 +160,12 @@ def self_test() -> tuple[int, int, int]:
 
         result = dispatch("test", "test")
         assert result == 42, f"dispatch 返回值不匹配: {result}"
+
+        # 测试缓存
+        result2 = dispatch("test", "test")
+        assert result2 == 42
+        info = cache_info()
+        assert info["hits"] >= 1, f"缓存命中应为 >=1，实际: {info}"
 
         print("registry self_test: PASSED")
         return (1, 0, 0)
