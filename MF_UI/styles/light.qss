@@ -8,15 +8,9 @@ QMainWindow {
 }
 
 /* ---- 自定义标题栏 ---- */
-#customTitleBar {
+#customTitleBar, #mfDialogTitleBar {
     background: #ffffff;
     border-bottom: 1px solid #e2e8f0;
-}
-#mfDialogTitleBar {
-    background: #ffffff;
-    border-bottom: 1px solid #e2e8f0;
-    border-top-left-radius: 10px;
-    border-top-right-radius: 10px;
 }
 #mfDialogContent { background: #f8fafc; }
 #titlebar_icon {
