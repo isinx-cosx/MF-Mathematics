@@ -233,6 +233,10 @@ class PlotCanvas(QGraphicsView):
 
         # ── 网格缓存（避免 drawForeground 每帧重绘网格/刻度）──
         self._grid_pixmap: Any = None
+
+        # ── 曲线缓存（避免每次缩放重新 sympify + lambdify + Path）──
+        self._expr_cache: dict[str, Any] = {}      # expr_str → sympy 表达式
+        self._path_cache: dict[str, Any] = {}       # cache_key → QPainterPath
         self._grid_dirty = True
         self._last_view_rect: QRectF | None = None
 
@@ -540,6 +544,7 @@ class PlotCanvas(QGraphicsView):
         idx = len(self._curves)
         if not color:
             color = CURVE_COLORS[idx % len(CURVE_COLORS)]
+        self._path_cache.clear()
         self._curves.append({
             "expr": expr, "color": color, "visible": True,
             "label": label or f"f{idx + 1}", "params": params or {},
@@ -551,6 +556,7 @@ class PlotCanvas(QGraphicsView):
 
     def remove_function(self, idx: int) -> None:
         if 0 <= idx < len(self._curves):
+            self._path_cache.clear()
             self._curves.pop(idx)
             self._rebuild_all_curves()
 
@@ -561,10 +567,13 @@ class PlotCanvas(QGraphicsView):
 
     def set_params(self, idx: int, p: dict) -> None:
         if 0 <= idx < len(self._curves):
+            self._path_cache.clear()
             self._curves[idx]["params"] = p
             self._rebuild_all_curves()
 
     def clear_functions(self) -> None:
+        self._path_cache.clear()
+        self._expr_cache.clear()
         self._curves.clear()
         self._rebuild_all_curves()
 
@@ -598,25 +607,49 @@ class PlotCanvas(QGraphicsView):
 
         self._emit_status()
 
+    def _get_cached_expr(self, expr_str: str):
+        """缓存 sympy 表达式解析（~5ms saving per render）。"""
+        if expr_str not in self._expr_cache:
+            try:
+                e = sp.sympify(expr_str)
+                if hasattr(e, 'doit'):
+                    e = e.doit()
+                self._expr_cache[expr_str] = e
+            except Exception:
+                self._expr_cache[expr_str] = None
+        return self._expr_cache[expr_str]
+
     def _eval_curve(self, f: dict) -> QPainterPath | None:
-        try:
-            import sympy as sp
-            expr = sp.sympify(f["expr"])
-            # 处理 Derivative 对象（导数表达式）
-            if hasattr(expr, 'doit'):
-                expr = expr.doit()
-        except Exception:
+        expr_str = f.get("expr", "")
+        if not expr_str:
             return None
+
+        # ── 表达式缓存 ──
+        expr = self._get_cached_expr(expr_str)
+        if expr is None:
+            return None
+
+        # ── 路径缓存键（含 10% 边距减少缩放时缓存失效）──
         vr = self.mapToScene(self.viewport().rect()).boundingRect()
-        xs = np.linspace(
-            max(vr.left(), -SCENE_RANGE), min(vr.right(), SCENE_RANGE), 2000)
+        margin = vr.width() * 0.1
+        x0 = math.floor((vr.left() - margin) / 10) * 10
+        x1 = math.ceil((vr.right() + margin) / 10) * 10
+        params = f.get("params", {})
+        path_key = f"{expr_str}|{sorted(params.items())}|{x0}|{x1}"
+
+        if path_key in self._path_cache:
+            return self._path_cache[path_key]
+
+        # ── 参数替换 ──
+        for k, v in params.items():
+            expr = expr.subs(sp.Symbol(k), v)
+        var_sym = sp.Symbol(f.get("var", "x"))
+        if expr.free_symbols - {var_sym}:
+            return None
+
+        # ── 求值 + Path 构建 ──
+        xs = np.linspace(max(x0, -SCENE_RANGE), min(x1, SCENE_RANGE), 2000)
         try:
-            for k, v in f.get("params", {}).items():
-                expr = expr.subs(sp.Symbol(k), v)
-            # 仍有未解析的符号 → 跳过
-            if expr.free_symbols - {sp.Symbol(f.get("var", "x"))}:
-                return None
-            var_sym = sp.Symbol(f.get("var", "x"))
             fn = _cached_lambdify(var_sym, expr, "numpy")
             ys = fn(xs)
             if not isinstance(ys, np.ndarray):
@@ -625,6 +658,7 @@ class PlotCanvas(QGraphicsView):
                 ys = np.where(np.abs(ys.imag) < 1e-10, ys.real, np.nan)
         except Exception:
             return None
+
         yr = max(vr.height(), 1.0)
         path = QPainterPath()
         first = True
@@ -638,7 +672,13 @@ class PlotCanvas(QGraphicsView):
                 path.moveTo(xs[i], a); first = False
             else:
                 path.lineTo(xs[i + 1], b)
-        return path if not path.isEmpty() else None
+
+        if not path.isEmpty():
+            if len(self._path_cache) >= 32:
+                self._path_cache.pop(next(iter(self._path_cache)))
+            self._path_cache[path_key] = path
+            return path
+        return None
 
     def _draw_implicit_curve(self, f: dict) -> QPainterPath | None:
         """Marching Squares 提取 f(x,y) = 0 等值线。
