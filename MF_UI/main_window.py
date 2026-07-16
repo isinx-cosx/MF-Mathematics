@@ -93,7 +93,7 @@ class MainWindow(QMainWindow):
 
         # 自定义标题栏（替换原生标题栏）
         from components.custom_title_bar import apply_frameless
-        self._title_bar = apply_frameless(self, "MF-Mathematics")
+        self._title_bar = apply_frameless(self, "Multifunctional-Mathematics")
         # 重新居中（frameless 切换可能改变窗口位置）
         self._center_on_screen()
 

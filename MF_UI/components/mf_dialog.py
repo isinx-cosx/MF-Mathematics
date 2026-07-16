@@ -73,12 +73,6 @@ class MFDialog(QDialog):
         layout.setContentsMargins(12, 0, 4, 0)
         layout.setSpacing(0)
 
-        # 图标
-        icon = QLabel("📐")
-        icon.setObjectName("titlebar_icon")
-        icon.setFixedWidth(24)
-        layout.addWidget(icon)
-
         # 标题
         lbl = QLabel(self._title)
         lbl.setObjectName("titlebar_title")
@@ -142,11 +136,6 @@ def apply_dialog_title_bar(dialog: QDialog, title: str = "") -> QWidget:
     bar_layout = QHBoxLayout(bar)
     bar_layout.setContentsMargins(12, 0, 4, 0)
     bar_layout.setSpacing(0)
-
-    icon = QLabel("📐")
-    icon.setObjectName("titlebar_icon")
-    icon.setFixedWidth(24)
-    bar_layout.addWidget(icon)
 
     lbl = QLabel(title or dialog.windowTitle())
     lbl.setObjectName("titlebar_title")

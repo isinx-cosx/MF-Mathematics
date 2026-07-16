@@ -49,12 +49,7 @@ class CustomTitleBar(QWidget):
         layout.setContentsMargins(12, 0, 4, 0)
         layout.setSpacing(0)
 
-        # ── 左侧：图标 + 标题 ──
-        self._icon_label = QLabel("📐")
-        self._icon_label.setObjectName("titlebar_icon")
-        self._icon_label.setFixedWidth(28)
-        layout.addWidget(self._icon_label)
-
+        # ── 左侧：标题 ──
         self._title_label = QLabel(self._title)
         self._title_label.setObjectName("titlebar_title")
         layout.addWidget(self._title_label)
@@ -124,7 +119,7 @@ class CustomTitleBar(QWidget):
         super().mouseDoubleClickEvent(event)
 
 
-def apply_frameless(window, title: str = "MF-Mathematics") -> CustomTitleBar:
+def apply_frameless(window, title: str = "Multifunctional-Mathematics") -> CustomTitleBar:
     """将 QMainWindow 转换为无边框 + 自定义标题栏。
 
     Returns:
