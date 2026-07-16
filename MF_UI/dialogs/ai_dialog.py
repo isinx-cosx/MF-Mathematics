@@ -153,10 +153,13 @@ class _AIStreamWorker(QThread):
     def run(self):
         try:
             for chunk in stream_chat(self._messages):
+                if self.isInterruptionRequested():
+                    return
                 self.chunk_ready.emit(chunk)
             self.finished.emit()
         except Exception as e:
-            self.error_occurred.emit(str(e))
+            if not self.isInterruptionRequested():
+                self.error_occurred.emit(str(e))
 
 
 class AIDialog(QDialog):
@@ -332,6 +335,27 @@ class AIDialog(QDialog):
 
     def _set_sending(self, sending: bool):
         self._input.setEnabled(not sending)
+        if sending:
+            self._send_btn.setText("停止")
+            self._send_btn.setStyleSheet(
+                "QPushButton { background: #ef4444; color: #fff; border: none;"
+                " border-radius: 4px; padding: 6px 16px; font-size: 13px; font-weight: 500; }"
+                "QPushButton:hover { background: #dc2626; }")
+            self._send_btn.clicked.disconnect()
+            self._send_btn.clicked.connect(self._stop)
+        else:
+            self._send_btn.setText("发送")
+            self._send_btn.setStyleSheet(_BTN_PRIMARY)
+            self._send_btn.clicked.disconnect()
+            self._send_btn.clicked.connect(self._send)
+
+    def _stop(self):
+        """中止当前 AI 流式请求。"""
+        if self._worker and self._worker.isRunning():
+            self._worker.requestInterruption()
+            self._worker.wait(3000)
+        self._append_system("（已中止）")
+        self._set_sending(False)
         self._send_btn.setEnabled(not sending)
         if sending:
             self._status_lbl.setText("思考中…")
