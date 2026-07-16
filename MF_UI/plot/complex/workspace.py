@@ -113,7 +113,8 @@ class ComplexWorkspace(QWidget):
         self._btn_phase = QPushButton("相位图")
         self._btn_3d = QPushButton("3D 模长曲面")
         self._btn_vec = QPushButton("向量场式")
-        for b, i in [(self._btn_phase,0),(self._btn_3d,1),(self._btn_vec,2)]:
+        self._btn_hsv = QPushButton("HSV 域着色")
+        for b, i in [(self._btn_phase,0),(self._btn_3d,1),(self._btn_vec,2),(self._btn_hsv,3)]:
             b.setCheckable(True); b.setChecked(i==0)
             b.setStyleSheet(self._mode_btn_style(i==0))
             b.clicked.connect(lambda _, idx=i: self._set_mode(idx))
@@ -266,9 +267,11 @@ class ComplexWorkspace(QWidget):
         if self._mode == 0: self._draw_phase(X, Y, arg, mag)
         elif self._mode == 1: self._draw_3d_surface(X, Y, mag)
         elif self._mode == 2: self._draw_vector(X, Y, mag, arg)
+        elif self._mode == 3: self._draw_hsv(X, Y, arg, mag)
         self._canvas.draw_idle()
+        names = ['相位图', '3D模长', '向量场', 'HSV域着色']
         self.status_message.emit(
-            f"已绘制: {self._func_expr} | {['相位图','3D模长','向量场'][self._mode]}")
+            f"已绘制: {self._func_expr} | {names[self._mode]}")
 
     def _draw_phase(self, X, Y, arg, mag):
         ax = self._fig.add_subplot(111)
@@ -303,6 +306,20 @@ class ComplexWorkspace(QWidget):
         ax.set_xlabel("Re(z)"); ax.set_ylabel("Im(z)")
         ax.set_aspect("equal")
         ax.set_title(f"向量场: {self._func_expr}")
+
+    def _draw_hsv(self, X, Y, arg, mag):
+        """HSV 域着色: Hue=辐角, Saturation=1, Value=模(对数缩放)。"""
+        import matplotlib.colors as mcolors
+        ax = self._fig.add_subplot(111)
+        H = (arg + np.pi) / (2 * np.pi)  # [0, 1]
+        S = np.ones_like(H)
+        V = np.log1p(mag) / (np.log1p(mag.max()) + 1e-9)
+        V = np.clip(V, 0, 1)
+        rgb = mcolors.hsv_to_rgb(np.stack([H, S, V], axis=-1))
+        ax.imshow(rgb, extent=[X.min(), X.max(), Y.min(), Y.max()], origin="lower")
+        ax.set_xlabel("Re(z)"); ax.set_ylabel("Im(z)")
+        ax.set_aspect("equal")
+        ax.set_title(f"HSV 域着色: {self._func_expr}")
 
 
 def _sep() -> QFrame:
