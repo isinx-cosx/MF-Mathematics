@@ -121,7 +121,8 @@ QToolBar {
     spacing: 6px;
 }
 QToolBar QToolButton {
-    color: #64748b;
+    background-color: transparent;
+    color: #475569;
     padding: 6px 16px;
     border: 1px solid transparent;
     border-radius: 6px;
@@ -129,14 +130,14 @@ QToolBar QToolButton {
 }
 QToolBar QToolButton:hover {
     background-color: #f1f5f9;
-    color: #1e293b;
+    color: #0f172a;
 }
 QToolBar QToolButton:checked,
 QToolBar QToolButton[checked="true"] {
-    background-color: #e2e8f0;
-    color: #0f172a;
+    background-color: #dbeafe;
+    color: #1e40af;
     font-weight: 700;
-    border: 1px solid #cbd5e1;
+    border: 1px solid #93c5fd;
 }
 
 /* ---- 状态栏 ---- */

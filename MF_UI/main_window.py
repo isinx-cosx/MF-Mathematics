@@ -410,22 +410,38 @@ class MainWindow(QMainWindow):
         self._user_status_label: QLabel | None = None
 
     def _on_toolbar_action(self, action):
-        """工具栏按钮互斥 + 模式切换。
+        """工具栏按钮互斥 + 模式切换 — QActionGroup 自动互斥，isChecked 防二次触发。
 
         QActionGroup.triggered 发送 QAction*（非 bool），
         QActionGroup.setExclusive(True) 自动管理 checked 互斥。
+        当 _switch_mode 程序化调用 setChecked 时，
+        QActionGroup 会再次 emit triggered，isChecked 守卫确保只处理被选中的按钮。
         """
-        if action is self._btn_calc:
+        if action is self._btn_calc and self._btn_calc.isChecked():
             self._switch_mode(0)
-        elif action is self._btn_plot:
+        elif action is self._btn_plot and self._btn_plot.isChecked():
             self._switch_mode(1)
 
     def _switch_mode(self, mode: int):
+        """切换计算/绘图模式 — 同步 combo box、stacked widget 和工具栏按钮。
+
+        所有模式切换路径（用户点击、教程加载、程序化调用）最终汇聚于此，
+        _current_mode 守卫防止递归（QActionGroup 在 setChecked 后二次 emit triggered）。
+        """
         if self._current_mode == mode:
             return
 
         self._current_mode = mode
 
+        # ── 1. 同步工具栏按钮 checked 状态 ──
+        # QActionGroup.setExclusive(True) 自动处理互斥，只需设置目标按钮为 checked。
+        # isChecked 守卫避免不必要信号；_on_toolbar_action 有同名守卫。
+        if mode == 0 and not self._btn_calc.isChecked():
+            self._btn_calc.setChecked(True)
+        elif mode == 1 and not self._btn_plot.isChecked():
+            self._btn_plot.setChecked(True)
+
+        # ── 2. 更新子模式下拉框 ──
         self._sub_combo.blockSignals(True)
         self._sub_combo.clear()
 
@@ -443,12 +459,21 @@ class MainWindow(QMainWindow):
 
         self._sub_combo.blockSignals(False)
 
+        # ── 3. 切换 stacked widget ──
         self._on_sub_mode_changed(restore_index)
 
-        if restore_index < self._sub_combo.count():
-            self._sub_combo.setCurrentIndex(restore_index)
+    def _sync_toolbar_buttons(self) -> None:
+        """强制工具栏按钮 checked 状态与 _current_mode 一致。
 
-        self._sub_combo.blockSignals(False)
+        安全网：_switch_mode 已在正常路径中同步按钮，此方法覆盖边缘场景
+        （主题切换后 QToolButton 重建、外部操作等）。
+        """
+        if self._current_mode == 0:
+            if not self._btn_calc.isChecked():
+                self._btn_calc.setChecked(True)
+        else:
+            if not self._btn_plot.isChecked():
+                self._btn_plot.setChecked(True)
 
     def _on_sub_mode_changed(self, index: int):
         if self._current_mode == 0:  # 计算模式
@@ -711,20 +736,31 @@ class MainWindow(QMainWindow):
                 self.setStyleSheet(f.read())
         except FileNotFoundError:
             self._status_msg(f"样式文件未找到: {qss_path}")
+        # setStyleSheet 触发全局 re-polish → QToolButton 可能被重建 → checked 状态需恢复
+        if hasattr(self, '_btn_calc') and hasattr(self, '_btn_plot'):
+            self._sync_toolbar_buttons()
 
     # ═══════════════════════════════════════════════════════════
     #  教程系统集成
     # ═══════════════════════════════════════════════════════════
 
     def _register_tutorial_elements(self) -> None:
-        """注册 UI 元素供教程引导使用。"""
+        """注册 UI 元素供教程引导系统高亮定位。
+
+        工具栏按钮通过 QToolBar.widgetForAction() 获取实际的 QToolButton widget，
+        确保教程覆盖层能精确定位到按钮而非整个主窗口。
+        """
+        toolbar: QToolBar | None = self.findChild(QToolBar)
+        calc_widget = toolbar.widgetForAction(self._btn_calc) if toolbar else None
+        plot_widget = toolbar.widgetForAction(self._btn_plot) if toolbar else None
+
         self._tutorial_elements = {
-            "main_window.toolbar": self.findChild(QToolBar) or self,
+            "main_window.toolbar": toolbar or self,
             "main_window.mode_selector": self._sub_combo,
             "main_window.theme_toggle": self,
             "main_window.help_button": self,
-            "toolbar.calc_button": self,
-            "toolbar.plot_button": self,
+            "toolbar.calc_button": calc_widget or self._btn_calc,
+            "toolbar.plot_button": plot_widget or self._btn_plot,
             "toolbar.ai_button": self,
             "toolbar.search_button": self,
             "toolbar.settings_button": self,

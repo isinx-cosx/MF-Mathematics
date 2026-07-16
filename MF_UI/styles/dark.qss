@@ -121,6 +121,7 @@ QToolBar {
     spacing: 6px;
 }
 QToolBar QToolButton {
+    background-color: transparent;
     color: #a6adc8;
     padding: 6px 16px;
     border: 1px solid transparent;
