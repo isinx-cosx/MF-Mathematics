@@ -175,9 +175,6 @@ class AIDialog(QDialog):
 
         self._build_ui()
 
-        from MF_UI.components.mf_dialog import apply_dialog_title_bar
-        apply_dialog_title_bar(self, "AI 数学助手")
-
     def _build_ui(self):
         from PySide6.QtWidgets import QComboBox
 

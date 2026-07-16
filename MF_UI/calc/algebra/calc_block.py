@@ -102,9 +102,6 @@ def _show_integral_bounds_dialog(
     btn_row.addWidget(ok_btn)
     layout.addLayout(btn_row)
 
-    from MF_UI.components.mf_dialog import apply_dialog_title_bar
-    apply_dialog_title_bar(dlg, "定积分")
-
     if dlg.exec() != QDialog.DialogCode.Accepted:
         return None
     return (
@@ -126,12 +123,13 @@ def _show_series_dialog(parent, expr: str) -> tuple[str, str, str, str] | None:
     pre_b = parts[3] if len(parts) > 3 else "oo"
 
     dlg = QDialog(parent); dlg.setWindowTitle("级数求和 — 参数"); dlg.setMinimumWidth(400)
-    dlg.setObjectName("seriesDialog")
+    dlg.setStyleSheet("QDialog{background:#f8fafc;}")
     l = QVBoxLayout(dlg); l.setSpacing(10); l.setContentsMargins(20, 16, 20, 16)
 
     def _row(label, default, ph=""):
         r = QHBoxLayout(); r.addWidget(QLabel(label))
         inp = QLineEdit(default); inp.setPlaceholderText(ph)
+        inp.setStyleSheet("QLineEdit{border:1px solid #d1d5db;border-radius:4px;padding:6px 10px;font-size:13px;background:#fff;}")
         r.addWidget(inp, 1); l.addLayout(r)
         return inp
 
@@ -142,12 +140,9 @@ def _show_series_dialog(parent, expr: str) -> tuple[str, str, str, str] | None:
     l.addWidget(QLabel("支持 oo（无穷）、pi、e 等"))
 
     btn = QHBoxLayout(); btn.addStretch()
-    cancel = QPushButton("取消"); cancel.setObjectName("ai_secondary_btn"); cancel.clicked.connect(dlg.reject); btn.addWidget(cancel)
-    ok = QPushButton("计算"); ok.setObjectName("ai_send_btn"); ok.clicked.connect(dlg.accept); btn.addWidget(ok)
+    cancel = QPushButton("取消"); cancel.setStyleSheet("QPushButton{background:#f1f5f9;color:#475569;border:1px solid #d1d5db;border-radius:6px;padding:8px 20px;font-size:13px;}QPushButton:hover{background:#e2e8f0;}"); cancel.clicked.connect(dlg.reject); btn.addWidget(cancel)
+    ok = QPushButton("计算"); ok.setStyleSheet("QPushButton{background:#3b82f6;color:#fff;border:none;border-radius:6px;padding:8px 24px;font-size:13px;font-weight:500;}QPushButton:hover{background:#2563eb;}"); ok.clicked.connect(dlg.accept); btn.addWidget(ok)
     l.addLayout(btn)
-
-    from MF_UI.components.mf_dialog import apply_dialog_title_bar
-    apply_dialog_title_bar(dlg, "级数求和")
 
     if dlg.exec() != QDialog.DialogCode.Accepted:
         return None
@@ -160,12 +155,13 @@ def _show_taylor_dialog(parent, func: str) -> tuple[str, str, str, int] | None:
     from PySide6.QtWidgets import (QDialog, QHBoxLayout, QLabel, QLineEdit,
                                     QPushButton, QSpinBox, QVBoxLayout)
     dlg = QDialog(parent); dlg.setWindowTitle("泰勒展开 — 参数"); dlg.setMinimumWidth(380)
-    dlg.setObjectName("taylorDialog")
+    dlg.setStyleSheet("QDialog{background:#f8fafc;}")
     l = QVBoxLayout(dlg); l.setSpacing(10); l.setContentsMargins(20, 16, 20, 16)
 
     def _row(label, default, ph=""):
         r = QHBoxLayout(); r.addWidget(QLabel(label))
         inp = QLineEdit(default); inp.setPlaceholderText(ph)
+        inp.setStyleSheet("QLineEdit{border:1px solid #d1d5db;border-radius:4px;padding:6px 10px;font-size:13px;background:#fff;}")
         r.addWidget(inp, 1); l.addLayout(r)
         return inp
 
@@ -173,15 +169,12 @@ def _show_taylor_dialog(parent, func: str) -> tuple[str, str, str, int] | None:
     var_inp = _row("变量", "x")
     point_inp = _row("展开点", "0")
     r = QHBoxLayout(); r.addWidget(QLabel("阶数")); order_spin = QSpinBox(); order_spin.setRange(1, 20); order_spin.setValue(3)
-    r.addWidget(order_spin, 1); l.addLayout(r)
+    order_spin.setStyleSheet("QSpinBox{border:1px solid #d1d5db;border-radius:4px;padding:6px 10px;font-size:13px;background:#fff;}"); r.addWidget(order_spin, 1); l.addLayout(r)
 
     btn = QHBoxLayout(); btn.addStretch()
-    cancel = QPushButton("取消"); cancel.setObjectName("ai_secondary_btn"); cancel.clicked.connect(dlg.reject); btn.addWidget(cancel)
-    ok = QPushButton("计算"); ok.setObjectName("ai_send_btn"); ok.clicked.connect(dlg.accept); btn.addWidget(ok)
+    cancel = QPushButton("取消"); cancel.setStyleSheet("QPushButton{background:#f1f5f9;color:#475569;border:1px solid #d1d5db;border-radius:6px;padding:8px 20px;font-size:13px;}QPushButton:hover{background:#e2e8f0;}"); cancel.clicked.connect(dlg.reject); btn.addWidget(cancel)
+    ok = QPushButton("计算"); ok.setStyleSheet("QPushButton{background:#3b82f6;color:#fff;border:none;border-radius:6px;padding:8px 24px;font-size:13px;font-weight:500;}QPushButton:hover{background:#2563eb;}"); ok.clicked.connect(dlg.accept); btn.addWidget(ok)
     l.addLayout(btn)
-
-    from MF_UI.components.mf_dialog import apply_dialog_title_bar
-    apply_dialog_title_bar(dlg, "泰勒展开")
 
     if dlg.exec() != QDialog.DialogCode.Accepted:
         return None

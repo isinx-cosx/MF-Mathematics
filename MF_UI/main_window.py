@@ -61,13 +61,7 @@ PLOT_NAV_ITEMS = [
 
 class MainWindow(QMainWindow):
     def __init__(self):
-        super().__init__()
-        self.setWindowFlags(
-            Qt.WindowType.FramelessWindowHint |
-            Qt.WindowType.Window |
-            Qt.WindowType.WindowMinimizeButtonHint |
-            Qt.WindowType.WindowMaximizeButtonHint
-        )
+        super().__init__(flags=Qt.WindowType.FramelessWindowHint)
         self.setWindowTitle("Multifunctional-Mathematics")
         self.resize(1200, 800)
         self.setMinimumSize(900, 600)

@@ -151,9 +151,6 @@ class StepViewer(QDialog):
         btn_row.addWidget(close_btn)
         root.addLayout(btn_row)
 
-        from MF_UI.components.mf_dialog import apply_dialog_title_bar
-        apply_dialog_title_bar(self, f"步骤推导 — {mode}")
-
     # ── 启动 ──────────────────────────────────────────────
 
     def _start(self):

@@ -129,9 +129,6 @@ class HelpBrowser(QDialog):
         btn_row.addWidget(close_btn)
         root.addLayout(btn_row)
 
-        from MF_UI.components.mf_dialog import apply_dialog_title_bar
-        apply_dialog_title_bar(self, "帮助文档")
-
     # ── 目录树 ────────────────────────────────────────────
 
     def _populate_tree(self) -> None:

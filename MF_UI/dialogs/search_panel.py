@@ -90,9 +90,6 @@ class SearchPanel(QDialog):
         bottom.addWidget(insert_btn)
         root.addLayout(bottom)
 
-        from MF_UI.components.mf_dialog import apply_dialog_title_bar
-        apply_dialog_title_bar(self, "联网搜索")
-
     # ── 搜索 ──────────────────────────────────────────────
 
     def _do_search(self):

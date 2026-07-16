@@ -115,9 +115,6 @@ class LoginDialog(QDialog):
         # 设置焦点
         self._username_input.setFocus()
 
-        from MF_UI.components.mf_dialog import apply_dialog_title_bar
-        apply_dialog_title_bar(self, "登录")
-
     # ── 事件 ──────────────────────────────────────────────
 
     def _on_login(self) -> None:

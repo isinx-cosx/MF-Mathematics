@@ -84,9 +84,6 @@ class SettingsDialog(QDialog):
         if open_ai_tab:
             self._tabs.setCurrentWidget(self._ai_tab)
 
-        from MF_UI.components.mf_dialog import apply_dialog_title_bar
-        apply_dialog_title_bar(self, "设置")
-
     # ── 通用 Tab ──────────────────────────────────────────
 
     def _build_general_tab(self):
