@@ -140,6 +140,29 @@ QToolBar QToolButton[checked="true"] {
     border: 1px solid #93c5fd;
 }
 
+/* ── 模式切换按钮（计算/绘图）ID 定位 + [checked] 动态属性 ── */
+QToolButton#tb_calc_btn,
+QToolButton#tb_plot_btn {
+    background-color: transparent;
+    color: #475569;
+    padding: 6px 16px;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    font-size: 13px;
+}
+QToolButton#tb_calc_btn:hover,
+QToolButton#tb_plot_btn:hover {
+    background-color: #f1f5f9;
+    color: #0f172a;
+}
+QToolButton#tb_calc_btn[checked="true"],
+QToolButton#tb_plot_btn[checked="true"] {
+    background-color: #dbeafe;
+    color: #1e40af;
+    font-weight: 700;
+    border: 1px solid #93c5fd;
+}
+
 /* ---- 状态栏 ---- */
 QStatusBar {
     background-color: #ffffff;

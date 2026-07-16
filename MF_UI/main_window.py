@@ -8,7 +8,7 @@ from PySide6.QtWidgets import (
     QMainWindow, QToolBar, QStatusBar,
     QStackedWidget, QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QApplication, QComboBox, QDialog, QMessageBox,
-    QPushButton, QLineEdit,
+    QPushButton, QLineEdit, QToolButton,
 )
 from PySide6.QtCore import QObject
 from calc.algebra import Workspace as AlgebraWorkspace
@@ -364,6 +364,14 @@ class MainWindow(QMainWindow):
         # 全部入组后再设初始选中（QActionGroup 内部状态一致）
         self._btn_calc.setChecked(True)
 
+        # 给 QToolButton widget 设置 objectName — QSS ID 选择器直接定位
+        calc_widget = toolbar.widgetForAction(self._btn_calc)
+        if calc_widget is not None:
+            calc_widget.setObjectName("tb_calc_btn")
+        plot_widget = toolbar.widgetForAction(self._btn_plot)
+        if plot_widget is not None:
+            plot_widget.setObjectName("tb_plot_btn")
+
         self._btn_group.triggered.connect(self._on_toolbar_action)
 
         toolbar.addSeparator()
@@ -433,13 +441,8 @@ class MainWindow(QMainWindow):
 
         self._current_mode = mode
 
-        # ── 1. 同步工具栏按钮 checked 状态 ──
-        # QActionGroup.setExclusive(True) 自动处理互斥，只需设置目标按钮为 checked。
-        # isChecked 守卫避免不必要信号；_on_toolbar_action 有同名守卫。
-        if mode == 0 and not self._btn_calc.isChecked():
-            self._btn_calc.setChecked(True)
-        elif mode == 1 and not self._btn_plot.isChecked():
-            self._btn_plot.setChecked(True)
+        # ── 1. 同步工具栏按钮（四层：QAction + QToolButton + 动态属性 + repolish）──
+        self._sync_toolbar_buttons()
 
         # ── 2. 更新子模式下拉框 ──
         self._sub_combo.blockSignals(True)
@@ -463,17 +466,37 @@ class MainWindow(QMainWindow):
         self._on_sub_mode_changed(restore_index)
 
     def _sync_toolbar_buttons(self) -> None:
-        """强制工具栏按钮 checked 状态与 _current_mode 一致。
+        """强制工具栏按钮 checked 状态 + 动态属性 + re-polish。
 
-        安全网：_switch_mode 已在正常路径中同步按钮，此方法覆盖边缘场景
-        （主题切换后 QToolButton 重建、外部操作等）。
+        Qt 样式表引擎在 QAction.checked 变化时不会自动 re-polish 关联的
+        QToolButton widget → :checked 伪状态可能滞后。此方法绕过伪状态：
+        1. setChecked 同步 QAction + QToolButton 双层
+        2. setProperty("checked", bool) → QSS [checked="true"] 动态属性选择器
+        3. unpolish/polish/update 强制样式重新计算
         """
-        if self._current_mode == 0:
-            if not self._btn_calc.isChecked():
-                self._btn_calc.setChecked(True)
-        else:
-            if not self._btn_plot.isChecked():
-                self._btn_plot.setChecked(True)
+        toolbar: QToolBar | None = self.findChild(QToolBar)
+        if toolbar is None:
+            return
+        for btn in toolbar.findChildren(QToolButton):
+            action = btn.defaultAction()
+            if action is self._btn_calc:
+                target = self._current_mode == 0
+            elif action is self._btn_plot:
+                target = self._current_mode == 1
+            else:
+                continue
+            # 1. QAction 层
+            if action.isChecked() != target:
+                action.setChecked(target)
+            # 2. QToolButton widget 层
+            if btn.isChecked() != target:
+                btn.setChecked(target)
+            # 3. 动态属性 — QSS QToolButton#id[checked="true"] 匹配
+            btn.setProperty("checked", target)
+            # 4. 强制样式重新计算（核心修复）
+            btn.style().unpolish(btn)
+            btn.style().polish(btn)
+            btn.update()
 
     def _on_sub_mode_changed(self, index: int):
         if self._current_mode == 0:  # 计算模式
