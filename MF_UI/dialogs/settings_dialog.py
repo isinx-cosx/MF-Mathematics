@@ -55,8 +55,8 @@ class SettingsDialog(QDialog):
     def __init__(self, parent=None, open_ai_tab: bool = False):
         super().__init__(parent)
         self.setWindowTitle("设置")
-        self.resize(580, 480)
-        self.setMinimumSize(500, 400)
+        self.resize(800, 600)
+        self.setMinimumSize(700, 500)
         self.setObjectName("settingsDialog")
         self._cfg = Config()
 
@@ -86,6 +86,10 @@ class SettingsDialog(QDialog):
 
         from MF_UI.components.mf_dialog import apply_dialog_title_bar
         apply_dialog_title_bar(self, "设置")
+
+        # 继承主窗口的当前主题样式表
+        if self.parent() is not None:
+            self.setStyleSheet(self.parent().styleSheet())
 
     # ── 通用 Tab ──────────────────────────────────────────
 

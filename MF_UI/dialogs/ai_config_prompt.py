@@ -22,6 +22,14 @@ class AIConfigPrompt(QDialog):
         self._build_ui()
         self._result = False
 
+        # 自定义标题栏
+        from MF_UI.components.mf_dialog import apply_dialog_title_bar
+        apply_dialog_title_bar(self, "配置 API")
+
+        # 继承主窗口的当前主题样式表
+        if self.parent() is not None:
+            self.setStyleSheet(self.parent().styleSheet())
+
     def _build_ui(self) -> None:
         root = QVBoxLayout(self)
         root.setSpacing(16)

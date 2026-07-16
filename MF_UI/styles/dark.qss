@@ -778,6 +778,7 @@ QSplitter::handle:hover {
    ============================================ */
 #aiDialog, #settingsDialog, #searchDialog {
     background-color: #1e1e2e;
+    border-radius: 8px;
 }
 #aiDialog QTextEdit, #settingsDialog QTextEdit, #searchDialog QTextEdit {
     border: 1px solid #45475a;

@@ -93,6 +93,19 @@ class SearchPanel(QDialog):
         from MF_UI.components.mf_dialog import apply_dialog_title_bar
         apply_dialog_title_bar(self, "联网搜索")
 
+        # 阴影效果
+        from PySide6.QtWidgets import QGraphicsDropShadowEffect
+        from PySide6.QtGui import QColor
+        shadow = QGraphicsDropShadowEffect(self)
+        shadow.setBlurRadius(15)
+        shadow.setOffset(0, 2)
+        shadow.setColor(QColor(0, 0, 0, 60))
+        self.setGraphicsEffect(shadow)
+
+        # 继承主窗口的当前主题样式表
+        if self.parent() is not None:
+            self.setStyleSheet(self.parent().styleSheet())
+
     # ── 搜索 ──────────────────────────────────────────────
 
     def _do_search(self):
