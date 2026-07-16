@@ -137,24 +137,47 @@ class AIDialog(QDialog):
 
         self._context_expr = context_expr
         self._context_mode = context_mode
-        self._messages: list[dict] = [{"role": "system", "content": _SYSTEM_PROMPT}]
+
+        # 系统提示（含上下文）
+        sys_prompt = _SYSTEM_PROMPT
+        if context_expr:
+            sys_prompt += f"\n用户当前正在处理表达式: {context_expr}"
+            if context_mode:
+                sys_prompt += f"（模式: {context_mode}）"
+        self._messages: list[dict] = [{"role": "system", "content": sys_prompt}]
+
         self._worker: _AIStreamWorker | None = None
         self._last_full_response = ""
-        self._ai_text_start: int = 0   # cursor position where AI text starts
+        self._ai_text_start: int = 0
+
+        # 当前选中模型
+        from MF_AI.config import Config
+        self._model = Config().get("default_model", default="deepseek-v4-pro")
 
         self._build_ui()
 
     def _build_ui(self):
+        from PySide6.QtWidgets import QComboBox
+
         root = QVBoxLayout(self)
         root.setSpacing(10)
         root.setContentsMargins(16, 16, 16, 16)
 
-        # 标题
+        # 标题 + 模型选择
         hdr = QHBoxLayout()
         title = QLabel("AI 数学助手")
         title.setStyleSheet(
             "font-size: 16px; font-weight: 600; color: #0f172a; background: transparent;")
         hdr.addWidget(title)
+
+        self._model_combo = QComboBox()
+        self._model_combo.setFixedWidth(150)
+        self._model_combo.addItems(["deepseek-v4-pro", "deepseek-chat",
+                                     "deepseek-reasoner", "gpt-4o", "gpt-4o-mini"])
+        self._model_combo.setCurrentText(self._model)
+        self._model_combo.currentTextChanged.connect(self._on_model_changed)
+        hdr.addWidget(self._model_combo)
+
         hdr.addStretch()
         self._status_lbl = QLabel("就绪")
         self._status_lbl.setStyleSheet(
@@ -227,6 +250,10 @@ class AIDialog(QDialog):
         self._append_user(text)
         self._last_full_response = ""
 
+        # 使用选中模型
+        from MF_AI.config import Config
+        Config().set_model(self._model)
+
         self._worker = _AIStreamWorker(list(self._messages), self)
         self._worker.chunk_ready.connect(self._on_chunk)
         self._worker.finished.connect(self._on_finished)
@@ -258,6 +285,10 @@ class AIDialog(QDialog):
     def _on_error(self, msg: str):
         self._append_system(f"错误: {msg}")
         self._set_sending(False)
+
+    def _on_model_changed(self, model: str):
+        self._model = model
+        self._status_lbl.setText(f"模型: {model}")
 
     def _copy_result(self):
         if self._last_full_response:

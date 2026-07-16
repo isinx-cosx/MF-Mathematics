@@ -86,7 +86,7 @@ def _cached_steps(expr_hash: str) -> str | None:
 class StepViewer(QDialog):
     """AI 步骤查看器 — 像老师手写一样的推导过程。"""
 
-    # 全局缓存：key = md5(expr + mode), value = rendered HTML
+    # 内存缓存：key = md5(expr + mode), value = rendered HTML
     _cache: dict[str, str] = {}
 
     def __init__(self, parent: QWidget | None = None,
@@ -165,7 +165,7 @@ class StepViewer(QDialog):
     # ── 启动 ──────────────────────────────────────────────
 
     def _start(self):
-        # 1. 检查缓存
+        # 1. 内存缓存
         cached = StepViewer._cache.get(self._cache_key)
         if cached:
             self._view.setHtml(cached)
@@ -173,13 +173,24 @@ class StepViewer(QDialog):
             self._status.setStyleSheet("font-size: 11px; color: #10b981;")
             return
 
-        # 2. 检查是否有本地步骤（从 MathObject.steps 传入）
-        # 由调用方在 set_local_steps 中设置
+        # 2. 持久缓存（跨会话）
+        from MF_Mathematics.utils.ai_cache import get_ai_cache
+        ai_cache = get_ai_cache()
+        disk_cached = ai_cache.get(self._mode, self._expr)
+        if disk_cached:
+            html = _render_response(disk_cached)
+            StepViewer._cache[self._cache_key] = html
+            self._view.setHtml(html)
+            self._status.setText("（磁盘缓存）就绪")
+            self._status.setStyleSheet("font-size: 11px; color: #10b981;")
+            return
+
+        # 3. 检查是否有本地步骤（从 MathObject.steps 传入）
         if hasattr(self, '_local_steps_text') and self._local_steps_text:
             self._show_steps(self._local_steps_text)
             return
 
-        # 3. 调用 AI
+        # 4. 调用 AI
         if not self._expr:
             self._view.setPlainText("请输入表达式。")
             self._status.setText("表达式为空")
@@ -210,8 +221,13 @@ class StepViewer(QDialog):
             + html + "</div>"
         )
         self._view.setHtml(html)
-        # 缓存
+        # 缓存（内存 + 持久）
         StepViewer._cache[self._cache_key] = html
+        try:
+            from MF_Mathematics.utils.ai_cache import get_ai_cache
+            get_ai_cache().set(self._mode, self._expr, text)
+        except Exception:
+            pass
         self._status.setText("就绪")
         self._status.setStyleSheet("font-size: 11px; color: #10b981;")
 
