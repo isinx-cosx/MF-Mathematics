@@ -311,6 +311,7 @@ def apply_frameless(window, title: str = "Multifunctional-Mathematics") -> Custo
         CustomTitleBar 实例，调用方可 emit 其信号。
     """
     from PySide6.QtWidgets import QVBoxLayout
+    import types
 
     # 保存原始内容
     central = window.centralWidget()
@@ -363,11 +364,40 @@ def apply_frameless(window, title: str = "Multifunctional-Mathematics") -> Custo
     # 将 framelessContainer 引用挂到 outer 上，方便外部访问
     outer.setProperty("framelessContainer", container)
 
-    # 主窗口圆角
+    # 主窗口圆角 — 使用 QBitmap 蒙版精确裁剪（Qt6 最可靠方案）
     window.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
-    s = window.styleSheet()
-    if "border-radius" not in s:
-        window.setStyleSheet(s + "QMainWindow { border-radius: 8px; }")
+
+    def _apply_rounded_mask():
+        """用 QBitmap 蒙版将窗口裁剪为圆角矩形（radius=8px）。
+        最大化时清除蒙版，保持全屏直角。"""
+        from PySide6.QtGui import QBitmap, QPainter
+        from PySide6.QtCore import QRectF
+        if window.isMaximized():
+            window.clearMask()
+            return
+        sz = window.size()
+        if sz.width() <= 0 or sz.height() <= 0:
+            return
+        mask = QBitmap(sz)
+        mask.fill(Qt.GlobalColor.color0)
+        p = QPainter(mask)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        p.setBrush(Qt.GlobalColor.color1)
+        p.setPen(Qt.PenStyle.NoPen)
+        p.drawRoundedRect(QRectF(0, 0, sz.width(), sz.height()), 8, 8)
+        p.end()
+        window.setMask(mask)
+
+    _apply_rounded_mask()
+
+    # resize 时更新蒙版
+    _orig_resize_event = window.resizeEvent
+
+    def _patched_resize(event):
+        _orig_resize_event(event)
+        _apply_rounded_mask()
+
+    window.resizeEvent = types.MethodType(_patched_resize, window)
 
     # ── 动画状态与持久引用（防止 GC 回收）──
     _anim_geo = [None]       # 保存的最大化前几何
@@ -475,7 +505,6 @@ def apply_frameless(window, title: str = "Multifunctional-Mathematics") -> Custo
         if event.type() == QEvent.Type.WindowStateChange:
             title_bar.set_maximized(window.isMaximized())
 
-    import types
     window.changeEvent = types.MethodType(_patched_change, window)
 
     return title_bar
