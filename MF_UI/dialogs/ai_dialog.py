@@ -32,15 +32,15 @@ def _latex_to_html(latex: str, dark: bool = False) -> str:
         # 使用原始字符串构造 mathtext
         math_text = "$" + safe + "$"
 
-        # 估算宽度（每个字符约 0.12 英寸）
-        w = max(len(safe) * 0.12 + 0.8, 2.0)
-        fig = _plt.figure(figsize=(w, 0.6), dpi=200, facecolor=face)
+        # 估算宽度（缩小尺寸，适合聊天界面）
+        w = max(len(safe) * 0.09 + 0.5, 1.2)
+        fig = _plt.figure(figsize=(w, 0.45), dpi=120, facecolor=face)
         fig.text(0.5, 0.5, math_text,
-                 fontsize=16, va="center", ha="center", color=text_color)
+                 fontsize=13, va="center", ha="center", color=text_color)
         fig.canvas.draw()
 
         buf = BytesIO()
-        fig.savefig(buf, format="png", dpi=200, bbox_inches="tight",
+        fig.savefig(buf, format="png", dpi=120, bbox_inches="tight",
                     pad_inches=0.08, transparent=False, facecolor=face)
         _plt.close(fig)
         buf.seek(0)
