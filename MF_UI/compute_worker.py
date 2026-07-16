@@ -69,7 +69,7 @@ class ComputeWorker(QThread):
     def start_with_timeout(self) -> None:
         """启动计算并设置超时。超时后自动 requestInterruption。"""
         if self._timeout_ms > 0:
-            self._timer = QTimer(self)
+            self._timer = QTimer()  # 无 parent — 避免 QThread 线程亲和性违规
             self._timer.setSingleShot(True)
             self._timer.timeout.connect(self._on_timeout)
             self._timer.start(self._timeout_ms)

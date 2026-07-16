@@ -124,7 +124,7 @@ class BaseCalcBlock(QWidget):
             dlg.exec()
 
         except (ValueError, TypeError, KeyError, RuntimeError,
-                sympy.SympifyError, AttributeError, ImportError) as e:
+                AttributeError, ImportError) as e:
             dlg = ResultDialog("错误", self)
             dlg.set_result(MathObject(error=str(e)[:120]))
             dlg.exec()

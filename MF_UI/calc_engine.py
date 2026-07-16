@@ -466,8 +466,10 @@ def _build_kwargs(action: str, action_name: str, params: list[str]) -> dict | No
         var = params[1] if len(params) > 1 else "x"
         return {"expr": expr, "var": var}
 
-    # ── 未处理的操作 ──
-    raise ValueError(
-        f"calc_engine._build_kwargs: 未处理的操作 "
-        f"action={action_name!r} params={params!r}"
-    )
+    # ── 通用回退：单参数 → expr，多参数 → 位置展开 ──
+    import logging
+    logging.debug(
+        "calc_engine._build_kwargs: 未专门处理的操作 %r, 使用通用回退", action_name)
+    if len(params) == 1:
+        return {"expr": params[0]}
+    return {f"arg{i}": v for i, v in enumerate(params)}
