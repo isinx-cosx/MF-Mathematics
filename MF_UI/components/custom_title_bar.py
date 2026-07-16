@@ -374,32 +374,51 @@ def apply_frameless(window, title: str = "Multifunctional-Mathematics") -> Custo
     _animating = [False]     # 动画进行中标志
     _anim_ref = [None]       # ★ 持久持有动画对象，防止 QPropertyAnimation GC
 
+    # 缓存 shadow effect 引用 — 动画期间临时禁用，避免阴影重绘引起卡顿
+    _shadow_effect = [None]
+
+    def _get_screen():
+        """获取窗口所在屏幕（回退到主屏幕）。"""
+        from PySide6.QtWidgets import QApplication
+        s = window.screen()
+        return s if s else QApplication.primaryScreen()
+
+    def _toggle_shadow(enabled: bool):
+        """动画期间禁用阴影效果，减少重绘开销。"""
+        if _shadow_effect[0] is None:
+            _shadow_effect[0] = container.graphicsEffect()
+        if _shadow_effect[0] is not None:
+            _shadow_effect[0].setEnabled(enabled)
+
     def _animate_max_restore():
-        """最大化/还原动画 — 先 QPropertyAnimation 过渡几何，再同步窗口状态。"""
+        """最大化/还原动画 — 平滑几何过渡。"""
         if _animating[0]:
             return
         from PySide6.QtCore import QPropertyAnimation, QEasingCurve
         from PySide6.QtWidgets import QApplication
-        screen = QApplication.primaryScreen()
+        screen = _get_screen()
         if screen is None:
             return
         _animating[0] = True
+        _toggle_shadow(False)  # 动画期间关闭阴影
+
         if window.isMaximized():
-            # ── 还原：动画从最大化几何 → 保存的普通几何 ──
+            # ── 还原：直接在最大化状态下动画几何（经测试 setGeometry 有效），
+            #     动画结束后 showNormal() 同步状态（此时几何已匹配，无跳跃）──
             target = _anim_geo[0] if _anim_geo[0] is not None else window.normalGeometry()
-            start = window.geometry()
             anim = QPropertyAnimation(window, b"geometry")
             anim.setDuration(150)
-            anim.setStartValue(start)
+            anim.setStartValue(window.geometry())
             anim.setEndValue(target)
             anim.setEasingCurve(QEasingCurve.Type.InOutCubic)
 
             def _on_restore_finished():
                 window.showNormal()
                 _animating[0] = False
+                _toggle_shadow(True)
 
             anim.finished.connect(_on_restore_finished)
-            _anim_ref[0] = anim  # ★ 持久引用
+            _anim_ref[0] = anim
             anim.start()
         else:
             # ── 最大化：动画从当前几何 → 屏幕可用几何 ──
@@ -414,9 +433,10 @@ def apply_frameless(window, title: str = "Multifunctional-Mathematics") -> Custo
             def _on_max_finished():
                 window.showMaximized()
                 _animating[0] = False
+                _toggle_shadow(True)
 
             anim.finished.connect(_on_max_finished)
-            _anim_ref[0] = anim  # ★ 持久引用
+            _anim_ref[0] = anim
             anim.start()
 
     def _animate_minimize():
@@ -425,6 +445,7 @@ def apply_frameless(window, title: str = "Multifunctional-Mathematics") -> Custo
             return
         from PySide6.QtCore import QPropertyAnimation, QEasingCurve
         _animating[0] = True
+        _toggle_shadow(False)
         anim = QPropertyAnimation(window, b"windowOpacity")
         anim.setDuration(150)
         anim.setStartValue(1.0)
@@ -435,9 +456,10 @@ def apply_frameless(window, title: str = "Multifunctional-Mathematics") -> Custo
             window.showMinimized()
             window.setWindowOpacity(1.0)
             _animating[0] = False
+            _toggle_shadow(True)
 
         anim.finished.connect(_on_min_finished)
-        _anim_ref[0] = anim  # ★ 持久引用
+        _anim_ref[0] = anim
         anim.start()
 
     title_bar.minimize_requested.connect(_animate_minimize)
