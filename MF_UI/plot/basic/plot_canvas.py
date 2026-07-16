@@ -231,6 +231,11 @@ class PlotCanvas(QGraphicsView):
         self._rebuild_timer.setInterval(200)
         self._rebuild_timer.timeout.connect(self._do_deferred_rebuild)
 
+        # ── 网格缓存（避免 drawForeground 每帧重绘网格/刻度）──
+        self._grid_pixmap: Any = None
+        self._grid_dirty = True
+        self._last_view_rect: QRectF | None = None
+
         self._emit_status()
 
     # ═══════════════════════════════════════════════════════════════
@@ -253,106 +258,30 @@ class PlotCanvas(QGraphicsView):
 
         step = calculate_step(rng)
         ox = self._map_x(0); oy = self._map_y(0)
-        xa_ok = oy is not None and y0 <= 0 <= y1  # X 轴在视野内
-        ya_ok = ox is not None and x0 <= 0 <= x1  # Y 轴在视野内
-
-        # ── 坐标轴（固定 2px 粗线）──
+        xa_ok = oy is not None and y0 <= 0 <= y1
+        ya_ok = ox is not None and x0 <= 0 <= x1
         vp = self.viewport().rect()
+
+        # ── 网格缓存：仅在视图变化时重建 QPixmap ──
+        cache_key = (int(vp.width()), int(vp.height()), round(rng, 4),
+                     round(x0, 4), round(y0, 4))
+        if self._grid_dirty or self._grid_pixmap is None or \
+           getattr(self, '_grid_cache_key', None) != cache_key:
+            self._grid_pixmap = self._build_grid_pixmap(
+                vp, x0, x1, y0, y1, step, ox, oy, xa_ok, ya_ok)
+            self._grid_cache_key = cache_key
+            self._grid_dirty = False
+
+        # ── 绘制缓存网格 ──
+        if self._grid_pixmap is not None:
+            painter.drawPixmap(0, 0, self._grid_pixmap)
+
+        # ── 坐标轴（在缓存之上，保证粗细恒定）──
         painter.setPen(QPen(AXIS_COLOR, AXIS_PX))
         if xa_ok:
             painter.drawLine(int(vp.left()), int(oy), int(vp.right()), int(oy))
         if ya_ok:
             painter.drawLine(int(ox), int(vp.top()), int(ox), int(vp.bottom()))
-
-        # ── 网格线 ──
-        painter.setPen(QPen(GRID_COLOR, 1))
-        gx = math.floor(x0 / step) * step
-        while gx <= x1:
-            p1 = self.mapFromScene(QPointF(gx, y0))
-            p2 = self.mapFromScene(QPointF(gx, y1))
-            painter.drawLine(p1, p2)
-            gx += step
-        gy = math.floor(y0 / step) * step
-        while gy <= y1:
-            p1 = self.mapFromScene(QPointF(x0, gy))
-            p2 = self.mapFromScene(QPointF(x1, gy))
-            painter.drawLine(p1, p2)
-            gy += step
-
-        # ── 字体 ──
-        font = painter.font()
-        font.setPixelSize(FONT_PX)
-        painter.setFont(font)
-
-        half = TICK_PX
-        spx = self._step_px(step)
-
-        # ── X 轴刻度 ──
-        sx = math.floor(x0 / step) * step
-        while sx <= x1:
-            vx = self._map_x(sx)
-            vy = oy if xa_ok else self._map_y(0.0)
-            if vx is not None and vy is not None:
-                painter.setPen(QPen(TICK_COLOR, 1))
-                painter.drawLine(int(vx), int(vy - half), int(vx), int(vy + half))
-                painter.setPen(QPen(TEXT_COLOR, 1))
-                painter.drawText(
-                    int(vx - spx * 0.4), int(vy + half + 2),
-                    int(spx * 0.8), 16,
-                    int(Qt.AlignHCenter | Qt.AlignTop), format_tick(sx, step),
-                )
-            sx += step
-
-        # ── Y 轴刻度 ──
-        sy = math.floor(y0 / step) * step
-        while sy <= y1:
-            vx = ox if ya_ok else self._map_x(0.0)
-            vy = self._map_y(sy)
-            if vx is not None and vy is not None:
-                painter.setPen(QPen(TICK_COLOR, 1))
-                painter.drawLine(int(vx - half), int(vy), int(vx + half), int(vy))
-                painter.setPen(QPen(TEXT_COLOR, 1))
-                painter.drawText(
-                    int(vx - half - 4 - 40), int(vy - 8), 36, 16,
-                    int(Qt.AlignRight | Qt.AlignVCenter), format_tick(sy, step),
-                )
-            sy += step
-
-        # ── 边缘刻度（主轴离开视野时）──
-        if not xa_ok:
-            edge_y = int(vp.bottom() - 20)
-            painter.setPen(QPen(EDGE_COLOR, 1, Qt.PenStyle.DashLine))
-            painter.drawLine(int(vp.left()), edge_y, int(vp.right()), edge_y)
-            sx = math.floor(x0 / step) * step
-            while sx <= x1:
-                vx = self._map_x(sx)
-                if vx is not None:
-                    painter.setPen(QPen(EDGE_COLOR, 1))
-                    painter.drawLine(int(vx), edge_y - half, int(vx), edge_y + half)
-                    painter.setPen(QPen(EDGE_COLOR, 1))
-                    painter.drawText(
-                        int(vx - spx * 0.4), edge_y + half + 2,
-                        int(spx * 0.8), 16,
-                        int(Qt.AlignHCenter | Qt.AlignTop), format_tick(sx, step),
-                    )
-                sx += step
-
-        if not ya_ok:
-            edge_x = int(vp.left() + 20)
-            painter.setPen(QPen(EDGE_COLOR, 1, Qt.PenStyle.DashLine))
-            painter.drawLine(edge_x, int(vp.top()), edge_x, int(vp.bottom()))
-            sy = math.floor(y0 / step) * step
-            while sy <= y1:
-                vy = self._map_y(sy)
-                if vy is not None:
-                    painter.setPen(QPen(EDGE_COLOR, 1))
-                    painter.drawLine(edge_x - half, int(vy), edge_x + half, int(vy))
-                    painter.setPen(QPen(EDGE_COLOR, 1))
-                    painter.drawText(
-                        edge_x + half + 2, int(vy - 8), 40, 16,
-                        int(Qt.AlignLeft | Qt.AlignVCenter), format_tick(sy, step),
-                    )
-                sy += step
 
         # ── 原点 O ──
         o_x = self._map_x(0); o_y = self._map_y(0)
@@ -372,6 +301,111 @@ class PlotCanvas(QGraphicsView):
                          vp.top() + 11, "y")
 
         painter.restore()
+
+    def _build_grid_pixmap(self, vp, x0, x1, y0, y1, step, ox, oy,
+                           xa_ok, ya_ok):
+        """将网格线 + 刻度 + 标签预渲染到 QPixmap（仅在视图变化时调用）。"""
+        from PySide6.QtGui import QPixmap
+
+        pw, ph = int(vp.width()), int(vp.height())
+        if pw <= 0 or ph <= 0:
+            return None
+        pix = QPixmap(pw, ph)
+        pix.fill(Qt.GlobalColor.transparent)
+        p = QPainter(pix)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+
+        # ── 网格线 ──
+        p.setPen(QPen(GRID_COLOR, 1))
+        gx = math.floor(x0 / step) * step
+        while gx <= x1:
+            pt1 = self.mapFromScene(QPointF(gx, y0))
+            pt2 = self.mapFromScene(QPointF(gx, y1))
+            p.drawLine(pt1, pt2)
+            gx += step
+        gy = math.floor(y0 / step) * step
+        while gy <= y1:
+            pt1 = self.mapFromScene(QPointF(x0, gy))
+            pt2 = self.mapFromScene(QPointF(x1, gy))
+            p.drawLine(pt1, pt2)
+            gy += step
+
+        # ── 字体 ──
+        font = p.font()
+        font.setPixelSize(FONT_PX)
+        p.setFont(font)
+        half = TICK_PX
+        spx = self._step_px(step)
+
+        # ── X 轴刻度 ──
+        sx = math.floor(x0 / step) * step
+        while sx <= x1:
+            vx = self._map_x(sx)
+            vy = oy if xa_ok else self._map_y(0.0)
+            if vx is not None and vy is not None:
+                p.setPen(QPen(TICK_COLOR, 1))
+                p.drawLine(int(vx), int(vy - half), int(vx), int(vy + half))
+                p.setPen(QPen(TEXT_COLOR, 1))
+                p.drawText(
+                    int(vx - spx * 0.4), int(vy + half + 2),
+                    int(spx * 0.8), 16,
+                    int(Qt.AlignHCenter | Qt.AlignTop), format_tick(sx, step),
+                )
+            sx += step
+
+        # ── Y 轴刻度 ──
+        sy = math.floor(y0 / step) * step
+        while sy <= y1:
+            vx = ox if ya_ok else self._map_x(0.0)
+            vy = self._map_y(sy)
+            if vx is not None and vy is not None:
+                p.setPen(QPen(TICK_COLOR, 1))
+                p.drawLine(int(vx - half), int(vy), int(vx + half), int(vy))
+                p.setPen(QPen(TEXT_COLOR, 1))
+                p.drawText(
+                    int(vx - half - 4 - 40), int(vy - 8), 36, 16,
+                    int(Qt.AlignRight | Qt.AlignVCenter), format_tick(sy, step),
+                )
+            sy += step
+
+        # ── 边缘刻度 ──
+        if not xa_ok:
+            edge_y = int(vp.bottom() - 20)
+            p.setPen(QPen(EDGE_COLOR, 1, Qt.PenStyle.DashLine))
+            p.drawLine(int(vp.left()), edge_y, int(vp.right()), edge_y)
+            sx = math.floor(x0 / step) * step
+            while sx <= x1:
+                vx = self._map_x(sx)
+                if vx is not None:
+                    p.setPen(QPen(EDGE_COLOR, 1))
+                    p.drawLine(int(vx), edge_y - half, int(vx), edge_y + half)
+                    p.setPen(QPen(EDGE_COLOR, 1))
+                    p.drawText(
+                        int(vx - spx * 0.4), edge_y + half + 2,
+                        int(spx * 0.8), 16,
+                        int(Qt.AlignHCenter | Qt.AlignTop), format_tick(sx, step),
+                    )
+                sx += step
+
+        if not ya_ok:
+            edge_x = int(vp.left() + 20)
+            p.setPen(QPen(EDGE_COLOR, 1, Qt.PenStyle.DashLine))
+            p.drawLine(edge_x, int(vp.top()), edge_x, int(vp.bottom()))
+            sy = math.floor(y0 / step) * step
+            while sy <= y1:
+                vy = self._map_y(sy)
+                if vy is not None:
+                    p.setPen(QPen(EDGE_COLOR, 1))
+                    p.drawLine(edge_x - half, int(vy), edge_x + half, int(vy))
+                    p.setPen(QPen(EDGE_COLOR, 1))
+                    p.drawText(
+                        edge_x + half + 2, int(vy - 8), 40, 16,
+                        int(Qt.AlignLeft | Qt.AlignVCenter), format_tick(sy, step),
+                    )
+                sy += step
+
+        p.end()
+        return pix
 
     # ── Helpers ──────────────────────────────────────────────────
 
@@ -406,7 +440,7 @@ class PlotCanvas(QGraphicsView):
     def resizeEvent(self, event) -> None:
         """窗口大小变化时保持纵横比，确保圆形始终为正圆。"""
         super().resizeEvent(event)
-        # 以当前可见场景矩形为基准，等比缩放填充新视口
+        self._mark_grid_dirty()
         vr = self.mapToScene(self.viewport().rect()).boundingRect()
         if vr.width() > 0 and vr.height() > 0:
             self.fitInView(vr, Qt.AspectRatioMode.KeepAspectRatio)
@@ -429,23 +463,30 @@ class PlotCanvas(QGraphicsView):
         if vr.bottom() > R:
             v.setValue(v.value() + int(vr.bottom() - R))
 
+    def _mark_grid_dirty(self) -> None:
+        """标记网格缓存失效（视图变化时调用）。"""
+        self._grid_dirty = True
+
     def _schedule_rebuild(self) -> None:
-        """延迟重绘：缩放时启动防抖定时器，避免频繁计算隐函数。"""
-        self._update_curve_pens()
+        """延迟重绘：缩放时启动防抖定时器，避免频繁计算。"""
+        self._mark_grid_dirty()
         self._rebuild_timer.start()  # 重新计时 200ms
 
     def _do_deferred_rebuild(self) -> None:
-        """定时器到期 → 执行实际曲线重绘。"""
-        self._clamp_view()
-        self._rebuild_all_curves()
-        self._emit_status()
-        self.viewport().update()
-
-    def _after_view_change(self) -> None:
-        """视图变化后的统一处理（缩放用防抖，拖拽后立即重绘）。"""
+        """定时器到期 → 执行实际重绘（曲线笔宽 + 曲线路径）。"""
         self._clamp_view()
         self._update_curve_pens()
         self._rebuild_all_curves()
+        self._emit_status()
+        self._mark_grid_dirty()
+        self.viewport().update()
+
+    def _after_view_change(self) -> None:
+        """视图变化后的统一处理（拖拽/按钮缩放后立即重绘）。"""
+        self._clamp_view()
+        self._update_curve_pens()
+        self._rebuild_all_curves()
+        self._mark_grid_dirty()
         self.viewport().update()
 
     def wheelEvent(self, event) -> None:
@@ -628,13 +669,15 @@ class PlotCanvas(QGraphicsView):
         if rng <= 0:
             return None
 
-        # ── 自适应分辨率（防止卡顿）──
+        # ── 自适应分辨率（防止卡顿，平衡精度与性能）──
         if rng > 1000:
-            res = 100
-        elif rng < 10:
-            res = 300
+            res = 50    # ~2,500 格点，极快
+        elif rng > 100:
+            res = 100   # ~10,000 格点
+        elif rng > 10:
+            res = 150   # ~22,500 格点
         else:
-            res = 200
+            res = 200   # ~40,000 格点（仅在极高缩放时）
 
         xs = np.linspace(x_min, x_max, res)
         ys = np.linspace(y_min, y_max, res)
