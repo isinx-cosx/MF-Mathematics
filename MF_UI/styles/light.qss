@@ -12,6 +12,13 @@ QMainWindow {
     background: #ffffff;
     border-bottom: 1px solid #e2e8f0;
 }
+#mfDialogTitleBar {
+    background: #ffffff;
+    border-bottom: 1px solid #e2e8f0;
+}
+#mfDialogContent {
+    background: #f8fafc;
+}
 #titlebar_icon {
     font-size: 16px;
     background: transparent;
