@@ -133,6 +133,8 @@ FUNC_MAP: dict[str, tuple[str, str]] = {
     "z检验":          ("probability", "z_test"),
     "t检验":          ("probability", "t_test"),
     "卡方检验":       ("probability", "chi_square_test"),
+    "单因素ANOVA":     ("probability", "one_way_anova"),
+    "双因素ANOVA":     ("probability", "two_way_anova"),
     "p值":            ("probability", "p_value"),
     "线性回归":       ("probability", "linear_regression"),
     "预测":           ("probability", "predict"),

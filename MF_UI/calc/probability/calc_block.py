@@ -20,6 +20,7 @@ class CalcBlock(BaseCalcBlock):
             "大数定律", "中心极限定理",
             "样本均值", "样本方差", "矩估计", "MLE",
             "置信区间", "z检验", "t检验", "卡方检验", "p值",
+            "单因素ANOVA", "双因素ANOVA",
             "线性回归", "预测", "残差",
         ]
 
@@ -72,6 +73,8 @@ class CalcBlock(BaseCalcBlock):
             if op in ("线性回归", "预测", "残差"):
                 if len(val) == 2:
                     return calculate_direct(op, x_data=val[0], y_data=val[1])
+            if op in ("单因素ANOVA", "双因素ANOVA"):
+                return calculate_direct(op, groups=val)
             return calculate_direct(op, data=val)
         else:
             return calculate_direct(op, val=val)
