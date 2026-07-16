@@ -171,3 +171,31 @@
 ---
 
 *扫描日期: 2026-07-16 | 基于 197 文件、48,500 行全量扫描*
+
+---
+
+## 附录：后端深度扫描
+
+| 指标 | 数值 |
+|------|:---:|
+| 后端文件 | 119 |
+| 后端行数 | 32,639 |
+| self_test 覆盖率 | **97.5%**（116/119） |
+| self_test 通过率 | **81.8%**（63/77，12个GBK编码，2个逻辑bug） |
+| 跨包子包语义重复 | **8 个函数** |
+| 无 bare except | ✅ 0 处 |
+| 无 TODO/FIXME | ✅ 0 处 |
+| 无循环导入 | ✅ 干净 DAG |
+
+### 跨包重复函数
+
+| 函数 | 位置 |
+|------|------|
+| `rolle_theorem` | calculus + real_analysis |
+| `lagrange_theorem` | calculus + real_analysis |
+| `is_continuous` | calculus + real_analysis |
+| `discontinuity_classify` | calculus + real_analysis |
+| `gram_schmidt` | functional_analysis + linear_algebra |
+| `is_orthogonal` | functional_analysis + linear_algebra |
+| `solve_linear_system` | algebra + linear_algebra |
+| `expectation` | measure_theory + probability (×2) |

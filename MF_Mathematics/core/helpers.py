@@ -37,11 +37,21 @@ def to_vector(vec: Union[List[float], np.ndarray, sp.Matrix]) -> sp.Matrix:
 
 
 def parse_func(
-    f: Union[str, Callable], var: sp.Symbol
+    f: Union[str, Callable], var: sp.Symbol | None = None
 ) -> sp.Expr:
     """将字符串或可调用对象解析为 SymPy 表达式。"""
+    if var is None:
+        var = sp.Symbol("x", real=True)
     if isinstance(f, str):
-        return sp.sympify(f, locals={"x": var, "pi": sp.pi, "PI": sp.pi})
+        return sp.sympify(
+            f,
+            locals={
+                "x": var, "pi": sp.pi, "PI": sp.pi,
+                "n": sp.Symbol("n", integer=True, positive=True),
+                "y": sp.Symbol("y", real=True),
+                "z": sp.Symbol("z", real=True),
+            },
+        )
     elif callable(f):
         return f(var)
     else:
