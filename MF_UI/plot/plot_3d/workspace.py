@@ -130,6 +130,12 @@ class Plot3DWorkspace(QWidget):
     def _rebuild_curves(self) -> None:
         self._canvas.clear_surfaces()
         for b in self._boxes:
-            if not b.is_visible or not b.exprs: continue
-            for s in b.exprs:
-                self._canvas.add_surface(s, color=b.color)
+            if not b.is_visible or not b.exprs:
+                continue
+            exprs = b.exprs
+            # 检查是否为参数类型
+            if exprs and exprs[0].get("type") == "parametric" and len(exprs) >= 2:
+                self._canvas.add_parametric_surface(exprs, color=b.color)
+            else:
+                for s in exprs:
+                    self._canvas.add_surface(s, color=b.color)

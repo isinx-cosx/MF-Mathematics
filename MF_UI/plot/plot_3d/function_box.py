@@ -50,6 +50,8 @@ class FunctionBox(QWidget):
         self._color = color or _nc()
         self._visible = True
         self._valid: list[str] = []
+        self._typed_exprs: list[dict] = []
+        self._expr_type = "explicit"
         self._error = ""
 
         self._build_ui()
@@ -102,7 +104,12 @@ class FunctionBox(QWidget):
     @property
     def color(self) -> str: return self._color
     @property
-    def exprs(self) -> list[str]: return self._valid
+    def exprs(self) -> list[dict]:
+        """返回结构化表达式列表，每项: {type, expr, ...}。"""
+        return self._typed_exprs
+
+    @property
+    def _type(self) -> str: return self._expr_type
 
     def _tv(self) -> None:
         self._visible = not self._visible
@@ -117,6 +124,7 @@ class FunctionBox(QWidget):
     def _on_text(self, _: str) -> None:
         raw = self._input.text().strip()
         self._error = ""; self._err.hide(); self._valid = []
+        self._typed_exprs = []; self._expr_type = "explicit"
 
         if not raw:
             self._hint.setText(""); self.changed.emit(); return
@@ -126,6 +134,15 @@ class FunctionBox(QWidget):
             self._valid = self._parse_multi(raw)
             if self._valid:
                 n = len(self._valid)
+                self._expr_type = "parametric"
+                # 构建类型化表达式: x=..., y=..., z=...
+                axes = ["x", "y", "z"]
+                for i, s in enumerate(self._valid):
+                    self._typed_exprs.append({
+                        "type": "parametric",
+                        "axis": axes[i] if i < 3 else str(i),
+                        "expr": s,
+                    })
                 self._hint.setText(f"参数{'曲面' if n==3 else '曲线'}（{n} 个表达式）")
             self.changed.emit(); return
 
@@ -137,18 +154,25 @@ class FunctionBox(QWidget):
             if left in ("z", "Z") and right:
                 s = _preprocess(right)
                 if self._check_vars(s, {"x","y"}):
-                    self._valid = [s]; self._hint.setText("显式 z = f(x, y)")
+                    self._valid = [s]
+                    self._typed_exprs = [{"type": "explicit", "expr": s}]
+                    self._hint.setText("显式 z = f(x, y)")
                 self.changed.emit(); return
             # f(x,y,z) = value → 移项: left - right = 0
             s = _preprocess(f"({left}) - ({right})")
             if self._check_vars(s, {"x","y","z"}):
-                self._valid = [s]; self._hint.setText("隐式 f(x, y, z) = 0")
+                self._valid = [s]
+                self._expr_type = "implicit"
+                self._typed_exprs = [{"type": "implicit", "expr": s}]
+                self._hint.setText("隐式 f(x, y, z) = 0")
             self.changed.emit(); return
 
         # ── 无 = → 默认显式 z=f(x,y) ──
         s = _preprocess(raw)
         if self._check_vars(s, {"x","y"}):
-            self._valid = [s]; self._hint.setText("显式 z = f(x, y)")
+            self._valid = [s]
+            self._typed_exprs = [{"type": "explicit", "expr": s}]
+            self._hint.setText("显式 z = f(x, y)")
         self.changed.emit()
 
     def _parse_multi(self, raw: str) -> list[str]:

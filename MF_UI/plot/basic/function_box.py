@@ -195,7 +195,8 @@ class FunctionBox(QWidget):
     def detected_params(self) -> set[str]:
         if not self._valid_expr: return set()
         try:
-            syms = sp.sympify(self._valid_expr).free_symbols
+            from MF_Mathematics.core.helpers import safe_sympify
+            syms = safe_sympify(self._valid_expr).free_symbols
         except Exception:
             return set()
         excluded = {sp.Symbol(v) for v in self._independent_vars}

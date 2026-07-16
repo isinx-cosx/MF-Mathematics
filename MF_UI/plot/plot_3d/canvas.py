@@ -150,26 +150,26 @@ class Plot3D(QWidget):
     #  Public API — 曲面管理
     # ═══════════════════════════════════════════════════════════════
 
-    def add_surface(self, expr: str, color: str = "#3498db",
+    def add_surface(self, expr_spec, color: str = "#3498db",
                     params: dict | None = None,
                     resolution: int | None = None) -> int:
-        """添加曲面 z=f(x,y)，返回索引。
+        """添加曲面，支持显式/隐式/参数三种类型。
 
         Args:
-            expr: sympy 兼容表达式（如 "sin(x)*cos(y)"）。
-            color: 曲面颜色（十六进制）。
-            params: 参数替换字典 {"a": 1.0, "b": 2.0}。
-            resolution: 网格分辨率，None 则自适应。
-
-        Returns:
-            曲面索引，可用于 set_visible / update_surface。
+            expr_spec: str（向后兼容，显式 z=f(x,y)）或 dict
+                       {"type": "explicit", "expr": "..."}
+                       {"type": "implicit", "expr": "f(x,y,z)=0"}
+                       {"type": "parametric", "axis": "x"/"y"/"z", "expr": "f(u,v)"}
+            color: 曲面颜色。
+            params: 参数替换字典。
+            resolution: 网格分辨率。
         """
         import sympy as sp
         idx = len(self._surfaces)
         entry = {
-            "expr": expr, "color": color,
+            "spec": expr_spec, "color": color,
             "params": params or {}, "visible": True,
-            "surface_obj": None,   # Poly3DCollection 引用
+            "surface_obj": None,
         }
         self._surfaces.append(entry)
 
@@ -177,28 +177,21 @@ class Plot3D(QWidget):
             resolution = _surface_resolution(self._range * 2)
 
         try:
-            expr_sym = sp.sympify(expr)
-            for k, v in (params or {}).items():
-                expr_sym = expr_sym.subs(sp.Symbol(k), v)
+            # 归一化 expr_spec
+            if isinstance(expr_spec, str):
+                expr_spec = {"type": "explicit", "expr": expr_spec}
 
-            x_sym, y_sym = sp.Symbol("x"), sp.Symbol("y")
-            if expr_sym.free_symbols - {x_sym, y_sym}:
-                return idx
+            stype = expr_spec.get("type", "explicit")
+            sexpr = expr_spec.get("expr", "")
 
-            r = self._range
-            xs = np.linspace(-r, r, resolution)
-            ys = np.linspace(-r, r, resolution)
-            X, Y = np.meshgrid(xs, ys)
-            fn = sp.lambdify((x_sym, y_sym), expr_sym, "numpy")
-            Z = fn(X, Y)
-            if np.iscomplexobj(Z):
-                Z = np.where(np.abs(Z.imag) < 1e-10, Z.real, np.nan)
-            Z = np.clip(Z, -1e6, 1e6)
+            if stype == "parametric":
+                # 参数曲面：ws._rebuild_curves 会分组调用
+                self._add_parametric_partial(entry, expr_spec, color, params)
+            elif stype == "implicit":
+                self._add_implicit_surface(entry, sexpr, color, params, resolution)
+            else:
+                self._add_explicit_surface(entry, sexpr, color, params, resolution)
 
-            surf = self._ax.plot_surface(
-                X, Y, Z, alpha=0.85, color=color,
-                linewidth=0, antialiased=True, shade=True)
-            entry["surface_obj"] = surf
             self._canvas.draw_idle()
         except Exception:
             pass
@@ -206,7 +199,143 @@ class Plot3D(QWidget):
         self._emit_status()
         return idx
 
-    def update_surface(self, idx: int, expr: str,
+    def _add_explicit_surface(self, entry: dict, expr: str, color: str,
+                              params: dict | None, resolution: int) -> None:
+        """绘制显式曲面 z = f(x,y)。"""
+        import sympy as sp
+        expr_sym = sp.sympify(expr)
+        for k, v in (params or {}).items():
+            expr_sym = expr_sym.subs(sp.Symbol(k), v)
+
+        x_sym, y_sym = sp.Symbol("x"), sp.Symbol("y")
+        if expr_sym.free_symbols - {x_sym, y_sym}:
+            return
+
+        r = self._range
+        xs = np.linspace(-r, r, resolution)
+        ys = np.linspace(-r, r, resolution)
+        X, Y = np.meshgrid(xs, ys)
+        fn = sp.lambdify((x_sym, y_sym), expr_sym, "numpy")
+        Z = fn(X, Y)
+        if np.iscomplexobj(Z):
+            Z = np.where(np.abs(Z.imag) < 1e-10, Z.real, np.nan)
+        Z = np.clip(Z, -1e6, 1e6)
+
+        surf = self._ax.plot_surface(
+            X, Y, Z, alpha=0.85, color=color,
+            linewidth=0, antialiased=True, shade=True)
+        entry["surface_obj"] = surf
+
+    def _add_implicit_surface(self, entry: dict, expr: str, color: str,
+                              params: dict | None, resolution: int) -> None:
+        """绘制隐式曲面 f(x,y,z)=0（采样 z 切片 + 等高线投影）。"""
+        import sympy as sp
+        expr_sym = sp.sympify(expr)
+        for k, v in (params or {}).items():
+            expr_sym = expr_sym.subs(sp.Symbol(k), v)
+
+        x_sym, y_sym, z_sym = sp.Symbol("x"), sp.Symbol("y"), sp.Symbol("z")
+        if expr_sym.free_symbols - {x_sym, y_sym, z_sym}:
+            return
+
+        r = self._range
+        fn = sp.lambdify((x_sym, y_sym, z_sym), expr_sym, "numpy")
+
+        # 在多个 z 层面采样
+        n_z = 15
+        xs = np.linspace(-r, r, resolution)
+        ys = np.linspace(-r, r, resolution)
+        zs = np.linspace(-r, r, n_z)
+        X, Y = np.meshgrid(xs, ys)
+
+        all_points = []
+        for z_val in zs:
+            Z_vals = fn(X, Y, z_val)
+            if np.iscomplexobj(Z_vals):
+                Z_vals = np.where(np.abs(Z_vals.imag) < 1e-10, Z_vals.real, np.nan)
+            # 在 z=z_val 平面找到 f=0 的等高线点
+            try:
+                from matplotlib import pyplot as plt
+                fig_temp = plt.figure()
+                cs = plt.contour(X, Y, Z_vals, levels=[0])
+                plt.close(fig_temp)
+                for seg_set in cs.allsegs[0]:
+                    for seg in seg_set:
+                        for px, py in seg:
+                            all_points.append([px, py, z_val])
+            except Exception:
+                pass
+
+        if len(all_points) > 3:
+            pts = np.array(all_points)
+            self._ax.scatter(pts[:, 0], pts[:, 1], pts[:, 2],
+                           c=color, s=2, alpha=0.5, marker='.')
+            # 存储引用以便清除
+            entry["surface_obj"] = self._ax.collections[-1] if self._ax.collections else None
+
+    def _add_parametric_partial(self, entry: dict, spec: dict, color: str,
+                                params: dict | None) -> None:
+        """参数曲面的单条轴记录 — 实际绘制由 add_parametric_surface 完成。"""
+        # 此为占位 — 完整参数曲面由 rebuild 阶段分组处理
+        pass
+
+    def add_parametric_surface(self, specs: list[dict], color: str = "#3498db",
+                               resolution: int = 40) -> int:
+        """添加参数曲面: x=f(u,v), y=g(u,v), z=h(u,v)。
+
+        Args:
+            specs: [{"axis":"x","expr":"..."}, {"axis":"y","expr":"..."}, {"axis":"z","expr":"..."}]
+            color: 曲面颜色。
+            resolution: 网格分辨率。
+        """
+        import sympy as sp
+        idx = len(self._surfaces)
+
+        # 提取各轴表达式
+        axis_exprs = {}
+        for s in specs:
+            axis_exprs[s.get("axis", "")] = s.get("expr", "")
+
+        if len(axis_exprs) < 2:
+            return idx  # 参数方程至少需要2个分量
+
+        x_expr = axis_exprs.get("x", "u")
+        y_expr = axis_exprs.get("y", "v")
+        z_expr = axis_exprs.get("z", "0")
+
+        try:
+            u_sym, v_sym = sp.Symbol("u"), sp.Symbol("v")
+            x_fn = sp.lambdify((u_sym, v_sym), sp.sympify(x_expr), "numpy")
+            y_fn = sp.lambdify((u_sym, v_sym), sp.sympify(y_expr), "numpy")
+            z_fn = sp.lambdify((u_sym, v_sym), sp.sympify(z_expr), "numpy")
+
+            r = self._range * 0.7
+            us = np.linspace(-r, r, resolution)
+            vs = np.linspace(-r, r, resolution)
+            U, V = np.meshgrid(us, vs)
+
+            X = np.clip(x_fn(U, V), -1e6, 1e6)
+            Y = np.clip(y_fn(U, V), -1e6, 1e6)
+            Z = np.clip(z_fn(U, V), -1e6, 1e6)
+
+            surf = self._ax.plot_surface(
+                X, Y, Z, alpha=0.85, color=color,
+                linewidth=0, antialiased=True, shade=True)
+
+            entry = {
+                "spec": {"type": "parametric", "exprs": [x_expr, y_expr, z_expr]},
+                "color": color, "params": {}, "visible": True,
+                "surface_obj": surf,
+            }
+            self._surfaces.append(entry)
+            self._canvas.draw_idle()
+        except Exception as e:
+            self.status_message.emit(f"参数曲面错误: {e}")
+
+        self._emit_status()
+        return idx
+
+    def update_surface(self, idx: int, expr_spec,
                        color: str | None = None,
                        params: dict | None = None) -> None:
         """更新已有曲面（移除旧对象，重新绘制）。"""
@@ -220,7 +349,9 @@ class Plot3D(QWidget):
             entry["surface_obj"] = None
 
         # 更新元数据
-        entry["expr"] = expr
+        if isinstance(expr_spec, str):
+            expr_spec = {"type": "explicit", "expr": expr_spec}
+        entry["spec"] = expr_spec
         if color is not None:
             entry["color"] = color
         if params is not None:
@@ -295,29 +426,43 @@ class Plot3D(QWidget):
         """内部：计算并绘制单个曲面（不更新 UI）。"""
         import sympy as sp
         try:
-            expr_sym = sp.sympify(entry["expr"])
-            for k, v in entry["params"].items():
-                expr_sym = expr_sym.subs(sp.Symbol(k), v)
+            spec = entry.get("spec", entry.get("expr", ""))
+            if isinstance(spec, str):
+                spec = {"type": "explicit", "expr": spec}
 
-            x_sym, y_sym = sp.Symbol("x"), sp.Symbol("y")
-            if expr_sym.free_symbols - {x_sym, y_sym}:
-                return
+            stype = spec.get("type", "explicit")
+            sexpr = spec.get("expr", "")
 
-            res = _surface_resolution(self._range * 2)
-            r = self._range
-            xs = np.linspace(-r, r, res)
-            ys = np.linspace(-r, r, res)
-            X, Y = np.meshgrid(xs, ys)
-            fn = sp.lambdify((x_sym, y_sym), expr_sym, "numpy")
-            Z = fn(X, Y)
-            if np.iscomplexobj(Z):
-                Z = np.where(np.abs(Z.imag) < 1e-10, Z.real, np.nan)
-            Z = np.clip(Z, -1e6, 1e6)
+            if stype == "parametric":
+                return  # 参数曲面由 add_parametric_surface 处理
+            elif stype == "implicit":
+                res = _surface_resolution(self._range * 2)
+                self._add_implicit_surface(entry, sexpr, entry.get("color", "#3498db"),
+                                          entry.get("params"), res)
+            else:
+                expr_sym = sp.sympify(sexpr)
+                for k, v in (entry.get("params", {}) or {}).items():
+                    expr_sym = expr_sym.subs(sp.Symbol(k), v)
 
-            surf = self._ax.plot_surface(
-                X, Y, Z, alpha=0.85, color=entry["color"],
-                linewidth=0, antialiased=True, shade=True)
-            entry["surface_obj"] = surf
+                x_sym, y_sym = sp.Symbol("x"), sp.Symbol("y")
+                if expr_sym.free_symbols - {x_sym, y_sym}:
+                    return
+
+                res = _surface_resolution(self._range * 2)
+                r = self._range
+                xs = np.linspace(-r, r, res)
+                ys = np.linspace(-r, r, res)
+                X, Y = np.meshgrid(xs, ys)
+                fn = sp.lambdify((x_sym, y_sym), expr_sym, "numpy")
+                Z = fn(X, Y)
+                if np.iscomplexobj(Z):
+                    Z = np.where(np.abs(Z.imag) < 1e-10, Z.real, np.nan)
+                Z = np.clip(Z, -1e6, 1e6)
+
+                surf = self._ax.plot_surface(
+                    X, Y, Z, alpha=0.85, color=entry["color"],
+                    linewidth=0, antialiased=True, shade=True)
+                entry["surface_obj"] = surf
         except Exception:
             pass
 

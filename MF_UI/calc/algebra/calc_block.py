@@ -13,6 +13,7 @@ from MF_Mathematics.utils.ai_accelerator import get_accelerator
 from MF_Mathematics.utils.config_manager import config as _cfg
 from MF_UI.calc.base_calc_block import BaseCalcBlock
 from calc_engine import calculate_direct
+from MF_Mathematics.core.helpers import safe_sympify
 
 from PySide6.QtCore import QThread, QTimer, Signal
 
@@ -425,9 +426,9 @@ class CalcBlock(BaseCalcBlock):
                         for eq in eqs:
                             if "=" in eq:
                                 lhs, rhs = eq.split("=", 1)
-                                parsed_eqs.append(sp.Eq(sp.sympify(lhs.strip()), sp.sympify(rhs.strip())))
+                                parsed_eqs.append(sp.Eq(safe_sympify(lhs.strip()), safe_sympify(rhs.strip())))
                             else:
-                                parsed_eqs.append(sp.sympify(eq.strip()))
+                                parsed_eqs.append(safe_sympify(eq.strip()))
                         sol = sp.solve(parsed_eqs, syms, dict=True)
                         if sol:
                             sol_dict = {str(k): str(v) for k, v in sol[0].items()}
@@ -538,7 +539,7 @@ class CalcBlock(BaseCalcBlock):
                 return MathObject(error="mobius格式: mobius(z, a, b, c, d)")
             try:
                 z_expr = expr.replace("i", "I").replace("j", "I")
-                z_sym = _sp.sympify(z_expr)
+                z_sym = safe_sympify(z_expr)
                 result = _sp.N(z_sym)
                 return MathObject(result=complex(result), steps=[f"表达式: {expr}", f"计算结果: {result}"], meaning=f"复数运算结果: {result}")
             except Exception:
@@ -726,11 +727,13 @@ class CalcBlock(BaseCalcBlock):
                     local_dict = {fname: f, var: x_sym,
                                   "sin": _sp.sin, "cos": _sp.cos, "tan": _sp.tan,
                                   "exp": _sp.exp, "log": _sp.log, "sqrt": _sp.sqrt,
-                                  "pi": _sp.pi, "E": _sp.E, "oo": _sp.oo}
+                                  "pi": _sp.pi, "E": _sp.E, "oo": _sp.oo,
+                                  "derivative": lambda e, v=None:
+                                      _sp.diff(e, v if v is not None else x_sym)}
                     rhs_sym = _sp.sympify(rhs, locals=local_dict)
                 except Exception:
                     # 回退：直接 sympify
-                    rhs_sym = _sp.sympify(rhs)
+                    rhs_sym = safe_sympify(rhs)
 
                 eq = _sp.Eq(deriv, rhs_sym)
                 sol = _sp.dsolve(eq)
@@ -756,7 +759,7 @@ class CalcBlock(BaseCalcBlock):
                 f = _sp.Function("f")(x, y)
                 if "=" in expr:
                     lhs, rhs = expr.split("=", 1)
-                    eq = _sp.Eq(_sp.sympify(lhs.strip()), _sp.sympify(rhs.strip()))
+                    eq = _sp.Eq(safe_sympify(lhs.strip()), safe_sympify(rhs.strip()))
                 else:
                     eq = _sp.Eq(f.diff(x, 2) + f.diff(y, 2), 0)
                 try:

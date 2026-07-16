@@ -46,9 +46,7 @@ class VectorFieldWorkspace(QWidget):
             r = QHBoxLayout(); r.setSpacing(6)
             r.addWidget(QLabel(lbl))
             inp = QLineEdit(); inp.setPlaceholderText(ph)
-            inp.setStyleSheet("QLineEdit{border:1px solid #d1d5db;border-radius:4px;"
-                "padding:6px 10px;font-size:14px;background:#fff;}"
-                "QLineEdit:focus{border-color:#3b82f6;}")
+            inp.setObjectName("vf_input")
             inp.textChanged.connect(lambda _, a=attr, i=inp: setattr(self, a, i.text().strip()))
             r.addWidget(inp, 1); root.addLayout(r)
 
@@ -76,9 +74,7 @@ class VectorFieldWorkspace(QWidget):
         pr.addWidget(cb)
 
         btn = QPushButton("重绘")
-        btn.setStyleSheet("QPushButton{background:#10b981;color:#fff;border:none;"
-            "border-radius:4px;padding:6px 20px;font-weight:500;}"
-            "QPushButton:hover{background:#059669;}")
+        btn.setObjectName("vf_redraw_btn")
         btn.clicked.connect(self._redraw); pr.addWidget(btn)
         pr.addStretch(); root.addLayout(pr)
 
@@ -88,7 +84,7 @@ class VectorFieldWorkspace(QWidget):
 
         self._waiting = QLabel("等待输入分量 P、Q")
         self._waiting.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._waiting.setStyleSheet("font-size:18px;color:#94a3b8;")
+        self._waiting.setObjectName("vf_waiting")
         root.addWidget(self._waiting); self._canvas.hide()
 
     def resizeEvent(self, event) -> None:

@@ -504,6 +504,26 @@ SliderFunctionBox {
 }
 #slider_del_btn:hover { color: #ef4444; }
 
+/* ---- 向量场 ---- */
+#vf_input {
+    border: 1px solid #45475a;
+    border-radius: 4px;
+    padding: 6px 10px;
+    font-size: 14px;
+    background: #181825;
+    color: #cdd6f4;
+}
+#vf_input:focus { border-color: #3b82f6; }
+#vf_redraw_btn {
+    background: #10b981;
+    color: #ffffff;
+    border: none;
+    border-radius: 4px;
+    padding: 6px 20px;
+    font-weight: 500;
+}
+#vf_redraw_btn:hover { background: #059669; }
+
 /* ---- 分割器 ---- */
 QSplitter::handle {
     background-color: #313244;
