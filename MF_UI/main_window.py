@@ -2,8 +2,8 @@
 import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from PySide6.QtCore import Qt, QEvent, QPoint, QRect, QSize
-from PySide6.QtGui import QAction, QKeySequence, QShortcut
+from PySide6.QtCore import Qt, QEvent, QPoint, QRect, QRectF, QSize
+from PySide6.QtGui import QAction, QBitmap, QKeySequence, QPainter, QShortcut
 from PySide6.QtWidgets import (
     QMainWindow, QToolBar, QStatusBar,
     QStackedWidget, QWidget, QVBoxLayout, QHBoxLayout,
@@ -216,6 +216,9 @@ class MainWindow(QMainWindow):
         # 安装全局边缘缩放过滤器（8px 边角，setUpdatesEnabled 防闪烁）
         self._edge_filter = EdgeResizeFilter(self)
 
+        # 窗口圆角蒙版（8px，最大化时自动清除）
+        self._apply_rounded_mask()
+
         # 重新居中（frameless 切换可能改变窗口位置）
         self._center_on_screen()
 
@@ -225,6 +228,29 @@ class MainWindow(QMainWindow):
         # 首次启动：显示欢迎对话框
         QApplication.instance().processEvents()
         self._check_first_launch()
+
+    # ---------- 窗口圆角蒙版 ----------
+    def _apply_rounded_mask(self):
+        """用 QBitmap 蒙版将窗口裁剪为 8px 圆角矩形。
+        最大化时清除蒙版（全屏直角）；原生缩放中跳过（防性能风暴）。
+        """
+        if self.isMaximized():
+            self.clearMask()
+            return
+        if self.property("_sys_resizing"):
+            return
+        sz = self.size()
+        if sz.width() <= 0 or sz.height() <= 0:
+            return
+        mask = QBitmap(sz)
+        mask.fill(Qt.GlobalColor.color0)
+        p = QPainter(mask)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        p.setBrush(Qt.GlobalColor.color1)
+        p.setPen(Qt.PenStyle.NoPen)
+        p.drawRoundedRect(QRectF(0, 0, sz.width(), sz.height()), 8, 8)
+        p.end()
+        self.setMask(mask)
 
     # ---------- 窗口居中 ----------
     def _center_on_screen(self):
@@ -596,12 +622,13 @@ class MainWindow(QMainWindow):
             self._kb_toggle_btn.setText("▼ 收起")
 
     def resizeEvent(self, event) -> None:
-        """窗口大小变化时更新状态栏位置和键盘面板高度。"""
+        """窗口大小变化时更新圆角蒙版、状态栏位置、键盘面板高度。"""
         super().resizeEvent(event)
+        # 圆角蒙版：每次 resize 重新裁剪（最大化时自动 clearMask）
+        self._apply_rounded_mask()
         # 强制状态栏锁定在窗口内部最底部
         if hasattr(self, '_status_bar'):
-            height = 30
-            self._status_bar.setGeometry(0, self.height() - height, self.width(), height)
+            self._status_bar.setGeometry(0, self.height() - 30, self.width(), 30)
         # 键盘面板自适应
         if hasattr(self, 'keyboard_panel') and self.keyboard_panel.isVisible():
             h = max(self.height() // 5, 60)
