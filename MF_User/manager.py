@@ -1,12 +1,17 @@
 # -*- coding: utf-8 -*-
-"""UserManager — 用户管理单例，内存存储 + SHA-256 密码哈希。"""
+"""UserManager — 用户管理单例，JSON 持久化 + SHA-256 密码哈希。"""
 
 from __future__ import annotations
 
 import hashlib
+import json
+import os
 import secrets
 
 from MF_User.models import User
+
+_USER_FILE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                          "users.json")
 
 
 def _hash_password(password: str, salt: str) -> str:
@@ -15,7 +20,7 @@ def _hash_password(password: str, salt: str) -> str:
 
 
 class UserManager:
-    """用户管理单例 — 当前使用内存 dict 存储。
+    """用户管理单例 — JSON 文件持久化存储。
 
     用法:
         mgr = UserManager()
@@ -38,6 +43,7 @@ class UserManager:
         self._initialized = True
         self._users: dict[str, User] = {}
         self._current_user: User | None = None
+        self._load()
 
     # ── 注册 ──────────────────────────────────────────────
 
@@ -73,8 +79,36 @@ class UserManager:
         user = User(username=username, salt=salt, password_hash=password_hash)
         self._users[username] = user
         self._current_user = user  # 注册即登录
-
+        self._save()
         return user, ""
+
+    # ── 持久化 ────────────────────────────────────────────
+
+    def _save(self) -> None:
+        """保存用户数据到 JSON 文件。"""
+        try:
+            data = {
+                u: {"username": v.username, "salt": v.salt, "password_hash": v.password_hash}
+                for u, v in self._users.items()
+            }
+            with open(_USER_FILE, "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+        except OSError:
+            pass
+
+    def _load(self) -> None:
+        """从 JSON 文件加载用户数据。"""
+        try:
+            if os.path.exists(_USER_FILE):
+                with open(_USER_FILE, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                for username, d in data.items():
+                    self._users[username] = User(
+                        username=d["username"], salt=d["salt"],
+                        password_hash=d["password_hash"],
+                    )
+        except (OSError, json.JSONDecodeError, KeyError):
+            pass
 
     # ── 登录 ──────────────────────────────────────────────
 
