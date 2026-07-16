@@ -18,6 +18,26 @@ from MF_AI import stream_chat, get_config
 
 # ── LaTeX 渲染 ─────────────────────────────────────────────
 
+def _fix_latex(latex: str) -> str:
+    """将不兼容 mathtext 的 LaTeX 命令转换为兼容形式。"""
+    s = latex.strip()
+    # \boxed{...} → \fbox{...}
+    s = re.sub(r'\\boxed\{', r'\\fbox{', s)
+    # \begin{pmatrix}...\end{pmatrix} → \left(\begin{array}...\end{array}\right)
+    s = re.sub(r'\\begin\{pmatrix\}', r'\\left(\\begin{array}', s)
+    s = re.sub(r'\\end\{pmatrix\}', r'\\end{array}\\right)', s)
+    # \begin{cases}...\end{cases}
+    s = re.sub(r'\\begin\{cases\}', r'\\left\\{\\begin{array}{ll}', s)
+    s = re.sub(r'\\end\{cases\}', r'\\end{array}\\right.', s)
+    # \begin{bmatrix}...\end{bmatrix}
+    s = re.sub(r'\\begin\{bmatrix\}', r'\\left[\\begin{array}', s)
+    s = re.sub(r'\\end\{bmatrix\}', r'\\end{array}\\right]', s)
+    # \begin{vmatrix}...\end{vmatrix}
+    s = re.sub(r'\\begin\{vmatrix\}', r'\\left|\\begin{array}', s)
+    s = re.sub(r'\\end\{vmatrix\}', r'\\end{array}\\right|', s)
+    return s
+
+
 def _latex_to_html(latex: str, dark: bool = False) -> str:
     """将 LaTeX 渲染为 base64 图片并返回 <img> 标签。"""
     try:
@@ -28,7 +48,7 @@ def _latex_to_html(latex: str, dark: bool = False) -> str:
 
         face = "#1e293b" if dark else "#fafbfc"
         text_color = "#e2e8f0" if dark else "#0f172a"
-        safe = latex.strip()
+        safe = _fix_latex(latex)
         # 使用原始字符串构造 mathtext
         math_text = "$" + safe + "$"
 
