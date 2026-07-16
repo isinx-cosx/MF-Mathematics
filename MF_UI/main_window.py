@@ -2,7 +2,7 @@
 import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from PySide6.QtCore import Qt, QSize
+from PySide6.QtCore import Qt, QPoint, QSize
 from PySide6.QtGui import QAction, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QMainWindow, QToolBar, QStatusBar,
@@ -118,6 +118,61 @@ class MainWindow(QMainWindow):
         QApplication.instance().processEvents()
         self._check_first_launch()
 
+    # ---------- Windows 原生边缘缩放（WM_NCHITTEST）----------
+    def nativeEvent(self, eventType, message):
+        """处理 Windows WM_NCHITTEST — 实现无边框窗口 8px 边缘缩放。
+
+        所有边和角均可拖拽调整窗口大小，无需可见控件。
+        """
+        BORDER = 8
+        # HT* 常量
+        _HTLEFT, _HTRIGHT, _HTTOP = 10, 11, 12
+        _HTTOPLEFT, _HTTOPRIGHT = 13, 14
+        _HTBOTTOM, _HTBOTTOMLEFT, _HTBOTTOMRIGHT = 15, 16, 17
+
+        if eventType == "windows_generic_MSG":
+            import ctypes
+            # 解析 MSG 结构体获取消息类型和光标位置
+            class _MSG(ctypes.Structure):
+                _fields_ = [
+                    ("hwnd", ctypes.c_void_p),
+                    ("message", ctypes.c_uint),
+                    ("wParam", ctypes.c_ulonglong),
+                    ("lParam", ctypes.c_ulonglong),
+                ]
+            msg = _MSG.from_address(int(message))
+            if msg.message != 0x0084:  # WM_NCHITTEST
+                return False, 0
+
+            # lParam 低字=X，高字=Y（屏幕坐标）
+            x = msg.lParam & 0xFFFF
+            y = (msg.lParam >> 16) & 0xFFFF
+            pt = self.mapFromGlobal(QPoint(x, y))
+            r = self.rect()
+
+            on_l = pt.x() < BORDER
+            on_r = pt.x() > r.width() - BORDER
+            on_t = pt.y() < BORDER
+            on_b = pt.y() > r.height() - BORDER
+
+            if on_t and on_l:
+                return True, _HTTOPLEFT
+            if on_t and on_r:
+                return True, _HTTOPRIGHT
+            if on_b and on_l:
+                return True, _HTBOTTOMLEFT
+            if on_b and on_r:
+                return True, _HTBOTTOMRIGHT
+            if on_t:
+                return True, _HTTOP
+            if on_b:
+                return True, _HTBOTTOM
+            if on_l:
+                return True, _HTLEFT
+            if on_r:
+                return True, _HTRIGHT
+
+        return False, 0
 
     # ---------- 窗口居中 ----------
     def _center_on_screen(self):
