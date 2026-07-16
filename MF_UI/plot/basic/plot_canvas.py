@@ -35,10 +35,10 @@ from PySide6.QtWidgets import (
 _lambdify_cache: dict[str, callable] = {}
 
 def _cached_lambdify(var_sym, expr, modules="numpy"):
-    """缓存 sp.lambdify 结果，避免重复编译（~5-20ms savings）。"""
+    """缓存 sp.lambdify 结果，避免重复编译。启用 CSE 减少生成代码量。"""
     key = str(expr) + str(var_sym)
     if key not in _lambdify_cache:
-        _lambdify_cache[key] = sp.lambdify(var_sym, expr, modules)
+        _lambdify_cache[key] = sp.lambdify(var_sym, expr, modules, cse=True)
     return _lambdify_cache[key]
 
 # ═══════════════════════════════════════════════════════════════════════

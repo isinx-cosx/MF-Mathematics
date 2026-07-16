@@ -1,6 +1,7 @@
 """特征值与特征向量 — 特征多项式、对角化、若尔当标准型。
 
-依赖: sympy, numpy
+依赖: sympy, numpy。
+大矩阵（5×5+）自动降级为 numpy 数值近似，避免符号计算卡死。
 """
 
 from __future__ import annotations
@@ -13,11 +14,25 @@ import sympy as sp
 
 from ..core.math_object import MathObject
 from ..core.registry import register
+
+# ── 大矩阵自动数值降级阈值 ──
+_NUMERIC_FALLBACK_DIM = 5
+
+
+def _is_numeric_matrix(M: sp.Matrix) -> bool:
+    """检查矩阵是否仅含数值元素（无符号变量）。"""
+    try:
+        np.array(M.tolist(), dtype=float)
+        return True
+    except (TypeError, ValueError):
+        return False
+
+
 @register(module="linear_algebra", action="eigenvalues")
 def eigenvalues(
     matrix: Union[List[List[float]], np.ndarray],
 ) -> MathObject:
-    """计算矩阵的特征值。
+    """计算矩阵的特征值。5×5+ 纯数值矩阵自动使用 numpy 数值近似。
 
     Args:
         matrix: 方阵。
@@ -30,13 +45,35 @@ def eigenvalues(
         if A.rows != A.cols:
             return MathObject(error="矩阵必须是方阵")
 
+        dim = A.rows
+
+        # ── 大矩阵数值降级 ──
+        if dim >= _NUMERIC_FALLBACK_DIM and _is_numeric_matrix(A):
+            arr = np.array(A.tolist(), dtype=float)
+            w = np.linalg.eigvals(arr)
+            result_vals = [complex(v) for v in w]
+            return MathObject(
+                result={
+                    "eigenvalues": result_vals,
+                    "with_multiplicity": [
+                        {"value": complex(v), "multiplicity": 1} for v in w
+                    ],
+                    "method": "numpy 数值近似",
+                    "note": f"矩阵维度 {dim}≥{_NUMERIC_FALLBACK_DIM}，自动使用数值方法",
+                },
+                steps=[
+                    f"矩阵 A ({dim}×{dim}):\n{A}",
+                    f"使用 numpy 数值方法计算特征值",
+                    f"特征值: {result_vals}",
+                ],
+                meaning=f"矩阵的特征值为 {result_vals}",
+            )
+
         eigvals = A.eigenvals()
-        # eigvals 是一个 dict {eigenvalue: multiplicity}
         result_list = []
         for val, mult in eigvals.items():
             result_list.extend([val] * mult)
 
-        # 尝试转为浮点数
         result_vals = []
         for v in result_list:
             try:
@@ -78,8 +115,38 @@ def eigenvectors(
         if A.rows != A.cols:
             return MathObject(error="矩阵必须是方阵")
 
+        dim = A.rows
+
+        # ── 大矩阵数值降级 ──
+        if dim >= _NUMERIC_FALLBACK_DIM and _is_numeric_matrix(A):
+            arr = np.array(A.tolist(), dtype=float)
+            w, v = np.linalg.eig(arr)
+            result_pairs = []
+            for i in range(len(w)):
+                vec = v[:, i]
+                vec_norm = vec / np.linalg.norm(vec)
+                result_pairs.append({
+                    "eigenvalue": complex(w[i]),
+                    "eigenvector": vec_norm.tolist(),
+                    "multiplicity": 1,
+                })
+            return MathObject(
+                result={
+                    "eigenpairs": result_pairs,
+                    "method": "numpy 数值近似",
+                    "note": f"矩阵维度 {dim}≥{_NUMERIC_FALLBACK_DIM}，自动使用数值方法",
+                },
+                steps=[
+                    f"矩阵 A ({dim}×{dim}):\n{A}",
+                    f"使用 numpy 数值方法计算特征向量",
+                ] + [
+                    f"  λ = {p['eigenvalue']}: v = {p['eigenvector']}"
+                    for p in result_pairs
+                ],
+                meaning=f"矩阵的 {len(result_pairs)} 个特征向量已计算",
+            )
+
         eigendata = A.eigenvects()
-        # eigendata 是 [(特征值, 重数, [特征向量列表]), ...]
 
         result_pairs = []
         for val, mult, basis_vecs in eigendata:
