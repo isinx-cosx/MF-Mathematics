@@ -347,23 +347,15 @@ class MainWindow(QMainWindow):
         toolbar.setIconSize(QSize(20, 20))
         self.addToolBar(toolbar)
 
-        # ── QActionGroup 互斥：先将所有按钮加入组，再设置初始选中 ──
-        self._btn_group = QActionGroup(self)
-        self._btn_group.setExclusive(True)
-
+        # ── 计算/绘图按钮：手动管理 checked 互斥（QActionGroup 在 PySide6 工具栏中不可靠）──
         self._btn_calc = toolbar.addAction("计算")
         self._btn_calc.setCheckable(True)
-        self._btn_group.addAction(self._btn_calc)
+        self._btn_calc.setChecked(True)
+        self._btn_calc.triggered.connect(self._on_toolbar_action)
 
         self._btn_plot = toolbar.addAction("绘图")
         self._btn_plot.setCheckable(True)
-        self._btn_group.addAction(self._btn_plot)
-
-        # 所有按钮入组后，设置初始选中（避免 QActionGroup 内部状态不一致）
-        self._btn_calc.setChecked(True)
-
-        # QActionGroup.triggered — 仅互斥组内按钮触发，自动保证唯一选中
-        self._btn_group.triggered.connect(self._on_toolbar_action)
+        self._btn_plot.triggered.connect(self._on_toolbar_action)
 
         toolbar.addSeparator()
         
@@ -409,18 +401,22 @@ class MainWindow(QMainWindow):
         self._user_status_label: QLabel | None = None
 
     def _on_toolbar_action(self, action):
-        """工具栏按钮互斥 + 模式切换 — QActionGroup 自动管理互斥，无需手动 setChecked。
+        """工具栏按钮互斥 + 模式切换 — 手动管理 checked 状态，_toolbar_guard 防重入。
 
-        QActionGroup 在内部 setChecked 旧按钮时可能再次 emit triggered，
-        导致本方法被重复调用。用 _toolbar_guard 防重入。
+        不使用 QActionGroup（PySide6 中与 QToolBar 交互时 checked 属性更新不可靠）。
+        setChecked 程序化调用不会 emit triggered，仅 emit toggled（无连接，不影响）。
         """
         if getattr(self, '_toolbar_guard', False):
             return
         self._toolbar_guard = True
         try:
             if action is self._btn_calc:
+                self._btn_calc.setChecked(True)
+                self._btn_plot.setChecked(False)
                 self._switch_mode(0)
             elif action is self._btn_plot:
+                self._btn_plot.setChecked(True)
+                self._btn_calc.setChecked(False)
                 self._switch_mode(1)
         finally:
             self._toolbar_guard = False
