@@ -330,7 +330,7 @@ def test_hypothesis_test() -> bool:
         print(f"  FAIL chi_square_test: {r.error}")
         ok = False
     else:
-        print(f"  PASS chi_square_test: χ²={r.result['chi2']:.4f}")
+        print(f"  PASS chi_square_test: chi2={r.result['chi2']:.4f}")
 
     r = p_value(1.96, "normal", alternative="two-sided")
     if not r.ok or abs(r.result - 0.05) > 0.01:
