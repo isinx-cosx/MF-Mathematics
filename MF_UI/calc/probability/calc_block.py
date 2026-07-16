@@ -21,6 +21,7 @@ class CalcBlock(BaseCalcBlock):
             "样本均值", "样本方差", "矩估计", "MLE",
             "置信区间", "z检验", "t检验", "卡方检验", "p值",
             "单因素ANOVA", "双因素ANOVA",
+            "Mann-Whitney U", "Kruskal-Wallis", "Wilcoxon符号秩",
             "移动平均", "指数平滑", "线性趋势",
             "线性回归", "预测", "残差",
         ]
@@ -74,8 +75,12 @@ class CalcBlock(BaseCalcBlock):
             if op in ("线性回归", "预测", "残差"):
                 if len(val) == 2:
                     return calculate_direct(op, x_data=val[0], y_data=val[1])
-            if op in ("单因素ANOVA", "双因素ANOVA"):
+            if op in ("单因素ANOVA", "双因素ANOVA", "Kruskal-Wallis"):
                 return calculate_direct(op, groups=val)
+            if op in ("Mann-Whitney U", "Wilcoxon符号秩"):
+                if len(val) == 2:
+                    return calculate_direct(op, group1=val[0], group2=val[1])
+                return calculate_direct(op, group1=val)
             if op in ("移动平均", "指数平滑", "线性趋势"):
                 return calculate_direct(op, data=val)
             return calculate_direct(op, data=val)

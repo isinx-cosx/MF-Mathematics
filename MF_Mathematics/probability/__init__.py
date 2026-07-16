@@ -51,6 +51,11 @@ from .regression import (
     predict,
     residuals,
 )
+from .nonparametric import (
+    mann_whitney_u,
+    kruskal_wallis,
+    wilcoxon_signed_rank,
+)
 
 __all__ = [
     # probability_space
@@ -93,6 +98,10 @@ __all__ = [
     "linear_regression",
     "predict",
     "residuals",
+    # nonparametric
+    "mann_whitney_u",
+    "kruskal_wallis",
+    "wilcoxon_signed_rank",
 ]
 
 

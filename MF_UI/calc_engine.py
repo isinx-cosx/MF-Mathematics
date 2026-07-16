@@ -142,6 +142,9 @@ FUNC_MAP: dict[str, tuple[str, str]] = {
     "线性回归":       ("probability", "linear_regression"),
     "预测":           ("probability", "predict"),
     "残差":           ("probability", "residuals"),
+    "Mann-Whitney U": ("probability", "mann_whitney_u"),
+    "Kruskal-Wallis": ("probability", "kruskal_wallis"),
+    "Wilcoxon符号秩": ("probability", "wilcoxon_signed_rank"),
 
     # ── 数值分析 ──
     "条件数":         ("numerical", "condition_number"),
