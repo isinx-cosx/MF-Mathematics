@@ -249,6 +249,84 @@ def stiff_detector(
         return MathObject(error=str(e))
 
 
+@register(module="numerical", action="phase_portrait")
+def phase_portrait(
+    dx_dt: str,
+    dy_dt: str,
+    x_range: tuple = (-5, 5),
+    y_range: tuple = (-5, 5),
+    n_trajectories: int = 5,
+    resolution: int = 20,
+) -> MathObject:
+    """生成 2D ODE 系统的方向场和相轨迹数据。
+
+    系统: dx/dt = f(x,y), dy/dt = g(x,y)
+
+    Args:
+        dx_dt: f(x,y) 表达式字符串，如 "-y"。
+        dy_dt: g(x,y) 表达式字符串，如 "x"。
+        x_range: x 范围 (min, max)。
+        y_range: y 范围 (min, max)。
+        n_trajectories: 相轨迹数量。
+        resolution: 方向场分辨率。
+
+    Returns:
+        MathObject，result 包含方向场网格和相轨迹数据。
+    """
+    import sympy as sp
+    try:
+        xs = np.linspace(x_range[0], x_range[1], resolution)
+        ys = np.linspace(y_range[0], y_range[1], resolution)
+        X, Y = np.meshgrid(xs, ys)
+
+        x_sym, y_sym = sp.Symbol("x"), sp.Symbol("y")
+        f_fn = sp.lambdify((x_sym, y_sym), sp.sympify(dx_dt), "numpy")
+        g_fn = sp.lambdify((x_sym, y_sym), sp.sympify(dy_dt), "numpy")
+
+        U = f_fn(X, Y)
+        V = g_fn(X, Y)
+
+        # 归一化
+        M = np.sqrt(U**2 + V**2)
+        M = np.where(M > 0, M, 1)
+        U_norm, V_norm = U / M, V / M
+
+        # 生成相轨迹（从随机初始点使用简单欧拉步进）
+        trajectories = []
+        rng = np.random.RandomState(42)
+        for _ in range(n_trajectories):
+            x0 = rng.uniform(*x_range)
+            y0 = rng.uniform(*y_range)
+            traj_x, traj_y = [x0], [y0]
+            for _ in range(200):
+                dx = float(f_fn(traj_x[-1], traj_y[-1]))
+                dy = float(g_fn(traj_x[-1], traj_y[-1]))
+                dt = 0.05
+                nx = traj_x[-1] + dx * dt
+                ny = traj_y[-1] + dy * dt
+                if nx < x_range[0] or nx > x_range[1] or ny < y_range[0] or ny > y_range[1]:
+                    break
+                traj_x.append(nx)
+                traj_y.append(ny)
+            trajectories.append({"x": traj_x, "y": traj_y})
+
+        return MathObject(
+            result={
+                "field": {"X": X.tolist(), "Y": Y.tolist(),
+                          "U": U_norm.tolist(), "V": V_norm.tolist()},
+                "trajectories": trajectories,
+            },
+            steps=[
+                f"系统: dx/dt = {dx_dt}, dy/dt = {dy_dt}",
+                f"方向场: {resolution}×{resolution} 网格",
+                f"相轨迹: {n_trajectories} 条（随机初始点）",
+            ],
+            meaning=f"相图: ({dx_dt}, {dy_dt}) 在 [{x_range[0]},{x_range[1]}]×[{y_range[0]},{y_range[1]}]",
+        )
+    except Exception as e:
+        return MathObject(error=str(e))
+
+
 def self_test() -> bool:
     """自测 ode_solver 模块。"""
     print("=== ode_solver self_test ===")
