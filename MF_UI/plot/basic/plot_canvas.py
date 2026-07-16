@@ -667,19 +667,19 @@ class PlotCanvas(QGraphicsView):
         except Exception:
             return None
 
-        yr = max(vr.height(), 1.0)
         path = QPainterPath()
         first = True
         for i in range(len(xs) - 1):
             a, b = ys[i], ys[i + 1]
-            if np.isnan(a) or np.isnan(b):
-                first = True; continue
-            if abs(b - a) > yr * 2:
+            # 跳过 NaN / Inf 点（不抬笔，不画线）
+            if np.isnan(a) or np.isnan(b) or np.isinf(a) or np.isinf(b):
+                continue
+            # 渐近线检测：|Δy|>10 或 符号突变+大值（正负无穷）
+            if abs(b - a) > 10.0 or (a * b < 0 and abs(a) > 100 and abs(b) > 100):
                 first = True; continue
             if first:
                 path.moveTo(xs[i], a); first = False
-            else:
-                path.lineTo(xs[i + 1], b)
+            path.lineTo(xs[i + 1], b)
 
         if not path.isEmpty():
             if len(self._path_cache) >= 32:
