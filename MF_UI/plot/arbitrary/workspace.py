@@ -22,7 +22,7 @@ from __future__ import annotations
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor, QKeySequence, QAction
 from PySide6.QtWidgets import (
-    QButtonGroup, QCheckBox, QColorDialog, QFrame, QHBoxLayout,
+    QButtonGroup, QCheckBox, QColorDialog, QFileDialog, QFrame, QHBoxLayout,
     QInputDialog, QLabel, QListWidget, QListWidgetItem, QMenu,
     QPushButton, QVBoxLayout, QWidget,
 )
@@ -251,6 +251,27 @@ class ArbitraryWorkspace(QWidget):
         view_row.addWidget(btn_reset)
         ll.addLayout(view_row)
 
+        # 导出
+        ll.addWidget(_sep())
+        export_header = QLabel("导出")
+        export_header.setStyleSheet("font-size: 12px; font-weight: 600; color: #475569; background: transparent;")
+        ll.addWidget(export_header)
+        export_row = QHBoxLayout()
+        export_row.setSpacing(4)
+        for fmt, color in [("SVG", "#6366f1"), ("PNG", "#10b981")]:
+            btn = QPushButton(f"📥 {fmt}")
+            btn.setStyleSheet(f"""
+                QPushButton {{
+                    background: {color}; color: #fff; border: none;
+                    border-radius: 4px; padding: 6px 12px; font-size: 12px; font-weight: 500;
+                }}
+                QPushButton:hover {{ filter: brightness(0.9); }}
+            """)
+            btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            btn.clicked.connect(lambda _, f=fmt: self._export(f))
+            export_row.addWidget(btn)
+        ll.addLayout(export_row)
+
         return panel
 
     # ── 工具切换 ──────────────────────────────────────────────
@@ -427,6 +448,79 @@ class ArbitraryWorkspace(QWidget):
             self.status_message.emit("重做 (Ctrl+Y)")
         else:
             self.status_message.emit("无可重做操作")
+
+    # ── 导出 ──────────────────────────────────────────────
+
+    def _export(self, fmt: str) -> None:
+        """导出图形为 SVG 或 PNG 文件。"""
+        import os
+        if not self._canvas.get_shapes():
+            self.status_message.emit("没有可导出的图形")
+            return
+
+        ext = fmt.lower()
+        default_name = f"geometry.{ext}"
+        file_filter = (
+            "SVG 矢量图 (*.svg)" if fmt == "SVG"
+            else "PNG 图片 (*.png)"
+        )
+        path, _ = QFileDialog.getSaveFileName(
+            self, f"导出 {fmt}", default_name, file_filter,
+        )
+        if not path:
+            return
+
+        try:
+            if fmt == "SVG":
+                self._export_svg(path)
+            else:
+                self._export_png(path)
+            self.status_message.emit(f"已导出: {os.path.basename(path)}")
+        except Exception as e:
+            self.status_message.emit(f"导出失败: {e}")
+
+    def _export_svg(self, path: str) -> None:
+        """将场景渲染为 SVG 文件。"""
+        from PySide6.QtSvg import QSvgGenerator
+        from PySide6.QtCore import QRectF
+
+        # 计算所有图形的包围盒
+        scene_rect = self._canvas.scene().itemsBoundingRect()
+        if scene_rect.isEmpty():
+            scene_rect = QRectF(-10, -10, 20, 20)
+
+        # 添加边距
+        pad = max(scene_rect.width(), scene_rect.height()) * 0.1
+        scene_rect = scene_rect.adjusted(-pad, -pad, pad, pad)
+
+        generator = QSvgGenerator()
+        generator.setFileName(path)
+        generator.setSize(scene_rect.size().toSize())
+        generator.setViewBox(scene_rect)
+        generator.setTitle("MF-Mathematics 几何作图")
+        generator.setDescription("由 MF-Mathematics 任意作图模式生成")
+
+        from PySide6.QtGui import QPainter
+        painter = QPainter(generator)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        # 绘制背景
+        from MF_UI.plot.arbitrary.geometry_canvas import BG_COLOR
+        painter.fillRect(scene_rect, BG_COLOR)
+        # 渲染场景（只渲染 items，不含坐标系前景）
+        self._canvas.scene().render(painter, target=scene_rect, source=scene_rect)
+        painter.end()
+
+    def _export_png(self, path: str) -> None:
+        """将当前视图渲染为 PNG 位图。"""
+        from PySide6.QtGui import QImage
+        from PySide6.QtCore import QSize
+
+        vp = self._canvas.viewport()
+        size = vp.size()
+
+        # 使用 viewport grab 捕获当前视图（含坐标系和图形）
+        pixmap = vp.grab()
+        pixmap.save(path, "PNG")
 
 
 # ── 辅助 ──────────────────────────────────────────────────
