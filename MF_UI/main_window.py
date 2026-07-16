@@ -64,32 +64,30 @@ PLOT_NAV_ITEMS = [
 # ═══════════════════════════════════════════════════════════════
 
 class EdgeResizeFilter(QObject):
-    """全局事件过滤器 — 拦截主窗口边缘鼠标事件实现流畅缩放。
+    """全局事件过滤器 — 拦截主窗口边缘鼠标事件，委托系统原生缩放。
 
-    在事件到达子控件之前检测鼠标是否处于窗口边缘 8px 范围内，
-    设置对应光标 + 处理拖拽缩放。使用 setUpdatesEnabled 防止闪烁。
+    检测鼠标是否处于窗口边缘 8px，设置对应光标；
+    鼠标按下时调用 QWindow.startSystemResize() 委托 Windows 原生缩放
+    （模态缩放循环，GPU 垂直同步，完美平滑）。
     """
 
     _BORDER = 8
 
-    # 边缘 → 光标映射
-    _CURSORS = {
-        "top": Qt.CursorShape.SizeVerCursor,
-        "bottom": Qt.CursorShape.SizeVerCursor,
-        "left": Qt.CursorShape.SizeHorCursor,
-        "right": Qt.CursorShape.SizeHorCursor,
-        "topleft": Qt.CursorShape.SizeFDiagCursor,
-        "bottomright": Qt.CursorShape.SizeFDiagCursor,
-        "topright": Qt.CursorShape.SizeBDiagCursor,
-        "bottomleft": Qt.CursorShape.SizeBDiagCursor,
+    # 边缘 → 光标 & Qt.Edge 映射
+    _EDGE_MAP: dict[str, tuple] = {
+        "top":         (Qt.CursorShape.SizeVerCursor,  Qt.Edge.TopEdge),
+        "bottom":      (Qt.CursorShape.SizeVerCursor,  Qt.Edge.BottomEdge),
+        "left":        (Qt.CursorShape.SizeHorCursor,  Qt.Edge.LeftEdge),
+        "right":       (Qt.CursorShape.SizeHorCursor,  Qt.Edge.RightEdge),
+        "topleft":     (Qt.CursorShape.SizeFDiagCursor, Qt.Edge.TopEdge | Qt.Edge.LeftEdge),
+        "bottomright": (Qt.CursorShape.SizeFDiagCursor, Qt.Edge.BottomEdge | Qt.Edge.RightEdge),
+        "topright":    (Qt.CursorShape.SizeBDiagCursor, Qt.Edge.TopEdge | Qt.Edge.RightEdge),
+        "bottomleft":  (Qt.CursorShape.SizeBDiagCursor, Qt.Edge.BottomEdge | Qt.Edge.LeftEdge),
     }
 
     def __init__(self, window: QMainWindow) -> None:
         super().__init__(parent=window)
         self._win = window
-        self._edge: str | None = None
-        self._start_pos: QPoint | None = None
-        self._start_geo: QRect | None = None
         QApplication.instance().installEventFilter(self)
 
     # ── 边缘检测 ──────────────────────────────────────────────
@@ -124,6 +122,7 @@ class EdgeResizeFilter(QObject):
     # ── 事件过滤 ──────────────────────────────────────────────
 
     def eventFilter(self, obj: QObject, event: QEvent) -> bool:
+        """拦截边缘鼠标事件：移动更新光标，按下启动原生缩放。"""
         # 只处理属于主窗口（或其子孙）的事件
         try:
             if (obj is not self._win and
@@ -135,60 +134,25 @@ class EdgeResizeFilter(QObject):
         t = event.type()
 
         # ── 鼠标移动：更新光标 ──
-        if t == QEvent.Type.MouseMove and self._edge is None:
+        if t == QEvent.Type.MouseMove:
             local = self._win.mapFromGlobal(event.globalPosition().toPoint())
             hit = self._hit_edge(local)
             if hit and not self._win.isMaximized():
-                self._win.setCursor(self._CURSORS[hit])
+                self._win.setCursor(self._EDGE_MAP[hit][0])
             else:
                 self._win.unsetCursor()
 
-        # ── 鼠标按下：开始缩放 ──
+        # ── 鼠标按下边缘 → 委托 Windows 原生缩放（模态循环，完美平滑）──
         elif (t == QEvent.Type.MouseButtonPress and
               event.button() == Qt.MouseButton.LeftButton and
               not self._win.isMaximized()):
             local = self._win.mapFromGlobal(event.globalPosition().toPoint())
             hit = self._hit_edge(local)
             if hit:
-                self._edge = hit
-                self._start_pos = event.globalPosition().toPoint()
-                self._start_geo = self._win.geometry()
-                self._win.setUpdatesEnabled(False)
-                return True  # 消费事件，不传给子控件
-
-        # ── 鼠标释放：结束缩放 ──
-        elif t == QEvent.Type.MouseButtonRelease and self._edge is not None:
-            self._edge = None
-            self._start_pos = None
-            self._start_geo = None
-            self._win.setUpdatesEnabled(True)
-            self._win.update()
-            self._win.unsetCursor()
-            return True
-
-        # ── 鼠标移动（缩放中）：调整窗口大小 ──
-        elif t == QEvent.Type.MouseMove and self._edge is not None:
-            delta = event.globalPosition().toPoint() - self._start_pos
-            geo = QRect(self._start_geo)
-            e = self._edge
-            mw = self._win.minimumWidth()
-            mh = self._win.minimumHeight()
-
-            if "left" in e:
-                new_l = min(geo.right() - mw, geo.left() + delta.x())
-                geo.setLeft(new_l)
-            if "right" in e:
-                new_r = max(geo.left() + mw, geo.right() + delta.x())
-                geo.setRight(new_r)
-            if "top" in e:
-                new_t = min(geo.bottom() - mh, geo.top() + delta.y())
-                geo.setTop(new_t)
-            if "bottom" in e:
-                new_b = max(geo.top() + mh, geo.bottom() + delta.y())
-                geo.setBottom(new_b)
-
-            self._win.setGeometry(geo)
-            return True
+                handle = self._win.windowHandle()
+                if handle is not None:
+                    handle.startSystemResize(self._EDGE_MAP[hit][1])
+                return True  # 消费事件
 
         return False
 
