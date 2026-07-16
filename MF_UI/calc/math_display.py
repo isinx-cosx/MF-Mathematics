@@ -364,6 +364,9 @@ class ResultDialog(QDialog):
         btn_row.addWidget(close_btn)
         root.addLayout(btn_row)
 
+        from MF_UI.components.mf_dialog import apply_dialog_title_bar
+        apply_dialog_title_bar(self, title)
+
         from MF_UI.components.dialog_style import apply_shadow
         apply_shadow(self)
 
