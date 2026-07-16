@@ -652,6 +652,47 @@ QSplitter::handle:hover {
     background-color: #94a3b8;
 }
 
+/* ---- 登录/注册/帮助 ---- */
+#loginDialog, #registerDialog, #helpBrowser {
+    background: #f8fafc;
+}
+#loginDialog QLineEdit, #registerDialog QLineEdit {
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    padding: 10px 14px;
+    font-size: 14px;
+    background: #ffffff;
+    color: #1e293b;
+}
+#loginDialog QLineEdit:focus, #registerDialog QLineEdit:focus {
+    border-color: #3b82f6;
+}
+#helpBrowser QTextBrowser {
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    background: #ffffff;
+    font-size: 14px;
+    padding: 20px;
+    color: #1e293b;
+}
+#helpBrowser QTreeWidget {
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    background: #ffffff;
+    font-size: 13px;
+    padding: 4px;
+    color: #1e293b;
+}
+#helpBrowser QTreeWidget::item {
+    padding: 6px 8px;
+    border-radius: 4px;
+}
+#helpBrowser QTreeWidget::item:hover { background: #f1f5f9; }
+#helpBrowser QTreeWidget::item:selected {
+    background: #eef2ff;
+    color: #1e293b;
+}
+
 /* ============================================
    对话框 (QDialog)
    ============================================ */

@@ -12,29 +12,7 @@ from PySide6.QtWidgets import (
 
 from MF_User.manager import UserManager
 
-# ── 样式 ──────────────────────────────────────────────────────
-
-_DIALOG_STYLE = """
-    QDialog { background: #f8fafc; }
-"""
-
-_INPUT_STYLE = """
-    QLineEdit {
-        border: 1px solid #d1d5db; border-radius: 6px;
-        padding: 10px 14px; font-size: 14px; background: #fff;
-    }
-    QLineEdit:focus { border-color: #3b82f6; }
-"""
-
-_BTN_PRIMARY = """
-    QPushButton {
-        background: #3b82f6; color: #fff; border: none;
-        border-radius: 6px; padding: 10px 24px;
-        font-size: 14px; font-weight: 500;
-    }
-    QPushButton:hover { background: #2563eb; }
-    QPushButton:disabled { background: #94a3b8; }
-"""
+# ── 样式（颜色由 QSS 主题控制）──────────────────────────────
 
 _BTN_SECONDARY = """
     QPushButton {
@@ -46,16 +24,8 @@ _BTN_SECONDARY = """
     QPushButton:hover { background: #e2e8f0; }
 """
 
-_BTN_LINK = """
-    QPushButton {
-        background: transparent; color: #3b82f6;
-        border: none; font-size: 12px;
-    }
-    QPushButton:hover { color: #2563eb; text-decoration: underline; }
-"""
-
-_TITLE_STYLE = "font-size: 18px; font-weight: 700; color: #0f172a; background: transparent;"
-_LABEL_STYLE = "font-size: 13px; color: #475569; background: transparent;"
+_TITLE_STYLE = "font-size: 18px; font-weight: 700; background: transparent;"
+_LABEL_STYLE = "font-size: 13px; background: transparent;"
 _ERROR_STYLE = "font-size: 12px; color: #ef4444; background: transparent;"
 
 
@@ -78,7 +48,7 @@ class LoginDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("登录 — MF-Mathematics")
         self.setFixedSize(400, 340)
-        self.setStyleSheet(_DIALOG_STYLE)
+        self.setObjectName("loginDialog")
 
         self._build_ui()
 
@@ -100,7 +70,6 @@ class LoginDialog(QDialog):
 
         self._username_input = QLineEdit()
         self._username_input.setPlaceholderText("输入用户名")
-        self._username_input.setStyleSheet(_INPUT_STYLE)
         root.addWidget(self._username_input)
 
         # 密码
@@ -111,7 +80,6 @@ class LoginDialog(QDialog):
         self._password_input = QLineEdit()
         self._password_input.setPlaceholderText("输入密码")
         self._password_input.setEchoMode(QLineEdit.EchoMode.Password)
-        self._password_input.setStyleSheet(_INPUT_STYLE)
         self._password_input.returnPressed.connect(self._on_login)
         root.addWidget(self._password_input)
 
@@ -127,7 +95,7 @@ class LoginDialog(QDialog):
 
         # 登录按钮
         login_btn = QPushButton("登  录")
-        login_btn.setStyleSheet(_BTN_PRIMARY)
+        login_btn.setObjectName("ai_send_btn")
         login_btn.clicked.connect(self._on_login)
         login_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         root.addWidget(login_btn)
@@ -137,7 +105,7 @@ class LoginDialog(QDialog):
         bottom.setSpacing(6)
         bottom.addStretch()
         link_btn = QPushButton("还没有账号？立即注册")
-        link_btn.setStyleSheet(_BTN_LINK)
+        link_btn.setObjectName("ai_clear_btn")
         link_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         link_btn.clicked.connect(self._on_register)
         bottom.addWidget(link_btn)

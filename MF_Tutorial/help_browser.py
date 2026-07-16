@@ -14,60 +14,10 @@ from PySide6.QtWidgets import (
 from MF_Tutorial.engine import TutorialEngine
 from MF_Tutorial.models import Tutorial, Difficulty, Category
 
-# ── 样式 ──────────────────────────────────────────────────────
+# ── 样式（颜色由 QSS 主题控制）──────────────────────────────
 
-_DIALOG_STYLE = "QDialog { background: #f8fafc; }"
-
-_TREE_STYLE = """
-    QTreeWidget {
-        border: 1px solid #e2e8f0;
-        border-radius: 8px;
-        background: #fff;
-        font-size: 13px;
-        padding: 4px;
-    }
-    QTreeWidget::item {
-        padding: 6px 8px;
-        border-radius: 4px;
-    }
-    QTreeWidget::item:hover {
-        background: #f1f5f9;
-    }
-    QTreeWidget::item:selected {
-        background: #eef2ff;
-        color: #1e293b;
-    }
-"""
-
-_BROWSER_STYLE = """
-    QTextBrowser {
-        border: 1px solid #e2e8f0;
-        border-radius: 8px;
-        background: #fff;
-        font-size: 14px;
-        padding: 20px;
-    }
-"""
-
-_BTN_STYLE = """
-    QPushButton {
-        background: #3b82f6; color: #fff; border: none;
-        border-radius: 6px; padding: 6px 14px;
-        font-size: 12px; font-weight: 500;
-    }
-    QPushButton:hover { background: #2563eb; }
-"""
-
-_BTN_OUTLINE = """
-    QPushButton {
-        background: #f1f5f9; color: #475569; border: 1px solid #d1d5db;
-        border-radius: 6px; padding: 6px 14px; font-size: 12px;
-    }
-    QPushButton:hover { background: #e2e8f0; }
-"""
-
-_HEADER_STYLE = "font-size: 18px; font-weight: 700; color: #0f172a; background: transparent;"
-_PROGRESS_STYLE = "font-size: 11px; color: #94a3b8; background: transparent;"
+_HEADER_STYLE = "font-size: 18px; font-weight: 700; background: transparent;"
+_PROGRESS_STYLE = "font-size: 11px; background: transparent;"
 
 # ── 分类映射 ──────────────────────────────────────────────────
 
@@ -104,7 +54,7 @@ class HelpBrowser(QDialog):
         self.setWindowTitle("帮助文档 — MF-Mathematics")
         self.resize(900, 600)
         self.setMinimumSize(700, 450)
-        self.setStyleSheet(_DIALOG_STYLE)
+        self.setObjectName("helpBrowser")
 
         self._engine = TutorialEngine()
         self._engine.load_all()
@@ -146,7 +96,6 @@ class HelpBrowser(QDialog):
         left_layout.setSpacing(6)
 
         self._tree = QTreeWidget()
-        self._tree.setStyleSheet(_TREE_STYLE)
         self._tree.setHeaderHidden(True)
         self._tree.setMinimumWidth(200)
         self._tree.setIndentation(16)
@@ -155,7 +104,7 @@ class HelpBrowser(QDialog):
 
         # 加载示例按钮
         self._load_example_btn = QPushButton("📥 加载示例到工作区")
-        self._load_example_btn.setStyleSheet(_BTN_STYLE)
+        self._load_example_btn.setObjectName("ai_send_btn")
         self._load_example_btn.clicked.connect(self._on_load_example)
         self._load_example_btn.setEnabled(False)
         left_layout.addWidget(self._load_example_btn)
@@ -164,7 +113,6 @@ class HelpBrowser(QDialog):
 
         # 右侧内容浏览器
         self._browser = QTextBrowser()
-        self._browser.setStyleSheet(_BROWSER_STYLE)
         self._browser.setOpenExternalLinks(True)
         self._browser.setFont(QFont("Microsoft YaHei", 10))
         splitter.addWidget(self._browser)
@@ -176,7 +124,7 @@ class HelpBrowser(QDialog):
         btn_row = QHBoxLayout()
         btn_row.addStretch()
         close_btn = QPushButton("关闭")
-        close_btn.setStyleSheet(_BTN_STYLE)
+        close_btn.setObjectName("ai_send_btn")
         close_btn.clicked.connect(self.accept)
         btn_row.addWidget(close_btn)
         root.addLayout(btn_row)
