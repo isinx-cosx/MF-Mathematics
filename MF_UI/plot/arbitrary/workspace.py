@@ -65,34 +65,6 @@ _SHAPE_ICONS: dict[ShapeType, str] = {
 #  样式
 # ═══════════════════════════════════════════════════════════════
 
-_PANEL_STYLE = "background:#f8fafc; border-right: 1px solid #e2e8f0;"
-_TOOL_ACTIVE = """
-    QPushButton {
-        background: #3b82f6; color: #fff; border: 1px solid #2563eb;
-        border-radius: 6px; padding: 6px 8px; font-size: 14px; font-weight: 600;
-    }
-"""
-_TOOL_INACTIVE = """
-    QPushButton {
-        background: #f1f5f9; color: #475569; border: 1px solid #d1d5db;
-        border-radius: 6px; padding: 6px 8px; font-size: 14px;
-    }
-    QPushButton:hover { background: #e2e8f0; }
-"""
-_BTN_PRIMARY = """
-    QPushButton {
-        background: #3b82f6; color: #fff; border: none;
-        border-radius: 4px; padding: 6px 16px; font-size: 12px; font-weight: 500;
-    }
-    QPushButton:hover { background: #2563eb; }
-"""
-_BTN_SECONDARY = """
-    QPushButton {
-        background: #f1f5f9; color: #475569; border: 1px solid #d1d5db;
-        border-radius: 4px; padding: 6px 16px; font-size: 12px;
-    }
-    QPushButton:hover { background: #e2e8f0; }
-"""
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -133,9 +105,7 @@ class ArbitraryWorkspace(QWidget):
 
         # ── 底部状态栏 ──
         self._status_label = QLabel("选择/移动 — 点击图形选中，拖拽移动")
-        self._status_label.setStyleSheet(
-            "font-size: 11px; color: #64748b; background: #f1f5f9;"
-            " padding: 4px 12px; border-top: 1px solid #e2e8f0;")
+        self._status_label.setObjectName("arbitrary_status")
         self._status_label.setFixedHeight(26)
         root.addWidget(self._status_label)
 
@@ -156,13 +126,13 @@ class ArbitraryWorkspace(QWidget):
     def _build_left_panel(self) -> QWidget:
         panel = QWidget()
         panel.setFixedWidth(240)
-        panel.setStyleSheet(_PANEL_STYLE)
+        panel.setObjectName("arbitrary_panel")
         ll = QVBoxLayout(panel)
         ll.setSpacing(6); ll.setContentsMargins(10, 10, 10, 10)
 
         # 标题
         title = QLabel("几何作图")
-        title.setStyleSheet("font-size: 16px; font-weight: 600; color: #0f172a; background: transparent;")
+        title.setObjectName("plot_title_label")
         ll.addWidget(title)
 
         # 分隔
@@ -184,7 +154,7 @@ class ArbitraryWorkspace(QWidget):
                 btn = QPushButton(f"{icon}")
                 btn.setToolTip(name)
                 btn.setCheckable(True)
-                btn.setStyleSheet(_TOOL_INACTIVE)
+                btn.setObjectName("arbitrary_tool_inactive")
                 btn.setFixedSize(62, 36)
                 btn.setCursor(Qt.CursorShape.PointingHandCursor)
                 btn.clicked.connect(lambda _, t=tool: self._on_tool_changed(t))
@@ -196,16 +166,14 @@ class ArbitraryWorkspace(QWidget):
 
         # 默认选中"选择"
         self._tool_btns[Tool.SELECT.value].setChecked(True)
-        self._tool_btns[Tool.SELECT.value].setStyleSheet(_TOOL_ACTIVE)
         self._active_tool_btn = self._tool_btns[Tool.SELECT.value]
+        self._update_tool_btn_styles(Tool.SELECT)
 
         ll.addWidget(_sep())
 
         # 网格吸附
         self._snap_check = QCheckBox("吸附到网格")
         self._snap_check.setChecked(True)
-        self._snap_check.setStyleSheet(
-            "QCheckBox { font-size: 12px; color: #334155; background: transparent; }")
         self._snap_check.toggled.connect(self._canvas.set_grid_snap)
         ll.addWidget(self._snap_check)
 
@@ -216,17 +184,13 @@ class ArbitraryWorkspace(QWidget):
         list_header.addWidget(QLabel("图形列表"))
         list_header.addStretch()
         self._shape_count_lbl = QLabel("(0)")
-        self._shape_count_lbl.setStyleSheet("font-size: 11px; color: #94a3b8; background: transparent;")
+        self._shape_count_lbl.setObjectName("ai_status")
         list_header.addWidget(self._shape_count_lbl)
         ll.addLayout(list_header)
 
         # 图形列表
         self._shape_list = QListWidget()
-        self._shape_list.setStyleSheet(
-            "QListWidget { border: 1px solid #e2e8f0; border-radius: 4px;"
-            " background: #fff; font-size: 11px; }"
-            "QListWidget::item { padding: 3px 6px; }"
-            "QListWidget::item:selected { background: #dbeafe; color: #1e40af; }")
+        self._shape_list.setObjectName("arbitrary_shape_list")
         self._shape_list.setMinimumHeight(150)
         self._shape_list.currentRowChanged.connect(self._on_list_select)
         self._shape_list.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
@@ -239,13 +203,13 @@ class ArbitraryWorkspace(QWidget):
         view_row = QHBoxLayout()
         view_row.setSpacing(4)
         btn_fit = QPushButton("适应所有")
-        btn_fit.setStyleSheet(_BTN_PRIMARY)
+        btn_fit.setObjectName("complex_apply_btn")
         btn_fit.setCursor(Qt.CursorShape.PointingHandCursor)
         btn_fit.clicked.connect(self._canvas.fit_all)
         view_row.addWidget(btn_fit)
 
         btn_reset = QPushButton("重置视图")
-        btn_reset.setStyleSheet(_BTN_SECONDARY)
+        btn_reset.setObjectName("ai_secondary_btn")
         btn_reset.setCursor(Qt.CursorShape.PointingHandCursor)
         btn_reset.clicked.connect(self._canvas.reset_view)
         view_row.addWidget(btn_reset)
@@ -254,19 +218,14 @@ class ArbitraryWorkspace(QWidget):
         # 导出
         ll.addWidget(_sep())
         export_header = QLabel("导出")
-        export_header.setStyleSheet("font-size: 12px; font-weight: 600; color: #475569; background: transparent;")
+        export_header.setStyleSheet("font-size: 12px; font-weight: 600; background: transparent;")
         ll.addWidget(export_header)
         export_row = QHBoxLayout()
         export_row.setSpacing(4)
         for fmt, color in [("SVG", "#6366f1"), ("PNG", "#10b981")]:
             btn = QPushButton(f"📥 {fmt}")
-            btn.setStyleSheet(f"""
-                QPushButton {{
-                    background: {color}; color: #fff; border: none;
-                    border-radius: 4px; padding: 6px 12px; font-size: 12px; font-weight: 500;
-                }}
-                QPushButton:hover {{ filter: brightness(0.9); }}
-            """)
+            btn.setObjectName("arbitrary_export_btn")
+            btn.setStyleSheet(f"background:{color};")
             btn.setCursor(Qt.CursorShape.PointingHandCursor)
             btn.clicked.connect(lambda _, f=fmt: self._export(f))
             export_row.addWidget(btn)
@@ -278,15 +237,18 @@ class ArbitraryWorkspace(QWidget):
 
     def _on_tool_changed(self, tool: Tool) -> None:
         """工具按钮切换。"""
-        # 恢复旧按钮样式
-        if hasattr(self, "_active_tool_btn") and self._active_tool_btn:
-            self._active_tool_btn.setStyleSheet(_TOOL_INACTIVE)
-        # 高亮新按钮
-        btn = self._tool_btns.get(tool.value)
-        if btn:
-            btn.setStyleSheet(_TOOL_ACTIVE)
-            self._active_tool_btn = btn
+        self._update_tool_btn_styles(tool)
         self._canvas.set_tool(tool)
+
+    def _update_tool_btn_styles(self, active: Tool) -> None:
+        """更新所有工具按钮 active 属性。"""
+        for t, btn in self._tool_btns.items():
+            is_active = (t == active.value)
+            btn.setObjectName("arbitrary_tool_active" if is_active else "arbitrary_tool_inactive")
+            btn.style().unpolish(btn)
+            btn.style().polish(btn)
+            if is_active:
+                self._active_tool_btn = btn
 
     # ── 图形列表同步 ──────────────────────────────────────────
 
@@ -343,11 +305,6 @@ class ArbitraryWorkspace(QWidget):
             return
         sid = item.data(Qt.ItemDataRole.UserRole)
         menu = QMenu(self)
-        menu.setStyleSheet(
-            "QMenu { background: #fff; border: 1px solid #e2e8f0; border-radius: 6px;"
-            " padding: 4px; }"
-            "QMenu::item { padding: 6px 24px; font-size: 12px; border-radius: 3px; }"
-            "QMenu::item:selected { background: #dbeafe; }")
 
         act_delete = menu.addAction("🗑 删除")
         act_color = menu.addAction("🎨 修改颜色")

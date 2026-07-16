@@ -81,6 +81,7 @@ class MainWindow(QMainWindow):
         self.last_calc_index = 0
         self.last_plot_index = 0
 
+        self._build_menu_bar()
         self._build_toolbar()
         self._build_central_area()
         self._build_status_bar()
@@ -106,6 +107,57 @@ class MainWindow(QMainWindow):
             frame = self.frameGeometry()
             frame.moveCenter(center)
             self.move(frame.topLeft())
+
+    # ---------- 菜单栏 ----------
+    def _build_menu_bar(self):
+        menu_bar = self.menuBar()
+
+        file_menu = menu_bar.addMenu("文件")
+        act_save = QAction("保存工作区", self)
+        act_save.triggered.connect(self._save_workspace)
+        file_menu.addAction(act_save)
+        act_load = QAction("加载工作区", self)
+        act_load.triggered.connect(self._load_workspace)
+        file_menu.addAction(act_load)
+        file_menu.addSeparator()
+        act_exit = QAction("退出", self)
+        act_exit.triggered.connect(self.close)
+        file_menu.addAction(act_exit)
+
+        edit_menu = menu_bar.addMenu("编辑")
+        act_undo = QAction("撤销\tCtrl+Z", self)
+        act_undo.triggered.connect(self._undo)
+        edit_menu.addAction(act_undo)
+        act_redo = QAction("重做\tCtrl+Y", self)
+        act_redo.triggered.connect(self._redo)
+        edit_menu.addAction(act_redo)
+        edit_menu.addSeparator()
+        act_clear = QAction("清空历史", self)
+        act_clear.triggered.connect(self._clear_history)
+        edit_menu.addAction(act_clear)
+
+        view_menu = menu_bar.addMenu("视图")
+        act_light = QAction("亮色主题", self)
+        act_light.triggered.connect(self._switch_to_light)
+        view_menu.addAction(act_light)
+        act_dark = QAction("暗色主题", self)
+        act_dark.triggered.connect(self._switch_to_dark)
+        view_menu.addAction(act_dark)
+
+        help_menu = menu_bar.addMenu("帮助")
+        act_help_browser = QAction("帮助文档\tF1", self)
+        act_help_browser.triggered.connect(self._open_help_browser)
+        help_menu.addAction(act_help_browser)
+        act_walkthrough = QAction("交互式引导", self)
+        act_walkthrough.triggered.connect(self._open_guided_walkthrough)
+        help_menu.addAction(act_walkthrough)
+        act_examples = QAction("示例任务库", self)
+        act_examples.triggered.connect(self._open_example_library)
+        help_menu.addAction(act_examples)
+        help_menu.addSeparator()
+        act_about = QAction("关于", self)
+        act_about.triggered.connect(lambda: self._status_msg("关于 MF-Mathematics"))
+        help_menu.addAction(act_about)
 
     # ---------- 工具栏 ----------
     def _build_toolbar(self):
@@ -150,14 +202,6 @@ class MainWindow(QMainWindow):
         toolbar.addSeparator()
         self._user_action = toolbar.addAction("登录")
         self._user_action.triggered.connect(self._on_user_clicked)
-
-        toolbar.addSeparator()
-        act_save = toolbar.addAction("保存")
-        act_save.triggered.connect(self._save_workspace)
-        act_load = toolbar.addAction("加载")
-        act_load.triggered.connect(self._load_workspace)
-        act_theme = toolbar.addAction("主题")
-        act_theme.triggered.connect(self._toggle_theme)
 
         toolbar.addSeparator()
         act_help = toolbar.addAction("帮助")

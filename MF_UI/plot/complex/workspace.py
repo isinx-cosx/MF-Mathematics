@@ -89,19 +89,13 @@ class ComplexWorkspace(QWidget):
         # 函数输入
         ll.addWidget(QLabel("f(z) ="))
         self._input = QLineEdit()
+        self._input.setObjectName("complex_input")
         self._input.setPlaceholderText("e^z, sin(z), zeta(z), gamma(z)...")
-        self._input.setStyleSheet(
-            "QLineEdit{border:1px solid #d1d5db;border-radius:4px;"
-            "padding:6px 10px;font-size:14px;background:#fff;}"
-            "QLineEdit:focus{border-color:#3b82f6;}")
         self._input.returnPressed.connect(self._apply)
         ll.addWidget(self._input)
 
         btn_apply = QPushButton("应用")
-        btn_apply.setStyleSheet(
-            "QPushButton{background:#3b82f6;color:#fff;border:none;"
-            "border-radius:4px;padding:6px 16px;font-size:13px;font-weight:500;}"
-            "QPushButton:hover{background:#2563eb;}")
+        btn_apply.setObjectName("complex_apply_btn")
         btn_apply.clicked.connect(self._apply)
         ll.addWidget(btn_apply)
 
@@ -116,7 +110,8 @@ class ComplexWorkspace(QWidget):
         self._btn_hsv = QPushButton("HSV 域着色")
         for b, i in [(self._btn_phase,0),(self._btn_3d,1),(self._btn_vec,2),(self._btn_hsv,3)]:
             b.setCheckable(True); b.setChecked(i==0)
-            b.setStyleSheet(self._mode_btn_style(i==0))
+            b.setObjectName("complex_mode_btn")
+            b.setProperty("active", i==0)
             b.clicked.connect(lambda _, idx=i: self._set_mode(idx))
             ll.addWidget(b)
 
@@ -144,10 +139,7 @@ class ComplexWorkspace(QWidget):
 
         # 重绘
         self._btn_redraw = QPushButton("重绘")
-        self._btn_redraw.setStyleSheet(
-            "QPushButton{background:#10b981;color:#fff;border:none;"
-            "border-radius:4px;padding:8px 20px;font-size:14px;font-weight:500;}"
-            "QPushButton:hover{background:#059669;}")
+        self._btn_redraw.setObjectName("complex_redraw_btn")
         self._btn_redraw.clicked.connect(self._redraw)
         ll.addWidget(self._btn_redraw)
 
@@ -164,23 +156,17 @@ class ComplexWorkspace(QWidget):
 
         self._waiting_label = QLabel("等待输入函数")
         self._waiting_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._waiting_label.setStyleSheet("font-size:18px;color:#94a3b8;background:transparent;")
+        self._waiting_label.setObjectName("complex_waiting")
         rl.addWidget(self._waiting_label)
         self._canvas.hide()
         root.addWidget(right, 1)
 
-    def _mode_btn_style(self, active: bool) -> str:
-        if active:
-            return ("QPushButton{background:#3b82f6;color:#fff;border:none;"
-                    "border-radius:4px;padding:6px 12px;font-size:12px;font-weight:500;"
-                    "text-align:left;}")
-        return ("QPushButton{background:#f1f5f9;color:#475569;border:1px solid #d1d5db;"
-                "border-radius:4px;padding:6px 12px;font-size:12px;text-align:left;}")
-
     def _set_mode(self, idx: int) -> None:
         self._mode = idx
-        for b, i in [(self._btn_phase,0),(self._btn_3d,1),(self._btn_vec,2)]:
-            b.setStyleSheet(self._mode_btn_style(i==idx))
+        for b, i in [(self._btn_phase,0),(self._btn_3d,1),(self._btn_vec,2),(self._btn_hsv,3)]:
+            b.setProperty("active", i == idx)
+            b.style().unpolish(b)
+            b.style().polish(b)
 
     def _apply(self) -> None:
         raw = self._input.text().strip()
@@ -324,5 +310,5 @@ class ComplexWorkspace(QWidget):
 
 def _sep() -> QFrame:
     s = QFrame(); s.setFixedHeight(1)
-    s.setStyleSheet("background:#e2e8f0;border:none;")
+    s.setObjectName("plot_sep")
     return s

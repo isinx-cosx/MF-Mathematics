@@ -524,6 +524,130 @@ SliderFunctionBox {
 }
 #vf_redraw_btn:hover { background: #059669; }
 
+/* ---- 复数模式 ---- */
+#complex_input {
+    border: 1px solid #45475a;
+    border-radius: 4px;
+    padding: 6px 10px;
+    font-size: 14px;
+    background: #181825;
+    color: #cdd6f4;
+}
+#complex_input:focus { border-color: #3b82f6; }
+#complex_apply_btn {
+    background: #3b82f6;
+    color: #ffffff;
+    border: none;
+    border-radius: 4px;
+    padding: 6px 16px;
+    font-size: 13px;
+    font-weight: 500;
+}
+#complex_apply_btn:hover { background: #2563eb; }
+#complex_redraw_btn {
+    background: #10b981;
+    color: #ffffff;
+    border: none;
+    border-radius: 4px;
+    padding: 8px 20px;
+    font-size: 14px;
+    font-weight: 500;
+}
+#complex_redraw_btn:hover { background: #059669; }
+QPushButton#complex_mode_btn[active="true"] {
+    background: #3b82f6;
+    color: #ffffff;
+    border: none;
+    border-radius: 4px;
+    padding: 6px 12px;
+    font-size: 12px;
+    font-weight: 500;
+    text-align: left;
+}
+QPushButton#complex_mode_btn[active="false"] {
+    background: #313244;
+    color: #a6adc8;
+    border: 1px solid #45475a;
+    border-radius: 4px;
+    padding: 6px 12px;
+    font-size: 12px;
+    text-align: left;
+}
+#complex_waiting {
+    font-size: 18px;
+    color: #6c7086;
+    background: transparent;
+}
+#plot_sep { background: #45475a; border: none; }
+
+/* ---- 任意做图 ---- */
+#arbitrary_panel {
+    background: #1e1e2e;
+    border-right: 1px solid #313244;
+}
+#arbitrary_status {
+    font-size: 11px;
+    color: #a6adc8;
+    background: #252540;
+    border-top: 1px solid #313244;
+}
+#arbitrary_shape_list {
+    border: 1px solid #45475a;
+    border-radius: 4px;
+    background: #181825;
+    font-size: 11px;
+    color: #cdd6f4;
+}
+#arbitrary_shape_list::item { padding: 3px 6px; }
+#arbitrary_shape_list::item:selected { background: #1e3a5f; color: #93c5fd; }
+QPushButton#arbitrary_tool_active {
+    background: #3b82f6;
+    color: #ffffff;
+    border: 1px solid #2563eb;
+    border-radius: 6px;
+    padding: 6px 8px;
+    font-size: 14px;
+    font-weight: 600;
+}
+QPushButton#arbitrary_tool_inactive {
+    background: #313244;
+    color: #a6adc8;
+    border: 1px solid #45475a;
+    border-radius: 6px;
+    padding: 6px 8px;
+    font-size: 14px;
+}
+QPushButton#arbitrary_tool_inactive:hover { background: #45475a; }
+#arbitrary_export_btn {
+    color: #ffffff;
+    border: none;
+    border-radius: 4px;
+    padding: 6px 12px;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+/* ---- 积分限对话框 ---- */
+#integralBoundsDialog {
+    background: #1e1e2e;
+}
+#integralBoundsDialog QLineEdit {
+    border: 1px solid #45475a;
+    border-radius: 4px;
+    padding: 6px 10px;
+    font-size: 14px;
+    background: #181825;
+    color: #cdd6f4;
+}
+#integralBoundsDialog QDoubleSpinBox {
+    border: 1px solid #45475a;
+    border-radius: 4px;
+    padding: 6px 10px;
+    font-size: 14px;
+    background: #181825;
+    color: #cdd6f4;
+}
+
 /* ---- 分割器 ---- */
 QSplitter::handle {
     background-color: #313244;

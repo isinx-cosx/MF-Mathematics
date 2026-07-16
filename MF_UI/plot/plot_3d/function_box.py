@@ -91,7 +91,7 @@ class FunctionBox(QWidget):
         root.addLayout(r1)
 
         self._hint = QLabel("")
-        self._hint.setStyleSheet("font-size:11px; color:#64748b;")
+        self._hint.setObjectName("plot_desc_label")
         root.addWidget(self._hint)
 
         self._err = QLabel("")

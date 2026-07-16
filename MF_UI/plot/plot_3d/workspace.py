@@ -97,7 +97,7 @@ class Plot3DWorkspace(QWidget):
         idx = self._list_layout.indexOf(self._btn_add)
         if self._boxes:
             sep = QFrame(); sep.setFixedHeight(1)
-            sep.setStyleSheet("background:#e2e8f0;border:none;")
+            sep.setObjectName("plot_sep")
             self._list_layout.insertWidget(idx, sep)
             self._separators.append(sep); idx += 1
 

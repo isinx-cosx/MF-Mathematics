@@ -51,7 +51,7 @@ def _show_integral_bounds_dialog(
     dlg = QDialog(parent)
     dlg.setWindowTitle("定积分 — 设定上下限")
     dlg.setMinimumWidth(380)
-    dlg.setStyleSheet("QDialog{background:#f8fafc;}")
+    dlg.setObjectName("integralBoundsDialog")
 
     layout = QVBoxLayout(dlg); layout.setSpacing(12)
     layout.setContentsMargins(20, 16, 20, 16)
@@ -60,9 +60,6 @@ def _show_integral_bounds_dialog(
     fl = QHBoxLayout()
     fl.addWidget(QLabel("函数 f ="))
     func_input = QLineEdit(func)
-    func_input.setStyleSheet(
-        "QLineEdit{border:1px solid #d1d5db;border-radius:4px;padding:6px 10px;"
-        "font-size:14px;background:#fff;}")
     fl.addWidget(func_input, 1)
     layout.addLayout(fl)
 
@@ -71,9 +68,6 @@ def _show_integral_bounds_dialog(
     vl.addWidget(QLabel("变量"))
     var_input = QLineEdit(var)
     var_input.setMaximumWidth(60)
-    var_input.setStyleSheet(
-        "QLineEdit{border:1px solid #d1d5db;border-radius:4px;padding:6px 8px;"
-        "font-size:14px;background:#fff;}")
     vl.addWidget(var_input)
     vl.addStretch()
     layout.addLayout(vl)
@@ -83,16 +77,10 @@ def _show_integral_bounds_dialog(
     bl.addWidget(QLabel("下限"))
     spin_a = QDoubleSpinBox()
     spin_a.setRange(-1e6, 1e6); spin_a.setValue(pre_a); spin_a.setDecimals(6)
-    spin_a.setStyleSheet(
-        "QDoubleSpinBox{border:1px solid #d1d5db;border-radius:4px;"
-        "padding:6px 10px;font-size:14px;background:#fff;}")
     bl.addWidget(spin_a, 1)
     bl.addWidget(QLabel("上限"))
     spin_b = QDoubleSpinBox()
     spin_b.setRange(-1e6, 1e6); spin_b.setValue(pre_b); spin_b.setDecimals(6)
-    spin_b.setStyleSheet(
-        "QDoubleSpinBox{border:1px solid #d1d5db;border-radius:4px;"
-        "padding:6px 10px;font-size:14px;background:#fff;}")
     bl.addWidget(spin_b, 1)
     layout.addLayout(bl)
 
