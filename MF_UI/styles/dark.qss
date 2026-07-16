@@ -42,6 +42,10 @@ QMainWindow {
 #framelessContainer {
     background: #1e1e2e;
 }
+#dialogInner {
+    background: #1e1e2e;
+    border-radius: 10px;
+}
 QWidget {
     background-color: #1e1e2e;
     color: #cdd6f4;
