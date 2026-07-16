@@ -3,7 +3,7 @@ import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from PySide6.QtCore import Qt, QEvent, QPoint, QRect, QRectF, QSize
-from PySide6.QtGui import QAction, QBitmap, QKeySequence, QPainter, QShortcut
+from PySide6.QtGui import QAction, QBitmap, QKeySequence, QPainter, QShortcut, QPainterPath, QRegion
 from PySide6.QtWidgets import (
     QMainWindow, QToolBar, QStatusBar,
     QStackedWidget, QWidget, QVBoxLayout, QHBoxLayout,
@@ -157,8 +157,6 @@ class EdgeResizeFilter(QObject):
                     handle.startSystemResize(self._EDGE_MAP[hit][1])
                     # 缩放结束：恢复圆角蒙版
                     self._win.setProperty("_sys_resizing", False)
-                    if hasattr(self._win, "_apply_rounded_mask"):
-                        self._win._apply_rounded_mask()
                 return True  # 消费事件
 
         return False
@@ -167,6 +165,7 @@ class EdgeResizeFilter(QObject):
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__(flags=Qt.WindowType.FramelessWindowHint)
+        self.setAttribute(Qt.WA_TranslucentBackground, True)
         self.setWindowTitle("Multifunctional-Mathematics")
         self.resize(1200, 800)
         self.setMinimumSize(900, 600)
@@ -227,29 +226,6 @@ class MainWindow(QMainWindow):
         # 首次启动：显示欢迎对话框
         QApplication.instance().processEvents()
         self._check_first_launch()
-
-    # ---------- 窗口圆角蒙版 ----------
-    def _apply_rounded_mask(self):
-        """用 QBitmap 蒙版将窗口裁剪为 8px 圆角矩形。
-        最大化时清除蒙版（全屏直角）；原生缩放中跳过（防性能风暴）。
-        """
-        if self.isMaximized():
-            self.clearMask()
-            return
-        if self.property("_sys_resizing"):
-            return
-        sz = self.size()
-        if sz.width() <= 0 or sz.height() <= 0:
-            return
-        mask = QBitmap(sz)
-        mask.fill(Qt.GlobalColor.color0)
-        p = QPainter(mask)
-        p.setRenderHint(QPainter.RenderHint.Antialiasing)
-        p.setBrush(Qt.GlobalColor.color1)
-        p.setPen(Qt.PenStyle.NoPen)
-        p.drawRoundedRect(QRectF(0, 0, sz.width(), sz.height()), 8, 8)
-        p.end()
-        self.setMask(mask)
 
     # ---------- 窗口居中 ----------
     def _center_on_screen(self):
@@ -427,7 +403,7 @@ class MainWindow(QMainWindow):
         self._stacked_widget.addWidget(LinearAlgebraWorkspace())
         self._stacked_widget.addWidget(ProbabilityWorkspace())
         self._stacked_widget.addWidget(NumericalWorkspace())
-        # ── 绘图模式 (index 4-8) ──
+    # ── 绘图模式 (index 4-8) ──
         self._stacked_widget.addWidget(PlotWorkspace("普通模式 — 2D 函数绘图"))
         self._stacked_widget.addWidget(PlotWorkspace("3D 模式 — 三维曲面绘图"))
         self._stacked_widget.addWidget(PlotWorkspace("复数模式 — 复平面域着色绘图"))
@@ -437,7 +413,7 @@ class MainWindow(QMainWindow):
         # 内置键盘面板
         self._build_keyboard_panel()
 
-        # 切换按钮 — 左下角
+    # 切换按钮 — 左下角
         self._kb_toggle_btn = QPushButton("⌨️ 键盘")
         self._kb_toggle_btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self._kb_toggle_btn.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -448,19 +424,22 @@ class MainWindow(QMainWindow):
         btn_row.addWidget(self._kb_toggle_btn)
         btn_row.addStretch()
 
-        # 容器：stacked_widget (stretch=1) + btn_row + keyboard_panel + 状态栏
+    # ── 容器：一个 container，一个 layout ──
         container = QWidget()
+        container.setObjectName("framelessContainer")
+        container.setAttribute(Qt.WA_TranslucentBackground, True)
+        container.setAttribute(Qt.WA_StyledBackground, True)
         layout = QVBoxLayout(container)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
-        layout.addWidget(self._stacked_widget, 1)
-        layout.addLayout(btn_row)
-        layout.addWidget(self.keyboard_panel, 0)
-        # ── 状态栏：加入布局底部，固定 30px，样式由 light.qss / dark.qss 控制 ──
+        layout.addWidget(self._stacked_widget, 1)      # 中央区域
+        layout.addLayout(btn_row)                      # 键盘切换按钮
+        layout.addWidget(self.keyboard_panel, 0)       # 键盘面板
+
+    # ── 状态栏 ──
         self._status_bar = QStatusBar(container)
         self._status_bar.setFixedHeight(30)
         self._status_bar.showMessage("就绪")
-        # 用户状态标签
         self._user_status_label = QLabel("未登录")
         self._user_status_label.setObjectName("user_status_label")
         self._status_bar.addPermanentWidget(self._user_status_label)
@@ -471,7 +450,8 @@ class MainWindow(QMainWindow):
 
         from PySide6.QtWidgets import QSizeGrip
         self._status_bar.addPermanentWidget(QSizeGrip(self))
-        layout.addWidget(self._status_bar, 0)
+        layout.addWidget(self._status_bar, 0) 
+
         self.setCentralWidget(container)
 
     # ================================================================

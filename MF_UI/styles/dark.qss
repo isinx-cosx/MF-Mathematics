@@ -4,15 +4,18 @@
 
 /* ---- 全局 ---- */
 QMainWindow {
-    background-color: #1e1e2e;
-    border-radius: 8px;
+    background-color: transparent;
 }
 #mfShadowHost {
     background: transparent;
 }
 #framelessContainer {
     background: #1e1e2e;
-    border-radius: 8px;
+    border-radius: 12px;
+}
+#framelessContainer QStackedWidget,
+#framelessContainer QWidget {
+    background: transparent;
 }
 /* ---- 自定义标题栏 ---- */
 #customTitleBar {
@@ -116,6 +119,9 @@ QStatusBar {
     background-color: #252540;
     color: #a6adc8;
     border-top: 1px solid #313244;
+    border-bottom-left-radius: 12px;
+    border-bottom-right-radius: 12px;
+    border: 1px solid transparent; 
     padding: 2px 12px;
     font-size: 12px;
 }
