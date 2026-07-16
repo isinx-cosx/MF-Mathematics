@@ -9,12 +9,149 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, Signal, QPoint, QSize
-from PySide6.QtGui import QAction, QFont, QIcon
+from PySide6.QtCore import Qt, Signal, QPoint, QRect, QSize
+from PySide6.QtGui import (
+    QAction, QColor, QFont, QIcon, QPainter, QPen,
+)
 from PySide6.QtWidgets import (
     QFrame, QHBoxLayout, QLabel, QPushButton, QSizePolicy, QWidget,
 )
 
+
+# ═══════════════════════════════════════════════════════════════════
+#  WindowControlButton — 矢量图标标题栏按钮
+# ═══════════════════════════════════════════════════════════════════
+
+class WindowControlButton(QPushButton):
+    """Windows 11 风格标题栏控制按钮 — QPainter 矢量图标。
+
+    支持:
+      - "minimize" — 水平横线
+      - "maximize" — 方框 / 双框叠加（还原）
+      - "close"     — X 叉号
+    自动适配亮色/暗色主题。
+    """
+
+    def __init__(self, kind: str, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self._kind = kind  # "minimize" | "maximize" | "close"
+        self._hovered = False
+        self._pressed = False
+        self._maximized = False  # 仅 maximize 类型使用
+
+        self.setFixedSize(46, 32)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.setStyleSheet("background: transparent; border: none;")
+
+    # ── 公开 API ──────────────────────────────────────────────
+
+    def set_maximized_state(self, maximized: bool) -> None:
+        """切换最大化/还原图标。"""
+        if self._kind == "maximize" and self._maximized != maximized:
+            self._maximized = maximized
+            self.update()
+
+    # ── 事件 ──────────────────────────────────────────────────
+
+    def enterEvent(self, event) -> None:
+        self._hovered = True
+        self.update()
+
+    def leaveEvent(self, event) -> None:
+        self._hovered = False
+        self.update()
+
+    def mousePressEvent(self, event) -> None:
+        if event.button() == Qt.MouseButton.LeftButton:
+            self._pressed = True
+            self.update()
+        super().mousePressEvent(event)
+
+    def mouseReleaseEvent(self, event) -> None:
+        self._pressed = False
+        self.update()
+        super().mouseReleaseEvent(event)
+
+    def paintEvent(self, event) -> None:
+        """矢量绘制按钮图标。"""
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+
+        r = self.rect()
+        is_dark = self._detect_dark_theme()
+        is_close = self._kind == "close"
+
+        # ── 背景 ──
+        if self._hovered:
+            if is_close:
+                p.fillRect(r, QColor("#e81123"))
+            else:
+                p.fillRect(r, QColor(255, 255, 255, 20) if is_dark
+                           else QColor(0, 0, 0, 12))
+        elif self._pressed:
+            if is_close:
+                p.fillRect(r, QColor("#bf0f1d"))
+            else:
+                p.fillRect(r, QColor(255, 255, 255, 30) if is_dark
+                           else QColor(0, 0, 0, 20))
+
+        # ── 图标颜色 ──
+        if is_close and (self._hovered or self._pressed):
+            icon_color = QColor("#ffffff")
+        elif self._hovered:
+            icon_color = QColor("#cdd6f4") if is_dark else QColor("#334155")
+        else:
+            icon_color = QColor("#a6adc8") if is_dark else QColor("#64748b")
+
+        pen = QPen(icon_color, 1.2)
+        pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+        pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+        p.setPen(pen)
+
+        # ── 图标路径（居中 10×10 区域）─
+        icon_sz = 10
+        cx, cy = r.center().x(), r.center().y()
+        x, y = cx - icon_sz // 2, cy - icon_sz // 2
+
+        if self._kind == "minimize":
+            p.drawLine(QPoint(x + 1, cy), QPoint(x + icon_sz - 1, cy))
+
+        elif self._kind == "maximize":
+            if self._maximized:
+                # 还原图标：两个重叠方框
+                offset = 2
+                # 后方框（右下）
+                p.drawRect(QRect(x + offset, y, icon_sz, icon_sz))
+                # 前方框填充背景（覆盖后方框交叠区域）
+                bg = QColor("#181825") if is_dark else QColor("#f8fafc")
+                if self._hovered:
+                    bg = QColor(255, 255, 255, 20) if is_dark else QColor(0, 0, 0, 12)
+                p.fillRect(QRect(x, y + offset, icon_sz, icon_sz), bg)
+                p.drawRect(QRect(x, y + offset, icon_sz, icon_sz))
+            else:
+                # 最大化图标：单个方框
+                p.drawRect(QRect(x, y, icon_sz, icon_sz))
+
+        elif self._kind == "close":
+            p.drawLine(QPoint(x + 1, y + 1),
+                       QPoint(x + icon_sz - 1, y + icon_sz - 1))
+            p.drawLine(QPoint(x + icon_sz - 1, y + 1),
+                       QPoint(x + 1, y + icon_sz - 1))
+
+        p.end()
+
+    def _detect_dark_theme(self) -> bool:
+        """检测主窗口当前主题。"""
+        w = self.window()
+        if w and hasattr(w, '_current_theme'):
+            return w._current_theme == "dark"
+        return True  # 默认暗色
+
+
+# ═══════════════════════════════════════════════════════════════════
+#  CustomTitleBar
+# ═══════════════════════════════════════════════════════════════════
 
 class CustomTitleBar(QWidget):
     """MF-Mathematics 风格自定义标题栏。
@@ -22,7 +159,7 @@ class CustomTitleBar(QWidget):
     信号:
         minimize_requested — 最小化
         maximize_requested — 最大化/还原
-        close_requested — 关闭
+        close_requested     — 关闭
     """
 
     minimize_requested = Signal()
@@ -36,7 +173,6 @@ class CustomTitleBar(QWidget):
         super().__init__(parent)
         self._title = title
         self._drag_pos: QPoint | None = None
-        self._is_maximized = False
 
         self.setObjectName("customTitleBar")
         self.setFixedHeight(36)
@@ -46,7 +182,7 @@ class CustomTitleBar(QWidget):
 
     def _build_ui(self, show_min: bool, show_max: bool) -> None:
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(12, 0, 4, 0)
+        layout.setContentsMargins(12, 0, 0, 0)
         layout.setSpacing(0)
 
         # ── 左侧：标题 ──
@@ -56,28 +192,27 @@ class CustomTitleBar(QWidget):
 
         layout.addStretch()
 
-        # ── 右侧：窗口控制按钮 ──
-        btn_size = QSize(36, 28)
-
+        # ── 右侧：窗口控制按钮（矢量图标）──
         if show_min:
-            btn_min = QPushButton("─")
-            btn_min.setObjectName("titlebar_btn_min")
-            btn_min.setFixedSize(btn_size)
-            btn_min.clicked.connect(self.minimize_requested.emit)
-            layout.addWidget(btn_min)
+            self._btn_min = WindowControlButton("minimize", self)
+            self._btn_min.setObjectName("titlebar_btn_min")
+            self._btn_min.clicked.connect(self.minimize_requested.emit)
+            layout.addWidget(self._btn_min)
+        else:
+            self._btn_min = None
 
         if show_max:
-            self._btn_max = QPushButton("□")
+            self._btn_max = WindowControlButton("maximize", self)
             self._btn_max.setObjectName("titlebar_btn_max")
-            self._btn_max.setFixedSize(btn_size)
             self._btn_max.clicked.connect(self.maximize_requested.emit)
             layout.addWidget(self._btn_max)
+        else:
+            self._btn_max = None
 
-        btn_close = QPushButton("✕")
-        btn_close.setObjectName("titlebar_btn_close")
-        btn_close.setFixedSize(btn_size)
-        btn_close.clicked.connect(self.close_requested.emit)
-        layout.addWidget(btn_close)
+        self._btn_close = WindowControlButton("close", self)
+        self._btn_close.setObjectName("titlebar_btn_close")
+        self._btn_close.clicked.connect(self.close_requested.emit)
+        layout.addWidget(self._btn_close)
 
     # ── 公开 API ──────────────────────────────────────────────
 
@@ -88,9 +223,10 @@ class CustomTitleBar(QWidget):
 
     def set_maximized(self, maximized: bool) -> None:
         """切换最大化/还原图标。"""
-        self._is_maximized = maximized
-        if hasattr(self, '_btn_max'):
-            self._btn_max.setText("❐" if maximized else "□")
+        if self._btn_max is not None:
+            self._btn_max.set_maximized_state(maximized)
+
+    # ── 窗口拖拽 ──────────────────────────────────────────────
 
     def mousePressEvent(self, event) -> None:
         """记录拖拽起点。"""
@@ -118,6 +254,10 @@ class CustomTitleBar(QWidget):
             self.maximize_requested.emit()
         super().mouseDoubleClickEvent(event)
 
+
+# ═══════════════════════════════════════════════════════════════════
+#  ResizeEdge — 底部流畅缩放拖拽边
+# ═══════════════════════════════════════════════════════════════════
 
 class ResizeEdge(QFrame):
     """窗口底部透明拖拽边 — 流畅调整窗口高度。
@@ -159,6 +299,10 @@ class ResizeEdge(QFrame):
             self.window().update()
         super().mouseReleaseEvent(event)
 
+
+# ═══════════════════════════════════════════════════════════════════
+#  apply_frameless — 主窗口无边框包装
+# ═══════════════════════════════════════════════════════════════════
 
 def apply_frameless(window, title: str = "Multifunctional-Mathematics") -> CustomTitleBar:
     """将 QMainWindow 转换为无边框 + 自定义标题栏。
@@ -225,9 +369,10 @@ def apply_frameless(window, title: str = "Multifunctional-Mathematics") -> Custo
     if "border-radius" not in s:
         window.setStyleSheet(s + "QMainWindow { border-radius: 8px; }")
 
-    # 保存动画前状态
-    _anim_geo = [None]
-    _animating = [False]
+    # ── 动画状态与持久引用（防止 GC 回收）──
+    _anim_geo = [None]       # 保存的最大化前几何
+    _animating = [False]     # 动画进行中标志
+    _anim_ref = [None]       # ★ 持久持有动画对象，防止 QPropertyAnimation GC
 
     def _animate_max_restore():
         """最大化/还原动画 — 先 QPropertyAnimation 过渡几何，再同步窗口状态。"""
@@ -254,6 +399,7 @@ def apply_frameless(window, title: str = "Multifunctional-Mathematics") -> Custo
                 _animating[0] = False
 
             anim.finished.connect(_on_restore_finished)
+            _anim_ref[0] = anim  # ★ 持久引用
             anim.start()
         else:
             # ── 最大化：动画从当前几何 → 屏幕可用几何 ──
@@ -270,9 +416,13 @@ def apply_frameless(window, title: str = "Multifunctional-Mathematics") -> Custo
                 _animating[0] = False
 
             anim.finished.connect(_on_max_finished)
+            _anim_ref[0] = anim  # ★ 持久引用
             anim.start()
 
     def _animate_minimize():
+        """最小化动画 — 淡出 150ms。"""
+        if _animating[0]:
+            return
         from PySide6.QtCore import QPropertyAnimation, QEasingCurve
         _animating[0] = True
         anim = QPropertyAnimation(window, b"windowOpacity")
@@ -280,9 +430,14 @@ def apply_frameless(window, title: str = "Multifunctional-Mathematics") -> Custo
         anim.setStartValue(1.0)
         anim.setEndValue(0.0)
         anim.setEasingCurve(QEasingCurve.Type.InCubic)
-        anim.finished.connect(window.showMinimized)
-        anim.finished.connect(lambda: window.setWindowOpacity(1.0))
-        anim.finished.connect(lambda: _animating.__setitem__(0, False))
+
+        def _on_min_finished():
+            window.showMinimized()
+            window.setWindowOpacity(1.0)
+            _animating[0] = False
+
+        anim.finished.connect(_on_min_finished)
+        _anim_ref[0] = anim  # ★ 持久引用
         anim.start()
 
     title_bar.minimize_requested.connect(_animate_minimize)
@@ -291,11 +446,13 @@ def apply_frameless(window, title: str = "Multifunctional-Mathematics") -> Custo
 
     # 监听最大化变化以更新按钮图标（通过猴子补丁 changeEvent）
     _orig_change = window.changeEvent
+
     def _patched_change(self, event):
         from PySide6.QtCore import QEvent
         _orig_change(event)
         if event.type() == QEvent.Type.WindowStateChange:
             title_bar.set_maximized(window.isMaximized())
+
     import types
     window.changeEvent = types.MethodType(_patched_change, window)
 

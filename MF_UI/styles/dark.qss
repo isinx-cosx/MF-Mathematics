@@ -45,18 +45,6 @@ QStatusBar {
 #titlebar_btn_min, #titlebar_btn_max, #titlebar_btn_close {
     background: transparent;
     border: none;
-    border-radius: 4px;
-    color: #6c7086;
-    font-size: 13px;
-    font-weight: 600;
-}
-#titlebar_btn_min:hover, #titlebar_btn_max:hover {
-    background: #313244;
-    color: #cdd6f4;
-}
-#titlebar_btn_close:hover {
-    background: #ef4444;
-    color: #ffffff;
 }
 #framelessContainer {
     background: #1e1e2e;
