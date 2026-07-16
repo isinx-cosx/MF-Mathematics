@@ -7,6 +7,9 @@ QMainWindow {
     background-color: #1e1e2e;
     border-radius: 8px;
 }
+#mfShadowHost {
+    background: transparent;
+}
 #framelessContainer {
     background: #1e1e2e;
     border-radius: 8px;

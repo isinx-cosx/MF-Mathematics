@@ -94,6 +94,20 @@ class MainWindow(QMainWindow):
         # 自定义标题栏（替换原生标题栏）
         from components.custom_title_bar import apply_frameless
         self._title_bar = apply_frameless(self, "Multifunctional-Mathematics")
+
+        # 窗口阴影 — 柔光边缘效果
+        from PySide6.QtWidgets import QGraphicsDropShadowEffect
+        from PySide6.QtGui import QColor
+        _outer = self.centralWidget()
+        if _outer is not None:
+            _container = _outer.property("framelessContainer")
+            if _container is not None:
+                _shadow = QGraphicsDropShadowEffect(_container)
+                _shadow.setBlurRadius(15)
+                _shadow.setOffset(0, 0)
+                _shadow.setColor(QColor(0, 0, 0, 40))
+                _container.setGraphicsEffect(_shadow)
+
         # 重新居中（frameless 切换可能改变窗口位置）
         self._center_on_screen()
 

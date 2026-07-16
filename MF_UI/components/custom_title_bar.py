@@ -12,7 +12,7 @@ from __future__ import annotations
 from PySide6.QtCore import Qt, Signal, QPoint, QSize
 from PySide6.QtGui import QAction, QFont, QIcon
 from PySide6.QtWidgets import (
-    QHBoxLayout, QLabel, QPushButton, QSizePolicy, QWidget,
+    QFrame, QHBoxLayout, QLabel, QPushButton, QSizePolicy, QWidget,
 )
 
 
@@ -119,6 +119,47 @@ class CustomTitleBar(QWidget):
         super().mouseDoubleClickEvent(event)
 
 
+class ResizeEdge(QFrame):
+    """窗口底部透明拖拽边 — 流畅调整窗口高度。
+
+    使用 setUpdatesEnabled(False/True) 防止拖拽过程中界面闪烁卡顿。
+    """
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setFixedHeight(5)
+        self.setCursor(Qt.CursorShape.SizeVerCursor)
+        self.setStyleSheet("background: transparent;")
+        self._resizing = False
+        self._start_y = 0
+        self._start_h = 0
+
+    def mousePressEvent(self, event) -> None:
+        """记录拖拽起点，暂停界面刷新。"""
+        if event.button() == Qt.MouseButton.LeftButton:
+            self._resizing = True
+            self._start_y = event.globalPosition().toPoint().y()
+            self._start_h = self.window().height()
+            self.window().setUpdatesEnabled(False)
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event) -> None:
+        """动态调整窗口高度。"""
+        if self._resizing:
+            delta_y = event.globalPosition().toPoint().y() - self._start_y
+            new_h = max(self.window().minimumHeight(), self._start_h + delta_y)
+            self.window().resize(self.window().width(), new_h)
+        super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event) -> None:
+        """恢复界面刷新并强制重绘。"""
+        if self._resizing:
+            self._resizing = False
+            self.window().setUpdatesEnabled(True)
+            self.window().update()
+        super().mouseReleaseEvent(event)
+
+
 def apply_frameless(window, title: str = "Multifunctional-Mathematics") -> CustomTitleBar:
     """将 QMainWindow 转换为无边框 + 自定义标题栏。
 
@@ -160,7 +201,23 @@ def apply_frameless(window, title: str = "Multifunctional-Mathematics") -> Custo
     if central:
         layout.addWidget(central, 1)
 
-    window.setCentralWidget(container)
+    # 底部拖拽边 — 流畅缩放（ResizeEdge）
+    resize_edge = ResizeEdge(container)
+    layout.addWidget(resize_edge, 0)
+
+    # 外层透明容器 — 为阴影留出 8px 渲染空间
+    outer = QWidget()
+    outer.setObjectName("mfShadowHost")
+    outer.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+    outer.setStyleSheet("#mfShadowHost { background: transparent; }")
+    outer_layout = QVBoxLayout(outer)
+    outer_layout.setContentsMargins(8, 8, 8, 8)
+    outer_layout.setSpacing(0)
+    outer_layout.addWidget(container)
+
+    window.setCentralWidget(outer)
+    # 将 framelessContainer 引用挂到 outer 上，方便外部访问
+    outer.setProperty("framelessContainer", container)
 
     # 主窗口圆角
     window.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
@@ -173,41 +230,47 @@ def apply_frameless(window, title: str = "Multifunctional-Mathematics") -> Custo
     _animating = [False]
 
     def _animate_max_restore():
+        """最大化/还原动画 — 先 QPropertyAnimation 过渡几何，再同步窗口状态。"""
         if _animating[0]:
             return
         from PySide6.QtCore import QPropertyAnimation, QEasingCurve
+        from PySide6.QtWidgets import QApplication
+        screen = QApplication.primaryScreen()
+        if screen is None:
+            return
+        _animating[0] = True
         if window.isMaximized():
-            # 还原：从最大化回到之前的位置
-            if _anim_geo[0] is not None:
-                target = _anim_geo[0]
-            else:
-                target = window.normalGeometry()
-            _animating[0] = True
-            window.showNormal()
+            # ── 还原：动画从最大化几何 → 保存的普通几何 ──
+            target = _anim_geo[0] if _anim_geo[0] is not None else window.normalGeometry()
+            start = window.geometry()
             anim = QPropertyAnimation(window, b"geometry")
-            anim.setDuration(200)
-            anim.setStartValue(window.geometry())
+            anim.setDuration(150)
+            anim.setStartValue(start)
             anim.setEndValue(target)
             anim.setEasingCurve(QEasingCurve.Type.InOutCubic)
-            anim.finished.connect(lambda: _animating.__setitem__(0, False))
+
+            def _on_restore_finished():
+                window.showNormal()
+                _animating[0] = False
+
+            anim.finished.connect(_on_restore_finished)
             anim.start()
         else:
-            # 保存位置 → 最大化
+            # ── 最大化：动画从当前几何 → 屏幕可用几何 ──
             _anim_geo[0] = window.geometry()
-            _animating[0] = True
-            window.showMaximized()
-            screen = window.screen()
-            if screen:
-                target = screen.availableGeometry()
-                anim = QPropertyAnimation(window, b"geometry")
-                anim.setDuration(200)
-                anim.setStartValue(_anim_geo[0])
-                anim.setEndValue(target)
-                anim.setEasingCurve(QEasingCurve.Type.InOutCubic)
-                anim.finished.connect(lambda: _animating.__setitem__(0, False))
-                anim.start()
-            else:
+            target = screen.availableGeometry()
+            anim = QPropertyAnimation(window, b"geometry")
+            anim.setDuration(150)
+            anim.setStartValue(_anim_geo[0])
+            anim.setEndValue(target)
+            anim.setEasingCurve(QEasingCurve.Type.InOutCubic)
+
+            def _on_max_finished():
+                window.showMaximized()
                 _animating[0] = False
+
+            anim.finished.connect(_on_max_finished)
+            anim.start()
 
     def _animate_minimize():
         from PySide6.QtCore import QPropertyAnimation, QEasingCurve
