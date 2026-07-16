@@ -29,6 +29,18 @@ from PySide6.QtWidgets import (
 
 
 # ═══════════════════════════════════════════════════════════════════════
+#  lambdify 缓存 — 避免每次曲线重建重新编译
+# ═══════════════════════════════════════════════════════════════════════
+_lambdify_cache: dict[str, callable] = {}
+
+def _cached_lambdify(var_sym, expr, modules="numpy"):
+    """缓存 sp.lambdify 结果，避免重复编译（~5-20ms savings）。"""
+    key = str(expr) + str(var_sym)
+    if key not in _lambdify_cache:
+        _lambdify_cache[key] = sp.lambdify(var_sym, expr, modules)
+    return _lambdify_cache[key]
+
+# ═══════════════════════════════════════════════════════════════════════
 #  Config — 所有阈值从 config.json 读取，此处仅提供回退值
 # ═══════════════════════════════════════════════════════════════════════
 
@@ -563,7 +575,8 @@ class PlotCanvas(QGraphicsView):
             if expr.free_symbols - {sp.Symbol(f.get("var", "x"))}:
                 return None
             var_sym = sp.Symbol(f.get("var", "x"))
-            ys = sp.lambdify(var_sym, expr, "numpy")(xs)
+            fn = _cached_lambdify(var_sym, expr, "numpy")
+            ys = fn(xs)
             if not isinstance(ys, np.ndarray):
                 return None
             if np.iscomplexobj(ys):
@@ -629,7 +642,7 @@ class PlotCanvas(QGraphicsView):
 
         # ── 向量化求值（numpy 加速）──
         try:
-            f_fn = sp.lambdify((x_sym, y_sym), expr, "numpy")
+            f_fn = _cached_lambdify((x_sym, y_sym), expr, "numpy")
             X, Y = np.meshgrid(xs, ys)
             Z = f_fn(X, Y)
             if not isinstance(Z, np.ndarray):
