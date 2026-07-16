@@ -115,8 +115,13 @@ QToolBar QToolButton:checked {
 QStatusBar {
     background-color: #ffffff;
     color: #475569;
+    border-top: 1px solid #e2e8f0;
     padding: 2px 12px;
     font-size: 12px;
+}
+QStatusBar QLabel {
+    color: #475569;
+    background: transparent;
 }
 #brand_label {
     color: #94a3b8;

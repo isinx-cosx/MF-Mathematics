@@ -456,22 +456,9 @@ class MainWindow(QMainWindow):
         layout.addWidget(self._stacked_widget, 1)
         layout.addLayout(btn_row)
         layout.addWidget(self.keyboard_panel, 0)
-        # ── 状态栏：直接加入布局底部，固定 30px，暗色主题 ──
+        # ── 状态栏：加入布局底部，固定 30px，样式由 light.qss / dark.qss 控制 ──
         self._status_bar = QStatusBar(container)
         self._status_bar.setFixedHeight(30)
-        self._status_bar.setStyleSheet("""
-            QStatusBar {
-                background-color: #252540;
-                color: #a6adc8;
-                border-top: 1px solid #313244;
-                padding: 2px 12px;
-                font-size: 12px;
-            }
-            QStatusBar QLabel {
-                color: #a6adc8;
-                background: transparent;
-            }
-        """)
         self._status_bar.showMessage("就绪")
         # 用户状态标签
         self._user_status_label = QLabel("未登录")
