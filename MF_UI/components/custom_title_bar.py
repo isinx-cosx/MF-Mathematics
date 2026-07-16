@@ -159,14 +159,9 @@ def apply_frameless(window, title: str = "MF-Mathematics") -> CustomTitleBar:
     )
     title_bar.close_requested.connect(window.close)
 
-    # 监听最大化变化以更新按钮图标（通过猴子补丁 changeEvent）
-    _orig_change = window.changeEvent
-    def _patched_change(self, event):
-        from PySide6.QtCore import QEvent
-        _orig_change(event)
-        if event.type() == QEvent.Type.WindowStateChange:
-            title_bar.set_maximized(window.isMaximized())
-    import types
-    window.changeEvent = types.MethodType(_patched_change, window)
+    # 监听最大化变化以更新按钮图标
+    def _on_max_change():
+        title_bar.set_maximized(window.isMaximized())
+    window.windowStateChanged.connect(lambda _: _on_max_change())
 
     return title_bar
