@@ -185,6 +185,10 @@ class MainWindow(QMainWindow):
         self.last_calc_index = 0
         self.last_plot_index = 0
 
+        # 最大化/还原状态管理
+        self._restore_geometry: QRect | None = None  # 最大化前窗口几何
+        self._geometry_locked: bool = False           # 动画期间锁定几何保存
+
         self._build_menu_bar()
         self._build_toolbar()
         self._build_central_area()
@@ -235,6 +239,30 @@ class MainWindow(QMainWindow):
             frame = self.frameGeometry()
             frame.moveCenter(center)
             self.move(frame.topLeft())
+
+    # ---------- 窗口状态变化 ----------
+    def changeEvent(self, event: QEvent) -> None:
+        """窗口状态变化 — 修复无边框最大化缝隙 + 保存/恢复几何。
+
+        无边框窗口（FramelessWindowHint）在 Windows 上调用 showMaximized()
+        可能不会精确填充屏幕可用区域。此方法在最大化后手动纠正几何。
+        """
+        super().changeEvent(event)
+        if event.type() == QEvent.Type.WindowStateChange:
+            if self.isMaximized():
+                # 手动设置几何为屏幕可用区域，消除无边框窗口最大化缝隙
+                screen = self.screen() or QApplication.primaryScreen()
+                if screen is not None:
+                    self.setGeometry(screen.availableGeometry())
+            # 更新标题栏最大化图标状态
+            if hasattr(self, '_title_bar') and self._title_bar is not None:
+                self._title_bar.set_maximized(self.isMaximized())
+
+    def moveEvent(self, event) -> None:
+        """窗口移动时保存正常状态几何（用于最大化后还原）。"""
+        super().moveEvent(event)
+        if not self.isMaximized() and not self._geometry_locked:
+            self._restore_geometry = self.geometry()
 
     # ---------- 菜单栏 ----------
     def _build_menu_bar(self):
@@ -586,10 +614,13 @@ class MainWindow(QMainWindow):
             self._kb_toggle_btn.setText("▼ 收起")
 
     def resizeEvent(self, event) -> None:
-        """窗口大小变化时更新圆角蒙版和键盘面板高度。"""
+        """窗口大小变化时更新圆角蒙版、键盘面板高度和还原几何。"""
         super().resizeEvent(event)
         # 圆角蒙版：每次 resize 重新裁剪（最大化时自动 clearMask）
         self._apply_rounded_mask()
+        # 非最大化 + 非动画期间：持续保存几何用于还原
+        if not self.isMaximized() and not self._geometry_locked:
+            self._restore_geometry = self.geometry()
         # 键盘面板自适应
         if hasattr(self, 'keyboard_panel') and self.keyboard_panel.isVisible():
             h = max(self.height() // 5, 60)

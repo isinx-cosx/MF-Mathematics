@@ -182,6 +182,7 @@ class CustomTitleBar(QWidget):
         super().__init__(parent)
         self._title = title
         self._drag_pos: QPoint | None = None
+        self._drag_start_offset: QPoint = QPoint()  # 鼠标在标题栏内的偏移（最大化拖拽还原定位）
 
         self.setObjectName("customTitleBar")
         self.setFixedHeight(36)
@@ -238,19 +239,50 @@ class CustomTitleBar(QWidget):
     # ── 窗口拖拽 ──────────────────────────────────────────────
 
     def mousePressEvent(self, event) -> None:
-        """记录拖拽起点。"""
+        """记录拖拽起点和鼠标在标题栏内的偏移（用于最大化时拖拽还原定位）。"""
         if event.button() == Qt.MouseButton.LeftButton:
             self._drag_pos = event.globalPosition().toPoint()
+            self._drag_start_offset = event.position().toPoint()
         super().mousePressEvent(event)
 
     def mouseMoveEvent(self, event) -> None:
-        """窗口拖拽移动。"""
+        """窗口拖拽移动 — 最大化时拖拽自动还原（模拟 Windows 原生行为）。"""
         if self._drag_pos is not None and event.buttons() == Qt.MouseButton.LeftButton:
             delta = event.globalPosition().toPoint() - self._drag_pos
             w = self.window()
-            if w and not w.isMaximized():
-                w.move(w.pos() + delta)
-            self._drag_pos = event.globalPosition().toPoint()
+            if w is not None:
+                if w.isMaximized():
+                    # ── 最大化状态下拖拽：还原窗口并跟随鼠标 ──
+                    if delta.manhattanLength() < 5:
+                        return  # 阈值过滤，防止误触
+                    # 计算鼠标在最大化标题栏上的比例位置
+                    max_geo = w.geometry()
+                    ratio_x = ((self._drag_pos.x() - max_geo.x()) / max_geo.width()
+                               if max_geo.width() > 0 else 0.5)
+                    # 获取还原几何（由 changeEvent / resizeEvent 持续保存）
+                    restore_geo = getattr(w, '_restore_geometry', None)
+                    if restore_geo is None or not restore_geo.isValid():
+                        restore_geo = w.normalGeometry()
+                    # 直接还原（跳过动画），触发 changeEvent 更新标题栏图标
+                    w.showNormal()
+                    if restore_geo.isValid():
+                        new_x = int(event.globalPosition().toPoint().x()
+                                    - ratio_x * restore_geo.width())
+                        new_y = int(event.globalPosition().toPoint().y()
+                                    - self._drag_start_offset.y())
+                        w.setGeometry(new_x, new_y,
+                                      restore_geo.width(), restore_geo.height())
+                    # 重置拖拽起点（防止窗口跳动）
+                    self._drag_pos = event.globalPosition().toPoint()
+                    self._drag_start_offset = QPoint(
+                        int(ratio_x * (restore_geo.width() if restore_geo.isValid()
+                                       else w.width())),
+                        self._drag_start_offset.y(),
+                    )
+                else:
+                    # ── 正常状态：跟随鼠标移动窗口 ──
+                    w.move(w.pos() + delta)
+                    self._drag_pos = event.globalPosition().toPoint()
         super().mouseMoveEvent(event)
 
     def mouseReleaseEvent(self, event) -> None:
@@ -448,6 +480,7 @@ def apply_frameless(window, title: str = "Multifunctional-Mathematics") -> Custo
         if screen is None:
             return
         _animating[0] = True
+        window._geometry_locked = True  # 动画期间禁止 resizeEvent 覆盖还原几何
         _toggle_shadow(False)  # 动画期间关闭阴影
 
         if window.isMaximized():
@@ -462,6 +495,8 @@ def apply_frameless(window, title: str = "Multifunctional-Mathematics") -> Custo
 
             def _on_restore_finished():
                 window.showNormal()
+                window._restore_geometry = target
+                window._geometry_locked = False
                 _animating[0] = False
                 _toggle_shadow(True)
 
@@ -471,6 +506,7 @@ def apply_frameless(window, title: str = "Multifunctional-Mathematics") -> Custo
         else:
             # ── 最大化：动画从当前几何 → 屏幕可用几何 ──
             _anim_geo[0] = window.geometry()
+            window._restore_geometry = _anim_geo[0]  # 保存还原几何供拖拽使用
             target = screen.availableGeometry()
             anim = QPropertyAnimation(window, b"geometry")
             anim.setDuration(150)
@@ -480,6 +516,8 @@ def apply_frameless(window, title: str = "Multifunctional-Mathematics") -> Custo
 
             def _on_max_finished():
                 window.showMaximized()
+                # showMaximized() 触发 changeEvent → 手动纠正几何（消除缝隙）
+                window._geometry_locked = False
                 _animating[0] = False
                 _toggle_shadow(True)
 
