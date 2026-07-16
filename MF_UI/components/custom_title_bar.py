@@ -369,11 +369,13 @@ def apply_frameless(window, title: str = "Multifunctional-Mathematics") -> Custo
 
     def _apply_rounded_mask():
         """用 QBitmap 蒙版将窗口裁剪为圆角矩形（radius=8px）。
-        最大化时清除蒙版，保持全屏直角。"""
+        最大化 → 清除蒙版（全屏直角）；原生缩放中 → 跳过（防 SetWindowRgn 风暴）。"""
         from PySide6.QtGui import QBitmap, QPainter
         from PySide6.QtCore import QRectF
         if window.isMaximized():
             window.clearMask()
+            return
+        if window.property("_sys_resizing"):
             return
         sz = window.size()
         if sz.width() <= 0 or sz.height() <= 0:
@@ -389,6 +391,7 @@ def apply_frameless(window, title: str = "Multifunctional-Mathematics") -> Custo
         window.setMask(mask)
 
     _apply_rounded_mask()
+    window._apply_rounded_mask = _apply_rounded_mask  # 暴露给 EdgeResizeFilter
 
     # resize 时更新蒙版
     _orig_resize_event = window.resizeEvent

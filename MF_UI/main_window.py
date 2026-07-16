@@ -151,7 +151,14 @@ class EdgeResizeFilter(QObject):
             if hit:
                 handle = self._win.windowHandle()
                 if handle is not None:
+                    # 缩放前：清除蒙版 + 设标志防止 resize 事件重创建蒙版
+                    self._win.setProperty("_sys_resizing", True)
+                    self._win.clearMask()
                     handle.startSystemResize(self._EDGE_MAP[hit][1])
+                    # 缩放结束：恢复圆角蒙版
+                    self._win.setProperty("_sys_resizing", False)
+                    if hasattr(self._win, "_apply_rounded_mask"):
+                        self._win._apply_rounded_mask()
                 return True  # 消费事件
 
         return False
