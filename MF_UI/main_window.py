@@ -347,20 +347,22 @@ class MainWindow(QMainWindow):
         toolbar.setIconSize(QSize(20, 20))
         self.addToolBar(toolbar)
 
-        # 使用 QActionGroup 管理计算/绘图按钮互斥（Qt 官方标准，最可靠）
+        # ── QActionGroup 互斥：先将所有按钮加入组，再设置初始选中 ──
         self._btn_group = QActionGroup(self)
         self._btn_group.setExclusive(True)
 
         self._btn_calc = toolbar.addAction("计算")
         self._btn_calc.setCheckable(True)
-        self._btn_calc.setChecked(True)
         self._btn_group.addAction(self._btn_calc)
 
         self._btn_plot = toolbar.addAction("绘图")
         self._btn_plot.setCheckable(True)
         self._btn_group.addAction(self._btn_plot)
 
-        # 连接 QActionGroup.triggered（仅互斥组内按钮），而非 toolbar.actionTriggered
+        # 所有按钮入组后，设置初始选中（避免 QActionGroup 内部状态不一致）
+        self._btn_calc.setChecked(True)
+
+        # QActionGroup.triggered — 仅互斥组内按钮触发，自动保证唯一选中
         self._btn_group.triggered.connect(self._on_toolbar_action)
 
         toolbar.addSeparator()
@@ -407,11 +409,21 @@ class MainWindow(QMainWindow):
         self._user_status_label: QLabel | None = None
 
     def _on_toolbar_action(self, action):
-        """工具栏按钮互斥 + 模式切换 — QActionGroup 自动管理互斥，无需手动 setChecked。"""
-        if action is self._btn_calc:
-            self._switch_mode(0)
-        elif action is self._btn_plot:
-            self._switch_mode(1)
+        """工具栏按钮互斥 + 模式切换 — QActionGroup 自动管理互斥，无需手动 setChecked。
+
+        QActionGroup 在内部 setChecked 旧按钮时可能再次 emit triggered，
+        导致本方法被重复调用。用 _toolbar_guard 防重入。
+        """
+        if getattr(self, '_toolbar_guard', False):
+            return
+        self._toolbar_guard = True
+        try:
+            if action is self._btn_calc:
+                self._switch_mode(0)
+            elif action is self._btn_plot:
+                self._switch_mode(1)
+        finally:
+            self._toolbar_guard = False
 
     def _switch_mode(self, mode: int):
         if self._current_mode == mode:
