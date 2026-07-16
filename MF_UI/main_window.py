@@ -3,7 +3,7 @@ import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from PySide6.QtCore import Qt, QEvent, QPoint, QRect, QRectF, QSize
-from PySide6.QtGui import QAction, QBitmap, QKeySequence, QPainter, QShortcut, QPainterPath, QRegion
+from PySide6.QtGui import QAction, QActionGroup, QBitmap, QKeySequence, QPainter, QShortcut, QPainterPath, QRegion
 from PySide6.QtWidgets import (
     QMainWindow, QToolBar, QStatusBar,
     QStackedWidget, QWidget, QVBoxLayout, QHBoxLayout,
@@ -294,16 +294,19 @@ class MainWindow(QMainWindow):
         toolbar.setIconSize(QSize(20, 20))
         self.addToolBar(toolbar)
 
+        self._mode_group = QActionGroup(self)
+        self._mode_group.setExclusive(True)
+
         self._btn_calc = toolbar.addAction("计算")
         self._btn_calc.setCheckable(True)
         self._btn_calc.setChecked(True)
+        self._mode_group.addAction(self._btn_calc)
         self._btn_calc.triggered.connect(lambda: self._switch_mode(0))
 
         self._btn_plot = toolbar.addAction("绘图")
         self._btn_plot.setCheckable(True)
+        self._mode_group.addAction(self._btn_plot)
         self._btn_plot.triggered.connect(lambda: self._switch_mode(1))
-
-        toolbar.actionTriggered.connect(self._on_toolbar_action)
 
         toolbar.addSeparator()
         

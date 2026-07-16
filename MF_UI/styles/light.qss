@@ -133,10 +133,10 @@ QToolBar QToolButton:hover {
 }
 QToolBar QToolButton:checked,
 QToolBar QToolButton[checked="true"] {
-    background-color: #3b82f6;
-    color: #ffffff;
+    background-color: #e2e8f0;
+    color: #0f172a;
     font-weight: 700;
-    border: 1px solid #2563eb;
+    border: 1px solid #cbd5e1;
 }
 
 /* ---- 状态栏 ---- */
@@ -538,9 +538,9 @@ KeyboardPanel QPushButton#kb_btn {
     border-color: #94a3b8;
 }
 #kb_btn:pressed {
-    background: #3b82f6;
-    color: #ffffff;
-    border-color: #2563eb;
+    background: #cbd5e1;
+    color: #0f172a;
+    border-color: #94a3b8;
 }
 
 /* ---- 占位页面 ---- */
