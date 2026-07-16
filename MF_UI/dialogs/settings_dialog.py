@@ -14,26 +14,6 @@ from PySide6.QtWidgets import (
 from MF_AI.config import Config
 
 
-# ── 样式 ──────────────────────────────────────────────────
-
-_DIALOG_STYLE = """
-    QDialog { background: #f8fafc; }
-    QGroupBox {
-        font-weight: 600; border: 1px solid #e2e8f0; border-radius: 8px;
-        margin-top: 10px; padding-top: 14px; background: #fff;
-    }
-    QGroupBox::title {
-        subcontrol-origin: margin; left: 12px; padding: 0 6px;
-        color: #0f172a;
-    }
-    QLineEdit, QComboBox {
-        border: 1px solid #d1d5db; border-radius: 4px;
-        padding: 5px 10px; font-size: 12px; background: #fff;
-    }
-    QLineEdit:focus, QComboBox:focus { border-color: #3b82f6; }
-"""
-
-
 # ── 测试连接 Worker ───────────────────────────────────────
 
 class _TestConnectionWorker(QThread):
@@ -77,7 +57,7 @@ class SettingsDialog(QDialog):
         self.setWindowTitle("设置")
         self.resize(580, 480)
         self.setMinimumSize(500, 400)
-        self.setStyleSheet(_DIALOG_STYLE)
+        self.setObjectName("settingsDialog")
         self._cfg = Config()
 
         root = QVBoxLayout(self)
@@ -175,7 +155,7 @@ class SettingsDialog(QDialog):
         # 测试连接
         row = QHBoxLayout()
         self._test_btn = QPushButton("测试连接")
-        self._test_btn.setStyleSheet(_BTN_SECONDARY)
+        self._test_btn.setObjectName("settings_secondary_btn")
         self._test_btn.clicked.connect(self._test_connection)
         row.addWidget(self._test_btn)
         self._test_status = QLabel("")
@@ -277,12 +257,3 @@ class SettingsDialog(QDialog):
         )
         cfg.save_to_files()
         self.accept()
-
-
-_BTN_SECONDARY = """
-    QPushButton {
-        background: #f1f5f9; color: #475569; border: 1px solid #d1d5db;
-        border-radius: 4px; padding: 4px 12px; font-size: 12px;
-    }
-    QPushButton:hover { background: #e2e8f0; }
-"""

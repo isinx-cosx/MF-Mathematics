@@ -120,25 +120,6 @@ _SYSTEM_PROMPT = (
     "对于推导类问题，请分步骤解释。"
 )
 
-_DIALOG_STYLE = """
-    QDialog { background: #f8fafc; }
-    QTextEdit {
-        border: 1px solid #e2e8f0; border-radius: 8px;
-        background: #fff; font-size: 13px; padding: 8px;
-    }
-    QLineEdit {
-        border: 1px solid #d1d5db; border-radius: 6px;
-        padding: 8px 12px; font-size: 13px; background: #fff;
-    }
-    QLineEdit:focus { border-color: #3b82f6; }
-"""
-
-_BTN_PRIMARY = """
-    QPushButton { background: #3b82f6; color: #fff; border: none;
-    border-radius: 6px; padding: 8px 20px; font-size: 13px; font-weight: 500; }
-    QPushButton:hover { background: #2563eb; }
-    QPushButton:disabled { background: #94a3b8; }
-"""
 
 
 class _AIStreamWorker(QThread):
@@ -171,7 +152,7 @@ class AIDialog(QDialog):
         self.setWindowTitle("AI 数学助手")
         self.resize(600, 500)
         self.setMinimumSize(450, 350)
-        self.setStyleSheet(_DIALOG_STYLE)
+        self.setObjectName("aiDialog")
 
         self._context_expr = context_expr
         self._context_mode = context_mode
@@ -204,12 +185,11 @@ class AIDialog(QDialog):
         # 标题 + 模型选择
         hdr = QHBoxLayout()
         title = QLabel("AI 数学助手")
-        title.setStyleSheet(
-            "font-size: 16px; font-weight: 600; color: #0f172a; background: transparent;")
+        title.setObjectName("ai_title")
         hdr.addWidget(title)
 
         self._model_combo = QComboBox()
-        self._model_combo.setFixedWidth(150)
+        self._model_combo.setObjectName("ai_model_combo")
         self._model_combo.addItems(["deepseek-v4-pro", "deepseek-chat",
                                      "deepseek-reasoner", "gpt-4o", "gpt-4o-mini"])
         self._model_combo.setCurrentText(self._model)
@@ -218,8 +198,7 @@ class AIDialog(QDialog):
 
         hdr.addStretch()
         self._status_lbl = QLabel("就绪")
-        self._status_lbl.setStyleSheet(
-            "font-size: 11px; color: #94a3b8; background: transparent;")
+        self._status_lbl.setObjectName("ai_status")
         hdr.addWidget(self._status_lbl)
         root.addLayout(hdr)
 
@@ -247,7 +226,7 @@ class AIDialog(QDialog):
         self._input.returnPressed.connect(self._send)
         input_row.addWidget(self._input, 1)
         self._send_btn = QPushButton("发送")
-        self._send_btn.setStyleSheet(_BTN_PRIMARY)
+        self._send_btn.setObjectName("ai_send_btn")
         self._send_btn.clicked.connect(self._send)
         input_row.addWidget(self._send_btn)
         root.addLayout(input_row)
@@ -255,17 +234,12 @@ class AIDialog(QDialog):
         # 底部按钮
         btn_row = QHBoxLayout(); btn_row.setSpacing(8)
         copy_btn = QPushButton("复制最后回复")
-        copy_btn.setStyleSheet(
-            "QPushButton { background: #f1f5f9; color: #475569; border: 1px solid #d1d5db;"
-            " border-radius: 6px; padding: 6px 14px; font-size: 12px; }"
-            "QPushButton:hover { background: #e2e8f0; }")
+        copy_btn.setObjectName("ai_secondary_btn")
         copy_btn.clicked.connect(self._copy_result)
         btn_row.addWidget(copy_btn)
         btn_row.addStretch()
         clear_btn = QPushButton("清空对话")
-        clear_btn.setStyleSheet(
-            "QPushButton { background: transparent; color: #94a3b8; border: none;"
-            " font-size: 11px; } QPushButton:hover { color: #ef4444; }")
+        clear_btn.setObjectName("ai_clear_btn")
         clear_btn.clicked.connect(self._clear)
         btn_row.addWidget(clear_btn)
         root.addLayout(btn_row)
@@ -337,17 +311,26 @@ class AIDialog(QDialog):
         self._input.setEnabled(not sending)
         if sending:
             self._send_btn.setText("停止")
-            self._send_btn.setStyleSheet(
-                "QPushButton { background: #ef4444; color: #fff; border: none;"
-                " border-radius: 4px; padding: 6px 16px; font-size: 13px; font-weight: 500; }"
-                "QPushButton:hover { background: #dc2626; }")
+            self._send_btn.setObjectName("ai_stop_btn")
+            self._send_btn.style().unpolish(self._send_btn)
+            self._send_btn.style().polish(self._send_btn)
             self._send_btn.clicked.disconnect()
             self._send_btn.clicked.connect(self._stop)
+            self._status_lbl.setText("思考中…")
+            self._status_lbl.setStyleSheet("color: #3b82f6;")
+            cursor = self._chat_view.textCursor()
+            cursor.movePosition(QTextCursor.MoveOperation.End)
+            cursor.insertHtml('<span style="color:#3b82f6;">AI: </span>')
+            self._ai_text_start = cursor.position()
         else:
             self._send_btn.setText("发送")
-            self._send_btn.setStyleSheet(_BTN_PRIMARY)
+            self._send_btn.setObjectName("ai_send_btn")
+            self._send_btn.style().unpolish(self._send_btn)
+            self._send_btn.style().polish(self._send_btn)
             self._send_btn.clicked.disconnect()
             self._send_btn.clicked.connect(self._send)
+            self._status_lbl.setText("就绪")
+            self._status_lbl.setStyleSheet("")
 
     def _stop(self):
         """中止当前 AI 流式请求。"""
@@ -356,20 +339,6 @@ class AIDialog(QDialog):
             self._worker.wait(3000)
         self._append_system("（已中止）")
         self._set_sending(False)
-        self._send_btn.setEnabled(not sending)
-        if sending:
-            self._status_lbl.setText("思考中…")
-            self._status_lbl.setStyleSheet(
-                "font-size: 11px; color: #3b82f6; background: transparent;")
-            cursor = self._chat_view.textCursor()
-            cursor.movePosition(QTextCursor.MoveOperation.End)
-            cursor.insertHtml('<span style="color:#3b82f6;">AI: </span>')
-            # 记录 AI 回复起始位置
-            self._ai_text_start = cursor.position()
-        else:
-            self._status_lbl.setText("就绪")
-            self._status_lbl.setStyleSheet(
-                "font-size: 11px; color: #94a3b8; background: transparent;")
 
     def _append_user(self, text: str):
         cursor = self._chat_view.textCursor()

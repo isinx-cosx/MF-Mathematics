@@ -10,25 +10,6 @@ from PySide6.QtWidgets import (
     QPushButton, QVBoxLayout, QWidget,
 )
 
-_STYLE = """
-    QDialog { background: #f8fafc; }
-    QLineEdit {
-        border: 1px solid #d1d5db; border-radius: 6px;
-        padding: 8px 12px; font-size: 13px; background: #fff;
-    }
-    QLineEdit:focus { border-color: #3b82f6; }
-    QComboBox {
-        border: 1px solid #d1d5db; border-radius: 4px;
-        padding: 4px 8px; font-size: 12px; background: #fff;
-    }
-    QListWidget {
-        border: 1px solid #e2e8f0; border-radius: 6px;
-        background: #fff; font-size: 12px;
-    }
-    QListWidget::item { padding: 8px 10px; border-bottom: 1px solid #f1f5f9; }
-    QListWidget::item:selected { background: #dbeafe; color: #1e40af; }
-"""
-
 ENGINES = {"DuckDuckGo": "duckduckgo", "Wolfram Alpha": "wolfram", "自定义": "custom"}
 
 
@@ -59,7 +40,7 @@ class SearchPanel(QDialog):
         self.setWindowTitle("联网搜索")
         self.resize(520, 480)
         self.setMinimumSize(380, 320)
-        self.setStyleSheet(_STYLE)
+        self.setObjectName("searchDialog")
         self._results_data: list[dict] = []
         self._worker: _SearchWorker | None = None
 
@@ -83,11 +64,7 @@ class SearchPanel(QDialog):
         bar.addWidget(self._engine_combo)
 
         self._search_btn = QPushButton("搜索")
-        self._search_btn.setStyleSheet(
-            "QPushButton{background:#3b82f6;color:#fff;border:none;"
-            "border-radius:6px;padding:8px 18px;font-size:13px;font-weight:500;}"
-            "QPushButton:hover{background:#2563eb;}"
-            "QPushButton:disabled{background:#94a3b8;}")
+        self._search_btn.setObjectName("ai_send_btn")
         self._search_btn.clicked.connect(self._do_search)
         bar.addWidget(self._search_btn)
         root.addLayout(bar)
