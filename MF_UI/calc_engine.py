@@ -22,22 +22,19 @@ _base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _base not in sys.path:
     sys.path.insert(0, _base)
 
-# ── 导入所有子模块以触发 @register ─────────────────────────
-import MF_Mathematics.algebra            # noqa
-import MF_Mathematics.calculus           # noqa
-import MF_Mathematics.complex_analysis   # noqa
-import MF_Mathematics.linear_algebra     # noqa
-import MF_Mathematics.probability        # noqa
-import MF_Mathematics.numerical          # noqa
-import MF_Mathematics.real_analysis      # noqa
-import MF_Mathematics.functional_analysis  # noqa
-import MF_Mathematics.harmonic_analysis  # noqa
-import MF_Mathematics.measure_theory     # noqa
-import MF_Mathematics.algebraic_topology # noqa
-import MF_Mathematics.number_theory      # noqa
-
+# ── 核心导入（无需延迟） ─────────────────────────────────────
 from MF_Mathematics.core.registry import dispatch
 from MF_Mathematics.core.math_object import MathObject
+
+# ── 延迟导入数学子包（仅在首次使用时加载） ────────────────────
+_MODULES: dict[str, object] = {}
+
+def _ensure_module(name: str) -> None:
+    """确保指定数学子包已导入（触发 @register 装饰器）。"""
+    if name not in _MODULES:
+        _MODULES[name] = __import__(
+            f"MF_Mathematics.{name}", fromlist=[name]
+        )
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -194,6 +191,7 @@ def calculate(action_name: str, params: list[str]) -> MathObject:
         return MathObject(error="参数解析失败，请检查输入格式")
 
     try:
+        _ensure_module(module)
         result = dispatch(module, action, **kwargs)
     except KeyError:
         return MathObject(error=f"后端未找到函数: {module}.{action}")
@@ -220,6 +218,7 @@ def calculate_direct(action_name: str, *args, **kwargs) -> MathObject:
     # ── 参数名标准化：UI 友好名 → 后端内部名 ──
     kwargs = _normalize_kwargs(action, kwargs)
     try:
+        _ensure_module(module)
         result = dispatch(module, action, *args, **kwargs)
     except KeyError:
         return MathObject(error=f"后端未找到函数: {module}.{action}")
