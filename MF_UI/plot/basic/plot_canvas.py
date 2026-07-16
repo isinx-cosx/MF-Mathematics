@@ -80,7 +80,7 @@ _c = _cfg()
 SCENE_RANGE  = _c.get("plot", "scene_range",  default=20_000_000)
 ZOOM_MIN     = _c.get("plot", "zoom_min",     default=1e-6)
 ZOOM_MAX     = _c.get("plot", "zoom_max",     default=2000)
-_iv          = _c.get("plot", "initial_view", default=[-20, -20, 40, 40])
+_iv          = _c.get("plot", "initial_view", default=[-8, -6, 16, 12])
 INITIAL_VIEW = QRectF(float(_iv[0]), float(_iv[1]), float(_iv[2]), float(_iv[3]))
 MAX_RANGE_MSG = f"±{SCENE_RANGE:,}"
 
