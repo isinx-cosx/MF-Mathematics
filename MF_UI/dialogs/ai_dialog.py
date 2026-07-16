@@ -40,18 +40,16 @@ def _fix_latex(latex: str) -> str:
     s = latex.strip()
     # \boxed{content} → content
     s = _strip_boxed(s)
-    # \begin{pmatrix}...\end{pmatrix}
-    s = re.sub(r'\\begin\{pmatrix\}', r'\\left(\\begin{array}{cc}', s)
-    s = re.sub(r'\\end\{pmatrix\}', r'\\end{array}\\right)', s)
-    # \begin{cases}...\end{cases}
-    s = re.sub(r'\\begin\{cases\}', r'\\left\\{\\begin{array}{ll}', s)
-    s = re.sub(r'\\end\{cases\}', r'\\end{array}\\right.', s)
-    # \begin{bmatrix}...\end{bmatrix}
-    s = re.sub(r'\\begin\{bmatrix\}', r'\\left[\\begin{array}{cc}', s)
-    s = re.sub(r'\\end\{bmatrix\}', r'\\end{array}\\right]', s)
-    # \begin{vmatrix}...\end{vmatrix}
-    s = re.sub(r'\\begin\{vmatrix\}', r'\\left|\\begin{array}{cc}', s)
-    s = re.sub(r'\\end\{vmatrix\}', r'\\end{array}\\right|', s)
+    # matrix 环境 → 纯文本 + 括号（mathtext 不支持 \begin{array}）
+    s = re.sub(r'\\begin\{pmatrix\}', '(', s)
+    s = re.sub(r'\\end\{pmatrix\}', ')', s)
+    s = re.sub(r'\\begin\{bmatrix\}', '[', s)
+    s = re.sub(r'\\end\{bmatrix\}', ']', s)
+    s = re.sub(r'\\begin\{vmatrix\}', '|', s)
+    s = re.sub(r'\\end\{vmatrix\}', '|', s)
+    # cases → 条件表达式用逗号分隔
+    s = re.sub(r'\\begin\{cases\}', '', s)
+    s = re.sub(r'\\end\{cases\}', '', s)
     return s
 
 
