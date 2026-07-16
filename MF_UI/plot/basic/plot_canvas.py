@@ -19,6 +19,7 @@ import json, math, os
 from typing import Any
 
 import numpy as np
+import sympy as sp
 from PySide6.QtCore import Qt, QPointF, QRectF, QTimer, Signal
 from PySide6.QtGui import (
     QBrush, QColor, QFont, QPainter, QPainterPath, QPen,
