@@ -21,9 +21,10 @@
 from __future__ import annotations
 
 from PySide6.QtCore import Qt, QPoint
+from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
-    QDialog, QHBoxLayout, QLabel, QPushButton,
-    QSizePolicy, QVBoxLayout, QWidget,
+    QDialog, QGraphicsDropShadowEffect, QHBoxLayout,
+    QLabel, QPushButton, QSizePolicy, QVBoxLayout, QWidget,
 )
 
 
@@ -38,12 +39,20 @@ class MFDialog(QDialog):
         super().__init__(parent)
         self._drag_pos: QPoint | None = None
 
-        # 无边框
+        # 无边框 + 透明背景（圆角需要）
         self.setWindowFlags(
             Qt.WindowType.FramelessWindowHint |
             Qt.WindowType.Dialog
         )
-        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, False)
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+        self.setStyleSheet("QDialog { border-radius: 10px; }")
+
+        # 投影
+        shadow = QGraphicsDropShadowEffect(self)
+        shadow.setBlurRadius(24)
+        shadow.setOffset(0, 4)
+        shadow.setColor(QColor(0, 0, 0, 60))
+        self.setGraphicsEffect(shadow)
 
         self._title = title
         self.resize(width, height)
@@ -115,25 +124,43 @@ class MFDialog(QDialog):
 
 
 def apply_dialog_title_bar(dialog: QDialog, title: str = "") -> QWidget:
-    """为现有 QDialog 添加自定义标题栏（插入到布局顶部）。
+    """为现有 QDialog 添加自定义标题栏 + 圆角 + 阴影。
+
+    自动处理:
+      - 无边框窗口标志
+      - 34px 自定义标题栏（📐 图标 + 标题 + ✕ 关闭）
+      - QGraphicsDropShadowEffect 投影
+      - 拖拽移动
+      - 对话框高度 +34px 以适应标题栏
 
     用法:
         dlg = QDialog(parent)
         dlg.setObjectName("...")
         # ... 构建 dlg 的原有 layout（必须使用 QVBoxLayout）...
         apply_dialog_title_bar(dlg, "我的标题")
-
-    Returns:
-        标题栏 QWidget。
     """
     dialog.setWindowFlags(
         Qt.WindowType.FramelessWindowHint |
         Qt.WindowType.Dialog
     )
+    dialog.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
 
     layout = dialog.layout()
     if layout is None:
         return None
+
+    # 圆角 + 阴影
+    dialog.setStyleSheet(
+        dialog.styleSheet() +
+        "QDialog { border-radius: 10px; }"
+    )
+
+    # 投影效果
+    shadow = QGraphicsDropShadowEffect(dialog)
+    shadow.setBlurRadius(24)
+    shadow.setOffset(0, 4)
+    shadow.setColor(QColor(0, 0, 0, 60))
+    dialog.setGraphicsEffect(shadow)
 
     # 构建标题栏
     bar = QWidget()
@@ -159,8 +186,24 @@ def apply_dialog_title_bar(dialog: QDialog, title: str = "") -> QWidget:
     btn.clicked.connect(dialog.reject)
     bar_layout.addWidget(btn)
 
-    # 插入到布局最顶部
+    # 插入到布局最顶部（索引 0 = 最上方）
     layout.insertWidget(0, bar)
+
+    # 调整窗口高度以容纳标题栏（考虑固定尺寸的情况）
+    min_h = dialog.minimumHeight()
+    max_h = dialog.maximumHeight()
+    cur_h = dialog.height()
+    cur_w = dialog.width()
+    new_h = cur_h + 34
+    if min_h == max_h and min_h > 0:
+        # setFixedSize 情况 → 重新设置固定尺寸
+        dialog.setFixedSize(cur_w, new_h)
+    else:
+        dialog.resize(cur_w, new_h)
+        if min_h > 0:
+            dialog.setMinimumHeight(min_h + 34)
+        if max_h < 16777215:  # QWIDGETSIZE_MAX
+            dialog.setMaximumHeight(max_h + 34)
 
     # 拖拽功能
     _drag_pos = [None]
