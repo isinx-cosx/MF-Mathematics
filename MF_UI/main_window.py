@@ -3,7 +3,7 @@ import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from PySide6.QtCore import Qt, QEvent, QPoint, QRect, QRectF, QSize
-from PySide6.QtGui import QAction, QBitmap, QKeySequence, QPainter, QShortcut, QPainterPath, QRegion
+from PySide6.QtGui import QAction, QActionGroup, QBitmap, QKeySequence, QPainter, QShortcut, QPainterPath, QRegion
 from PySide6.QtWidgets import (
     QMainWindow, QToolBar, QStatusBar,
     QStackedWidget, QWidget, QVBoxLayout, QHBoxLayout,
@@ -186,7 +186,7 @@ class MainWindow(QMainWindow):
         self.last_plot_index = 0
 
         # 最大化/还原状态管理
-        self._restore_geometry: QRect | None = None  # 最大化前窗口几何
+        self._normal_geometry: QRect | None = None  # 最大化前窗口几何
         self._geometry_locked: bool = False           # 动画期间锁定几何保存
 
         self._build_menu_bar()
@@ -243,50 +243,51 @@ class MainWindow(QMainWindow):
 
     # ---------- 窗口状态变化 ----------
     def showEvent(self, event) -> None:
-        """窗口显示时 — 最大化状态强制全屏几何（覆盖任务栏，消除缝隙）。"""
+        """窗口显示时 — 最大化状态使用 availableGeometry（不遮挡任务栏）。"""
         super().showEvent(event)
         if self.isMaximized():
             screen = self.screen() or QApplication.primaryScreen()
             if screen is not None:
-                self.setGeometry(screen.geometry())
+                self.setGeometry(screen.availableGeometry())
 
     def changeEvent(self, event: QEvent) -> None:
-        """窗口状态变化 — 修复无边框最大化缝隙 + 边距/阴影切换 + 几何保存。
+        """窗口状态变化 — 最大化使用 availableGeometry（不遮挡任务栏），还原恢复保存几何。
 
         无边框窗口（FramelessWindowHint）在 Windows 上最大化时：
         1. 外容器 8px 边距（用于阴影）需归零
         2. QGraphicsDropShadowEffect 需禁用（阴影在边缘外绘制造成视觉缝隙）
-        3. 手动纠正几何为全屏
+        3. 使用 availableGeometry — 停在任务栏上方，不遮挡
+        还原时恢复到 _normal_geometry 保存的位置和大小。
         """
-        super().changeEvent(event)
         if event.type() == QEvent.Type.WindowStateChange:
             outer = self.centralWidget()
             if self.isMaximized():
-                # 消除外容器边距（mfShadowHost 的 8px 边距用于正常状态阴影）
+                # 消除外容器边距 + 禁用阴影
                 if outer is not None:
                     outer.layout().setContentsMargins(0, 0, 0, 0)
-                # 禁用阴影 — 最大化时边距归零，阴影溢出窗口边缘会造成视觉缝隙
                 if self._window_shadow is not None:
                     self._window_shadow.setEnabled(False)
-                # 强制全屏几何
+                # availableGeometry — 停在任务栏上方，不遮挡
                 screen = self.screen() or QApplication.primaryScreen()
                 if screen is not None:
-                    self.setGeometry(screen.geometry())
-            else:
-                # 还原外容器边距 + 启用阴影
+                    self.setGeometry(screen.availableGeometry())
+            elif self._normal_geometry is not None:
+                # 还原外容器边距 + 启用阴影 + 恢复到保存的正常几何
                 if outer is not None:
                     outer.layout().setContentsMargins(8, 8, 8, 0)
                 if self._window_shadow is not None:
                     self._window_shadow.setEnabled(True)
-            # 更新标题栏最大化图标状态
+                self.setGeometry(self._normal_geometry)
+            # 更新标题栏最大化图标
             if hasattr(self, '_title_bar') and self._title_bar is not None:
                 self._title_bar.set_maximized(self.isMaximized())
+        super().changeEvent(event)
 
     def moveEvent(self, event) -> None:
         """窗口移动时保存正常状态几何（用于最大化后还原）。"""
         super().moveEvent(event)
         if not self.isMaximized() and not self._geometry_locked:
-            self._restore_geometry = self.geometry()
+            self._normal_geometry = self.geometry()
 
     # ---------- 菜单栏 ----------
     def _build_menu_bar(self):
@@ -346,14 +347,21 @@ class MainWindow(QMainWindow):
         toolbar.setIconSize(QSize(20, 20))
         self.addToolBar(toolbar)
 
+        # 使用 QActionGroup 管理计算/绘图按钮互斥（Qt 官方标准，最可靠）
+        self._btn_group = QActionGroup(self)
+        self._btn_group.setExclusive(True)
+
         self._btn_calc = toolbar.addAction("计算")
         self._btn_calc.setCheckable(True)
         self._btn_calc.setChecked(True)
+        self._btn_group.addAction(self._btn_calc)
 
         self._btn_plot = toolbar.addAction("绘图")
         self._btn_plot.setCheckable(True)
+        self._btn_group.addAction(self._btn_plot)
 
-        toolbar.actionTriggered.connect(self._on_toolbar_action)
+        # 连接 QActionGroup.triggered（仅互斥组内按钮），而非 toolbar.actionTriggered
+        self._btn_group.triggered.connect(self._on_toolbar_action)
 
         toolbar.addSeparator()
         
@@ -399,14 +407,10 @@ class MainWindow(QMainWindow):
         self._user_status_label: QLabel | None = None
 
     def _on_toolbar_action(self, action):
-        """工具栏按钮互斥 + 模式切换 — 单点控制消除信号竞争。"""
+        """工具栏按钮互斥 + 模式切换 — QActionGroup 自动管理互斥，无需手动 setChecked。"""
         if action is self._btn_calc:
-            self._btn_plot.setChecked(False)
-            self._btn_calc.setChecked(True)
             self._switch_mode(0)
         elif action is self._btn_plot:
-            self._btn_calc.setChecked(False)
-            self._btn_plot.setChecked(True)
             self._switch_mode(1)
 
     def _switch_mode(self, mode: int):
@@ -644,7 +648,7 @@ class MainWindow(QMainWindow):
         self._apply_rounded_mask()
         # 非最大化 + 非动画期间：持续保存几何用于还原
         if not self.isMaximized() and not self._geometry_locked:
-            self._restore_geometry = self.geometry()
+            self._normal_geometry = self.geometry()
         # 键盘面板自适应
         if hasattr(self, 'keyboard_panel') and self.keyboard_panel.isVisible():
             h = max(self.height() // 5, 60)

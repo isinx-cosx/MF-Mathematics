@@ -260,7 +260,7 @@ class CustomTitleBar(QWidget):
                     ratio_x = ((self._drag_pos.x() - max_geo.x()) / max_geo.width()
                                if max_geo.width() > 0 else 0.5)
                     # 获取还原几何（由 changeEvent / resizeEvent 持续保存）
-                    restore_geo = getattr(w, '_restore_geometry', None)
+                    restore_geo = getattr(w, '_normal_geometry', None)
                     if restore_geo is None or not restore_geo.isValid():
                         restore_geo = w.normalGeometry()
                     # 直接还原（跳过动画），触发 changeEvent 更新标题栏图标
@@ -495,7 +495,7 @@ def apply_frameless(window, title: str = "Multifunctional-Mathematics") -> Custo
 
             def _on_restore_finished():
                 window.showNormal()
-                window._restore_geometry = target
+                window._normal_geometry = target
                 window._geometry_locked = False
                 _animating[0] = False
                 _toggle_shadow(True)
@@ -506,7 +506,7 @@ def apply_frameless(window, title: str = "Multifunctional-Mathematics") -> Custo
         else:
             # ── 最大化：动画从当前几何 → 屏幕可用几何 ──
             _anim_geo[0] = window.geometry()
-            window._restore_geometry = _anim_geo[0]  # 保存还原几何供拖拽使用
+            window._normal_geometry = _anim_geo[0]  # 保存还原几何供拖拽使用
             target = screen.availableGeometry()
             anim = QPropertyAnimation(window, b"geometry")
             anim.setDuration(150)
