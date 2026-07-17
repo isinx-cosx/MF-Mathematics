@@ -398,6 +398,51 @@ FUNC_MAP: dict[str, tuple[str, str]] = {
     "Weierstrass M-判别":     ("real_analysis", "weierstrass_m_test"),
     "逐项微分":               ("real_analysis", "termwise_differentiation"),
     "逐项积分":               ("real_analysis", "termwise_integration"),
+
+    # ── 代数拓扑 ──
+    "基本群":                 ("algebraic_topology", "fundamental_group"),
+    "单连通判定":             ("algebraic_topology", "is_simply_connected"),
+    "路径同伦":               ("algebraic_topology", "path_homotopy"),
+    "单纯复形":               ("algebraic_topology", "simplicial_complex"),
+    "边界算子":               ("algebraic_topology", "boundary_operator"),
+    "同调群":                 ("algebraic_topology", "homology_group"),
+    "贝蒂数":                 ("algebraic_topology", "betti_numbers"),
+    "欧拉示性数":             ("algebraic_topology", "euler_characteristic"),
+    "上同调群":               ("algebraic_topology", "cohomology_group"),
+    "杯积":                   ("algebraic_topology", "cup_product"),
+    "庞加莱对偶":             ("algebraic_topology", "poincare_duality"),
+    "映射度":                 ("algebraic_topology", "mapping_degree"),
+    "Brouwer不动点定理":      ("algebraic_topology", "brouwer_fixed_point_theorem"),
+    "毛球定理":               ("algebraic_topology", "hairy_ball_theorem"),
+    "过滤复形":               ("algebraic_topology", "filtration"),
+    "持续同调图":             ("algebraic_topology", "persistence_diagram"),
+    "条形码":                 ("algebraic_topology", "barcode_plot"),
+
+    # ── 测度论 ──
+    "σ-代数判定":             ("measure_theory", "is_sigma_algebra"),
+    "生成σ-代数":             ("measure_theory", "generate_sigma_algebra"),
+    "Borel σ-代数":           ("measure_theory", "borel_sigma_algebra"),
+    "外测度":                 ("measure_theory", "outer_measure"),
+    "Caratheodory可测":       ("measure_theory", "caratheodory_measurable"),
+    "勒贝格测度":             ("measure_theory", "lebesgue_measure"),
+    "测度性质":               ("measure_theory", "measure_properties"),
+    "可测函数判定":           ("measure_theory", "is_measurable"),
+    "简单函数":               ("measure_theory", "simple_function"),
+    "阶梯函数逼近":           ("measure_theory", "step_function_approx"),
+    "简单函数积分":           ("measure_theory", "integral_simple"),
+    "非负函数积分":           ("measure_theory", "integral_nonnegative"),
+    "一般勒贝格积分":         ("measure_theory", "integral_general"),
+    "零测集无关性":           ("measure_theory", "integral_zero_set_independent"),
+    "单调收敛定理":           ("measure_theory", "monotone_convergence"),
+    "Fatou引理":              ("measure_theory", "fatou_lemma"),
+    "控制收敛定理":           ("measure_theory", "dominated_convergence"),
+    "乘积测度":               ("measure_theory", "product_measure"),
+    "Fubini定理":             ("measure_theory", "fubini_theorem"),
+    "概率空间":               ("measure_theory", "probability_space"),
+    "随机变量(测度论)":       ("measure_theory", "random_variable"),
+    "期望(测度论)":           ("measure_theory", "expectation"),
+    "条件期望":               ("measure_theory", "conditional_expectation"),
+    "独立性判定":             ("measure_theory", "independence_check"),
 }
 
 
@@ -1022,6 +1067,172 @@ def _build_kwargs(action: str, action_name: str, params: list[str]) -> dict | No
         n = int(params[0]) if params else 1
         m = int(params[1]) if len(params) > 1 else 2
         return {"n": n, "m": m}
+
+    # ── 代数拓扑 ──────────────────────────────────────────────
+    # 单参数 (space) + 可选 n
+    if action in ("fundamental_group", "is_simply_connected"):
+        result = {"space": params[0]}
+        if len(params) > 1:
+            try: result["n"] = int(params[1])
+            except ValueError: pass
+        return result
+
+    # path_homotopy: f, g [, space]
+    if action == "path_homotopy":
+        result = {"f": params[0]}
+        if len(params) > 1: result["g"] = params[1]
+        return result
+
+    # 单纯复形: simplices
+    if action == "simplicial_complex":
+        return {"simplices": params[0]}
+
+    # boundary_operator: chain, dimension
+    if action == "boundary_operator":
+        result = {"chain": params[0]}
+        if len(params) > 1:
+            try: result["dimension"] = int(params[1])
+            except ValueError: result["dimension"] = 1
+        return result
+
+    # homology / cohomology: complex_or_type + n
+    if action in ("homology_group", "cohomology_group"):
+        result = {"complex_or_type": params[0]}
+        if len(params) > 1:
+            try: result["n"] = int(params[1])
+            except ValueError: result["n"] = 1
+        return result
+
+    # betti_numbers: complex_or_type [, max_dim]
+    if action == "betti_numbers":
+        result = {"complex_or_type": params[0]}
+        if len(params) > 1:
+            try: result["max_dim"] = int(params[1])
+            except ValueError: pass
+        return result
+
+    # euler_characteristic: complex_or_type
+    if action == "euler_characteristic":
+        return {"complex_or_type": params[0]}
+
+    # cup_product: cocycle1, cocycle2
+    if action == "cup_product":
+        result = {"cocycle1": params[0]}
+        if len(params) > 1: result["cocycle2"] = params[1]
+        return result
+
+    # poincare_duality: manifold [, k]
+    if action == "poincare_duality":
+        result = {"manifold": params[0]}
+        if len(params) > 1:
+            try: result["k"] = int(params[1])
+            except ValueError: pass
+        return result
+
+    # mapping_degree: f [, sphere_dim]
+    if action == "mapping_degree":
+        result = {"f": params[0]}
+        if len(params) > 1:
+            try: result["sphere_dim"] = int(params[1])
+            except ValueError: pass
+        return result
+
+    # brouwer_fixed_point_theorem: space
+    if action == "brouwer_fixed_point_theorem":
+        return {"space": params[0]}
+
+    # hairy_ball_theorem: sphere_dim
+    if action == "hairy_ball_theorem":
+        try: return {"sphere_dim": int(params[0])}
+        except ValueError: return {"sphere_dim": 2}
+
+    # 持续同调三件套: point_cloud
+    if action in ("filtration", "persistence_diagram", "barcode_plot"):
+        return {"point_cloud": params[0]}
+
+    # ── 测度论 ────────────────────────────────────────────────
+    # is_sigma_algebra: collection, X
+    if action == "is_sigma_algebra":
+        result = {"collection": params[0]}
+        if len(params) > 1: result["X"] = params[1]
+        return result
+
+    # generate_sigma_algebra: sets
+    if action == "generate_sigma_algebra":
+        return {"sets": params[0]}
+
+    # borel_sigma_algebra: space
+    if action == "borel_sigma_algebra":
+        return {"space": params[0]}
+
+    # 外测度 / 可测 / 勒贝格测度: E
+    if action in ("outer_measure", "caratheodory_measurable", "lebesgue_measure"):
+        return {"E": params[0]}
+
+    # measure_properties: property_name
+    if action == "measure_properties":
+        return {"property_name": params[0]}
+
+    # 可测函数 / 阶梯逼近 / 积分: f
+    if action in ("is_measurable", "step_function_approx",
+                  "integral_nonnegative", "integral_general", "fubini_theorem"):
+        return {"f": params[0]}
+
+    # simple_function: values, sets
+    if action == "simple_function":
+        result = {"values": params[0]}
+        if len(params) > 1: result["sets"] = params[1]
+        return result
+
+    # integral_simple: simple_func
+    if action == "integral_simple":
+        return {"simple_func": params[0]}
+
+    # integral_zero_set_independent: f, g
+    if action == "integral_zero_set_independent":
+        result = {"f": params[0]}
+        if len(params) > 1: result["g"] = params[1]
+        return result
+
+    # monotone_convergence: f_n, f
+    if action == "monotone_convergence":
+        result = {"f_n": params[0]}
+        if len(params) > 1: result["f"] = params[1]
+        return result
+
+    # fatou_lemma: f_n
+    if action == "fatou_lemma":
+        return {"f_n": params[0]}
+
+    # dominated_convergence: f_n, f, g
+    if action == "dominated_convergence":
+        result = {"f_n": params[0]}
+        if len(params) > 1: result["f"] = params[1]
+        if len(params) > 2: result["g"] = params[2]
+        return result
+
+    # product_measure: mu, nu, A, B
+    if action == "product_measure":
+        result = {}
+        if len(params) > 0: result["mu"] = params[0]
+        if len(params) > 1: result["nu"] = params[1]
+        if len(params) > 2: result["A"] = params[2]
+        if len(params) > 3: result["B"] = params[3]
+        return result
+
+    # probability_space: Omega
+    if action == "probability_space":
+        return {"Omega": params[0]}
+
+    # random_variable / expectation / conditional_expectation: X
+    if action in ("random_variable", "expectation", "conditional_expectation"):
+        return {"X": params[0]}
+
+    # independence_check: A, B
+    if action == "independence_check":
+        result = {"A": params[0]}
+        if len(params) > 1: result["B"] = params[1]
+        return result
 
     # ── 通用回退：单参数 → expr，多参数 → 位置展开 ──
     import logging

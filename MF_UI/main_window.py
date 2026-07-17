@@ -23,6 +23,8 @@ from calc.real_analysis import Workspace as RealAnalysisWorkspace
 from calc.sequences import Workspace as SequencesWorkspace
 from calc.complex_analysis import Workspace as ComplexAnalysisWorkspace
 from calc.functional_analysis import Workspace as FunctionalAnalysisWorkspace
+from calc.algebraic_topology import Workspace as AlgebraicTopologyWorkspace
+from calc.measure_theory import Workspace as MeasureTheoryWorkspace
 from plot.basic.workspace import PlotWorkspace
 from plot.fractal.workspace import FractalWorkspace
 
@@ -155,6 +157,7 @@ class MainWindow(QMainWindow):
             "代数计算", "微积分", "解析几何", "数列",
             "线性代数", "概率论与数理统计", "数值分析",
             "数论", "实分析", "泛函分析", "复分析",
+            "代数拓扑", "测度论",
         ]
         self._plot_modes = ["普通模式", "极坐标", "3D模式", "复数模式", "向量场", "任意做图", "分形探索"]
         self.last_calc_index = 0
@@ -478,16 +481,16 @@ class MainWindow(QMainWindow):
     def _on_sub_mode_changed(self, index: int):
         if self._current_mode == 0:  # 计算模式
             self.last_calc_index = index
-            self._stacked_widget.setCurrentIndex(index)  # 索引 0~10
+            self._stacked_widget.setCurrentIndex(index)  # 索引 0~12
         else:  # 绘图模式
             self.last_plot_index = index
-            self._stacked_widget.setCurrentIndex(11 + index)  # 索引 11~17
+            self._stacked_widget.setCurrentIndex(13 + index)  # 索引 13~19
 
 
     # ---------- 中央区域 ----------
     def _build_central_area(self):
         self._stacked_widget = QStackedWidget()
-        # ── 计算模式 (index 0-9) ──
+        # ── 计算模式 (index 0-12) ──
         self._stacked_widget.addWidget(AlgebraWorkspace())
         self._stacked_widget.addWidget(CalculusWorkspace())
         self._stacked_widget.addWidget(AnalyticGeometryWorkspace())
@@ -499,7 +502,9 @@ class MainWindow(QMainWindow):
         self._stacked_widget.addWidget(RealAnalysisWorkspace())
         self._stacked_widget.addWidget(FunctionalAnalysisWorkspace())
         self._stacked_widget.addWidget(ComplexAnalysisWorkspace())
-    # ── 绘图模式 (index 11-17) ──
+        self._stacked_widget.addWidget(AlgebraicTopologyWorkspace())
+        self._stacked_widget.addWidget(MeasureTheoryWorkspace())
+        # ── 绘图模式 (index 13-19) ──
         self._stacked_widget.addWidget(PlotWorkspace("普通模式 — 2D 函数绘图"))
         self._stacked_widget.addWidget(PlotWorkspace("极坐标 — r = f(θ) 绘图"))
         self._stacked_widget.addWidget(PlotWorkspace("3D 模式 — 三维曲面绘图"))
