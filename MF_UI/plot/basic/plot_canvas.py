@@ -910,67 +910,88 @@ class PlotCanvas(QGraphicsView):
         self._polar_grid_items.clear()
 
     def _rebuild_polar_grid(self) -> None:
-        """重建极坐标网格（同心圆 + 射线）— 场景装饰层，setZValue(-1)。"""
+        """重建极坐标网格 — 同心圆 + 等角射线 + 刻度线 + 角度标注。
+
+        所有网格项 setZValue(-1) 放场景底层，不干扰曲线。
+        """
         self._clear_polar_grid()
         if not self._polar_mode:
             return
 
         vr = self.mapToScene(self.viewport().rect()).boundingRect()
-        max_r = max(abs(vr.left()), abs(vr.right()),
-                     abs(vr.top()), abs(vr.bottom())) * 1.2
+        diag = math.hypot(vr.width(), vr.height())
+        max_r = diag * 1.5  # 射线延伸到画布外
+        view_w = vr.width()
 
-        # ── 自适应半径步长（10^floor(log10(range)) × {1,2,5}）──
-        rng = max_r / 2
-        if rng <= 0: rng = 1
-        exp = math.floor(math.log10(rng))
-        base = 10 ** exp
-        # 1, 2, 5 倍数匹配
-        for m in (1, 2, 5, 10, 20, 50):
-            if base * m >= rng / 5:
-                circle_step = base * m
-                break
-        else:
-            circle_step = base * 50
-        if circle_step < 0.01:
-            circle_step = 0.01
+        # ── 半径步长（简化美观步长）──
+        if view_w < 2:      circle_step = 0.1
+        elif view_w < 10:   circle_step = 0.5
+        elif view_w < 50:   circle_step = 1.0
+        elif view_w < 200:  circle_step = 5.0
+        else:               circle_step = 10.0
 
-        # ── 半透明灰色笔（不干扰曲线）──
-        grid_color = QColor(180, 180, 180, 60)
+        # ── 半透明灰色虚线 ──
+        grid_color = QColor(160, 160, 160, 70)
         grid_pen = QPen(grid_color, 1, Qt.PenStyle.DashLine)
-        axis_color = QColor(140, 140, 140, 120)
-        axis_pen = QPen(axis_color, AXIS_PX)
+        label_color = QColor(120, 120, 120, 140)
+        font = QFont(); font.setPixelSize(8)
 
-        # 同心圆
+        # ═══════════════════════════════════
+        #  同心圆
+        # ═══════════════════════════════════
         r = circle_step
         while r <= max_r:
             item = self._scene.addEllipse(-r, -r, r * 2, r * 2, grid_pen, QBrush())
             item.setZValue(-1)
             self._polar_grid_items.append(item)
+            # 半径标签（X轴正半轴交点处）
+            lbl = self._scene.addSimpleText(format_tick(r), font)
+            lbl.setPos(r + 3, -4)
+            lbl.setBrush(QBrush(label_color))
+            lbl.setZValue(-1)
+            lbl.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIgnoresTransformations, True)
+            self._polar_grid_items.append(lbl)
             r += circle_step
 
-        # 射线（每 π/12 = 15° 一条）
-        for deg in range(0, 360, 15):
-            rad = math.radians(deg)
-            x_e = max_r * math.cos(rad)
-            y_e = max_r * math.sin(rad)
-            line = self._scene.addLine(0, 0, x_e, y_e, grid_pen)
+        # ═══════════════════════════════════
+        #  角度射线 + 刻度线 + 角度标签
+        # ═══════════════════════════════════
+        ANGLES = [0, math.pi/6, math.pi/3, math.pi/2,
+                  2*math.pi/3, 5*math.pi/6, math.pi,
+                  7*math.pi/6, 4*math.pi/3, 3*math.pi/2,
+                  5*math.pi/3, 11*math.pi/6]
+        ANGLE_LABELS = ["0", "π/6", "π/3", "π/2",
+                        "2π/3", "5π/6", "π",
+                        "7π/6", "4π/3", "3π/2",
+                        "5π/3", "11π/6"]
+        TICK_LEN = 10  # 刻度线像素长度
+
+        for rad, a_label in zip(ANGLES, ANGLE_LABELS):
+            cx = max_r * math.cos(rad)
+            cy = max_r * math.sin(rad)
+            # 射线
+            line = self._scene.addLine(0, 0, cx, cy, grid_pen)
             line.setZValue(-1)
             self._polar_grid_items.append(line)
+            # 垂直刻度线
+            nx = -math.sin(rad) * TICK_LEN
+            ny =  math.cos(rad) * TICK_LEN
+            tick = self._scene.addLine(cx - nx, cy - ny, cx + nx, cy + ny, grid_pen)
+            tick.setZValue(-1)
+            self._polar_grid_items.append(tick)
+            # 角度标签（射线终点外侧偏移 15px）
+            lx = cx + math.cos(rad) * 15
+            ly = cy + math.sin(rad) * 15
+            lbl = self._scene.addSimpleText(a_label, font)
+            lbl.setPos(lx - 12, ly - 6)
+            lbl.setBrush(QBrush(label_color))
+            lbl.setZValue(-1)
+            lbl.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIgnoresTransformations, True)
+            self._polar_grid_items.append(lbl)
 
-        # 极轴 (正X方向) 稍粗
-        polar_axis = self._scene.addLine(0, 0, max_r, 0, axis_pen)
-        polar_axis.setZValue(-1)
-        self._polar_grid_items.append(polar_axis)
-
-        # Y 轴 (正Y方向) 也标记
-        y_axis = self._scene.addLine(0, 0, 0, max_r, axis_pen)
-        y_axis.setZValue(-1)
-        self._polar_grid_items.append(y_axis)
-
-        # 原点标记
-        font = QFont(); font.setPixelSize(FONT_PX)
+        # 原点 "O"
         o_lbl = self._scene.addSimpleText("O", font)
-        o_lbl.setPos(-12, -6)
+        o_lbl.setPos(-8, -6)
         o_lbl.setBrush(QBrush(TEXT_COLOR))
         o_lbl.setZValue(-1)
         o_lbl.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIgnoresTransformations, True)
