@@ -255,6 +255,22 @@ FUNC_MAP: dict[str, tuple[str, str]] = {
     "Zeta 解析延拓":          ("complex_analysis", "analytic_continuation_zeta"),
     "Zeta 函数方程":          ("complex_analysis", "functional_equation_zeta"),
     "Zeta 非平凡零点":        ("complex_analysis", "nontrivial_zeros"),
+
+    # ── 线性代数补充 ──
+    "向量空间判定":           ("linear_algebra", "is_vector_space"),
+    "线性组合":               ("linear_algebra", "linear_combination"),
+    "线性无关判定":           ("linear_algebra", "is_linear_independent"),
+    "基":                     ("linear_algebra", "basis"),
+    "维数":                   ("linear_algebra", "dimension"),
+    "张成子空间":             ("linear_algebra", "subspace_span"),
+    "线性变换":               ("linear_algebra", "linear_transform"),
+    "矩阵表示":               ("linear_algebra", "matrix_representation"),
+    "核":                     ("linear_algebra", "kernel"),
+    "像":                     ("linear_algebra", "image"),
+    "秩-零化度":              ("linear_algebra", "rank_nullity"),
+    "标准化":                 ("linear_algebra", "standard_form"),
+    "负定判定":               ("linear_algebra", "is_negative_definite"),
+    "不定判定":               ("linear_algebra", "is_indefinite"),
 }
 
 
