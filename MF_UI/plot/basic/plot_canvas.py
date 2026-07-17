@@ -314,10 +314,13 @@ class PlotCanvas(QGraphicsView):
         painter.drawText(int(ox + 5) if ya_ok else 5,
                          vp.top() + 11, "y")
 
-        # ── 极坐标圆（每两刻度一个，与主轴同粗，像素固定）──
+        # ── 极坐标圆+射线（延伸至视口外，保证画面无间断）──
         if self._polar_mode and ox is not None and oy is not None:
+            # 最大半径延伸至视口外，确保圆和射线画面无间断
+            vrng = max(abs(x1 - x0), abs(y1 - y0))
+            max_r = max(abs(x0), abs(x1), abs(y0), abs(y1)) + vrng
+
             circle_step = step * 2
-            max_r = max(abs(x0), abs(x1), abs(y0), abs(y1))
             circle_pen = QPen(QColor("#c0c0c0"), AXIS_PX, Qt.PenStyle.SolidLine)
             painter.setPen(circle_pen)
             r = circle_step
@@ -327,7 +330,7 @@ class PlotCanvas(QGraphicsView):
                     painter.drawEllipse(QPointF(ox, oy), r_px, r_px)
                 r += circle_step
 
-            # ── 极坐标射线（比圆更淡，跳过0°/60°/90°/270°）──
+            # ── 极坐标射线（比圆更淡，跳过0°/90°/180°/270°）──
             ray_pen = QPen(QColor("#dcdcdc"), AXIS_PX, Qt.PenStyle.SolidLine)
             painter.setPen(ray_pen)
             _skip_deg = {0, 90, 180, 270}
