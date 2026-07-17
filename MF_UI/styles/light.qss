@@ -706,6 +706,9 @@ QPushButton#arbitrary_tool_inactive:hover { background: #e2e8f0; }
     font-size: 12px;
     font-weight: 500;
 }
+#arbitrary_export_btn:hover {
+    background-color: #059669;
+}
 
 /* ---- 积分限对话框 ---- */
 #integralBoundsDialog {
