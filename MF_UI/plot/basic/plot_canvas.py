@@ -330,9 +330,15 @@ class PlotCanvas(QGraphicsView):
                     painter.drawEllipse(QPointF(ox, oy), r_px, r_px)
                 r += circle_step
 
-            # ── 极坐标射线（比圆更淡，跳过0°/90°/180°/270°）──
+            # ── 极坐标射线（比圆更淡）──
             ray_pen = QPen(QColor("#dcdcdc"), AXIS_PX, Qt.PenStyle.SolidLine)
-            painter.setPen(ray_pen)
+            label_r = max_r - circle_step  # 倒数第二个圆的半径（标签位置）
+            _ANGLE_LABELS = {
+                30: "π/6", 60: "π/3", 120: "2π/3", 150: "5π/6",
+                210: "7π/6", 240: "4π/3", 300: "5π/3", 330: "11π/6",
+            }
+            font = QFont(); font.setPixelSize(FONT_PX)
+            painter.setFont(font)
             _skip_deg = {0, 90, 180, 270}
             for deg in range(0, 360, 30):
                 if deg in _skip_deg:
@@ -341,6 +347,15 @@ class PlotCanvas(QGraphicsView):
                 ex = ox + (self._map_x(max_r * math.cos(rad)) - ox)
                 ey = oy + (self._map_y(max_r * math.sin(rad)) - oy)
                 painter.drawLine(QPointF(int(ox), int(oy)), QPointF(int(ex), int(ey)))
+                # 角度标签：射线与倒数第二个圆的交点处
+                if deg in _ANGLE_LABELS:
+                    lx = ox + (self._map_x(label_r * math.cos(rad)) - ox)
+                    ly = oy + (self._map_y(label_r * math.sin(rad)) - oy)
+                    painter.setPen(QPen(TEXT_COLOR, 1))
+                    lbl = _ANGLE_LABELS[deg]
+                    tw = painter.fontMetrics().horizontalAdvance(lbl)
+                    painter.drawText(QPointF(int(lx - tw / 2), int(ly - 4)), lbl)
+                    painter.setPen(ray_pen)
 
         painter.restore()
 
