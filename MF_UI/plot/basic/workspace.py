@@ -132,6 +132,16 @@ class PlotWorkspace(QWidget):
         card_inner = QVBoxLayout(card)
         card_inner.setContentsMargins(0, 0, 0, 0); card_inner.addWidget(scroll)
         ll.addWidget(card, 1)
+
+        # 导出按钮
+        from PySide6.QtWidgets import QFileDialog
+        export_btn = QPushButton("📷 导出 PNG")
+        export_btn.setObjectName("plot_btn_add")
+        export_btn.setFixedHeight(36)
+        export_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        export_btn.clicked.connect(self._export_png)
+        ll.addWidget(export_btn)
+
         root.addWidget(left)
 
         # ── 右侧画布 ──
@@ -146,6 +156,16 @@ class PlotWorkspace(QWidget):
 
         if self._mode == "normal":
             self._add_function_box()
+
+    def _export_png(self) -> None:
+        """导出当前画布为 PNG 图像。"""
+        if self._canvas is None:
+            return
+        from PySide6.QtWidgets import QFileDialog
+        path, _ = QFileDialog.getSaveFileName(
+            self, "导出 PNG", "plot.png", "PNG (*.png)")
+        if path and self._canvas.export_png(path):
+            self._status.setText(f"已导出: {path}")
 
     @property
     def canvas(self):
