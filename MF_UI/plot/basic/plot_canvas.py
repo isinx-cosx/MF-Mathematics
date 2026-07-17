@@ -437,7 +437,40 @@ class PlotCanvas(QGraphicsView):
         font.setPixelSize(FONT_PX)
         p.setFont(font)
         half = TICK_PX
+        minor_half = max(1, TICK_PX // 2)  # 分度线半长
+        minor_step = step / 5.0            # 每大格 4 条分度线
         spx = self._step_px(step)
+
+        # ── 分度线颜色（比主刻度更淡）──
+        minor_tick_color = QColor(
+            min(255, TICK_COLOR.red() + 40),
+            min(255, TICK_COLOR.green() + 40),
+            min(255, TICK_COLOR.blue() + 40),
+        )
+
+        # ── X 轴分度线（主刻度之间 4 条）──
+        msx = math.floor(x0 / step) * step
+        while msx <= x1:
+            for k in (1, 2, 3, 4):
+                msv = msx + k * minor_step
+                vx = self._map_x(msv)
+                vy = oy if xa_ok else self._map_y(0.0)
+                if vx is not None and vy is not None:
+                    p.setPen(QPen(minor_tick_color, 1))
+                    p.drawLine(int(vx), int(vy - minor_half), int(vx), int(vy + minor_half))
+            msx += step
+
+        # ── Y 轴分度线（主刻度之间 4 条）──
+        msy = math.floor(y0 / step) * step
+        while msy <= y1:
+            for k in (1, 2, 3, 4):
+                msv = msy + k * minor_step
+                vx = ox if ya_ok else self._map_x(0.0)
+                vy = self._map_y(msv)
+                if vx is not None and vy is not None:
+                    p.setPen(QPen(minor_tick_color, 1))
+                    p.drawLine(int(vx - minor_half), int(vy), int(vx + minor_half), int(vy))
+            msy += step
 
         # ── X 轴刻度 ──
         sx = math.floor(x0 / step) * step
@@ -475,6 +508,17 @@ class PlotCanvas(QGraphicsView):
             edge_y = int(vp.bottom() - 20)
             p.setPen(QPen(EDGE_COLOR, 1, Qt.PenStyle.DashLine))
             p.drawLine(int(vp.left()), edge_y, int(vp.right()), edge_y)
+            # 分度线
+            msx = math.floor(x0 / step) * step
+            while msx <= x1:
+                for k in (1, 2, 3, 4):
+                    msv = msx + k * minor_step
+                    vx = self._map_x(msv)
+                    if vx is not None:
+                        p.setPen(QPen(minor_tick_color, 1))
+                        p.drawLine(int(vx), edge_y - minor_half, int(vx), edge_y + minor_half)
+                msx += step
+            # 主刻度 + 标签
             sx = math.floor(x0 / step) * step
             while sx <= x1:
                 vx = self._map_x(sx)
@@ -493,6 +537,17 @@ class PlotCanvas(QGraphicsView):
             edge_x = int(vp.left() + 20)
             p.setPen(QPen(EDGE_COLOR, 1, Qt.PenStyle.DashLine))
             p.drawLine(edge_x, int(vp.top()), edge_x, int(vp.bottom()))
+            # 分度线
+            msy = math.floor(y0 / step) * step
+            while msy <= y1:
+                for k in (1, 2, 3, 4):
+                    msv = msy + k * minor_step
+                    vy = self._map_y(msv)
+                    if vy is not None:
+                        p.setPen(QPen(minor_tick_color, 1))
+                        p.drawLine(edge_x - minor_half, int(vy), edge_x + minor_half, int(vy))
+                msy += step
+            # 主刻度 + 标签
             sy = math.floor(y0 / step) * step
             while sy <= y1:
                 vy = self._map_y(sy)
