@@ -295,6 +295,30 @@ FUNC_MAP: dict[str, tuple[str, str]] = {
     "Dirichlet L 函数":       ("number_theory", "dirichlet_l_function"),
     "伯努利数":               ("number_theory", "bernoulli_number"),
 
+    # ── 基础运算 ──
+    "绝对值":                 ("algebra", "abs_value"),
+    "数轴距离":               ("algebra", "distance_on_number_line"),
+    "比与比例":               ("algebra", "ratio"),
+    "百分数":                 ("algebra", "percentage"),
+    "百分变化率":             ("algebra", "percentage_change"),
+    "科学记数法":             ("algebra", "to_scientific_notation"),
+    "有效数字":               ("algebra", "significant_figures"),
+
+    # ── 三角函数 ──
+    "三角函数求值":           ("algebra", "sine_cosine_tangent"),
+    "三角恒等式":             ("algebra", "trig_basic_identities"),
+    "三角周期性":             ("algebra", "trig_periodicity"),
+
+    # ── 函数分析 ──
+    "函数定义域":             ("algebra", "domain"),
+    "函数值域估计":           ("algebra", "range_estimate"),
+    "线性函数":               ("algebra", "linear_function"),
+    "二次函数":               ("algebra", "quadratic_function"),
+    "二次函数极值":           ("algebra", "quadratic_extrema"),
+    "幂函数":                 ("algebra", "power_function"),
+    "指数函数":               ("algebra", "exponential_function"),
+    "对数函数":               ("algebra", "log_function"),
+
     # ── 概率补充 ──
     "分布函数":               ("probability", "distribution_function"),
     "概率质量函数":           ("probability", "pmf"),
@@ -522,6 +546,16 @@ def _normalize_kwargs(action: str, kwargs: dict) -> dict:
 
 def _build_kwargs(action: str, action_name: str, params: list[str]) -> dict | None:
     """根据 action 将字符串参数列表构造为 kwargs。"""
+
+    def _safe_le(s: str, default=None):
+        try:
+            val = _le(s.strip())
+            if isinstance(val, list):
+                val = tuple(val)
+            return val
+        except (ValueError, SyntaxError):
+            return s.strip()
+
     if not params:
         return None
 
@@ -745,6 +779,29 @@ def _build_kwargs(action: str, action_name: str, params: list[str]) -> dict | No
     if action == "zeta_negative":
         n = int(_le(params[0])) if params else 1
         return {"n": n}
+
+    # ── 基础运算 + 三角 + 函数分析 ──
+    if action in ("abs_value", "distance_on_number_line", "to_scientific_notation",
+                  "significant_figures"):
+        x = _safe_le(params[0]) if params else 0
+        return {"x": x}
+    if action in ("ratio", "percentage", "percentage_change"):
+        a = _safe_le(params[0]) if len(params) > 0 else 1
+        b = _safe_le(params[1]) if len(params) > 1 else 1
+        return {"a": a, "b": b}
+    if action == "sine_cosine_tangent":
+        angle = _safe_le(params[0]) if params else 0
+        mode = params[1] if len(params) > 1 else "degrees"
+        return {"angle": angle, "mode": mode}
+    if action in ("trig_basic_identities", "trig_periodicity"):
+        func = params[0] if params else "sin"
+        return {"func": func}
+    if action in ("domain", "range_estimate", "linear_function",
+                  "quadratic_function", "quadratic_extrema",
+                  "power_function", "exponential_function", "log_function"):
+        expr = params[0] if params else "x"
+        var = params[1] if len(params) > 1 else "x"
+        return {"expr": expr, "var": var}
 
     # ── 实分析 function_series: seq_expr 参数名 ──
     if action in ("pointwise_convergence", "uniform_convergence",
