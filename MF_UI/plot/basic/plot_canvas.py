@@ -222,6 +222,7 @@ class PlotCanvas(QGraphicsView):
         self.setResizeAnchor(QGraphicsView.ViewportAnchor.AnchorUnderMouse)
         self.setDragMode(QGraphicsView.DragMode.ScrollHandDrag)
         self.setBackgroundBrush(QBrush(BG_COLOR))
+        self.setMouseTracking(True)      # 启用鼠标追踪 → 实时坐标显示
         self.scale(1, -1)  # Y-up
 
         self.fitInView(INITIAL_VIEW, Qt.AspectRatioMode.KeepAspectRatio)
@@ -445,6 +446,16 @@ class PlotCanvas(QGraphicsView):
     # ═══════════════════════════════════════════════════════════════
     #  Aspect ratio lock — 始终等比例缩放
     # ═══════════════════════════════════════════════════════════════
+
+    def mouseMoveEvent(self, event) -> None:
+        """鼠标移动 → 实时坐标显示（场景坐标转为数学坐标）。"""
+        super().mouseMoveEvent(event)
+        pos = self.mapToScene(event.position().toPoint())
+        self.status_message.emit(
+            f"x = {pos.x():.4f}  y = {pos.y():.4f}  |  "
+            f"view: [{self._last_view_rect.left():.1f}, {self._last_view_rect.right():.1f}] "
+            f"× [{self._last_view_rect.bottom():.1f}, {self._last_view_rect.top():.1f}]"
+        )
 
     def resizeEvent(self, event) -> None:
         """窗口大小变化时保持纵横比，确保圆形始终为正圆。"""
@@ -828,6 +839,13 @@ class PlotCanvas(QGraphicsView):
 
     def update_axes(self) -> None:
         self.viewport().update()
+
+    def export_png(self, path: str) -> bool:
+        """导出当前画布为 PNG 图像。"""
+        from PySide6.QtGui import QImage
+        img = QImage(self.viewport().size(), QImage.Format_ARGB32)
+        self.viewport().render(img)
+        return img.save(path, "PNG")
 
 
 # ═══════════════════════════════════════════════════════════════════════
