@@ -561,41 +561,79 @@ def _build_kwargs(action: str, action_name: str, params: list[str]) -> dict | No
     if action == "power_series":
         return {"expr": params[0], "var": params[1] if len(params) > 1 else "x"}
 
-    # ── 解析几何: 需要特定参数名 ──
+    # ── 解析几何: p1, p2 参数 ──
     if action in ("distance", "midpoint"):
-        p1 = params[0] if len(params) > 0 else "(0,0)"
-        p2 = params[1] if len(params) > 1 else "(1,0)"
+        p1 = _le(params[0].strip()) if len(params) > 0 else (0, 0)
+        p2 = _le(params[1].strip()) if len(params) > 1 else (1, 0)
         return {"p1": p1, "p2": p2}
 
     # ── 排列组合: n, m (整数) ──
     if action in ("permutation", "combination"):
-        try: n = int(params[0]) if len(params) > 0 else 5
-        except ValueError: n = params[0]
-        try: m = int(params[1]) if len(params) > 1 else 2
-        except ValueError: m = params[1]
+        n = _le(params[0]) if len(params) > 0 else 5
+        m = _le(params[1]) if len(params) > 1 else 2
         return {"n": n, "m": m}
 
     # ── 梯度下降: f, x0 ──
     if action == "gradient_descent":
-        f = params[0] if len(params) > 0 else "x**2"
-        x0 = float(params[1]) if len(params) > 1 else 1.0
-        return {"f": f, "x0": x0}
+        return {"f": params[0]} if params else {"f": "x**2"}
     if action == "phase_portrait":
         return {"f": params[0]} if params else {"f": "[-y, x]"}
 
-    # ── 复数分析: 需要 z/f 参数 ──
+    # ── 数列: a1, d/q, n ──
+    if action == "arithmetic_sum":
+        a1 = _le(params[0]) if len(params) > 0 else 0
+        d = _le(params[1]) if len(params) > 1 else 1
+        n = _le(params[2]) if len(params) > 2 else 10
+        return {"a1": a1, "d": d, "n": n}
+    if action == "geometric_sequence":
+        a1 = _le(params[0]) if len(params) > 0 else 1
+        q = _le(params[1]) if len(params) > 1 else 2
+        n = _le(params[2]) if len(params) > 2 else 10
+        return {"a1": a1, "q": q, "n": n}
+    if action == "arithmetic_sequence":
+        a1 = _le(params[0]) if len(params) > 0 else 1
+        d = _le(params[1]) if len(params) > 1 else 1
+        n = _le(params[2]) if len(params) > 2 else 10
+        return {"a1": a1, "d": d, "n": n}
+    if action == "geometric_sum":
+        a1 = _le(params[0]) if len(params) > 0 else 1
+        q = _le(params[1]) if len(params) > 1 else 1
+        n = _le(params[2]) if len(params) > 2 else 10
+        return {"a1": a1, "q": q, "n": n}
+    if action == "sequence_term":
+        return {"expr": params[0], "n": _le(params[1]) if len(params) > 1 else 1}
+
+    # ── 二项式: a, b, n ──
+    if action == "binomial_expand":
+        a = _le(params[0]) if len(params) > 0 else "a"
+        b = _le(params[1]) if len(params) > 1 else "b"
+        n = _le(params[2]) if len(params) > 2 else 2
+        return {"a": a, "b": b, "n": n}
+    if action == "binomial_term":
+        a = _le(params[0]) if len(params) > 0 else "a"
+        b = _le(params[1]) if len(params) > 1 else "b"
+        n = _le(params[2]) if len(params) > 2 else 2
+        k = _le(params[3]) if len(params) > 3 else 1
+        return {"a": a, "b": b, "n": n, "k": k}
+
+    # ── 复数分析: func/z 参数 ──
+    if action in ("residue", "residue_theorem"):
+        func = params[0] if params else "1/z"
+        if len(params) > 1:
+            try: z0 = _le(params[1])
+            except (ValueError, SyntaxError): z0 = params[1]
+        else:
+            z0 = 0
+        return {"func": func, "z0": z0}
     if action in ("contour_integral", "cauchy_theorem", "cauchy_integral_formula",
-                  "laurent_series", "singularity_classify",
-                  "residue", "residue_theorem"):
+                  "laurent_series", "singularity_classify"):
         return {"f": params[0]} if params else {"f": "1/z"}
 
-    # ── 解析几何直线/圆 + 数列 + 二项式: expr+var ──
+    # ── 解析几何直线/圆: expr+var ──
     if action in ("line_from_points", "line_from_slope_intercept",
                   "line_from_point_slope", "line_from_intercepts",
                   "line_general", "circle_standard", "circle_general",
-                  "sequence_term", "arithmetic_sequence", "arithmetic_sum",
-                  "geometric_sequence", "geometric_sum", "recurrence_sequence",
-                  "binomial_expand", "binomial_term"):
+                  "recurrence_sequence"):
         expr = params[0]
         var = params[1] if len(params) > 1 else "x"
         return {"expr": expr, "var": var}
@@ -611,7 +649,11 @@ def _build_kwargs(action: str, action_name: str, params: list[str]) -> dict | No
                   "direct_comparison_test", "p_series_test", "classify_and_test",
                   "argument_principle", "rouche_theorem",
                   "zeta_series", "analytic_continuation_zeta",
-                  "functional_equation_zeta", "nontrivial_zeros"):
+                  "functional_equation_zeta", "nontrivial_zeros",
+                  "recurrence_sequence", "line_from_points",
+                  "line_from_slope_intercept", "line_from_point_slope",
+                  "line_from_intercepts", "line_general",
+                  "circle_standard", "circle_general"):
         expr = params[0]
         var = params[1] if len(params) > 1 else "x"
         return {"expr": expr, "var": var}
