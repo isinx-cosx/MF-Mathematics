@@ -435,10 +435,10 @@ class PlotCanvas(QGraphicsView):
         p = QPainter(pix)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
 
-        # ── 副网格线（每大格 4 条，比主网格更细更淡）──
+        # ── 副网格线（每大格 4 条，比主网格更细）──
         minor_step = step / 5.0
         minor_grid_color = QColor(GRID_COLOR.red(), GRID_COLOR.green(),
-                                  GRID_COLOR.blue(), 120)  # 半透明
+                                  GRID_COLOR.blue(), 200)
         p.setPen(QPen(minor_grid_color, 0.5))
         mgx = math.floor(x0 / step) * step
         while mgx <= x1:

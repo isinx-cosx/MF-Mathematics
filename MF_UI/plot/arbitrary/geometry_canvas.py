@@ -229,10 +229,10 @@ class GeometryCanvas(QGraphicsView):
         if ya_ok:
             painter.drawLine(int(ox), int(vp.top()), int(ox), int(vp.bottom()))
 
-        # ── 副网格线（每大格 4 条，半透明）──
+        # ── 副网格线（每大格 4 条，比主网格更细）──
         minor_step = step / 5.0
         minor_grid_color = QColor(GRID_COLOR.red(), GRID_COLOR.green(),
-                                  GRID_COLOR.blue(), 120)
+                                  GRID_COLOR.blue(), 200)
         painter.setPen(QPen(minor_grid_color, 0.5))
         mgx = math.floor(x0 / step) * step
         while mgx <= x1:
