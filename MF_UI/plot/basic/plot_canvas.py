@@ -327,6 +327,15 @@ class PlotCanvas(QGraphicsView):
                     painter.drawEllipse(QPointF(ox, oy), r_px, r_px)
                 r += circle_step
 
+            # ── 极坐标射线（比圆更淡）──
+            ray_pen = QPen(QColor("#dcdcdc"), AXIS_PX, Qt.PenStyle.SolidLine)
+            painter.setPen(ray_pen)
+            for deg in range(0, 360, 30):
+                rad = math.radians(deg)
+                ex = ox + (self._map_x(max_r * math.cos(rad)) - ox)
+                ey = oy + (self._map_y(max_r * math.sin(rad)) - oy)
+                painter.drawLine(QPointF(int(ox), int(oy)), QPointF(int(ex), int(ey)))
+
         painter.restore()
 
     def _build_grid_pixmap(self, vp, x0, x1, y0, y1, step, ox, oy,
