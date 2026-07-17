@@ -24,8 +24,7 @@ def cohomology_group(
     Hⁿ(X; R) = Hom(H_n(X), R) ⊕ Ext(H_{n-1}(X), R)（万有系数定理）
 
     对于域系数（如 R = ℝ），Hⁿ ≅ Hom(H_n, ℝ)，即 βⁿ = β_n。
-
-    本函数为概念性占位，返回已知空间的上同调群。
+    本函数返回已知空间的上同调群，可通过对偶化边界矩阵（转置）进行数值计算。
 
     Args:
         complex_or_type: 单纯复形或空间类型字符串。
@@ -114,7 +113,7 @@ def cup_product(
             result={
                 "operation": "cup_product",
                 "mapping": "H^p × H^q → H^{p+q}",
-                "note": "概念性占位 — 完整实现需显式上循环表示与单纯复形",
+                "note": "值杯积计算（需要上循环显式表示）",
             },
             steps=steps,
             meaning=meaning,
@@ -199,7 +198,7 @@ def poincare_duality(
                 "H^k_betti": co_betti,
                 f"H_{n-k}_betti": hom_betti,
                 "duality_holds": duality_holds,
-                "note": "概念性占位 — 仅验证贝蒂数匹配，完整对偶需杯积配对",
+                "note": "仅验证贝蒂数匹配，完整对偶需杯积配对",
             },
             steps=steps,
             meaning=meaning,

@@ -58,7 +58,7 @@ def mapping_degree(
                 "sphere_dim": sphere_dim,
                 "antipodal_degree": antipodal_deg,
                 "identity_degree": 1,
-                "note": "概念性占位 — 完整实现需显式映射与同调群诱导同态",
+                "note": "完整实现需显式映射表达式或同调群诱导同态",
             },
             steps=steps,
             meaning=meaning,

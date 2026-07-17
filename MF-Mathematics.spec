@@ -1,12 +1,9 @@
 # -*- mode: python ; coding: utf-8 -*-
 from PyInstaller.utils.hooks import collect_submodules
 
-hiddenimports = ['MF_Mathematics', 'MF_AI', 'MF_Tutorial', 'MF_User', 'MF_Online', 'sympy', 'numpy', 'scipy', 'matplotlib']
+hiddenimports = []
 hiddenimports += collect_submodules('plot')
 hiddenimports += collect_submodules('calc')
-hiddenimports += collect_submodules('components')
-hiddenimports += collect_submodules('dialogs')
-hiddenimports += collect_submodules('utils')
 
 
 a = Analysis(

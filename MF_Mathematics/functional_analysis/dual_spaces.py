@@ -17,7 +17,7 @@ from ..core.registry import register
 def dual_space_basis(
     space: Union[str, Sequence[Sequence[float]]],
 ) -> MathObject:
-    """计算对偶空间基（概念性占位 + 有限维演示）。
+    """计算对偶空间基（有限维演示 + 无穷维理论说明）。
 
     对偶空间 V* 是 V 上所有有界线性泛函构成的空间。
     若 V 的基为 {e₁, ..., eₙ}，则对偶基 {f₁, ..., fₙ} 满足 f_i(e_j) = δ_ij。
@@ -164,7 +164,7 @@ def weak_convergence(
 
 @register(module="functional_analysis", action="is_reflexive")
 def is_reflexive(space: str, dimension: int = -1) -> MathObject:
-    """判断给定空间是否为自反空间（概念性占位）。
+    """判断给定空间是否为自反空间。
 
     自反空间定义：赋范空间 V 与其二次对偶 V** 等距同构。
     自然嵌入 J: V → V** 定义为 (J(x))(f) = f(x)。

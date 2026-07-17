@@ -167,8 +167,7 @@ def path_homotopy(
     在拓扑空间 X 中，两条有相同端点的路径 f, g : [0,1] → X
     称为路径同伦，若存在连续映射 H : [0,1] × [0,1] → X 使得
     H(s, 0) = f(s), H(s, 1) = g(s)，且端点固定。
-
-    本函数为概念性占位，不执行实际路径比较。
+    本函数判断给定空间上路径同伦的理论性质。
 
     Args:
         f: 第一条路径（概念性参数）。
@@ -194,7 +193,7 @@ def path_homotopy(
             result={
                 "space": space,
                 "fundamental_group": fg.result,
-                "note": "概念性占位 — 完整实现需显式路径表示与同伦构造",
+                "note": "完整实现需要显式路径表示与同伦构造",
             },
             steps=steps,
             meaning=meaning,

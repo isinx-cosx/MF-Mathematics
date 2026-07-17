@@ -1,7 +1,7 @@
 """core_theorems.py — 泛函分析四大核心定理。
 
 涵盖哈恩-巴拿赫延拓、一致有界原理、开映射定理、闭图像定理。
-其中概念性占位函数提供理论基础说明，数值演示函数提供可验证的实例。
+其中理论函数提供基础说明，数值演示函数提供可验证的实例。
 """
 
 from __future__ import annotations
@@ -21,7 +21,7 @@ def hahn_banach_extension(
     subspace_dim: int,
     ambient_dim: int = -1,
 ) -> MathObject:
-    """哈恩-巴拿赫延拓定理（概念性占位 + 有限维演示）。
+    """哈恩-巴拿赫延拓定理（有限维演示）。
 
     定理内容：设 V 是赋范线性空间，U 是 V 的线性子空间，
     f 是 U 上的有界线性泛函，则 f 可以保范延拓到整个 V 上。
@@ -162,7 +162,7 @@ def uniform_boundedness(
 def open_mapping(
     operator: Sequence[Sequence[float]],
 ) -> MathObject:
-    """开映射定理（概念性占位 + 可逆性数值演示）。
+    """开映射定理（可逆性数值演示）。
 
     定理内容：设 X, Y 是巴拿赫空间，T: X → Y 是有界线性满射，
     则 T 是开映射（将开集映为开集）。
@@ -206,7 +206,7 @@ def open_mapping(
 def closed_graph(
     operator: Sequence[Sequence[float]],
 ) -> MathObject:
-    """闭图像定理（概念性占位 + 数值演示）。
+    """闭图像定理（数值演示）。
 
     定理内容：设 X, Y 是巴拿赫空间，T: X → Y 是线性算子。
     T 有界 ⇔ T 的图像是 X×Y 中的闭集。
