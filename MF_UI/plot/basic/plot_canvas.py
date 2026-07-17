@@ -451,11 +451,14 @@ class PlotCanvas(QGraphicsView):
         """鼠标移动 → 实时坐标显示（场景坐标转为数学坐标）。"""
         super().mouseMoveEvent(event)
         pos = self.mapToScene(event.position().toPoint())
-        self.status_message.emit(
-            f"x = {pos.x():.4f}  y = {pos.y():.4f}  |  "
-            f"view: [{self._last_view_rect.left():.1f}, {self._last_view_rect.right():.1f}] "
-            f"× [{self._last_view_rect.bottom():.1f}, {self._last_view_rect.top():.1f}]"
-        )
+        if self._last_view_rect is not None:
+            self.status_message.emit(
+                f"x = {pos.x():.4f}  y = {pos.y():.4f}  |  "
+                f"view: [{self._last_view_rect.left():.1f}, {self._last_view_rect.right():.1f}] "
+                f"× [{self._last_view_rect.bottom():.1f}, {self._last_view_rect.top():.1f}]"
+            )
+        else:
+            self.status_message.emit(f"x = {pos.x():.4f}  y = {pos.y():.4f}")
 
     def resizeEvent(self, event) -> None:
         """窗口大小变化时保持纵横比，确保圆形始终为正圆。"""
