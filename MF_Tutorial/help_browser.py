@@ -115,6 +115,7 @@ class HelpBrowser(QDialog):
         self._browser = QTextBrowser()
         self._browser.setOpenExternalLinks(True)
         self._browser.setFont(QFont("Microsoft YaHei", 10))
+        self._browser.anchorClicked.connect(self._on_anchor_clicked)
         splitter.addWidget(self._browser)
 
         splitter.setSizes([260, 620])
@@ -229,17 +230,25 @@ class HelpBrowser(QDialog):
         # 完成按钮
         if not self._engine.is_completed(tutorial.id):
             parts.append(
-                f"<br><button onclick='mark_done' "
-                f"style='background:#10b981;color:#fff;border:none;"
-                f"border-radius:6px;padding:8px 18px;font-size:13px;cursor:pointer;'>"
+                f"<br><a href='#mark_done' "
+                f"style='background:#10b981;color:#fff;border:none;text-decoration:none;"
+                f"border-radius:6px;padding:8px 18px;font-size:13px;display:inline-block;'>"
                 f"✓ 标记为已学"
-                f"</button>"
+                f"</a>"
             )
 
         parts.append("</div>")
         return "\n".join(parts)
 
     # ── 事件 ──────────────────────────────────────────────
+
+    def _on_anchor_clicked(self, url) -> None:
+        """处理 HTML 中的链接点击（如"标记为已学"按钮）。"""
+        if url.toString() == "#mark_done":
+            if hasattr(self, '_current_tutorial'):
+                self._engine.mark_completed(self._current_tutorial.id)
+                self._populate_tree()
+                self._show_tutorial(self._current_tutorial)
 
     def _on_item_clicked(self, item: QTreeWidgetItem, column: int) -> None:
         tutorial_id = item.data(0, Qt.ItemDataRole.UserRole)

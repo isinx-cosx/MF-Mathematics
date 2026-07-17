@@ -363,24 +363,24 @@ class MainWindow(QMainWindow):
         
         toolbar.addSeparator()
 
-        act_search = toolbar.addAction("搜索")
-        act_search.triggered.connect(self._open_search_panel)
+        self._act_search = toolbar.addAction("搜索")
+        self._act_search.triggered.connect(self._open_search_panel)
 
         self._search_panel: object | None = None
-        act_history = toolbar.addAction("历史")
-        act_history.triggered.connect(lambda: self._status_msg("历史记录"))
-        act_AI = toolbar.addAction("AI")
-        act_AI.triggered.connect(self._open_ai_dialog)
-        act_settings = toolbar.addAction("设置")
-        act_settings.triggered.connect(self._open_settings)
+        self._act_history = toolbar.addAction("历史")
+        self._act_history.triggered.connect(self._open_history)
+        self._act_ai = toolbar.addAction("AI")
+        self._act_ai.triggered.connect(self._open_ai_dialog)
+        self._act_settings = toolbar.addAction("设置")
+        self._act_settings.triggered.connect(self._open_settings)
 
         toolbar.addSeparator()
         self._user_action = toolbar.addAction("登录")
         self._user_action.triggered.connect(self._on_user_clicked)
 
         toolbar.addSeparator()
-        act_help = toolbar.addAction("帮助")
-        act_help.triggered.connect(self._open_help_browser)
+        self._act_help = toolbar.addAction("帮助")
+        self._act_help.triggered.connect(self._open_help_browser)
 
         # F1 快捷键
         self._shortcut_f1 = QShortcut(QKeySequence(Qt.Key.Key_F1), self)
@@ -765,17 +765,21 @@ class MainWindow(QMainWindow):
         toolbar: QToolBar | None = self.findChild(QToolBar)
         calc_widget = toolbar.widgetForAction(self._btn_calc) if toolbar else None
         plot_widget = toolbar.widgetForAction(self._btn_plot) if toolbar else None
+        ai_widget = toolbar.widgetForAction(self._act_ai) if toolbar else None
+        search_widget = toolbar.widgetForAction(self._act_search) if toolbar else None
+        settings_widget = toolbar.widgetForAction(self._act_settings) if toolbar else None
+        help_widget = toolbar.widgetForAction(self._act_help) if toolbar else None
 
         self._tutorial_elements = {
             "main_window.toolbar": toolbar or self,
             "main_window.mode_selector": self._sub_combo,
             "main_window.theme_toggle": self,
-            "main_window.help_button": self,
+            "main_window.help_button": help_widget or self,
             "toolbar.calc_button": calc_widget or self._btn_calc,
             "toolbar.plot_button": plot_widget or self._btn_plot,
-            "toolbar.ai_button": self,
-            "toolbar.search_button": self,
-            "toolbar.settings_button": self,
+            "toolbar.ai_button": ai_widget or self,
+            "toolbar.search_button": search_widget or self,
+            "toolbar.settings_button": settings_widget or self,
         }
 
     def _check_first_launch(self) -> None:
@@ -800,6 +804,22 @@ class MainWindow(QMainWindow):
                 self._open_guided_walkthrough()
         except Exception as e:
             print(f"[MainWindow] 欢迎对话框出错: {e}")
+
+    def _open_history(self) -> None:
+        """打开计算历史记录查看器。"""
+        from MF_UI.dialogs.history_dialog import HistoryDialog
+
+        def on_select(expr: str) -> None:
+            self._restore_expression(expr)
+            self._status_msg(f"已回退到: {expr[:40]}{'...' if len(expr) > 40 else ''}")
+
+        dlg = HistoryDialog(
+            history=self._calc_history,
+            history_pos=self._history_pos,
+            on_select=on_select,
+            parent=self,
+        )
+        dlg.exec()
 
     def _open_help_browser(self) -> None:
         """打开帮助文档浏览器。"""

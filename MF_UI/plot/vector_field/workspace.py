@@ -29,6 +29,7 @@ class VectorFieldWorkspace(QWidget):
         self._res = 30
         self._auto_density = True
         self._streamline = False  # False=quiver, True=streamplot
+        self._heatmap = 0  # 0=无, 1=散度, 2=旋度
 
         self._build_ui()
         self._show_waiting()
@@ -72,6 +73,14 @@ class VectorFieldWorkspace(QWidget):
         cb = QCheckBox("流线"); cb.setChecked(False)
         cb.toggled.connect(lambda v: setattr(self,"_streamline",v))
         pr.addWidget(cb)
+
+        from PySide6.QtWidgets import QComboBox as QCB
+        heat_label = QLabel("标量场:")
+        pr.addWidget(heat_label)
+        hm_cb = QCB()
+        hm_cb.addItems(["无", "散度 ∇·F", "旋度 ∇×F"])
+        hm_cb.currentIndexChanged.connect(lambda v: setattr(self, "_heatmap", v))
+        pr.addWidget(hm_cb)
 
         btn = QPushButton("重绘")
         btn.setObjectName("vf_redraw_btn")
@@ -175,9 +184,33 @@ class VectorFieldWorkspace(QWidget):
         else:
             ax.quiver(X, Y, U/M, V/M, M, cmap="viridis", scale=30, width=0.003)
         ax.set_xlabel("x"); ax.set_ylabel("y"); ax.set_aspect("equal")
-        ax.set_title(f"F = ({self._px or 0}, {self._py or 0})")
+        title_parts = [f"F = ({self._px or 0}, {self._py or 0})"]
+
+        # ── 散度/旋度热图叠加 ──
+        if self._heatmap > 0 and self._px and self._py:
+            try:
+                dx = xs[1] - xs[0]
+                dy = ys[1] - ys[0]
+                if self._heatmap == 1:  # 散度: dP/dx + dQ/dy
+                    dU_dx = np.gradient(U, dx, axis=1)
+                    dV_dy = np.gradient(V, dy, axis=0)
+                    scalar = dU_dx + dV_dy
+                    title_parts.append("散度 ∇·F")
+                else:  # 旋度: dQ/dx - dP/dy
+                    dV_dx = np.gradient(V, dx, axis=1)
+                    dU_dy = np.gradient(U, dy, axis=0)
+                    scalar = dV_dx - dU_dy
+                    title_parts.append("旋度 ∇×F")
+                cf = ax.contourf(X, Y, scalar, levels=20, cmap="RdBu_r",
+                                 alpha=0.35, zorder=0)
+                self._fig.colorbar(cf, ax=ax, shrink=0.7, label="标量值")
+            except Exception:
+                pass  # 计算失败时静默跳过
+
+        ax.set_title(" | ".join(title_parts))
         self._canvas.draw_idle()
         mode = "流线" if self._streamline else "箭头"
+        hm_tag = {1: "+散度", 2: "+旋度"}.get(self._heatmap, "")
         auto_tag = "[自动]" if self._auto_density else ""
         self.status_message.emit(
-            f"已绘制({mode}){auto_tag}: ({self._px},{self._py}) {res}×{res}")
+            f"已绘制({mode}){hm_tag}{auto_tag}: ({self._px},{self._py}) {res}×{res}")
