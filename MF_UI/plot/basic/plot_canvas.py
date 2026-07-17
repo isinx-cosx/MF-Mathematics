@@ -314,6 +314,19 @@ class PlotCanvas(QGraphicsView):
         painter.drawText(int(ox + 5) if ya_ok else 5,
                          vp.top() + 11, "y")
 
+        # ── 极坐标圆（每两刻度一个，与主轴同粗，像素固定）──
+        if self._polar_mode and ox is not None and oy is not None:
+            circle_step = step * 2
+            max_r = max(abs(x0), abs(x1), abs(y0), abs(y1))
+            circle_pen = QPen(AXIS_COLOR, AXIS_PX, Qt.PenStyle.SolidLine)
+            painter.setPen(circle_pen)
+            r = circle_step
+            while r <= max_r:
+                r_px = abs((self._map_x(r) or 0) - ox)
+                if r_px > 2:
+                    painter.drawEllipse(QPointF(ox, oy), r_px, r_px)
+                r += circle_step
+
         painter.restore()
 
     def _build_grid_pixmap(self, vp, x0, x1, y0, y1, step, ox, oy,
