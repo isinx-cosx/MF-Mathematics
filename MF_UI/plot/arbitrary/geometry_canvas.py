@@ -640,10 +640,63 @@ class GeometryCanvas(QGraphicsView):
     # ═══════════════════════════════════════════════════════════
 
     def _snap(self, v: float) -> float:
+        """一维吸附：仅网格吸附（由 _snap_point 在二维上组合几何吸附）。"""
         if not self._grid_snap:
             return v
         step = self._grid_step()
         return round(v / step) * step
+
+    def _snap_point(self, x: float, y: float) -> tuple[float, float]:
+        """二维吸附：先进行几何吸附（端点/中点/圆心），失败则回退网格吸附。"""
+        step = self._grid_step()
+        threshold = step * 0.6  # 吸附阈值
+        best_pt, best_dist = None, threshold
+
+        for s in self._shapes:
+            if not s.visible:
+                continue
+            candidates = self._shape_snap_points(s)
+            for px, py in candidates:
+                d = math.hypot(x - px, y - py)
+                if d < best_dist:
+                    best_dist = d
+                    best_pt = (px, py)
+
+        if best_pt is not None:
+            return best_pt
+        return (self._snap(x), self._snap(y))
+
+    def _shape_snap_points(self, s) -> list[tuple[float, float]]:
+        """提取图形的可吸附点：端点、中点、圆心。"""
+        pts: list[tuple[float, float]] = []
+        data = s.data
+        st = s.shape_type
+
+        if st == "POINT":
+            pts.append((float(data[0]), float(data[1])))
+        elif st in ("SEGMENT", "LINE", "VECTOR"):
+            (x1, y1), (x2, y2) = data
+            pts.append((float(x1), float(y1)))
+            pts.append((float(x2), float(y2)))
+            pts.append(((float(x1) + float(x2)) / 2, (float(y1) + float(y2)) / 2))  # 中点
+        elif st == "CIRCLE":
+            (cx, cy), r = data
+            pts.append((float(cx), float(cy)))  # 圆心
+            pts.append((float(cx) + float(r), float(cy)))  # 右端点
+            pts.append((float(cx), float(cy) + float(r)))  # 上端点
+        elif st in ("RECTANGLE", "ELLIPSE"):
+            (x1, y1), (x2, y2) = data
+            pts.append((float(x1), float(y1)))
+            pts.append((float(x2), float(y2)))
+            pts.append(((float(x1) + float(x2)) / 2, (float(y1) + float(y2)) / 2))
+        elif st == "POLYGON":
+            n = len(data)
+            for i, (px, py) in enumerate(data):
+                pts.append((float(px), float(py)))
+                # 边中点
+                nx, ny = data[(i + 1) % n]
+                pts.append(((float(px) + float(nx)) / 2, (float(py) + float(ny)) / 2))
+        return pts
 
     def _grid_step(self) -> float:
         vr = self.mapToScene(self.viewport().rect()).boundingRect()
@@ -689,7 +742,7 @@ class GeometryCanvas(QGraphicsView):
             return
 
         pt = self.mapToScene(event.pos())
-        mx = self._snap(pt.x()); my = self._snap(pt.y())
+        mx, my = self._snap_point(pt.x(), pt.y())
 
         if self._tool == Tool.SELECT:
             self._handle_select_press(mx, my)
@@ -713,7 +766,7 @@ class GeometryCanvas(QGraphicsView):
             return
 
         pt = self.mapToScene(event.pos())
-        mx = self._snap(pt.x()); my = self._snap(pt.y())
+        mx, my = self._snap_point(pt.x(), pt.y())
         self._cursor_pt = (mx, my)
 
         self.status_message.emit(f"({mx:.2f}, {my:.2f})")
@@ -743,7 +796,7 @@ class GeometryCanvas(QGraphicsView):
             self.setDragMode(QGraphicsView.DragMode.NoDrag)
 
         pt = self.mapToScene(event.pos())
-        mx = self._snap(pt.x()); my = self._snap(pt.y())
+        mx, my = self._snap_point(pt.x(), pt.y())
 
         if self._state == _State.DRAG_RADIUS:
             self._commit_circle(mx, my)

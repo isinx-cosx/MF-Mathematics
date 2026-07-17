@@ -108,7 +108,10 @@ class ComplexWorkspace(QWidget):
         self._btn_3d = QPushButton("3D 模长曲面")
         self._btn_vec = QPushButton("向量场式")
         self._btn_hsv = QPushButton("HSV 域着色")
-        for b, i in [(self._btn_phase,0),(self._btn_3d,1),(self._btn_vec,2),(self._btn_hsv,3)]:
+        self._btn_conf = QPushButton("共形映射网格")
+        btns = [(self._btn_phase,0),(self._btn_3d,1),(self._btn_vec,2),
+                (self._btn_hsv,3),(self._btn_conf,4)]
+        for b, i in btns:
             b.setCheckable(True); b.setChecked(i==0)
             b.setObjectName("complex_mode_btn")
             b.setProperty("active", i==0)
@@ -164,7 +167,8 @@ class ComplexWorkspace(QWidget):
 
     def _set_mode(self, idx: int) -> None:
         self._mode = idx
-        for b, i in [(self._btn_phase,0),(self._btn_3d,1),(self._btn_vec,2),(self._btn_hsv,3)]:
+        for b, i in [(self._btn_phase,0),(self._btn_3d,1),(self._btn_vec,2),
+                      (self._btn_hsv,3),(self._btn_conf,4)]:
             b.setProperty("active", i == idx)
             b.style().unpolish(b)
             b.style().polish(b)
@@ -255,6 +259,7 @@ class ComplexWorkspace(QWidget):
         elif self._mode == 1: self._draw_3d_surface(X, Y, mag)
         elif self._mode == 2: self._draw_vector(X, Y, mag, arg)
         elif self._mode == 3: self._draw_hsv(X, Y, arg, mag)
+        elif self._mode == 4: self._draw_conformal_grid(X, Y, Z)
         self._canvas.draw_idle()
         names = ['相位图', '3D模长', '向量场', 'HSV域着色']
         self.status_message.emit(
@@ -307,6 +312,53 @@ class ComplexWorkspace(QWidget):
         ax.set_xlabel("Re(z)"); ax.set_ylabel("Im(z)")
         ax.set_aspect("equal")
         ax.set_title(f"HSV 域着色: {self._func_expr}")
+
+    def _draw_conformal_grid(self, X, Y, Z):
+        """共形映射网格变形可视化：显示 z→f(z) 下的网格变形。"""
+        ax = self._fig.add_subplot(111)
+
+        # 构建输入网格线（z-平面上的水平和垂直线）
+        x0, x1 = X.min(), X.max()
+        y0, y1 = Y.min(), Y.max()
+
+        # 在 z-平面采样网格线
+        n_lines = 21
+        h_lines_x = np.linspace(x0, x1, 400)
+        v_lines_y = np.linspace(y0, y1, 400)
+
+        # 绘制变形后的网格：水平线 y=const → f(x + i*const)
+        for y_val in np.linspace(y0, y1, n_lines):
+            z_line = h_lines_x + 1j * y_val
+            w = self._eval_func(z_line)
+            if w is not None:
+                ax.plot(w.real, w.imag, color="#3b82f6", alpha=0.4, linewidth=0.6)
+
+        # 垂直线 x=const → f(const + i*y)
+        for x_val in np.linspace(x0, x1, n_lines):
+            z_line = x_val + 1j * v_lines_y
+            w = self._eval_func(z_line)
+            if w is not None:
+                ax.plot(w.real, w.imag, color="#ef4444", alpha=0.4, linewidth=0.6)
+
+        ax.set_xlabel("Re(w)"); ax.set_ylabel("Im(w)")
+        ax.set_aspect("equal")
+        ax.set_title(f"共形映射网格: w = {self._func_expr}")
+        ax.grid(True, alpha=0.2)
+
+    def _eval_func(self, z_arr):
+        """对复数数组求值 f(z)，返回 w 数组。"""
+        try:
+            import sympy as sp
+            z_sym = sp.Symbol("z")
+            s = _preprocess_complex(self._func_expr)
+            expr = sp.sympify(s)
+            fn = sp.lambdify(z_sym, expr, "numpy")
+            result = fn(z_arr)
+            if isinstance(result, np.ndarray):
+                result = np.where(np.isfinite(result), result, np.nan)
+            return result
+        except Exception:
+            return None
 
 
 def _sep() -> QFrame:

@@ -226,6 +226,21 @@ class Plot3D(QWidget):
             linewidth=0, antialiased=True, shade=True)
         entry["surface_obj"] = surf
 
+        # ── XY 平面等高线投影 ──
+        zm = self._ax.get_zlim()
+        contour_offset = zm[0] if zm[0] < -self._range else -self._range * 1.1
+        try:
+            from matplotlib import cm
+            z_min = float(np.nanmin(Z))
+            z_max = float(np.nanmax(Z))
+            if np.isfinite(z_min) and np.isfinite(z_max) and z_max - z_min > 1e-10:
+                levels = np.linspace(z_min, z_max, 15)
+                self._ax.contour(X, Y, Z, levels=levels, zdir='z',
+                                 offset=contour_offset, cmap="viridis",
+                                 alpha=0.5, linewidths=0.8)
+        except Exception:
+            pass  # 等高线渲染失败不阻塞曲面显示
+
     def _add_implicit_surface(self, entry: dict, expr: str, color: str,
                               params: dict | None, resolution: int) -> None:
         """绘制隐式曲面 f(x,y,z)=0（采样 z 切片 + 等高线投影）。"""
