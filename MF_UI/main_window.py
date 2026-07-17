@@ -13,9 +13,14 @@ from PySide6.QtWidgets import (
     QPushButton, QLineEdit, QToolButton,
 )
 from calc.algebra import Workspace as AlgebraWorkspace
+from calc.analytic_geometry import Workspace as AnalyticGeometryWorkspace
 from calc.linear_algebra import Workspace as LinearAlgebraWorkspace
 from calc.numerical import Workspace as NumericalWorkspace
+from calc.number_theory import Workspace as NumberTheoryWorkspace
 from calc.probability import Workspace as ProbabilityWorkspace
+from calc.real_analysis import Workspace as RealAnalysisWorkspace
+from calc.sequences import Workspace as SequencesWorkspace
+from calc.functional_analysis import Workspace as FunctionalAnalysisWorkspace
 from plot.basic.workspace import PlotWorkspace
 
 # 运行时自动设置项目根路径
@@ -143,7 +148,11 @@ class MainWindow(QMainWindow):
         self._history_pos = -1
         self._max_history = 50
 
-        self._calc_modes = ["代数计算", "线性代数", "概率论与数理统计", "数值分析"]
+        self._calc_modes = [
+            "代数计算", "解析几何", "数列",
+            "线性代数", "概率论与数理统计", "数值分析",
+            "数论", "实分析", "泛函分析",
+        ]
         self._plot_modes = ["普通模式", "3D模式", "复数模式", "向量场", "任意做图"]
         self.last_calc_index = 0
         self.last_plot_index = 0
@@ -466,21 +475,26 @@ class MainWindow(QMainWindow):
     def _on_sub_mode_changed(self, index: int):
         if self._current_mode == 0:  # 计算模式
             self.last_calc_index = index
-            self._stacked_widget.setCurrentIndex(index)  # 索引 0~3
+            self._stacked_widget.setCurrentIndex(index)  # 索引 0~8
         else:  # 绘图模式
             self.last_plot_index = index
-            self._stacked_widget.setCurrentIndex(4 + index)  # 索引 4~8
-    
+            self._stacked_widget.setCurrentIndex(9 + index)  # 索引 9~13
+
 
     # ---------- 中央区域 ----------
     def _build_central_area(self):
         self._stacked_widget = QStackedWidget()
-        # ── 计算模式 (index 0-3) ──
+        # ── 计算模式 (index 0-8) ──
         self._stacked_widget.addWidget(AlgebraWorkspace())
+        self._stacked_widget.addWidget(AnalyticGeometryWorkspace())
+        self._stacked_widget.addWidget(SequencesWorkspace())
         self._stacked_widget.addWidget(LinearAlgebraWorkspace())
         self._stacked_widget.addWidget(ProbabilityWorkspace())
         self._stacked_widget.addWidget(NumericalWorkspace())
-    # ── 绘图模式 (index 4-8) ──
+        self._stacked_widget.addWidget(NumberTheoryWorkspace())
+        self._stacked_widget.addWidget(RealAnalysisWorkspace())
+        self._stacked_widget.addWidget(FunctionalAnalysisWorkspace())
+    # ── 绘图模式 (index 9-13) ──
         self._stacked_widget.addWidget(PlotWorkspace("普通模式 — 2D 函数绘图"))
         self._stacked_widget.addWidget(PlotWorkspace("3D 模式 — 三维曲面绘图"))
         self._stacked_widget.addWidget(PlotWorkspace("复数模式 — 复平面域着色绘图"))
