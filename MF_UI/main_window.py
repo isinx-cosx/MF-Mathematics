@@ -760,7 +760,7 @@ class MainWindow(QMainWindow):
                 self._show_welcome_dialog()
             engine.mark_launched()
         except Exception as e:
-            print(f"[MainWindow] 欢迎对话框加载失败: {e}")
+            import logging; logging.debug(f"欢迎对话框加载失败: {e}")
 
     def _show_welcome_dialog(self) -> None:
         """显示欢迎对话框并在用户接受后启动引导。"""
