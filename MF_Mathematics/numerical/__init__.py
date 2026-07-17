@@ -36,6 +36,10 @@ from .ode_solver import (
     rk4,
     implicit_euler,
     stiff_detector,
+    phase_portrait,
+)
+from .optimization import (
+    gradient_descent,
 )
 
 __all__ = [
@@ -48,7 +52,9 @@ __all__ = [
     # matrix_numerical
     "lu_decomposition", "jacobi_iteration", "gauss_seidel", "conjugate_gradient", "power_method", "qr_algorithm",
     # ode_solver
-    "euler_method", "rk4", "implicit_euler", "stiff_detector",
+    "euler_method", "rk4", "implicit_euler", "stiff_detector", "phase_portrait",
+    # optimization
+    "gradient_descent",
 ]
 
 

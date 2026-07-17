@@ -211,6 +211,50 @@ FUNC_MAP: dict[str, tuple[str, str]] = {
     "直接比较判别法":         ("calculus", "direct_comparison_test"),
     "p-级数判别法":           ("calculus", "p_series_test"),
     "综合判别与分类":         ("calculus", "classify_and_test"),
+
+    # ── 解析几何 ──
+    "两点距离":               ("algebra", "distance"),
+    "中点":                   ("algebra", "midpoint"),
+    "两点式直线":             ("algebra", "line_from_points"),
+    "斜截式直线":             ("algebra", "line_from_slope_intercept"),
+    "点斜式直线":             ("algebra", "line_from_point_slope"),
+    "截距式直线":             ("algebra", "line_from_intercepts"),
+    "直线一般式":             ("algebra", "line_general"),
+    "圆标准方程":             ("algebra", "circle_standard"),
+    "圆一般方程":             ("algebra", "circle_general"),
+
+    # ── 数列 ──
+    "数列通项":               ("algebra", "sequence_term"),
+    "等差数列":               ("algebra", "arithmetic_sequence"),
+    "等差数列求和":           ("algebra", "arithmetic_sum"),
+    "等比数列":               ("algebra", "geometric_sequence"),
+    "等比数列求和":           ("algebra", "geometric_sum"),
+    "递推数列":               ("algebra", "recurrence_sequence"),
+
+    # ── 排列组合 ──
+    "排列数":                 ("algebra", "permutation"),
+    "组合数":                 ("algebra", "combination"),
+    "二项式展开":             ("algebra", "binomial_expand"),
+    "二项式通项":             ("algebra", "binomial_term"),
+
+    # ── 数值分析补充 ──
+    "梯度下降":               ("numerical", "gradient_descent"),
+    "相图":                   ("numerical", "phase_portrait"),
+
+    # ── 复数分析补充 ──
+    "回路积分":               ("complex_analysis", "contour_integral"),
+    "柯西定理":               ("complex_analysis", "cauchy_theorem"),
+    "柯西积分公式":           ("complex_analysis", "cauchy_integral_formula"),
+    "洛朗级数":               ("complex_analysis", "laurent_series"),
+    "奇点分类":               ("complex_analysis", "singularity_classify"),
+    "留数":                   ("complex_analysis", "residue"),
+    "留数定理":               ("complex_analysis", "residue_theorem"),
+    "辐角原理":               ("complex_analysis", "argument_principle"),
+    "Rouche 定理":            ("complex_analysis", "rouche_theorem"),
+    "Zeta 级数":              ("complex_analysis", "zeta_series"),
+    "Zeta 解析延拓":          ("complex_analysis", "analytic_continuation_zeta"),
+    "Zeta 函数方程":          ("complex_analysis", "functional_equation_zeta"),
+    "Zeta 非平凡零点":        ("complex_analysis", "nontrivial_zeros"),
 }
 
 
@@ -517,6 +561,45 @@ def _build_kwargs(action: str, action_name: str, params: list[str]) -> dict | No
     if action == "power_series":
         return {"expr": params[0], "var": params[1] if len(params) > 1 else "x"}
 
+    # ── 解析几何: 需要特定参数名 ──
+    if action in ("distance", "midpoint"):
+        p1 = params[0] if len(params) > 0 else "(0,0)"
+        p2 = params[1] if len(params) > 1 else "(1,0)"
+        return {"p1": p1, "p2": p2}
+
+    # ── 排列组合: n, m (整数) ──
+    if action in ("permutation", "combination"):
+        try: n = int(params[0]) if len(params) > 0 else 5
+        except ValueError: n = params[0]
+        try: m = int(params[1]) if len(params) > 1 else 2
+        except ValueError: m = params[1]
+        return {"n": n, "m": m}
+
+    # ── 梯度下降: f, x0 ──
+    if action == "gradient_descent":
+        f = params[0] if len(params) > 0 else "x**2"
+        x0 = float(params[1]) if len(params) > 1 else 1.0
+        return {"f": f, "x0": x0}
+    if action == "phase_portrait":
+        return {"f": params[0]} if params else {"f": "[-y, x]"}
+
+    # ── 复数分析: 需要 z/f 参数 ──
+    if action in ("contour_integral", "cauchy_theorem", "cauchy_integral_formula",
+                  "laurent_series", "singularity_classify",
+                  "residue", "residue_theorem"):
+        return {"f": params[0]} if params else {"f": "1/z"}
+
+    # ── 解析几何直线/圆 + 数列 + 二项式: expr+var ──
+    if action in ("line_from_points", "line_from_slope_intercept",
+                  "line_from_point_slope", "line_from_intercepts",
+                  "line_general", "circle_standard", "circle_general",
+                  "sequence_term", "arithmetic_sequence", "arithmetic_sum",
+                  "geometric_sequence", "geometric_sum", "recurrence_sequence",
+                  "binomial_expand", "binomial_term"):
+        expr = params[0]
+        var = params[1] if len(params) > 1 else "x"
+        return {"expr": expr, "var": var}
+
     # ── 其他单参数操作 ──
     if action in ("is_continuous", "discontinuity_classify", "lhopital",
                   "monotonicity", "local_extrema", "global_extrema",
@@ -525,7 +608,10 @@ def _build_kwargs(action: str, action_name: str, params: list[str]) -> dict | No
                   "area_between", "volume_disk", "volume_shell", "arc_length",
                   "power_series_radius",
                   "leibniz_test", "limit_comparison_test", "integral_test",
-                  "direct_comparison_test", "p_series_test", "classify_and_test"):
+                  "direct_comparison_test", "p_series_test", "classify_and_test",
+                  "argument_principle", "rouche_theorem",
+                  "zeta_series", "analytic_continuation_zeta",
+                  "functional_equation_zeta", "nontrivial_zeros"):
         expr = params[0]
         var = params[1] if len(params) > 1 else "x"
         return {"expr": expr, "var": var}
