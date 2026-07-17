@@ -152,7 +152,7 @@ class FunctionBox(QWidget):
         if self._mode == "polar":
             self._input.setPlaceholderText("r(θ)=")
         else:
-            self._input.setPlaceholderText("f(x)=")
+            self._input.setPlaceholderText("f(x)= 或 x(t)=…,y(t)=… 或 y>x²")
         # 输入框样式由 QSS FunctionBox QLineEdit 选择器管理
         self._input.textChanged.connect(self._on_text)
         row.addWidget(self._input, 1)
