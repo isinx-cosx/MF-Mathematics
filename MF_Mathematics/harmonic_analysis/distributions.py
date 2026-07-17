@@ -123,7 +123,7 @@ def tempered_distribution(
     func: Union[str, Callable],
     x_range: tuple = (-100.0, 100.0),
 ) -> MathObject:
-    """判断给定函数是否对应一个缓增分布（概念性占位）。
+    """判断给定函数是否对应一个缓增分布。
 
     缓增分布是施瓦兹空间 S(Rⁿ) 上的连续线性泛函。
     粗略判断条件：函数多项式增长（即存在 C, N 使得 |f(x)| ≤ C(1+|x|)^N）。

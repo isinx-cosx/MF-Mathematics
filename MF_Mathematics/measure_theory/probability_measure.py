@@ -344,7 +344,7 @@ def conditional_expectation(
     Omega: Union[str, List, None] = None,
     P: Union[str, Dict, None] = None,
 ) -> MathObject:
-    """计算条件期望 E[X | G]（概念性占位）。
+    """计算条件期望 E[X | G]（离散型/数值型）。
 
     条件期望 E[X | G] 是关于子 σ-代数 G 可测的随机变量，
     满足对任意 G ∈ G: ∫_G E[X | G] dP = ∫_G X dP。

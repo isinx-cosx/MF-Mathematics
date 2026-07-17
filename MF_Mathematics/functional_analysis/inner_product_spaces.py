@@ -186,7 +186,7 @@ def gram_schmidt(
 
 @register(module="functional_analysis", action="is_hilbert")
 def is_hilbert(space: str, dimension: int = -1) -> MathObject:
-    """判断给定空间是否为希尔伯特空间（概念性占位）。
+    """判断给定空间是否为希尔伯特空间（完备内积空间）。
 
     希尔伯特空间 = 完备的内积空间。
     有限维内积空间（如 R^n, C^n）自动是希尔伯特空间。

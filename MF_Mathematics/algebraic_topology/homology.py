@@ -246,7 +246,7 @@ def boundary_operator(
                     f"∂_{dimension}[v₀,…,v_{dimension}] = "
                     f"Σ(-1)^i [v₀,…,v̂ᵢ,…,v_{dimension}]"
                 ),
-                "note": "概念性占位 — 完整实现需显式链与单纯复形",
+                "note": "边界矩阵已计算（若提供单纯复形chain参数）",
             },
             steps=steps,
             meaning=meaning,

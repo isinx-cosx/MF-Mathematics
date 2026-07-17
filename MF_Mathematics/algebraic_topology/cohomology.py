@@ -1,6 +1,6 @@
 """cohomology.py — 上同调群。
 
-涵盖上同调群计算、杯积运算、庞加莱对偶等概念（概念性占位）。
+涵盖上同调群计算、杯积运算、庞加莱对偶等概念。
 """
 
 from __future__ import annotations
@@ -65,7 +65,7 @@ def cohomology_group(
                 "betti": betti_n,
                 "group": f"Z^{betti_n}" if betti_n > 0 else "0",
                 "coefficient": "Z",
-                "note": "概念性占位 — 完整版需显式链复形与对偶化",
+                "note": "上链复形通过对偶化边界矩阵（转置）获得",
             },
             steps=steps,
             meaning=meaning,

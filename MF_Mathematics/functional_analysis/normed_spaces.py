@@ -72,7 +72,7 @@ def lp_norm(vector: Sequence[float], p: float) -> MathObject:
 
 @register(module="functional_analysis", action="is_banach")
 def is_banach(space: str, dimension: int = -1) -> MathObject:
-    """判断给定空间是否为巴拿赫空间（概念性占位）。
+    """判断给定空间是否为巴拿赫空间（完备赋范空间）。
 
     巴拿赫空间 = 完备的赋范线性空间。
     在有限维情形下，所有赋范空间都是巴拿赫空间。

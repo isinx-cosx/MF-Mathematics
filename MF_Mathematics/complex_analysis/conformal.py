@@ -85,7 +85,7 @@ def is_conformal(
 def riemann_mapping(
     region: str,
 ) -> MathObject:
-    """黎曼映射定理（概念性占位）。
+    """黎曼映射定理 — 单连通真子集共形等价于单位圆盘。
 
     任意非空单连通真子集 D ⊂ C（非全平面）共形等价于单位圆盘。
     本函数给出概念说明和典型样例。

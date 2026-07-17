@@ -1,7 +1,7 @@
 """time_frequency.py — 时频分析与不确定性原理。
 
 涵盖海森堡不确定性原理（Δx·Δξ ≥ 1/(4π)）、
-短时傅里叶变换（STFT）、小波变换（概念性占位）。
+短时傅里叶变换（STFT）、小波变换（Mexican Hat / Morlet）。
 """
 
 from __future__ import annotations
@@ -199,7 +199,7 @@ def wavelet_transform(
     wavelet_type: str = "mexican_hat",
     scales: Optional[list] = None,
 ) -> MathObject:
-    """小波变换（概念性占位/简化实现）。
+    """连续小波变换（CWT）— Mexican hat / Morlet 卷积实现。
 
     连续小波变换（CWT）：
     W[f](a, b) = (1/√a) ∫ f(t) ψ((t-b)/a) dt

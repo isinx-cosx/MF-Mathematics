@@ -1,6 +1,6 @@
 """degree_fixedpoint.py — 映射度与不动点定理。
 
-涵盖映射度、布劳威尔不动点定理、毛球定理等拓扑学经典结果（概念性占位）。
+涵盖映射度、布劳威尔不动点定理、毛球定理等拓扑学经典结果。
 """
 
 from __future__ import annotations
