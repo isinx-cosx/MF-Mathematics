@@ -18,6 +18,7 @@ class CalcBlock(BaseCalcBlock):
             "梯形法则", "辛普森法则", "高斯求积", "数值求导", "最优步长",
             "LU分解", "雅可比迭代", "高斯-赛德尔", "共轭梯度", "幂法", "QR算法",
             "欧拉方法", "RK4", "隐式欧拉", "刚性检测",
+            "梯度下降", "相图",
         ]
 
     def get_action_map(self) -> dict[str, tuple[str, str]]:
@@ -74,6 +75,11 @@ class CalcBlock(BaseCalcBlock):
             return calculate_direct(op, matrix=val)
         else:
             return calculate_direct(op, val=val)
+
+        # 梯度下降/相图 — 通过 calculate() 字符串路径
+        if op in ("梯度下降", "相图"):
+            from calc_engine import calculate
+            return calculate(op, [expr])
 
 
 if __name__ == "__main__":

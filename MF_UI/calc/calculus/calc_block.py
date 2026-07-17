@@ -23,6 +23,8 @@ class CalcBlock(BaseCalcBlock):
             "幂级数收敛半径",
             "莱布尼茨判别法", "极限比较判别法", "积分判别法",
             "直接比较判别法", "p-级数判别法", "综合判别与分类",
+            # ── 微分方程 ──
+            "常微分方程", "偏微分方程",
             # ── 傅里叶分析 ──
             "傅里叶系数", "傅里叶级数", "复傅里叶系数", "正交性验证",
             "傅里叶变换", "逆傅里叶变换", "普兰舍利定理",
@@ -47,4 +49,5 @@ class CalcBlock(BaseCalcBlock):
         self._guarded_calculate(expr, self._current_op)
 
     def _do_dispatch(self, mod: str, act: str, expr: str):
+        # ODE/PDE 使用 algebra 模块的 calculate 路径
         return calculate(self._current_op, [expr])
