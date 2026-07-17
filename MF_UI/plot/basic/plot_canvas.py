@@ -540,6 +540,8 @@ class PlotCanvas(QGraphicsView):
         self._clamp_view()
         self._update_curve_pens()
         self._schedule_rebuild()  # 防抖：200ms 内连续缩放只重绘一次
+        if self._polar_mode:
+            self._rebuild_polar_grid()
         event.accept()
 
     def mouseReleaseEvent(self, event) -> None:
@@ -908,6 +910,7 @@ class PlotCanvas(QGraphicsView):
         self._polar_grid_items.clear()
 
     def _rebuild_polar_grid(self) -> None:
+        """重建极坐标网格（同心圆 + 射线）— 场景装饰层，setZValue(-1)。"""
         self._clear_polar_grid()
         if not self._polar_mode:
             return
@@ -915,29 +918,38 @@ class PlotCanvas(QGraphicsView):
         vr = self.mapToScene(self.viewport().rect()).boundingRect()
         max_r = max(abs(vr.left()), abs(vr.right()),
                      abs(vr.top()), abs(vr.bottom())) * 1.2
-        circle_step = calculate_step(max_r / 2)
 
-        grid_pen = QPen(GRID_COLOR, 1, Qt.PenStyle.DotLine)
-        axis_pen = QPen(AXIS_COLOR, AXIS_PX)
-        font = QFont(); font.setPixelSize(FONT_PX)
+        # ── 自适应半径步长（10^floor(log10(range)) × {1,2,5}）──
+        rng = max_r / 2
+        if rng <= 0: rng = 1
+        exp = math.floor(math.log10(rng))
+        base = 10 ** exp
+        # 1, 2, 5 倍数匹配
+        for m in (1, 2, 5, 10, 20, 50):
+            if base * m >= rng / 5:
+                circle_step = base * m
+                break
+        else:
+            circle_step = base * 50
+        if circle_step < 0.01:
+            circle_step = 0.01
 
-        # 同心圆 — QGraphicsEllipseItem
+        # ── 半透明灰色笔（不干扰曲线）──
+        grid_color = QColor(180, 180, 180, 60)
+        grid_pen = QPen(grid_color, 1, Qt.PenStyle.DashLine)
+        axis_color = QColor(140, 140, 140, 120)
+        axis_pen = QPen(axis_color, AXIS_PX)
+
+        # 同心圆
         r = circle_step
         while r <= max_r:
             item = self._scene.addEllipse(-r, -r, r * 2, r * 2, grid_pen, QBrush())
             item.setZValue(-1)
             self._polar_grid_items.append(item)
-            # 半径标签
-            lbl = self._scene.addSimpleText(format_tick(r), font)
-            lbl.setPos(r + 2, 4)
-            lbl.setBrush(QBrush(TEXT_COLOR))
-            lbl.setZValue(-1)
-            lbl.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIgnoresTransformations, True)
-            self._polar_grid_items.append(lbl)
             r += circle_step
 
-        # 射线 — QGraphicsLineItem (每30度)
-        for deg in range(0, 360, 30):
+        # 射线（每 π/12 = 15° 一条）
+        for deg in range(0, 360, 15):
             rad = math.radians(deg)
             x_e = max_r * math.cos(rad)
             y_e = max_r * math.sin(rad)
@@ -945,12 +957,18 @@ class PlotCanvas(QGraphicsView):
             line.setZValue(-1)
             self._polar_grid_items.append(line)
 
-        # 极轴 (正X方向加粗)
+        # 极轴 (正X方向) 稍粗
         polar_axis = self._scene.addLine(0, 0, max_r, 0, axis_pen)
         polar_axis.setZValue(-1)
         self._polar_grid_items.append(polar_axis)
 
-        # 原点标记 "O"
+        # Y 轴 (正Y方向) 也标记
+        y_axis = self._scene.addLine(0, 0, 0, max_r, axis_pen)
+        y_axis.setZValue(-1)
+        self._polar_grid_items.append(y_axis)
+
+        # 原点标记
+        font = QFont(); font.setPixelSize(FONT_PX)
         o_lbl = self._scene.addSimpleText("O", font)
         o_lbl.setPos(-12, -6)
         o_lbl.setBrush(QBrush(TEXT_COLOR))
