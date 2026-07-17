@@ -319,6 +319,24 @@ class PlotCanvas(QGraphicsView):
             max_r = max(abs(x0), abs(x1), abs(y0), abs(y1)) + vrng
 
             circle_step = step * 2
+            minor_circle_step = circle_step / 5.0
+
+            # ── 分度圆（半透明细线，跳过与主圆重合的位置）──
+            minor_circle_pen = QPen(QColor("#c0c0c0"))
+            minor_circle_pen.setWidthF(AXIS_PX * 0.5)
+            minor_circle_pen.setColor(QColor(192, 192, 192, 80))  # 半透明
+            painter.setPen(minor_circle_pen)
+            mr_idx = 1
+            r = minor_circle_step
+            while r <= max_r:
+                if mr_idx % 5 != 0:  # 跳过 circle_step 的整数倍
+                    r_px = abs((self._map_x(r) or 0) - ox)
+                    if r_px > 2:
+                        painter.drawEllipse(QPointF(ox, oy), r_px, r_px)
+                r += minor_circle_step
+                mr_idx += 1
+
+            # ── 主刻度圆 ──
             circle_pen = QPen(QColor("#c0c0c0"), AXIS_PX, Qt.PenStyle.SolidLine)
             painter.setPen(circle_pen)
             r = circle_step
