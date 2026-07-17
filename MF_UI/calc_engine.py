@@ -271,6 +271,29 @@ FUNC_MAP: dict[str, tuple[str, str]] = {
     "标准化":                 ("linear_algebra", "standard_form"),
     "负定判定":               ("linear_algebra", "is_negative_definite"),
     "不定判定":               ("linear_algebra", "is_indefinite"),
+
+    # ── 数论 ──
+    "最大公约数":             ("number_theory", "gcd"),
+    "扩展欧几里得":           ("number_theory", "extended_gcd"),
+    "模逆元":                 ("number_theory", "mod_inverse"),
+    "模幂":                   ("number_theory", "mod_pow"),
+    "欧拉函数":               ("number_theory", "euler_phi"),
+    "约数个数":               ("number_theory", "divisor_count"),
+    "约数和":                 ("number_theory", "divisor_sum"),
+    "莫比乌斯函数":           ("number_theory", "mobius"),
+    "中国剩余定理":           ("number_theory", "crt"),
+    "原根":                   ("number_theory", "primitive_root"),
+    "离散对数":               ("number_theory", "discrete_log"),
+    "埃氏筛":                 ("number_theory", "eratosthenes"),
+    "分段筛":                 ("number_theory", "segmented_sieve"),
+    "素数判定":               ("number_theory", "is_prime"),
+    "素因数分解":             ("number_theory", "prime_factors"),
+    "连分数":                 ("number_theory", "continued_fraction"),
+    "连分数逼近":             ("number_theory", "convergents"),
+    "最佳有理逼近":           ("number_theory", "best_rational_approximation"),
+    "欧拉乘积":               ("number_theory", "euler_product"),
+    "Dirichlet L 函数":       ("number_theory", "dirichlet_l_function"),
+    "伯努利数":               ("number_theory", "bernoulli_number"),
 }
 
 
@@ -644,6 +667,59 @@ def _build_kwargs(action: str, action_name: str, params: list[str]) -> dict | No
     if action in ("contour_integral", "cauchy_theorem", "cauchy_integral_formula",
                   "laurent_series", "singularity_classify"):
         return {"f": params[0]} if params else {"f": "1/z"}
+
+    # ── 数论: 单整数参数 ──
+    if action in ("euler_phi", "divisor_count", "divisor_sum", "mobius",
+                  "is_prime", "prime_factors", "continued_fraction",
+                  "eratosthenes", "segmented_sieve", "bernoulli_number"):
+        n = int(_le(params[0])) if params else 1
+        return {"n": n}
+    if action in ("gcd", "extended_gcd"):
+        a = int(_le(params[0])) if len(params) > 0 else 1
+        b = int(_le(params[1])) if len(params) > 1 else 2
+        return {"a": a, "b": b}
+    if action == "mod_inverse":
+        a = int(_le(params[0])) if len(params) > 0 else 1
+        m = int(_le(params[1])) if len(params) > 1 else 7
+        return {"a": a, "m": m}
+    if action == "mod_pow":
+        base = int(_le(params[0])) if len(params) > 0 else 2
+        exp = int(_le(params[1])) if len(params) > 1 else 3
+        mod = int(_le(params[2])) if len(params) > 2 else 7
+        return {"base": base, "exp": exp, "mod": mod}
+    if action == "primitive_root":
+        p = int(_le(params[0])) if params else 7
+        return {"p": p}
+    if action == "discrete_log":
+        g = int(_le(params[0])) if len(params) > 0 else 2
+        h = int(_le(params[1])) if len(params) > 1 else 1
+        p = int(_le(params[2])) if len(params) > 2 else 7
+        return {"g": g, "h": h, "p": p}
+    if action == "crt":
+        a = _le(params[0]) if len(params) > 0 else [2, 3, 2]
+        m = _le(params[1]) if len(params) > 1 else [3, 5, 7]
+        return {"remainders": a, "moduli": m} if isinstance(a, list) else {"a": a, "m": m}
+    if action in ("convergents", "best_rational_approximation"):
+        x = _le(params[0]) if params else 3.14159
+        n = int(_le(params[1])) if len(params) > 1 else 10
+        return {"x": x, "n": n}
+    if action == "mobius_prefix":
+        n = int(_le(params[0])) if params else 100
+        return {"n": n}
+    if action == "euler_product":
+        s = _le(params[0]) if params else 2
+        terms = int(_le(params[1])) if len(params) > 1 else 10
+        return {"s": s, "terms": terms}
+    if action == "dirichlet_l_function":
+        s = _le(params[0]) if params else 2
+        return {"s": s}
+    if action == "zeta_dirichlet_series":
+        s = _le(params[0]) if params else 2
+        n_terms = int(_le(params[1])) if len(params) > 1 else 100
+        return {"s": s, "n_terms": n_terms}
+    if action == "zeta_negative":
+        n = int(_le(params[0])) if params else 1
+        return {"n": n}
 
     # ── 解析几何直线/圆: expr+var ──
     if action in ("line_from_points", "line_from_slope_intercept",
