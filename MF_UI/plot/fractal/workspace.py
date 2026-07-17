@@ -109,7 +109,9 @@ class FractalWorkspace(QWidget):
             mask = np.abs(Z) <= 2
             if not mask.any():
                 break
-            Z[mask] = Z[mask] ** 2 + c
+            # Mandelbrot 模式下 c 也是 2D 数组，需同步 mask
+            c_masked = c[mask] if isinstance(c, np.ndarray) else c
+            Z[mask] = Z[mask] ** 2 + c_masked
             M[mask & (np.abs(Z) > 2)] = i
 
         return M.T, (x0, x1, y0, y1)
