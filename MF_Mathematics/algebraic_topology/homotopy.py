@@ -5,9 +5,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, Tuple, Union
-
-import numpy as np
+from typing import Any, List
 
 from ..core.math_object import MathObject
 from ..core.registry import register
@@ -209,42 +207,32 @@ def path_homotopy(
         )
 
 
-def self_test() -> bool:
-    """homotopy 模块自测。"""
+def self_test() -> tuple[int, int, int]:
+    """homotopy 模块自测。返回 (passed, failed, errors)。"""
     print("=== homotopy 自测 ===")
-    all_pass = True
-
-    # 测试 1: S¹ 基本群
-    r1 = fundamental_group("S1")
-    assert r1.result == "Z", f"期望 Z, 得到 {r1.result}"
-    print(f"  [PASS] fundamental_group(S1) = {r1.result}")
-
-    # 测试 2: S² 基本群
-    r2 = fundamental_group("Sn", n=2)
-    assert r2.result == "0", f"期望 0, 得到 {r2.result}"
-    print(f"  [PASS] fundamental_group(S2) = {r2.result}")
-
-    # 测试 3: T² 基本群
-    r3 = fundamental_group("T2")
-    assert r3.result == "Z×Z", f"期望 Z×Z, 得到 {r3.result}"
-    print(f"  [PASS] fundamental_group(T2) = {r3.result}")
-
-    # 测试 4: 单连通判定
-    r4 = is_simply_connected("Sn", n=2)
-    assert r4.result is True, f"S² 应为单连通"
-    print(f"  [PASS] is_simply_connected(S2) = {r4.result}")
-
-    r5 = is_simply_connected("S1")
-    assert r5.result is False, f"S¹ 不应单连通"
-    print(f"  [PASS] is_simply_connected(S1) = {r5.result}")
-
-    # 测试 5: 路径同伦（概念性）
-    r6 = path_homotopy(space="S1")
-    assert r6.ok, f"路径同伦调用应成功"
-    print(f"  [PASS] path_homotopy(S1) OK")
-
-    print(f"  homotopy 自测: {'ALL PASSED' if all_pass else 'FAILED'}")
-    return all_pass
+    passed, failed, errors = 0, 0, 0
+    tests = [
+        ("fundamental_group(S1)", lambda: fundamental_group("S1"), lambda r: r.result == "Z"),
+        ("fundamental_group(S2)", lambda: fundamental_group("Sn", n=2), lambda r: r.result == "0"),
+        ("fundamental_group(T2)", lambda: fundamental_group("T2"), lambda r: r.result == "Z×Z"),
+        ("is_simply_connected(S2)", lambda: is_simply_connected("Sn", n=2), lambda r: r.result is True),
+        ("is_simply_connected(S1)", lambda: is_simply_connected("S1"), lambda r: r.result is False),
+        ("path_homotopy(S1)", lambda: path_homotopy(space="S1"), lambda r: r.ok),
+    ]
+    for name, fn, check in tests:
+        try:
+            r = fn()
+            assert check(r), f"未通过: {r}"
+            passed += 1
+            print(f"  [PASS] {name} = {r.result if hasattr(r, 'result') else r}")
+        except AssertionError as e:
+            failed += 1
+            print(f"  [FAIL] {name}: {e}")
+        except Exception as e:
+            errors += 1
+            print(f"  [ERROR] {name}: {e}")
+    print(f"  homotopy 自测: {passed} pass, {failed} fail, {errors} error")
+    return passed, failed, errors
 
 
 if __name__ == "__main__":

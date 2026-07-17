@@ -40,6 +40,7 @@ class BaseCalcBlock(QWidget):
         self.on_delete = on_delete
         self._last_result: MathObject | None = None
         self._last_index = 0
+        self._current_op: str = ""  # 当前选中模式名（Pattern A 子类使用）
 
         self._modes = self.get_mode_list()
 
@@ -90,44 +91,51 @@ class BaseCalcBlock(QWidget):
         raise NotImplementedError
 
     def get_action_map(self) -> dict[str, tuple[str, str]]:
-        """返回 {模式名: (module, action)} 映射。"""
-        raise NotImplementedError
+        """返回 {模式名: (module, action)} 映射。
+
+        返回 {} 的模块使用 calc_engine.FUNC_MAP 作为全局映射（Pattern A）。
+        """
+        return {}
 
     def _get_module_name(self) -> str:
         """返回计算引擎模块名（如 "linear_algebra"）。"""
         raise NotImplementedError
 
     def on_calc_clicked(self) -> None:
-        """默认分派逻辑 — 子类可覆盖（algebra 有独特逻辑）。"""
+        """默认分派逻辑（Pattern A：calc_engine 全局映射）。
+
+        子类（algebra/linear_algebra/numerical/probability）可覆盖此方法。
+        """
         expr = self.input_box.text().strip()
         if not expr:
             return
 
-        mode = self.calc_mode_combo.currentText()
         action_map = self.get_action_map()
+        mode = self.calc_mode_combo.currentText()
 
-        try:
-            mod, act = action_map[mode]
-        except KeyError:
-            self._show_error(f"未知模式: {mode}")
-            return
-
-        # 允许子类在分派前预处理表达式
-        expr = self._preprocess_expr(expr)
-
-        try:
-            result = self._do_dispatch(mod, act, expr)
-            self._last_result = result
-
-            dlg = ResultDialog(f"计算结果 — {mode}", self)
-            dlg.set_result(result)
-            dlg.exec()
-
-        except (ValueError, TypeError, KeyError, RuntimeError,
-                AttributeError, ImportError) as e:
-            dlg = ResultDialog("错误", self)
-            dlg.set_result(MathObject(error=str(e)[:120]))
-            dlg.exec()
+        if action_map:
+            # 使用本地映射（非 Pattern A 模块）
+            try:
+                mod, act = action_map[mode]
+            except KeyError:
+                self._show_error(f"未知模式: {mode}")
+                return
+            expr = self._preprocess_expr(expr)
+            try:
+                result = self._do_dispatch(mod, act, expr)
+                self._last_result = result
+                dlg = ResultDialog(f"计算结果 — {mode}", self)
+                dlg.set_result(result)
+                dlg.exec()
+            except (ValueError, TypeError, KeyError, RuntimeError,
+                    AttributeError, ImportError) as e:
+                dlg = ResultDialog("错误", self)
+                dlg.set_result(MathObject(error=str(e)[:120]))
+                dlg.exec()
+        else:
+            # Pattern A：使用 calc_engine.calculate()
+            self._current_op = mode
+            self._guarded_calculate(expr, mode)
 
     # ── 守卫+AI 通用计算流程 ──────────────────────────────────
 
@@ -186,8 +194,16 @@ class BaseCalcBlock(QWidget):
         self._run_async(expr, op)
 
     def _get_compute_target(self, op: str, expr: str) -> tuple[callable, tuple]:
-        """返回 (target, args) 供 ComputeWorker 执行。子类可覆写。"""
-        return (self._do_dispatch, (self._get_module_name(), op, expr))
+        """返回 (target, args) 供 ComputeWorker 执行。子类可覆写。
+
+        Pattern A（get_action_map 为空）：使用 calc_engine.calculate(FUNC_MAP)
+        非 Pattern A：使用 _do_dispatch → dispatch(module, action, **kwargs)
+        """
+        if self.get_action_map():
+            return (self._do_dispatch, (self._get_module_name(), op, expr))
+        else:
+            from calc_engine import calculate as _calc
+            return (_calc, (op, [expr]))
 
     def _run_async(self, expr: str, op: str) -> None:
         """在 ComputeWorker 后台线程中执行计算，通过信号返回结果。"""

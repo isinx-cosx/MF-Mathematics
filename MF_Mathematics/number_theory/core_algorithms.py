@@ -7,8 +7,6 @@ from __future__ import annotations
 
 from typing import Tuple
 
-import numpy as np
-
 from ..core.math_object import MathObject
 from ..core.registry import register
 
@@ -195,38 +193,34 @@ def mod_pow(base: int, exp: int, mod: int) -> MathObject:
         return MathObject(error=str(e), module="number_theory", action="mod_pow")
 
 
-def self_test() -> bool:
-    """自检：验证核心算法函数。"""
-    all_pass = True
-
-    # 测试 1: gcd
-    r1 = gcd(48, 18)
-    assert r1.result == 6, f"期望 6, 得到 {r1.result}"
-    print(f"  [PASS] gcd(48, 18) = {r1.result}")
-
-    # 测试 2: extended_gcd
-    r2 = extended_gcd(48, 18)
-    g2, x2, y2 = r2.result
-    assert g2 == 6 and x2 == -1 and y2 == 3, f"期望 (6, -1, 3), 得到 {r2.result}"
-    print(f"  [PASS] extended_gcd(48, 18) = {r2.result}")
-
-    # 测试 3: mod_inverse
-    r3 = mod_inverse(3, 7)
-    assert r3.result == 5, f"期望 5, 得到 {r3.result}"
-    print(f"  [PASS] mod_inverse(3, 7) = {r3.result}")
-
-    # 测试 4: mod_pow
-    r4 = mod_pow(2, 10, 1000)
-    assert r4.result == 24, f"期望 24, 得到 {r4.result}"
-    print(f"  [PASS] mod_pow(2, 10, 1000) = {r4.result}")
-
-    # 测试 5: gcd 边界 (0)
-    r5 = gcd(0, 7)
-    assert r5.result == 7, f"期望 7, 得到 {r5.result}"
-    print(f"  [PASS] gcd(0, 7) = {r5.result}")
-
-    print(f"  core_algorithms 自测: {'ALL PASSED' if all_pass else 'FAILED'}")
-    return all_pass
+def self_test() -> tuple[int, int, int]:
+    """自检：验证核心算法函数。返回 (passed, failed, errors)。"""
+    passed, failed, errors = 0, 0, 0
+    tests = [
+        ("gcd(48, 18)", lambda: gcd(48, 18).result, 6),
+        ("extended_gcd(48, 18)", lambda: extended_gcd(48, 18).result, None),
+        ("mod_inverse(3, 7)", lambda: mod_inverse(3, 7).result, 5),
+        ("mod_pow(2, 10, 1000)", lambda: mod_pow(2, 10, 1000).result, 24),
+        ("gcd(0, 7)", lambda: gcd(0, 7).result, 7),
+    ]
+    for name, fn, expected in tests:
+        try:
+            result = fn()
+            if name == "extended_gcd(48, 18)":
+                g, x, y = result
+                assert g == 6 and x == -1 and y == 3, f"期望 (6,-1,3) 得 {result}"
+            else:
+                assert result == expected, f"期望 {expected} 得 {result}"
+            passed += 1
+            print(f"  [PASS] {name} = {result}")
+        except AssertionError as e:
+            failed += 1
+            print(f"  [FAIL] {name}: {e}")
+        except Exception as e:
+            errors += 1
+            print(f"  [ERROR] {name}: {e}")
+    print(f"  core_algorithms 自测: {passed} pass, {failed} fail, {errors} error")
+    return passed, failed, errors
 
 
 if __name__ == "__main__":

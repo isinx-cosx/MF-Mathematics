@@ -11,9 +11,6 @@
       "max_series_range": 1000,
       "description": "Explosion risk — very high chance of hang"
     },
-    "level3": {
-      "description": "Hard math errors — division by zero, undefined symbols, etc."
-    },
     "limit": {
       "num_sample_epsilon": [0.001, 1e-6],
       "max_diff_threshold": 0.001,
@@ -22,12 +19,6 @@
         "sin(1/",
         "cos(1/"
       ]
-    },
-    "plot": {
-      "max_constant_coeff": 100000,
-      "view_range": [-10000, 10000],
-      "zoom_min": 0.01,
-      "zoom_max": 10000
     }
   },
   "plot": {
@@ -39,7 +30,6 @@
     "font_px": 9,
     "axis_px": 2.0,
     "curve_px": 2.5,
-    "range_limit": [-10000, 10000],
     "colors": [
       "#e74c3c", "#3498db", "#2ecc71", "#f39c12",
       "#9b59b6", "#1abc9c", "#e67e22", "#e84393"

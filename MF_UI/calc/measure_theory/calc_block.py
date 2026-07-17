@@ -3,7 +3,6 @@
 from __future__ import annotations
 import MF_Mathematics.measure_theory  # noqa
 from MF_UI.calc.base_calc_block import BaseCalcBlock
-from calc_engine import calculate
 
 
 class CalcBlock(BaseCalcBlock):
@@ -18,18 +17,5 @@ class CalcBlock(BaseCalcBlock):
             "概率空间", "随机变量(测度论)", "期望(测度论)", "条件期望", "独立性判定",
         ]
 
-    def get_action_map(self) -> dict[str, tuple[str, str]]:
-        return {}
-
     def _get_module_name(self) -> str:
         return "measure_theory"
-
-    def on_calc_clicked(self) -> None:
-        expr = self.input_box.text().strip()
-        if not expr:
-            return
-        self._current_op = self.calc_mode_combo.currentText()
-        self._guarded_calculate(expr, self._current_op)
-
-    def _do_dispatch(self, mod: str, act: str, expr: str):
-        return calculate(self._current_op, [expr])

@@ -630,8 +630,9 @@ class MainWindow(QMainWindow):
                     if hasattr(child, 'isVisible') and child.isVisible():
                         child.setText(expr)
                         return
-        except Exception:
-            pass
+        except Exception as _e:
+            import logging
+            logging.getLogger("MF-Mathematics").debug("恢复表达式失败: %s", _e)
 
     # ── 保存/加载工作区 ─────────────────────────────────────
 
@@ -721,8 +722,9 @@ class MainWindow(QMainWindow):
                     expr = block.input_box.text().strip()
                     mode = block.calc_mode_combo.currentText()
                     return (expr, mode)
-        except Exception:
-            pass
+        except Exception as _e:
+            import logging
+            logging.getLogger("MF-Mathematics").debug("查找计算块失败: %s", _e)
         return ("", "")
 
     # ---------- 主题切换 ----------
@@ -952,5 +954,6 @@ class MainWindow(QMainWindow):
                 if self._user_status_label:
                     self._user_status_label.setText("未登录")
                     self._user_status_label.setStyleSheet("color: #94a3b8;")
-        except Exception:
-            pass  # MF_User 模块不可用时静默失败
+        except Exception as _e:
+            import logging
+            logging.getLogger("MF-Mathematics").debug("用户状态刷新失败: %s", _e)

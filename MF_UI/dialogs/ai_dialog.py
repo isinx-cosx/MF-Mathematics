@@ -85,7 +85,7 @@ def _latex_to_html(latex: str, dark: bool = False) -> str:
         return f"<i>{latex}</i>"
 
 
-def _render_response(text: str) -> str:
+def render_response(text: str) -> str:
     """将文本中的 LaTeX 渲染为 HTML。
 
     $$...$$ → 块级公式（居中）
@@ -305,7 +305,7 @@ class AIDialog(QDialog):
             self._messages.append(
                 {"role": "assistant", "content": self._last_full_response})
             # 替换 AI 纯文本为 LaTeX 渲染后的 HTML
-            html = _render_response(self._last_full_response)
+            html = render_response(self._last_full_response)
             cursor = self._chat_view.textCursor()
             cursor.setPosition(self._ai_text_start)
             cursor.movePosition(QTextCursor.MoveOperation.End,

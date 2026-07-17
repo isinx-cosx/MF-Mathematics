@@ -3,7 +3,6 @@
 from __future__ import annotations
 import MF_Mathematics.algebraic_topology  # noqa
 from MF_UI.calc.base_calc_block import BaseCalcBlock
-from calc_engine import calculate
 
 
 class CalcBlock(BaseCalcBlock):
@@ -17,18 +16,5 @@ class CalcBlock(BaseCalcBlock):
             "过滤复形", "持续同调图", "条形码",
         ]
 
-    def get_action_map(self) -> dict[str, tuple[str, str]]:
-        return {}
-
     def _get_module_name(self) -> str:
         return "algebraic_topology"
-
-    def on_calc_clicked(self) -> None:
-        expr = self.input_box.text().strip()
-        if not expr:
-            return
-        self._current_op = self.calc_mode_combo.currentText()
-        self._guarded_calculate(expr, self._current_op)
-
-    def _do_dispatch(self, mod: str, act: str, expr: str):
-        return calculate(self._current_op, [expr])

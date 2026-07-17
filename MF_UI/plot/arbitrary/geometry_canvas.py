@@ -69,25 +69,51 @@ _TOOL_HINTS: dict[Tool, str] = {
 
 
 # ═══════════════════════════════════════════════════════════════
-#  坐标系渲染参数（完全复制 PlotCanvas）
+#  坐标系渲染参数（从 config.json 读取，回退为默认值）
 # ═══════════════════════════════════════════════════════════════
 
-SCENE_RANGE = 20_000_000
-ZOOM_MIN    = 1e-6
-ZOOM_MAX    = 2000
-INITIAL_VIEW = QRectF(-20, -20, 40, 40)
+from MF_UI.plot.plot_colors import get_colors as _gcol, get_axes_colors as _gax
 
-TICK_PX   = 4
-FONT_PX   = 9
-AXIS_PX   = 2.0
-CURVE_PX  = 2.5
+_SCENE_RANGE = 20_000_000
+_ZOOM_MIN = 1e-6
+_ZOOM_MAX = 2000
+_INITIAL_VIEW = (-8, -6, 16, 12)
+_TICK_PX = 4
+_FONT_PX = 9
+_AXIS_PX = 2.0
+_CURVE_PX = 2.5
 
-AXIS_COLOR  = QColor("#334155")
-GRID_COLOR  = QColor("#e8ecf0")
-TICK_COLOR  = QColor("#94a3b8")
-EDGE_COLOR  = QColor("#b0b8c0")
-TEXT_COLOR  = QColor("#334155")
-BG_COLOR    = QColor("#fafbfc")
+try:
+    from MF_Mathematics.utils.config_manager import config as _cfg
+    _SCENE_RANGE = _cfg.get("plot", "scene_range", default=_SCENE_RANGE)
+    _ZOOM_MIN = _cfg.get("plot", "zoom_min", default=_ZOOM_MIN)
+    _ZOOM_MAX = _cfg.get("plot", "zoom_max", default=_ZOOM_MAX)
+    _iv = _cfg.get("plot", "initial_view", default=list(_INITIAL_VIEW))
+    _INITIAL_VIEW = (float(_iv[0]), float(_iv[1]), float(_iv[2]), float(_iv[3]))
+    _TICK_PX = _cfg.get("plot", "tick_px", default=_TICK_PX)
+    _FONT_PX = _cfg.get("plot", "font_px", default=_FONT_PX)
+    _AXIS_PX = _cfg.get("plot", "axis_px", default=_AXIS_PX)
+    _CURVE_PX = _cfg.get("plot", "curve_px", default=_CURVE_PX)
+except Exception:
+    pass
+
+SCENE_RANGE = _SCENE_RANGE
+ZOOM_MIN = _ZOOM_MIN
+ZOOM_MAX = _ZOOM_MAX
+INITIAL_VIEW = QRectF(float(_INITIAL_VIEW[0]), float(_INITIAL_VIEW[1]),
+                       float(_INITIAL_VIEW[2]), float(_INITIAL_VIEW[3]))
+TICK_PX = _TICK_PX
+FONT_PX = _FONT_PX
+AXIS_PX = _AXIS_PX
+CURVE_PX = _CURVE_PX
+
+_ax = _gax()
+AXIS_COLOR  = QColor(_ax.get("axis_color", "#334155"))
+GRID_COLOR  = QColor(_ax.get("grid_color", "#e8ecf0"))
+TICK_COLOR  = QColor(_ax.get("tick_color", "#94a3b8"))
+EDGE_COLOR  = QColor(_ax.get("edge_color", "#b0b8c0"))
+TEXT_COLOR  = QColor(_ax.get("text_color", "#334155"))
+BG_COLOR    = QColor(_ax.get("bg_color", "#fafbfc"))
 
 PREVIEW_COLOR   = QColor("#6366f1")
 HIGHLIGHT_COLOR = QColor("#3b82f6")

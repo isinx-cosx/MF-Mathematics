@@ -89,8 +89,9 @@ def linear_application(problem: str) -> MathObject:
                     ],
                     meaning=f"应用题解析: {problem[:50]}...",
                 )
-        except Exception:
-            pass
+        except Exception as _e:
+            import logging
+            logging.getLogger("MF-Mathematics").debug("AI 应用题解析不可用: %s", _e)
 
         # AI 不可用时回退
         return MathObject(

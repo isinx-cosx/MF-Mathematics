@@ -318,37 +318,39 @@ def integral_zero_set_independent(
         return MathObject(error=str(e))
 
 
-def self_test() -> bool:
-    """lebesgue_integral 模块自测。"""
+def self_test() -> tuple[int, int, int]:
+    """lebesgue_integral 模块自测。返回 (passed, failed, errors)。"""
     print("=== lebesgue_integral self_test ===")
-    all_ok = True
+    passed, failed, errors = 0, 0, 0
 
-    # 测试 1: integral_nonnegative x^2 on (0,1) → 1/3
-    r = integral_nonnegative("x**2", domain=(0, 1))
-    assert r.ok, f"失败: {r}"
-    assert abs(r.result - 1 / 3) < 0.001, f"期望 1/3，实际 {r.result}"
-    print(f"  [PASS] integral_nonnegative('x**2', (0,1)) = {r.result:.6f} ≈ 1/3")
-
-    # 测试 2: integral_general x on (-1,1) → 0
-    r = integral_general("x", domain=(-1, 1))
-    assert r.ok, f"失败: {r}"
-    assert abs(r.result) < 0.001, f"期望 0，实际 {r.result}"
-    print(f"  [PASS] integral_general('x', (-1,1)) = {r.result:.6f} ≈ 0")
-
-    # 测试 3: integral_simple
-    simple = {"coefficients": [1, 2], "sets": [[0, 0.5], [0.5, 1]]}
-    r = integral_simple(simple)
-    assert r.ok, f"失败: {r}"
-    assert abs(r.result - 1.5) < 0.001, f"期望 1.5, 实际 {r.result}"
-    print(f"  [PASS] integral_simple = {r.result}")
-
-    # 测试 4: zero_set_independent
-    r = integral_zero_set_independent("x**2", "x**2")
-    assert r.ok and r.result is True, f"失败: {r}"
-    print(f"  [PASS] integral_zero_set_independent = {r.result}")
-
-    print("=== lebesgue_integral: ALL PASSED ===\n")
-    return all_ok
+    tests: list[tuple[str, callable, callable]] = [
+        ("integral_nonnegative x^2 on (0,1)",
+         lambda: integral_nonnegative("x**2", domain=(0, 1)),
+         lambda r: r.ok and abs(r.result - 1/3) < 0.001),
+        ("integral_general x on (-1,1)",
+         lambda: integral_general("x", domain=(-1, 1)),
+         lambda r: r.ok and abs(r.result) < 0.001),
+        ("integral_simple",
+         lambda: integral_simple({"coefficients": [1, 2], "sets": [[0, 0.5], [0.5, 1]]}),
+         lambda r: r.ok and abs(r.result - 1.5) < 0.001),
+        ("integral_zero_set_independent",
+         lambda: integral_zero_set_independent("x**2", "x**2"),
+         lambda r: r.ok and r.result is True),
+    ]
+    for name, fn, check in tests:
+        try:
+            r = fn()
+            assert check(r), f"未通过: {r}"
+            passed += 1
+            print(f"  [PASS] {name} = {r.result if hasattr(r, 'result') else r}")
+        except AssertionError as e:
+            failed += 1
+            print(f"  [FAIL] {name}: {e}")
+        except Exception as e:
+            errors += 1
+            print(f"  [ERROR] {name}: {e}")
+    print(f"  lebesgue_integral 自测: {passed} pass, {failed} fail, {errors} error")
+    return passed, failed, errors
 
 
 if __name__ == "__main__":

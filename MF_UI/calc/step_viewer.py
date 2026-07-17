@@ -11,7 +11,7 @@ from PySide6.QtWidgets import (
     QPushButton, QTextEdit, QVBoxLayout, QWidget,
 )
 
-from MF_UI.dialogs.ai_dialog import _render_response
+from MF_UI.dialogs.ai_dialog import render_response
 
 # ── 教科书风格系统提示词 ──────────────────────────────────
 
@@ -160,7 +160,7 @@ class StepViewer(QDialog):
         ai_cache = get_ai_cache()
         disk_cached = ai_cache.get(self._mode, self._expr)
         if disk_cached:
-            html = _render_response(disk_cached)
+            html = render_response(disk_cached)
             StepViewer._cache[self._cache_key] = html
             self._view.setHtml(html)
             self._status.setText("（磁盘缓存）就绪")
@@ -202,7 +202,7 @@ class StepViewer(QDialog):
     def _show_steps(self, text: str):
         """渲染步骤为 HTML 并显示。"""
         self._raw_text = text
-        html = _render_response(text)
+        html = render_response(text)
         # 轻微样式增强
         html = (
             "<div style='font-family: Latin Modern Math, STIX, Cambria Math, serif;"
