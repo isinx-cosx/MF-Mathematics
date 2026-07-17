@@ -229,7 +229,29 @@ class GeometryCanvas(QGraphicsView):
         if ya_ok:
             painter.drawLine(int(ox), int(vp.top()), int(ox), int(vp.bottom()))
 
-        # ── 网格线 ──
+        # ── 副网格线（每大格 4 条，半透明）──
+        minor_step = step / 5.0
+        minor_grid_color = QColor(GRID_COLOR.red(), GRID_COLOR.green(),
+                                  GRID_COLOR.blue(), 120)
+        painter.setPen(QPen(minor_grid_color, 0.5))
+        mgx = math.floor(x0 / step) * step
+        while mgx <= x1:
+            for k in (1, 2, 3, 4):
+                mgv = mgx + k * minor_step
+                p1 = self.mapFromScene(QPointF(mgv, y0))
+                p2 = self.mapFromScene(QPointF(mgv, y1))
+                painter.drawLine(p1, p2)
+            mgx += step
+        mgy = math.floor(y0 / step) * step
+        while mgy <= y1:
+            for k in (1, 2, 3, 4):
+                mgv = mgy + k * minor_step
+                p1 = self.mapFromScene(QPointF(x0, mgv))
+                p2 = self.mapFromScene(QPointF(x1, mgv))
+                painter.drawLine(p1, p2)
+            mgy += step
+
+        # ── 主网格线 ──
         painter.setPen(QPen(GRID_COLOR, 1))
         gx = math.floor(x0 / step) * step
         while gx <= x1:
@@ -250,38 +272,7 @@ class GeometryCanvas(QGraphicsView):
         painter.setFont(font)
 
         half = TICK_PX
-        minor_half = max(1, TICK_PX // 2)
-        minor_step = step / 5.0
-        minor_tick_color = QColor(
-            min(255, TICK_COLOR.red() + 40),
-            min(255, TICK_COLOR.green() + 40),
-            min(255, TICK_COLOR.blue() + 40),
-        )
         spx = self._step_px(step)
-
-        # ── X 轴分度线 ──
-        msx = math.floor(x0 / step) * step
-        while msx <= x1:
-            for k in (1, 2, 3, 4):
-                msv = msx + k * minor_step
-                vx = self._map_x(msv)
-                vy = oy if xa_ok else self._map_y(0.0)
-                if vx is not None and vy is not None:
-                    painter.setPen(QPen(minor_tick_color, 1))
-                    painter.drawLine(int(vx), int(vy - minor_half), int(vx), int(vy + minor_half))
-            msx += step
-
-        # ── Y 轴分度线 ──
-        msy = math.floor(y0 / step) * step
-        while msy <= y1:
-            for k in (1, 2, 3, 4):
-                msv = msy + k * minor_step
-                vx = ox if ya_ok else self._map_x(0.0)
-                vy = self._map_y(msv)
-                if vx is not None and vy is not None:
-                    painter.setPen(QPen(minor_tick_color, 1))
-                    painter.drawLine(int(vx - minor_half), int(vy), int(vx + minor_half), int(vy))
-            msy += step
 
         # ── X 轴刻度 ──
         sx = math.floor(x0 / step) * step
@@ -319,17 +310,6 @@ class GeometryCanvas(QGraphicsView):
             edge_y = int(vp.bottom() - 20)
             painter.setPen(QPen(EDGE_COLOR, 1, Qt.PenStyle.DashLine))
             painter.drawLine(int(vp.left()), edge_y, int(vp.right()), edge_y)
-            # 分度线
-            msx = math.floor(x0 / step) * step
-            while msx <= x1:
-                for k in (1, 2, 3, 4):
-                    msv = msx + k * minor_step
-                    vx = self._map_x(msv)
-                    if vx is not None:
-                        painter.setPen(QPen(minor_tick_color, 1))
-                        painter.drawLine(int(vx), edge_y - minor_half, int(vx), edge_y + minor_half)
-                msx += step
-            # 主刻度
             sx = math.floor(x0 / step) * step
             while sx <= x1:
                 vx = self._map_x(sx)
@@ -348,17 +328,6 @@ class GeometryCanvas(QGraphicsView):
             edge_x = int(vp.left() + 20)
             painter.setPen(QPen(EDGE_COLOR, 1, Qt.PenStyle.DashLine))
             painter.drawLine(edge_x, int(vp.top()), edge_x, int(vp.bottom()))
-            # 分度线
-            msy = math.floor(y0 / step) * step
-            while msy <= y1:
-                for k in (1, 2, 3, 4):
-                    msv = msy + k * minor_step
-                    vy = self._map_y(msv)
-                    if vy is not None:
-                        painter.setPen(QPen(minor_tick_color, 1))
-                        painter.drawLine(edge_x - minor_half, int(vy), edge_x + minor_half, int(vy))
-                msy += step
-            # 主刻度
             sy = math.floor(y0 / step) * step
             while sy <= y1:
                 vy = self._map_y(sy)
