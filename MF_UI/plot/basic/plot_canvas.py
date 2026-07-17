@@ -210,6 +210,9 @@ class PlotCanvas(QGraphicsView):
     def __init__(self, parent: QWidget | None = None):
         super().__init__(parent)
 
+        # ── 极坐标模式 ──
+        self._polar_mode: bool = False
+
         # ── Scene（仅曲线，无轴无网格）──
         self._scene = QGraphicsScene(self)
         self._scene.setSceneRect(
@@ -264,6 +267,47 @@ class PlotCanvas(QGraphicsView):
         y0, y1 = vr.top(), vr.bottom()
         rng = max(x1 - x0, y1 - y0)
         if rng <= 0:
+            painter.restore(); return
+
+        # ═══════════════════════════════════════
+        #  极坐标网格：同心圆 + 射线
+        # ═══════════════════════════════════════
+        if self._polar_mode:
+            ox = self._map_x(0) or 0
+            oy = self._map_y(0) or 0
+            font = QFont(); font.setPixelSize(FONT_PX); painter.setFont(font)
+
+            # 同心圆
+            max_r = max(abs(x0), abs(x1), abs(y0), abs(y1)) * 1.5
+            circle_step = calculate_step(max_r)
+            r = circle_step
+            while r <= max_r:
+                if r < 0.001: r += circle_step; continue
+                r_px = abs((self._map_x(r) or 0) - (ox or 0))
+                if 2 < r_px < 10000:
+                    pen = QPen(GRID_COLOR, 1)
+                    pen.setStyle(Qt.PenStyle.DotLine)
+                    painter.setPen(pen)
+                    painter.drawEllipse(QPointF(ox, oy), r_px, r_px)
+                    # 半径标签
+                    painter.setPen(QPen(TEXT_COLOR, 1))
+                    painter.drawText(QPointF(ox + r_px + 2, oy + 4), format_tick(r))
+                r += circle_step
+
+            # 射线（每30度一条）
+            for deg in range(0, 360, 30):
+                rad = math.radians(deg)
+                ex = ox + (self._map_x(max_r * math.cos(rad)) - (ox or 0)) if ox else 400
+                ey = oy + (self._map_y(max_r * math.sin(rad)) - (oy or 0)) if oy else 400
+                painter.setPen(QPen(GRID_COLOR, 1, Qt.PenStyle.DotLine))
+                painter.drawLine(QPointF(ox, oy), QPointF(ex, ey))
+
+            # 原点 + 极轴
+            painter.setPen(QPen(AXIS_COLOR, AXIS_PX))
+            painter.drawLine(QPointF(ox, oy),
+                           QPointF(ox + (self._map_x(max_r) - ox if ox else 400), oy))
+            painter.drawText(QPointF(ox - 12, oy - 6), "O")
+            painter.drawText(QPointF(ox + (self._map_x(max_r) - ox if ox else 400) - 20, oy - 10), "r")
             painter.restore(); return
 
         step = calculate_step(rng)
@@ -648,18 +692,8 @@ class PlotCanvas(QGraphicsView):
         if expr is None:
             return None
 
-        # ── 路径缓存键（含 10% 边距减少缩放时缓存失效）──
-        vr = self.mapToScene(self.viewport().rect()).boundingRect()
-        margin = vr.width() * 0.1
-        x0 = math.floor((vr.left() - margin) / 10) * 10
-        x1 = math.ceil((vr.right() + margin) / 10) * 10
+        # ── 参数替换 ──
         params = f.get("params", {})
-        path_key = f"{expr_str}|{sorted(params.items())}|{x0}|{x1}"
-
-        if path_key in self._path_cache:
-            return self._path_cache[path_key]
-
-        # ── 参数替换（批量 subs，O(n) 代替 O(n²)）──
         if params:
             subs_dict = {sp.Symbol(k): v for k, v in params.items()}
             expr = expr.subs(subs_dict)
@@ -667,8 +701,53 @@ class PlotCanvas(QGraphicsView):
         if expr.free_symbols - {var_sym}:
             return None
 
+        # ── 路径缓存键 ──
+        vr = self.mapToScene(self.viewport().rect()).boundingRect()
+        margin = vr.width() * 0.1
+        x0 = math.floor((vr.left() - margin) / 10) * 10
+        x1 = math.ceil((vr.right() + margin) / 10) * 10
+        path_key = f"{expr_str}|{sorted(params.items())}|{x0}|{x1}|polar={self._polar_mode}"
+        if path_key in self._path_cache:
+            return self._path_cache[path_key]
+
+        # ═══════════════════════════════════════
+        #  极坐标模式: r = f(θ) → (x, y)
+        # ═══════════════════════════════════════
+        if self._polar_mode:
+            n_theta = 2000
+            thetas = np.linspace(0, 2 * np.pi, n_theta)
+            try:
+                fn = _cached_lambdify(var_sym, expr, "numpy")
+                rs = fn(thetas)
+                if not isinstance(rs, np.ndarray):
+                    return None
+                if np.iscomplexobj(rs):
+                    rs = np.where(np.abs(rs.imag) < 1e-10, rs.real, np.nan)
+            except Exception:
+                return None
+
+            path = QPainterPath()
+            first = True
+            for i in range(len(thetas)):
+                r_val = rs[i]
+                if np.isnan(r_val) or np.isinf(r_val):
+                    first = True
+                    continue
+                x_p = r_val * np.cos(thetas[i])
+                y_p = r_val * np.sin(thetas[i])
+                if first:
+                    path.moveTo(x_p, y_p)
+                    first = False
+                else:
+                    path.lineTo(x_p, y_p)
+            self._path_cache[path_key] = path
+            return path
+
+        # ═══════════════════════════════════════
+        #  笛卡尔模式: y = f(x)
+        # ═══════════════════════════════════════
+
         # ── 求值 + Path 构建 ──
-        # 自适应采样：远视图少采样，近视图多采样
         view_width = x1 - x0
         if view_width > 100:
             n_samples = 500
@@ -839,6 +918,11 @@ class PlotCanvas(QGraphicsView):
     # ═══════════════════════════════════════════════════════════════
     #  Backward compat
     # ═══════════════════════════════════════════════════════════════
+
+    def set_polar_mode(self, enabled: bool) -> None:
+        self._polar_mode = enabled
+        self._grid_dirty = True
+        self.viewport().update()
 
     def update_axes(self) -> None:
         self.viewport().update()

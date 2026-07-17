@@ -86,8 +86,18 @@ class FunctionBox(QWidget):
         self._index = index
         self._color = color or next_color()
         self._mode = mode
-        self._default_var = "z" if mode == "complex" else "x"
-        self._independent_vars = {"x", "y"} if mode == "3d" else {"x"}
+        if mode == "complex":
+            self._default_var = "z"
+        elif mode == "polar":
+            self._default_var = "θ"
+        else:
+            self._default_var = "x"
+        if mode == "3d":
+            self._independent_vars = {"x", "y"}
+        elif mode == "polar":
+            self._independent_vars = {"θ"}
+        else:
+            self._independent_vars = {"x"}
 
         self._func_name = ""
         self._independent_var = self._default_var
@@ -135,7 +145,10 @@ class FunctionBox(QWidget):
 
         self._input = QLineEdit()
         self._input.setFixedHeight(28)
-        self._input.setPlaceholderText("f(x)=")
+        if self._mode == "polar":
+            self._input.setPlaceholderText("r(θ)=")
+        else:
+            self._input.setPlaceholderText("f(x)=")
         # 输入框样式由 QSS FunctionBox QLineEdit 选择器管理
         self._input.textChanged.connect(self._on_text)
         row.addWidget(self._input, 1)

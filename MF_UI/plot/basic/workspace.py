@@ -149,6 +149,8 @@ class PlotWorkspace(QWidget):
         if self._mode in ("normal", "polar"):
             self._canvas = PlotCanvas()
             self._canvas.status_message.connect(self._status.setText)
+            if self._mode == "polar":
+                self._canvas.set_polar_mode(True)
             root.addWidget(self._canvas, 1)
             self._canvas_3d = None
         else:
@@ -189,7 +191,7 @@ class PlotWorkspace(QWidget):
     # ── 函数框管理 ──────────────────────────────────────────
 
     def _add_function_box(self) -> None:
-        if self._mode != "normal": return
+        if self._mode not in ("normal", "polar"): return
         color = _COLORS[self._color_idx % len(_COLORS)]
         self._color_idx += 1
         cls = FunctionBox
