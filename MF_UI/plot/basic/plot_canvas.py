@@ -104,10 +104,8 @@ EDGE_COLOR  = QColor(_ax.get("edge_color",  "#b0b8c0"))
 TEXT_COLOR  = QColor(_ax.get("text_color",  "#334155"))
 BG_COLOR    = QColor(_ax.get("bg_color",     "#fafbfc"))
 
-CURVE_COLORS = _c.get("plot", "colors", default=[
-    "#e74c3c", "#3498db", "#2ecc71", "#f39c12",
-    "#9b59b6", "#1abc9c", "#e67e22", "#e84393",
-])
+from MF_UI.plot.plot_colors import get_colors as _get_colors
+CURVE_COLORS = _get_colors()
 
 # ── Marching Squares 查表 ──────────────────────────────────
 # 边: 0=底 1=右 2=顶 3=左

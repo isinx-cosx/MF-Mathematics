@@ -15,8 +15,8 @@ from PySide6.QtWidgets import (
 from MF_UI.plot.plot_3d.canvas import Plot3D
 from MF_UI.plot.plot_3d.function_box import FunctionBox
 
-_COLORS = ["#e74c3c","#3498db","#2ecc71","#f39c12",
-           "#9b59b6","#1abc9c","#e67e22","#e84393"]
+from MF_UI.plot.plot_colors import get_colors
+_COLORS = get_colors()
 
 
 class Plot3DWorkspace(QWidget):

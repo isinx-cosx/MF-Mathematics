@@ -21,20 +21,7 @@ from PySide6.QtWidgets import (
 )
 from MF_UI.utils.translator import MathTranslator
 
-# ── 预设颜色 ──────────────────────────────────────────────────
-_PRESET_COLORS = [
-    "#e74c3c", "#3498db", "#2ecc71", "#f39c12",
-    "#9b59b6", "#1abc9c", "#e67e22", "#e84393",
-]
-_COLOR_IDX = 0
-
-
-def next_color() -> str:
-    global _COLOR_IDX
-    c = _PRESET_COLORS[_COLOR_IDX % len(_PRESET_COLORS)]
-    _COLOR_IDX += 1
-    return c
-
+from MF_UI.plot.plot_colors import next_color
 
 # ── 常量 ────────────────────────────────────────────────────
 _KNOWN_IDS = {

@@ -78,7 +78,8 @@ class VectorFieldWorkspace(QWidget):
         btn.clicked.connect(self._redraw); pr.addWidget(btn)
         pr.addStretch(); root.addLayout(pr)
 
-        self._fig = Figure(facecolor="#f8fafc")
+        from MF_UI.plot.mpl_setup import get_mpl_figure_facecolor
+        self._fig = Figure(facecolor=get_mpl_figure_facecolor())
         self._canvas = FigureCanvasQTAgg(self._fig); self._canvas.setMinimumHeight(400)
         root.addWidget(self._canvas, 1)
 

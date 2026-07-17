@@ -143,8 +143,10 @@ class FractalWorkspace(QWidget):
         root.addLayout(ctrl)
 
         # ── Matplotlib 画布 ──
-        self._fig = Figure(figsize=(6, 5), dpi=100)
+        from MF_UI.plot.mpl_setup import get_mpl_figure_facecolor, get_mpl_axes_facecolor
+        self._fig = Figure(figsize=(6, 5), dpi=100, facecolor=get_mpl_figure_facecolor())
         self._ax = self._fig.add_subplot(111)
+        self._ax.set_facecolor(get_mpl_axes_facecolor())
         self._canvas = FigureCanvas(self._fig)
         self._canvas.mpl_connect("button_press_event", self._on_click)
         self._canvas.mpl_connect("scroll_event", self._on_scroll)

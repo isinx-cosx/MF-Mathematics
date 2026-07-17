@@ -37,3 +37,65 @@ except Exception:
     matplotlib.rcParams["font.sans-serif"] = ["SimHei", "Microsoft YaHei", "DejaVu Sans"]
 
 matplotlib.rcParams["axes.unicode_minus"] = False
+
+# ── 主题配置 ──────────────────────────────────────────────────
+# 从 config.json 读取（回退为内置默认值）
+
+import json, os as _os
+
+_DEFAULT_MPL_THEME = {
+    "figure_facecolor": "#f8fafc",
+    "axes_facecolor": "#ffffff",
+    "text_color": "#334155",
+    "grid_color": "#e2e8f0",
+}
+
+
+def _load_mpl_colors() -> dict[str, str]:
+    """从 config.json 加载 matplotlib 颜色主题。"""
+    try:
+        _cfg_root = _os.path.dirname(_os.path.dirname(_os.path.dirname(
+            _os.path.abspath(__file__))))
+        _cfg_path = _os.path.join(_cfg_root, "config.json")
+        if _os.path.exists(_cfg_path):
+            with open(_cfg_path, "r", encoding="utf-8") as f:
+                cfg = json.load(f)
+            ax = cfg.get("plot", {}).get("axes", {})
+            return {
+                "figure_facecolor": ax.get("bg_color", _DEFAULT_MPL_THEME["figure_facecolor"]),
+                "axes_facecolor": ax.get("axes_bg", _DEFAULT_MPL_THEME["axes_facecolor"]),
+                "text_color": ax.get("text_color", _DEFAULT_MPL_THEME["text_color"]),
+                "grid_color": ax.get("grid_color", _DEFAULT_MPL_THEME["grid_color"]),
+            }
+    except Exception:
+        pass
+    return dict(_DEFAULT_MPL_THEME)
+
+
+_MPL_THEME = _load_mpl_colors()
+
+
+def get_mpl_figure_facecolor() -> str:
+    """获取 matplotlib 图形背景色。"""
+    return _MPL_THEME.get("figure_facecolor", "#f8fafc")
+
+
+def get_mpl_axes_facecolor() -> str:
+    """获取 matplotlib 坐标区背景色。"""
+    return _MPL_THEME.get("axes_facecolor", "#ffffff")
+
+
+def get_mpl_text_color() -> str:
+    """获取 matplotlib 文本颜色。"""
+    return _MPL_THEME.get("text_color", "#334155")
+
+
+def apply_mpl_theme(fig, ax=None) -> None:
+    """为 matplotlib 图形应用统一主题（facecolor + 浅色坐标区）。"""
+    fc = _MPL_THEME["figure_facecolor"]
+    fig.set_facecolor(fc)
+    if ax is not None:
+        ax.set_facecolor(_MPL_THEME["axes_facecolor"])
+        ax.tick_params(colors=_MPL_THEME["text_color"])
+        for spine in ax.spines.values():
+            spine.set_color(_MPL_THEME["text_color"])

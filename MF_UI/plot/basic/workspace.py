@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-import json, os, re
+import re
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QFrame, QHBoxLayout, QLabel, QPushButton,
@@ -16,23 +16,9 @@ from MF_UI.plot.plot_3d import Plot3DWorkspace
 from MF_UI.plot.complex.workspace import ComplexWorkspace
 from MF_UI.plot.vector_field.workspace import VectorFieldWorkspace
 from MF_UI.plot.arbitrary.workspace import ArbitraryWorkspace
+from MF_UI.plot.plot_colors import get_colors
 
-
-def _load_plot_colors() -> list[str]:
-    try:
-        root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        path = os.path.join(root, "config.json")
-        if os.path.exists(path):
-            with open(path, "r", encoding="utf-8") as f:
-                return json.load(f).get("plot", {}).get("colors",
-                    ["#e74c3c", "#3498db", "#2ecc71", "#f39c12",
-                     "#9b59b6", "#1abc9c", "#e67e22", "#e84393"])
-    except Exception:
-        pass
-    return ["#e74c3c", "#3498db", "#2ecc71"]
-
-
-_COLORS = _load_plot_colors()
+_COLORS = get_colors()
 
 
 class PlotWorkspace(QWidget):

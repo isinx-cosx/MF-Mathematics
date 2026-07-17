@@ -17,11 +17,7 @@ from PySide6.QtWidgets import (
     QLineEdit, QPushButton, QVBoxLayout, QWidget,
 )
 
-_PRESET = ["#e74c3c","#3498db","#2ecc71","#f39c12",
-           "#9b59b6","#1abc9c","#e67e22","#e84393"]
-_CI = 0
-def _nc() -> str:
-    global _CI; c = _PRESET[_CI % len(_PRESET)]; _CI += 1; return c
+from MF_UI.plot.plot_colors import next_color as _nc
 
 _KNOWN = {"sin","cos","tan","cot","sec","csc","sinh","cosh","tanh","coth",
           "asin","acos","atan","arcsin","arccos","arctan",

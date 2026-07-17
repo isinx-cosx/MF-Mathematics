@@ -149,7 +149,8 @@ class ComplexWorkspace(QWidget):
         # ── 右侧画布 ──
         right = QWidget()
         rl = QVBoxLayout(right); rl.setContentsMargins(0,0,0,0)
-        self._fig = Figure(facecolor="#f8fafc")
+        from MF_UI.plot.mpl_setup import get_mpl_figure_facecolor
+        self._fig = Figure(facecolor=get_mpl_figure_facecolor())
         self._canvas = FigureCanvasQTAgg(self._fig)
         self._canvas.setMinimumHeight(400)
         rl.addWidget(self._canvas)
