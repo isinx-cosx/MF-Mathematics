@@ -24,6 +24,7 @@ from calc.sequences import Workspace as SequencesWorkspace
 from calc.complex_analysis import Workspace as ComplexAnalysisWorkspace
 from calc.functional_analysis import Workspace as FunctionalAnalysisWorkspace
 from plot.basic.workspace import PlotWorkspace
+from plot.fractal.workspace import FractalWorkspace
 
 # 运行时自动设置项目根路径
 _this_dir = os.path.dirname(os.path.abspath(__file__))
@@ -155,7 +156,7 @@ class MainWindow(QMainWindow):
             "线性代数", "概率论与数理统计", "数值分析",
             "数论", "实分析", "泛函分析", "复分析",
         ]
-        self._plot_modes = ["普通模式", "3D模式", "复数模式", "向量场", "任意做图"]
+        self._plot_modes = ["普通模式", "3D模式", "复数模式", "向量场", "任意做图", "分形探索"]
         self.last_calc_index = 0
         self.last_plot_index = 0
 
@@ -480,7 +481,7 @@ class MainWindow(QMainWindow):
             self._stacked_widget.setCurrentIndex(index)  # 索引 0~10
         else:  # 绘图模式
             self.last_plot_index = index
-            self._stacked_widget.setCurrentIndex(11 + index)  # 索引 11~15
+            self._stacked_widget.setCurrentIndex(11 + index)  # 索引 11~16
 
 
     # ---------- 中央区域 ----------
@@ -498,12 +499,13 @@ class MainWindow(QMainWindow):
         self._stacked_widget.addWidget(RealAnalysisWorkspace())
         self._stacked_widget.addWidget(FunctionalAnalysisWorkspace())
         self._stacked_widget.addWidget(ComplexAnalysisWorkspace())
-    # ── 绘图模式 (index 11-15) ──
+    # ── 绘图模式 (index 11-16) ──
         self._stacked_widget.addWidget(PlotWorkspace("普通模式 — 2D 函数绘图"))
         self._stacked_widget.addWidget(PlotWorkspace("3D 模式 — 三维曲面绘图"))
         self._stacked_widget.addWidget(PlotWorkspace("复数模式 — 复平面域着色绘图"))
         self._stacked_widget.addWidget(PlotWorkspace("向量场模式 — 向量场绘图"))
         self._stacked_widget.addWidget(PlotWorkspace("任意做图 — 自由几何对象绘制"))
+        self._stacked_widget.addWidget(FractalWorkspace("分形探索 — Julia/Mandelbrot 集"))
 
         # 内置键盘面板
         self._build_keyboard_panel()
