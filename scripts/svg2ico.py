@@ -322,7 +322,8 @@ def main():
     svg_path = "assets/icon.svg"
     ico_path = "assets/icon.ico"
 
-    sizes = [16, 32, 48, 64, 128, 256]
+    # Windows 标准图标尺寸（含高DPI）
+    sizes = [16, 20, 24, 32, 40, 48, 64, 72, 80, 96, 128, 256]
     images = []
 
     for size in sizes:
