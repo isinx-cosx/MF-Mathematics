@@ -330,7 +330,7 @@ class PlotCanvas(QGraphicsView):
             # ── 极坐标射线（比圆更淡，跳过0°/60°/90°/270°）──
             ray_pen = QPen(QColor("#dcdcdc"), AXIS_PX, Qt.PenStyle.SolidLine)
             painter.setPen(ray_pen)
-            _skip_deg = {0, 60, 90, 270}
+            _skip_deg = {0, 60, 90, 180, 270}
             for deg in range(0, 360, 30):
                 if deg in _skip_deg:
                     continue
