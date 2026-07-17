@@ -11,14 +11,20 @@ for _d in (_project_root, _this_dir):
         sys.path.insert(0, _d)
 
 from PySide6.QtWidgets import QApplication
+from PySide6.QtGui import QIcon
 from main_window import MainWindow
 
 def main():
     try:
         app = QApplication(sys.argv)
-        # 设置应用名称，避免加载某些全局配置干扰
         app.setApplicationName("MF-Mathematics")
-        
+
+        # ── 应用图标 ──
+        _icon_path = os.path.join(_project_root, "assets", "icon.ico")
+        if os.path.exists(_icon_path):
+            app_icon = QIcon(_icon_path)
+            app.setWindowIcon(app_icon)
+
         window = MainWindow()
         window.show()
         
