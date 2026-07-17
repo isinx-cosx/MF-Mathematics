@@ -294,6 +294,31 @@ FUNC_MAP: dict[str, tuple[str, str]] = {
     "欧拉乘积":               ("number_theory", "euler_product"),
     "Dirichlet L 函数":       ("number_theory", "dirichlet_l_function"),
     "伯努利数":               ("number_theory", "bernoulli_number"),
+
+    # ── 概率补充 ──
+    "分布函数":               ("probability", "distribution_function"),
+    "概率质量函数":           ("probability", "pmf"),
+    "概率密度函数":           ("probability", "pdf"),
+
+    # ── 实分析 ──
+    "数列极限(ε-N)":          ("real_analysis", "sequence_limit"),
+    "数列收敛判定":           ("real_analysis", "sequence_convergence"),
+    "柯西收敛准则":           ("real_analysis", "cauchy_criterion"),
+    "ε-δ 极限定义":           ("real_analysis", "limit_epsilon_delta"),
+    "导数定义":               ("real_analysis", "derivative_definition"),
+    "一致连续":               ("real_analysis", "uniform_continuity"),
+    "介值定理":               ("real_analysis", "intermediate_value"),
+    "极值定理":               ("real_analysis", "extreme_value"),
+    "上确界":                 ("real_analysis", "supremum"),
+    "下确界":                 ("real_analysis", "infimum"),
+    "黎曼可积判定":           ("real_analysis", "riemann_integrable"),
+    "达布和":                 ("real_analysis", "darboux_sum"),
+    "微积分基本定理":         ("real_analysis", "fundamental_theorem"),
+    "一致收敛":               ("real_analysis", "uniform_convergence"),
+    "逐点收敛":               ("real_analysis", "pointwise_convergence"),
+    "Weierstrass M-判别":     ("real_analysis", "weierstrass_m_test"),
+    "逐项微分":               ("real_analysis", "termwise_differentiation"),
+    "逐项积分":               ("real_analysis", "termwise_integration"),
 }
 
 
@@ -721,6 +746,45 @@ def _build_kwargs(action: str, action_name: str, params: list[str]) -> dict | No
         n = int(_le(params[0])) if params else 1
         return {"n": n}
 
+    # ── 实分析 function_series: seq_expr 参数名 ──
+    if action in ("pointwise_convergence", "uniform_convergence",
+                  "weierstrass_m_test", "termwise_differentiation",
+                  "termwise_integration"):
+        seq_expr = params[0] if params else "x**n"
+        var = params[1] if len(params) > 1 else "x"
+        return {"seq_expr": seq_expr, "var": var}
+
+    # ── 实分析: 单参数 s (集合/列表) ──
+    if action in ("supremum", "infimum"):
+        try:
+            s = _le(params[0]) if params else [0, 1]
+            if isinstance(s, list): s = tuple(s)  # LRU cache 需要 hashable
+        except (ValueError, SyntaxError):
+            s = params[0] if params else (0, 1)
+        return {"s": s}
+
+    # ── 概率: data/values 参数 (tuple 化) ──
+    if action == "distribution_function":
+        try:
+            data = _le(params[0]) if params else [1,2,3]
+            if isinstance(data, list): data = tuple(data)
+        except (ValueError, SyntaxError):
+            data = tuple(params[0].strip("[]()").split(",")) if params else (1,2,3)
+        x = float(_le(params[1])) if len(params) > 1 else None
+        return {"data": data, "x": x}
+    if action == "pmf":
+        try:
+            values = _le(params[0]) if params else ("x1","x2")
+            if isinstance(values, list): values = tuple(values)
+        except (ValueError, SyntaxError):
+            values = params[0] if params else ("x1","x2")
+        try:
+            probs = _le(params[1]) if len(params) > 1 else (0.5, 0.5)
+            if isinstance(probs, list): probs = tuple(probs)
+        except (ValueError, SyntaxError):
+            probs = params[1] if len(params) > 1 else (0.5, 0.5)
+        return {"values": values, "probs": probs}
+
     # ── 解析几何直线/圆: expr+var ──
     if action in ("line_from_points", "line_from_slope_intercept",
                   "line_from_point_slope", "line_from_intercepts",
@@ -745,7 +809,19 @@ def _build_kwargs(action: str, action_name: str, params: list[str]) -> dict | No
                   "recurrence_sequence", "line_from_points",
                   "line_from_slope_intercept", "line_from_point_slope",
                   "line_from_intercepts", "line_general",
-                  "circle_standard", "circle_general"):
+                  "circle_standard", "circle_general",
+                  # 实分析
+                  "sequence_limit", "sequence_convergence", "cauchy_criterion",
+                  "limit_epsilon_delta", "derivative_definition",
+                  "uniform_continuity", "intermediate_value", "extreme_value",
+                  "is_continuous", "is_differentiable",
+                  "riemann_integrable", "darboux_sum", "fundamental_theorem",
+                  "uniform_convergence", "pointwise_convergence",
+                  "weierstrass_m_test", "termwise_differentiation",
+                  "termwise_integration",
+                  "supremum", "infimum",
+                  # 概率补充
+                  "distribution_function", "pmf", "pdf"):
         expr = params[0]
         var = params[1] if len(params) > 1 else "x"
         return {"expr": expr, "var": var}
