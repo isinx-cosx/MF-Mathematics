@@ -319,6 +319,38 @@ FUNC_MAP: dict[str, tuple[str, str]] = {
     "指数函数":               ("algebra", "exponential_function"),
     "对数函数":               ("algebra", "log_function"),
 
+    # ── 因式分解补充 ──
+    "提取公因式":             ("algebra", "factor_common"),
+    "完全平方公式":           ("algebra", "factor_perfect_square"),
+    "平方差公式":             ("algebra", "factor_difference_squares"),
+    "十字相乘法":             ("algebra", "factor_cross"),
+    "分组分解法":             ("algebra", "factor_group"),
+    # ── 分式/根式 ──
+    "通分":                   ("algebra", "common_denominator"),
+    "分式运算":               ("algebra", "fraction_operations"),
+    "分母有理化":             ("algebra", "rationalize_denominator"),
+    "同类根式判定":           ("algebra", "like_radicals"),
+    "根式运算":               ("algebra", "radical_operations"),
+    # ── 组合恒等式 ──
+    "组合恒等式":             ("algebra", "comb_identities"),
+    # ── 函数补充 ──
+    "对应法则":               ("algebra", "correspondence_rule"),
+    "斜率截距":               ("algebra", "slope_intercept"),
+    "反比例函数":             ("algebra", "inverse_proportional"),
+    # ── 不等式 ──
+    "不等式性质":             ("algebra", "inequality_properties"),
+    "最值初步":               ("algebra", "max_min_initial"),
+    # ── 数列证明 ──
+    "等差数列证明":           ("algebra", "arithmetic_proof"),
+    "等比数列证明":           ("algebra", "geometric_proof"),
+    # ── 计数原理 ──
+    "加法原理":               ("algebra", "addition_principle"),
+    "乘法原理":               ("algebra", "multiplication_principle"),
+    # ── 运算律 ──
+    "交换律验证":             ("algebra", "commutative_law"),
+    "结合律验证":             ("algebra", "associative_law"),
+    "分配律验证":             ("algebra", "distributive_law"),
+
     # ── 概率补充 ──
     "分布函数":               ("probability", "distribution_function"),
     "概率质量函数":           ("probability", "pmf"),
@@ -796,9 +828,42 @@ def _build_kwargs(action: str, action_name: str, params: list[str]) -> dict | No
     if action in ("trig_basic_identities", "trig_periodicity"):
         func = params[0] if params else "sin"
         return {"func": func}
+    # ── 单参数 expr ──
+    if action in ("factor_common", "factor_perfect_square", "factor_difference_squares",
+                  "factor_cross", "factor_group", "rationalize_denominator",
+                  "comb_identities", "inequality_properties", "max_min_initial",
+                  "arithmetic_proof", "geometric_proof", "correspondence_rule"):
+        return {"expr": params[0]} if params else {"expr": "x"}
+    # ── 分式/根式双参数: expr1, expr2 ──
+    if action in ("common_denominator", "like_radicals"):
+        expr1 = params[0] if len(params) > 0 else "1/x"
+        expr2 = params[1] if len(params) > 1 else "1/y"
+        return {"expr1": expr1, "expr2": expr2}
+    if action == "fraction_operations":
+        expr1 = params[0] if len(params) > 0 else "1/x"
+        op = params[1] if len(params) > 1 else "+"
+        expr2 = params[2] if len(params) > 2 else "1/y"
+        return {"expr1": expr1, "op": op, "expr2": expr2}
+    if action == "radical_operations":
+        expr1 = params[0] if len(params) > 0 else "sqrt(2)"
+        op = params[1] if len(params) > 1 else "+"
+        expr2 = params[2] if len(params) > 2 else "sqrt(3)"
+        return {"expr1": expr1, "op": op, "expr2": expr2}
+    # ── 计数原理: a, b (整数) ──
+    if action in ("addition_principle", "multiplication_principle"):
+        a = _safe_le(params[0]) if len(params) > 0 else 1
+        b = _safe_le(params[1]) if len(params) > 1 else 1
+        return {"a": a, "b": b}
+    # ── 运算律 a, b (数值) ──
+    if action in ("commutative_law", "associative_law", "distributive_law"):
+        a = _safe_le(params[0]) if len(params) > 0 else 1
+        b = _safe_le(params[1]) if len(params) > 1 else 2
+        return {"a": a, "b": b}
+    # ── 函数分析 expr + var ──
     if action in ("domain", "range_estimate", "linear_function",
                   "quadratic_function", "quadratic_extrema",
-                  "power_function", "exponential_function", "log_function"):
+                  "power_function", "exponential_function", "log_function",
+                  "slope_intercept", "inverse_proportional"):
         expr = params[0] if params else "x"
         var = params[1] if len(params) > 1 else "x"
         return {"expr": expr, "var": var}
