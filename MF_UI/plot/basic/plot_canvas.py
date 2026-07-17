@@ -357,7 +357,54 @@ class PlotCanvas(QGraphicsView):
                     painter.drawText(QPointF(int(lx - tw / 2), int(ly - 4)), lbl)
                     painter.setPen(ray_pen)
 
+        # ── 图例覆盖层（右上角，半透明）──
+        self._draw_legend(painter, vp)
+
         painter.restore()
+
+    def _draw_legend(self, painter: QPainter, vp) -> None:
+        """在视口右上角绘制半透明图例。"""
+        visible = [c for c in self._curves if c.get("visible", True) and c.get("label")]
+        if not visible:
+            return
+
+        font = QFont()
+        font.setPixelSize(FONT_PX)
+        painter.setFont(font)
+        fm = painter.fontMetrics()
+        line_h = fm.height() + 4
+        swatch_w = 14
+        padding = 6
+
+        # 计算图例尺寸
+        max_w = 0
+        for c in visible:
+            tw = fm.horizontalAdvance(c["label"])
+            max_w = max(max_w, tw)
+        box_w = padding * 2 + swatch_w + 6 + max_w
+        box_h = padding * 2 + line_h * len(visible)
+
+        # 右上角定位
+        bx = vp.right() - box_w - 12
+        by = vp.top() + 12
+
+        # 半透明背景
+        painter.setPen(QPen(QColor(0, 0, 0, 40), 1))
+        painter.setBrush(QBrush(QColor(255, 255, 255, 210)))
+        painter.drawRoundedRect(QRectF(bx, by, box_w, box_h), 4, 4)
+
+        # 逐条绘制
+        painter.setPen(QPen(TEXT_COLOR, 1))
+        for i, c in enumerate(visible):
+            y = by + padding + i * line_h
+            # 色块
+            painter.setBrush(QBrush(QColor(c["color"])))
+            painter.setPen(QPen(QColor(0, 0, 0, 30), 1))
+            painter.drawRoundedRect(QRectF(bx + padding, y + 2, swatch_w, line_h - 4), 2, 2)
+            # 标签
+            painter.setPen(QPen(TEXT_COLOR, 1))
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            painter.drawText(QPointF(bx + padding + swatch_w + 6, y + fm.ascent()), c["label"])
 
     def _build_grid_pixmap(self, vp, x0, x1, y0, y1, step, ox, oy,
                            xa_ok, ya_ok):
@@ -614,7 +661,10 @@ class PlotCanvas(QGraphicsView):
 
     def add_function(self, expr: str, color: str = "", label: str = "",
                      var: str = "x", params: dict | None = None,
-                     implicit: bool = False) -> int:
+                     implicit: bool = False,
+                     inequality: bool = False, inequality_dir: str = "",
+                     parametric: bool = False, y_expr: str = "",
+                     t_range: list[float] | None = None) -> int:
         idx = len(self._curves)
         if not color:
             color = CURVE_COLORS[idx % len(CURVE_COLORS)]
@@ -623,6 +673,9 @@ class PlotCanvas(QGraphicsView):
             "expr": expr, "color": color, "visible": True,
             "label": label or f"f{idx + 1}", "params": params or {},
             "var": var, "implicit": implicit,
+            "inequality": inequality, "inequality_dir": inequality_dir,
+            "parametric": parametric, "y_expr": y_expr,
+            "t_range": t_range or [0.0, 6.283185],
         })
         self._rebuild_all_curves()
         self._update_curve_pens()
@@ -665,6 +718,23 @@ class PlotCanvas(QGraphicsView):
 
         for f in self._curves:
             if not f.get("visible", True) or not f.get("expr"):
+                continue
+            if f.get("parametric"):
+                path = self._eval_parametric(f)
+                if path is not None:
+                    pen = QPen(QColor(f["color"]))
+                    pen.setWidthF(width)
+                    item = QGraphicsPathItem(path)
+                    item.setPen(pen)
+                    item.setZValue(10)
+                    self._scene.addItem(item)
+                    self._curve_items.append(item)
+                continue
+            if f.get("inequality"):
+                item = self._draw_inequality_fill(f, width)
+                if item is not None:
+                    self._scene.addItem(item)
+                    self._curve_items.append(item)
                 continue
             if f.get("implicit"):
                 path = self._draw_implicit_curve(f)
@@ -910,6 +980,131 @@ class PlotCanvas(QGraphicsView):
                     p0, p1 = edge_pts[e0], edge_pts[e1]
                     path.moveTo(p0[0], p0[1])
                     path.lineTo(p1[0], p1[1])
+
+        return path if not path.isEmpty() else None
+
+    def _draw_inequality_fill(self, f: dict, width: float) -> QGraphicsPathItem | None:
+        """渲染不等式区域填充：y > f(x) 或 y < f(x)。"""
+        expr_str = f.get("expr", "")
+        if not expr_str:
+            return None
+        expr = self._get_cached_expr(expr_str)
+        if expr is None:
+            return None
+
+        params = f.get("params", {})
+        if params:
+            expr = expr.subs({sp.Symbol(k): v for k, v in params.items()})
+        var_sym = sp.Symbol(f.get("var", "x"))
+
+        # 获取视口范围
+        vr = self.mapToScene(self.viewport().rect()).boundingRect()
+        x0, x1 = float(vr.left()), float(vr.right())
+        y0, y1 = float(vr.top()), float(vr.bottom())
+        margin = vr.width() * 0.1
+        x0 -= margin; x1 += margin
+
+        # 采样曲线
+        n_samples = 500
+        xs = np.linspace(max(x0, -SCENE_RANGE), min(x1, SCENE_RANGE), n_samples)
+        try:
+            fn = _cached_lambdify(var_sym, expr, "numpy")
+            ys = fn(xs)
+            if not isinstance(ys, np.ndarray):
+                return None
+            if np.iscomplexobj(ys):
+                ys = np.where(np.abs(ys.imag) < 1e-10, ys.real, np.nan)
+        except Exception:
+            return None
+
+        # 构建填充路径
+        path = QPainterPath()
+        first = True
+        for i in range(len(xs)):
+            if np.isnan(ys[i]) or np.isinf(ys[i]):
+                continue
+            if first:
+                path.moveTo(xs[i], ys[i])
+                first = False
+            else:
+                path.lineTo(xs[i], ys[i])
+
+        if path.isEmpty():
+            return None
+
+        ine_dir = f.get("inequality_dir", ">")
+        # 填充方向：> 向上填充，< 向下填充
+        if ine_dir in (">", ">="):
+            bound_y = SCENE_RANGE  # 上方边界
+        else:
+            bound_y = -SCENE_RANGE  # 下方边界
+
+        # 封闭路径：从曲线右端 → 边界 → 左端 → 闭合成多边形
+        path.lineTo(x1, bound_y)
+        path.lineTo(x0, bound_y)
+        path.closeSubpath()
+
+        # 半透明填充
+        color = QColor(f["color"])
+        fill_color = QColor(color.red(), color.green(), color.blue(), 60)
+        pen = QPen(color)
+        pen.setWidthF(0)  # 无边框
+        item = QGraphicsPathItem(path)
+        item.setPen(pen)
+        item.setBrush(QBrush(fill_color))
+        item.setZValue(5)  # 在曲线下方
+        return item
+
+    def _eval_parametric(self, f: dict) -> QPainterPath | None:
+        """渲染参数曲线 (x(t), y(t))。"""
+        x_expr_str = f.get("expr", "")
+        y_expr_str = f.get("y_expr", "")
+        if not x_expr_str or not y_expr_str:
+            return None
+
+        x_expr = self._get_cached_expr(x_expr_str)
+        y_expr = self._get_cached_expr(y_expr_str)
+        if x_expr is None or y_expr is None:
+            return None
+
+        # 参数替换
+        params = f.get("params", {})
+        if params:
+            subs_dict = {sp.Symbol(k): v for k, v in params.items()}
+            x_expr = x_expr.subs(subs_dict)
+            y_expr = y_expr.subs(subs_dict)
+
+        var_sym = sp.Symbol(f.get("var", "t"))
+        t0, t1 = f.get("t_range", [0.0, 6.283185])
+        n_samples = 1000
+        ts = np.linspace(t0, t1, n_samples)
+
+        try:
+            x_fn = _cached_lambdify(var_sym, x_expr, "numpy")
+            y_fn = _cached_lambdify(var_sym, y_expr, "numpy")
+            xs = x_fn(ts)
+            ys = y_fn(ts)
+            if not isinstance(xs, np.ndarray) or not isinstance(ys, np.ndarray):
+                return None
+            if np.iscomplexobj(xs):
+                xs = np.where(np.abs(xs.imag) < 1e-10, xs.real, np.nan)
+            if np.iscomplexobj(ys):
+                ys = np.where(np.abs(ys.imag) < 1e-10, ys.real, np.nan)
+        except Exception:
+            return None
+
+        path = QPainterPath()
+        first = True
+        for i in range(len(ts)):
+            x_val, y_val = xs[i], ys[i]
+            if np.isnan(x_val) or np.isnan(y_val) or np.isinf(x_val) or np.isinf(y_val):
+                first = True
+                continue
+            if first:
+                path.moveTo(x_val, y_val)
+                first = False
+            else:
+                path.lineTo(x_val, y_val)
 
         return path if not path.isEmpty() else None
 

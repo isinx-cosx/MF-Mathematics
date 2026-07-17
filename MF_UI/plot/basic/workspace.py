@@ -322,6 +322,13 @@ class PlotWorkspace(QWidget):
                     self._canvas.add_function(resolved, color=b.color, label=b.label,
                         var=b.independent_var, params=box_params, implicit=False)
                     continue
-            self._canvas.add_function(b.expr, color=b.color, label=b.label,
-                var=b.independent_var, params=box_params,
-                implicit=(b.expr_type == "implicit"))
+            if b.expr_type == "parametric":
+                self._canvas.add_function(b.expr, color=b.color, label=b.label,
+                    var=b.t_var, params=box_params, parametric=True,
+                    y_expr=b.y_expr, t_range=b.t_range)
+            else:
+                self._canvas.add_function(b.expr, color=b.color, label=b.label,
+                    var=b.independent_var, params=box_params,
+                    implicit=(b.expr_type == "implicit"),
+                    inequality=(b.expr_type == "inequality"),
+                    inequality_dir=b.inequality_dir)

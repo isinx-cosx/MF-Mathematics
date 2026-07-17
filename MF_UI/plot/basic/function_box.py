@@ -104,6 +104,10 @@ class FunctionBox(QWidget):
         self._expr_type = "explicit"
         self._valid_expr = ""
         self._error = ""
+        self._inequality_dir = ""       # ">", "<", ">=", "<="
+        self._y_expr = ""               # 参数方程 y(t) 表达式
+        self._t_var = "t"               # 参数变量名
+        self._t_range = [0.0, 6.283185]  # t 范围：[t_min, t_max]，默认 0~2π
         self._visible = True
         self._added_params: set[str] = set()       # 本框已请求的滑块
         self._existing_global: set[str] = set()   # 全局已存在的滑块
@@ -161,6 +165,31 @@ class FunctionBox(QWidget):
         row.addWidget(self._del_btn)
         root.addLayout(row)
 
+        # t 范围控件（仅参数方程显示）
+        from PySide6.QtWidgets import QDoubleSpinBox
+        self._t_range_widget = QWidget()
+        t_row = QHBoxLayout(self._t_range_widget)
+        t_row.setSpacing(4); t_row.setContentsMargins(0, 0, 0, 0)
+        t_row.addWidget(QLabel("t:"))
+        self._t_min_spin = QDoubleSpinBox()
+        self._t_min_spin.setRange(-1000, 1000)
+        self._t_min_spin.setValue(0.0); self._t_min_spin.setDecimals(2)
+        self._t_min_spin.setSingleStep(0.5)
+        self._t_min_spin.setFixedWidth(70)
+        self._t_min_spin.valueChanged.connect(self._on_t_range_changed)
+        t_row.addWidget(self._t_min_spin)
+        t_row.addWidget(QLabel("~"))
+        self._t_max_spin = QDoubleSpinBox()
+        self._t_max_spin.setRange(-1000, 1000)
+        self._t_max_spin.setValue(6.28); self._t_max_spin.setDecimals(2)
+        self._t_max_spin.setSingleStep(0.5)
+        self._t_max_spin.setFixedWidth(70)
+        self._t_max_spin.valueChanged.connect(self._on_t_range_changed)
+        t_row.addWidget(self._t_max_spin)
+        t_row.addStretch()
+        self._t_range_widget.hide()
+        root.addWidget(self._t_range_widget)
+
         # 添加滑块按钮区
         self._param_btns = QHBoxLayout()
         self._param_btns.setSpacing(4)
@@ -187,6 +216,22 @@ class FunctionBox(QWidget):
     @property
     def expr_type(self) -> str:
         return self._expr_type
+
+    @property
+    def inequality_dir(self) -> str:
+        return self._inequality_dir
+
+    @property
+    def y_expr(self) -> str:
+        return self._y_expr
+
+    @property
+    def t_var(self) -> str:
+        return self._t_var
+
+    @property
+    def t_range(self) -> list[float]:
+        return list(self._t_range)
 
     @property
     def is_derivative(self) -> bool:
@@ -278,6 +323,40 @@ class FunctionBox(QWidget):
             self._valid_expr = ""
             self._update_vis_button(); self._update_param_buttons(); return
 
+        # ── 参数方程：x(t)=expr, y(t)=expr ──
+        if self._expr_type == "parametric":
+            self._t_var = classification["t_var"]
+            s_x = MathTranslator.human_to_computer(classification["x_expr"])
+            s_y = MathTranslator.human_to_computer(classification["y_expr"])
+            self._valid_expr = _fix_adjacent_letters(s_x) if s_x else ""
+            self._y_expr = _fix_adjacent_letters(s_y) if s_y else ""
+            self._func_name = ""; self._independent_var = self._t_var
+            try:
+                sp.sympify(self._valid_expr)
+                sp.sympify(self._y_expr)
+                self._error = ""
+            except Exception as exc:
+                self._error = f"解析错误: {str(exc)[:20]}"
+                self._valid_expr = ""; self._y_expr = ""
+            self._update_vis_button(); self._update_param_buttons()
+            self.changed.emit(); return
+
+        # ── 不等式：y > f(x) → 提取 f(x) ──
+        if self._expr_type == "inequality":
+            self._inequality_dir = classification["dir"]
+            rhs = classification["rhs"]
+            s = MathTranslator.human_to_computer(rhs) if rhs else ""
+            self._valid_expr = _fix_adjacent_letters(s) if s else ""
+            self._func_name = ""; self._independent_var = "x"
+            try:
+                sp.sympify(self._valid_expr)
+                self._error = ""
+            except Exception as exc:
+                self._error = f"解析错误: {str(exc)[:20]}"
+                self._valid_expr = ""
+            self._update_vis_button(); self._update_param_buttons()
+            self.changed.emit(); return
+
         # ── 预处理：隐式乘法 → sympy 兼容 ──
         def _fix_adjacent_letters(s: str) -> str:
             """在相邻字母变量间插入 *（bx→b*x, a(x)→a*(x)）。"""
@@ -335,15 +414,43 @@ class FunctionBox(QWidget):
 
         self._update_vis_button()
         self._update_param_buttons()
+        # 参数方程显示 t 范围控件
+        self._t_range_widget.setVisible(self._expr_type == "parametric")
         self.changed.emit()
 
     # ── 分类 ─────────────────────────────────────────────────
+
+    _INEQ_PATTERN = re.compile(
+        r"^\s*y\s*(>=?|<=?)\s*(.+)$", re.IGNORECASE
+    )
+    _PARAM_PATTERN = re.compile(
+        r"^\s*x\s*\(\s*([a-zA-Z])\s*\)\s*=\s*(.+)\s*,\s*y\s*\(\s*\1\s*\)\s*=\s*(.+)$"
+    )
+    _SIMPLE_PARAM_PATTERN = re.compile(
+        r"^\s*([^,]+)\s*,\s*([^,]+)\s*$"
+    )
 
     def _classify(self, raw: str) -> dict:
         raw = raw.strip()
         if not raw: return {"type": "explicit"}
         if re.match(r"^([a-zA-Z]\w*)\s*\(\s*([a-zA-Z])\s*\)\s*=\s*(.+)$", raw):
             return {"type": "explicit"}
+        # 参数方程检测：x(t)=expr, y(t)=expr 或 expr, expr
+        m_param = self._PARAM_PATTERN.match(raw)
+        if m_param:
+            return {"type": "parametric", "t_var": m_param.group(1),
+                    "x_expr": m_param.group(2).strip(),
+                    "y_expr": m_param.group(3).strip()}
+        m_simple = self._SIMPLE_PARAM_PATTERN.match(raw)
+        if m_simple and "=" not in raw:
+            return {"type": "parametric", "t_var": "t",
+                    "x_expr": m_simple.group(1).strip(),
+                    "y_expr": m_simple.group(2).strip()}
+        # 不等式检测：y > f(x), y < f(x), y >= f(x), y <= f(x)
+        m_ineq = self._INEQ_PATTERN.match(raw)
+        if m_ineq:
+            return {"type": "inequality", "dir": m_ineq.group(1),
+                    "rhs": m_ineq.group(2).strip()}
         if "=" not in raw: return {"type": "explicit"}
         all_ids = set(re.findall(r'[a-zA-Z]\w*', raw))
         vars_found = all_ids - _KNOWN_IDS
@@ -381,6 +488,11 @@ class FunctionBox(QWidget):
         """更新全局已有滑块列表，刷新添加按钮。"""
         self._existing_global = names
         self._update_param_buttons()
+
+    def _on_t_range_changed(self) -> None:
+        """t 范围变化 → 更新并重绘。"""
+        self._t_range = [self._t_min_spin.value(), self._t_max_spin.value()]
+        self.changed.emit()
 
     def _on_add_param(self, name: str) -> None:
         self._added_params.add(name)
