@@ -195,6 +195,22 @@ FUNC_MAP: dict[str, tuple[str, str]] = {
     "泊松求和":               ("harmonic_analysis", "poisson_summation"),
     "Theta 函数":             ("harmonic_analysis", "theta_function"),
     "函数方程演示":           ("harmonic_analysis", "functional_equation_demo"),
+
+    # ── 微积分应用 ──
+    "微分":                   ("calculus", "differential"),
+    "罗尔定理":               ("calculus", "rolle_theorem"),
+    "拉格朗日中值定理":       ("calculus", "lagrange_theorem"),
+    "曲线间面积":             ("calculus", "area_between"),
+    "旋转体体积(圆盘法)":     ("calculus", "volume_disk"),
+    "旋转体体积(柱壳法)":     ("calculus", "volume_shell"),
+    "弧长":                   ("calculus", "arc_length"),
+    "幂级数收敛半径":         ("calculus", "power_series_radius"),
+    "莱布尼茨判别法":         ("calculus", "leibniz_test"),
+    "极限比较判别法":         ("calculus", "limit_comparison_test"),
+    "积分判别法":             ("calculus", "integral_test"),
+    "直接比较判别法":         ("calculus", "direct_comparison_test"),
+    "p-级数判别法":           ("calculus", "p_series_test"),
+    "综合判别与分类":         ("calculus", "classify_and_test"),
 }
 
 
@@ -504,7 +520,12 @@ def _build_kwargs(action: str, action_name: str, params: list[str]) -> dict | No
     # ── 其他单参数操作 ──
     if action in ("is_continuous", "discontinuity_classify", "lhopital",
                   "monotonicity", "local_extrema", "global_extrema",
-                  "discriminant", "vieta_theorem", "am_gm_inequality"):
+                  "discriminant", "vieta_theorem", "am_gm_inequality",
+                  "differential", "rolle_theorem", "lagrange_theorem",
+                  "area_between", "volume_disk", "volume_shell", "arc_length",
+                  "power_series_radius",
+                  "leibniz_test", "limit_comparison_test", "integral_test",
+                  "direct_comparison_test", "p_series_test", "classify_and_test"):
         expr = params[0]
         var = params[1] if len(params) > 1 else "x"
         return {"expr": expr, "var": var}
