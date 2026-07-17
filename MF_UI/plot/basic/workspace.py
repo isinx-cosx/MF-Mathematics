@@ -39,8 +39,9 @@ class PlotWorkspace(QWidget):
     """绘图模式工作区。"""
 
     _MODE_KEYWORDS: list[tuple[str, str]] = [
-        ("普通模式", "normal"), ("3D", "3d"),
-        ("复数", "complex"), ("向量", "vector"), ("任意做图", "arbitrary"),
+        ("普通模式", "normal"), ("极坐标", "polar"),
+        ("3D", "3d"), ("复数", "complex"),
+        ("向量", "vector"), ("任意做图", "arbitrary"),
     ]
 
     @staticmethod
@@ -145,7 +146,7 @@ class PlotWorkspace(QWidget):
         root.addWidget(left)
 
         # ── 右侧画布 ──
-        if self._mode == "normal":
+        if self._mode in ("normal", "polar"):
             self._canvas = PlotCanvas()
             self._canvas.status_message.connect(self._status.setText)
             root.addWidget(self._canvas, 1)
@@ -154,7 +155,7 @@ class PlotWorkspace(QWidget):
             root.addWidget(self._make_placeholder(title, "未知绘图模式"), 1)
             self._canvas = None; self._canvas_3d = None
 
-        if self._mode == "normal":
+        if self._mode in ("normal", "polar"):
             self._add_function_box()
 
     def _export_png(self) -> None:
