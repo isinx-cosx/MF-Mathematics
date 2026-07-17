@@ -268,6 +268,7 @@ FUNC_MAP: dict[str, tuple[str, str]] = {
     "核":                     ("linear_algebra", "kernel"),
     "像":                     ("linear_algebra", "image"),
     "秩-零化度":              ("linear_algebra", "rank_nullity"),
+    "逆矩阵":                  ("linear_algebra", "matrix_inverse"),
     "标准化":                 ("linear_algebra", "standard_form"),
     "负定判定":               ("linear_algebra", "is_negative_definite"),
     "不定判定":               ("linear_algebra", "is_indefinite"),

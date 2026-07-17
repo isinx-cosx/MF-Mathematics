@@ -8,6 +8,7 @@ from .linear_systems import (
     rank,
     solve_linear_system,
     nullspace,
+    matrix_inverse,
 )
 from .vector_spaces import (
     is_vector_space,
@@ -55,6 +56,7 @@ __all__ = [
     "basis", "dimension", "subspace_span",
     # linear_transforms
     "linear_transform", "matrix_representation", "kernel", "image", "rank_nullity",
+    "matrix_inverse",
     # inner_product
     "dot", "norm", "angle", "is_orthogonal", "gram_schmidt", "orthogonal_projection",
     # eigen

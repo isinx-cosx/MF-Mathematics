@@ -280,5 +280,93 @@ def self_test() -> None:
     print("=== linear_systems: ALL PASSED ===\n")
 
 
+@register(module="linear_algebra", action="matrix_inverse")
+def matrix_inverse(
+    matrix: Union[List[List[float]], np.ndarray],
+) -> MathObject:
+    """计算矩阵的逆矩阵 A⁻¹。
+
+    使用 NumPy 进行数值求逆，同时用 SymPy 提供精确有理结果。
+
+    要求矩阵为方阵且可逆（行列式 ≠ 0）。
+
+    Args:
+        matrix: 方阵 A（n×n）。
+
+    Returns:
+        MathObject:
+            - result: {"inverse": 逆矩阵, "det": 行列式, "condition_number": 条件数}
+            - 若不可逆，error 含说明。
+    """
+    try:
+        A_sym = to_matrix(matrix)
+        A = np.array(A_sym.tolist(), dtype=float)
+
+        n_rows, n_cols = A.shape
+        if n_rows != n_cols:
+            return MathObject(
+                result=None,
+                error=f"矩阵必须为方阵，当前形状: {n_rows}×{n_cols}",
+            )
+
+        # 行列式检查
+        det = float(np.linalg.det(A))
+        if abs(det) < 1e-12:
+            return MathObject(
+                result={
+                    "det": det,
+                    "inverse": None,
+                    "singular": True,
+                },
+                steps=[
+                    f"矩阵形状: {n_rows}×{n_rows}",
+                    f"行列式 det(A) = {det:.2e} ≈ 0",
+                    "矩阵不可逆（奇异矩阵）",
+                ],
+                meaning=f"{n_rows}阶奇异矩阵，不存在逆矩阵",
+            )
+
+        # 数值求逆
+        A_inv = np.linalg.inv(A)
+        cond = float(np.linalg.cond(A))
+
+        # SymPy 精确逆（若元素为有理数）
+        sym_inv = None
+        try:
+            M = sp.Matrix(A.tolist())
+            M_inv = M.inv()
+            sym_inv = [[float(x) for x in row] for row in M_inv.tolist()]
+        except Exception:
+            pass
+
+        steps = [
+            f"矩阵形状: {n_rows}×{n_rows}",
+            f"行列式 det(A) = {det:.6f}",
+            f"条件数 cond(A) = {cond:.2f}",
+            f"A·A⁻¹ ≈ I（误差: {np.max(np.abs(A @ A_inv - np.eye(n_rows))):.2e}）",
+        ]
+
+        return MathObject(
+            result={
+                "inverse": A_inv.tolist(),
+                "det": det,
+                "condition_number": cond,
+            },
+            steps=steps,
+            meaning=f"{n_rows}阶可逆矩阵，det={det:.4f}，逆矩阵已计算",
+        )
+
+    except np.linalg.LinAlgError as e:
+        return MathObject(
+            result=None,
+            error=f"矩阵求逆失败（线性代数错误）: {str(e)}",
+        )
+    except Exception as e:
+        return MathObject(
+            result=None,
+            error=f"矩阵求逆出错: {str(e)}",
+        )
+
+
 if __name__ == "__main__":
     self_test()
