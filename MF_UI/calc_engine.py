@@ -351,6 +351,29 @@ FUNC_MAP: dict[str, tuple[str, str]] = {
     "结合律验证":             ("algebra", "associative_law"),
     "分配律验证":             ("algebra", "distributive_law"),
 
+    # ── 泛函分析 ──
+    "Lp 范数":                ("functional_analysis", "lp_norm"),
+    "Banach 空间判定":        ("functional_analysis", "is_banach"),
+    "空间完备性":             ("functional_analysis", "space_completeness_check"),
+    "算子范数":               ("functional_analysis", "operator_norm"),
+    "有界性判定":             ("functional_analysis", "is_bounded"),
+    "线性泛函求值":           ("functional_analysis", "linear_functional_eval"),
+    "核的维数":               ("functional_analysis", "kernel_dimension"),
+    "Hahn-Banach 延拓":       ("functional_analysis", "hahn_banach_extension"),
+    "一致有界原理":           ("functional_analysis", "uniform_boundedness"),
+    "开映射定理":             ("functional_analysis", "open_mapping"),
+    "闭图像定理":             ("functional_analysis", "closed_graph"),
+    "对偶空间基":             ("functional_analysis", "dual_space_basis"),
+    "弱收敛":                 ("functional_analysis", "weak_convergence"),
+    "自反性判定":             ("functional_analysis", "is_reflexive"),
+    "内积(泛函)":             ("functional_analysis", "inner_product"),
+    "正交性(泛函)":           ("functional_analysis", "is_orthogonal"),
+    "Gram-Schmidt(泛函)":     ("functional_analysis", "gram_schmidt"),
+    "Hilbert 空间判定":       ("functional_analysis", "is_hilbert"),
+    "谱逼近":                 ("functional_analysis", "spectrum_approx"),
+    "谱分类":                 ("functional_analysis", "spectrum_classify"),
+    "谱定理":                 ("functional_analysis", "spectral_theorem"),
+
     # ── 概率补充 ──
     "分布函数":               ("probability", "distribution_function"),
     "概率质量函数":           ("probability", "pmf"),
@@ -828,6 +851,19 @@ def _build_kwargs(action: str, action_name: str, params: list[str]) -> dict | No
     if action in ("trig_basic_identities", "trig_periodicity"):
         func = params[0] if params else "sin"
         return {"func": func}
+    # ── 泛函分析: 用 arg0/arg1 传递位置参数 ──
+    if action in ("lp_norm", "is_banach", "space_completeness_check",
+                  "operator_norm", "is_bounded", "linear_functional_eval",
+                  "kernel_dimension", "hahn_banach_extension",
+                  "uniform_boundedness", "open_mapping", "closed_graph",
+                  "dual_space_basis", "weak_convergence", "is_reflexive",
+                  "inner_product", "is_orthogonal", "gram_schmidt", "is_hilbert",
+                  "spectrum_approx", "spectrum_classify", "spectral_theorem"):
+        result = {}
+        for i, p in enumerate(params):
+            result[f"arg{i}"] = _safe_le(p)
+        return result if result else {"arg0": "[[1,0],[0,1]]"}
+
     # ── 单参数 expr ──
     if action in ("factor_common", "factor_perfect_square", "factor_difference_squares",
                   "factor_cross", "factor_group", "rationalize_denominator",
