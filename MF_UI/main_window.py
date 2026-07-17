@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
     QPushButton, QLineEdit, QToolButton,
 )
 from calc.algebra import Workspace as AlgebraWorkspace
+from calc.calculus import Workspace as CalculusWorkspace
 from calc.analytic_geometry import Workspace as AnalyticGeometryWorkspace
 from calc.linear_algebra import Workspace as LinearAlgebraWorkspace
 from calc.numerical import Workspace as NumericalWorkspace
@@ -149,7 +150,7 @@ class MainWindow(QMainWindow):
         self._max_history = 50
 
         self._calc_modes = [
-            "代数计算", "解析几何", "数列",
+            "代数计算", "微积分", "解析几何", "数列",
             "线性代数", "概率论与数理统计", "数值分析",
             "数论", "实分析", "泛函分析",
         ]
@@ -475,17 +476,18 @@ class MainWindow(QMainWindow):
     def _on_sub_mode_changed(self, index: int):
         if self._current_mode == 0:  # 计算模式
             self.last_calc_index = index
-            self._stacked_widget.setCurrentIndex(index)  # 索引 0~8
+            self._stacked_widget.setCurrentIndex(index)  # 索引 0~9
         else:  # 绘图模式
             self.last_plot_index = index
-            self._stacked_widget.setCurrentIndex(9 + index)  # 索引 9~13
+            self._stacked_widget.setCurrentIndex(10 + index)  # 索引 10~14
 
 
     # ---------- 中央区域 ----------
     def _build_central_area(self):
         self._stacked_widget = QStackedWidget()
-        # ── 计算模式 (index 0-8) ──
+        # ── 计算模式 (index 0-9) ──
         self._stacked_widget.addWidget(AlgebraWorkspace())
+        self._stacked_widget.addWidget(CalculusWorkspace())
         self._stacked_widget.addWidget(AnalyticGeometryWorkspace())
         self._stacked_widget.addWidget(SequencesWorkspace())
         self._stacked_widget.addWidget(LinearAlgebraWorkspace())
