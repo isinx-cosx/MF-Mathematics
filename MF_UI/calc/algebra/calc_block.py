@@ -224,8 +224,6 @@ class CalcBlock(BaseCalcBlock):
             "不等式性质", "最值初步",
             "加法原理", "乘法原理",
             "交换律验证", "结合律验证", "分配律验证",
-            # ── 概率补充 ──
-            "分布函数", "概率质量函数", "概率密度函数",
         ]
 
     def get_action_map(self) -> dict[str, tuple[str, str]]:
@@ -818,7 +816,6 @@ class CalcBlock(BaseCalcBlock):
             "不等式性质", "最值初步",
             "加法原理", "乘法原理",
             "交换律验证", "结合律验证", "分配律验证",
-            "分布函数", "概率质量函数", "概率密度函数",
         }
         if op in _PASS_THROUGH:
             return calculate(op, [expr])

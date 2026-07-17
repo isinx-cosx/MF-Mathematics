@@ -24,6 +24,7 @@ class CalcBlock(BaseCalcBlock):
             "Mann-Whitney U", "Kruskal-Wallis", "Wilcoxon符号秩",
             "移动平均", "指数平滑", "线性趋势",
             "线性回归", "预测", "残差",
+            "分布函数", "概率质量函数", "概率密度函数",
         ]
 
     def get_action_map(self) -> dict[str, tuple[str, str]]:
@@ -63,7 +64,12 @@ class CalcBlock(BaseCalcBlock):
             if kwargs and all_kv:
                 return calculate_direct(op, **kwargs)
 
-        # 2. 尝试 literal_eval
+        # 2. 概率补充 (分布函数/PMF/PDF) — 通过 calculate() 字符串路径
+        if op in ("分布函数", "概率质量函数", "概率密度函数"):
+            from calc_engine import calculate
+            return calculate(op, [expr])
+
+        # 3. 尝试 literal_eval
         try:
             val = literal_eval(expr)
         except (ValueError, SyntaxError):
@@ -86,6 +92,7 @@ class CalcBlock(BaseCalcBlock):
             return calculate_direct(op, data=val)
         else:
             return calculate_direct(op, val=val)
+
 
 
 if __name__ == "__main__":
