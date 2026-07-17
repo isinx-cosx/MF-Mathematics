@@ -318,7 +318,7 @@ class PlotCanvas(QGraphicsView):
         if self._polar_mode and ox is not None and oy is not None:
             circle_step = step * 2
             max_r = max(abs(x0), abs(x1), abs(y0), abs(y1))
-            circle_pen = QPen(AXIS_COLOR, AXIS_PX, Qt.PenStyle.SolidLine)
+            circle_pen = QPen(QColor("#c0c0c0"), AXIS_PX, Qt.PenStyle.SolidLine)
             painter.setPen(circle_pen)
             r = circle_step
             while r <= max_r:
