@@ -261,9 +261,6 @@ class PlotCanvas(QGraphicsView):
     def drawForeground(self, painter: QPainter, rect: QRectF) -> None:
         super().drawForeground(painter, rect)
 
-        if self._polar_mode:
-            return  # 极坐标网格由 QGraphicsScene 项绘制
-
         painter.save()
         painter.resetTransform()
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
