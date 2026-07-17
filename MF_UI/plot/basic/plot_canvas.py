@@ -337,7 +337,7 @@ class PlotCanvas(QGraphicsView):
                 30: "π/6", 60: "π/3", 120: "2π/3", 150: "5π/6",
                 210: "7π/6", 240: "4π/3", 300: "5π/3", 330: "11π/6",
             }
-            font = QFont(); font.setPixelSize(FONT_PX)
+            font = QFont(); font.setPixelSize(FONT_PX * 3)
             painter.setFont(font)
             _skip_deg = {0, 90, 180, 270}
             for deg in range(0, 360, 30):
