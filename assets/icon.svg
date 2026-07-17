@@ -1,143 +1,117 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 640" width="512" height="640">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 600" width="512" height="600">
   <defs>
-    <!-- 亮青色波浪渐变 -->
-    <linearGradient id="waveGrad" x1="0" y1="1" x2="1" y2="0">
-      <stop offset="0%"   stop-color="#00d4ff"/>
-      <stop offset="100%" stop-color="#0088bb"/>
+    <linearGradient id="cyanGrad" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0%" stop-color="#0099cc"/>
+      <stop offset="100%" stop-color="#00d4ff"/>
     </linearGradient>
-
-    <!-- 立方体顶面渐变（最亮面） -->
     <linearGradient id="cubeTop" x1="0" y1="1" x2="0" y2="0">
-      <stop offset="0%"   stop-color="#1a365d"/>
+      <stop offset="0%" stop-color="#1a365d"/>
       <stop offset="100%" stop-color="#2d5fa0"/>
     </linearGradient>
-
-    <!-- 立方体左面渐变（中等亮度） -->
     <linearGradient id="cubeLeft" x1="1" y1="0" x2="0" y2="1">
-      <stop offset="0%"   stop-color="#2a5591"/>
+      <stop offset="0%" stop-color="#264d7e"/>
       <stop offset="100%" stop-color="#1a365d"/>
     </linearGradient>
-
-    <!-- 立方体右面渐变（最暗面） -->
-    <linearGradient id="cubeRight" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%"   stop-color="#1a365d"/>
+    <linearGradient id="cubeRight" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#1a365d"/>
       <stop offset="100%" stop-color="#0d1b33"/>
-    </linearGradient>
-
-    <!-- 左侧竖笔渐变 -->
-    <linearGradient id="stemGrad" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0%" stop-color="#122847"/>
-      <stop offset="100%" stop-color="#1a365d"/>
     </linearGradient>
   </defs>
 
-  <!-- 白色背景 -->
-  <rect width="512" height="640" fill="#ffffff"/>
+  <rect width="512" height="600" fill="#ffffff"/>
 
-  <!-- ================================================ -->
-  <!-- 图标区域                                        -->
-  <!--                                                 -->
-  <!--   等距立方体（正六边形 + 前角点 F）：            -->
-  <!--   T  = (256, 55)   — 顶部 / M 中心峰            -->
-  <!--   TR = (395, 135)  — 右上 / M 右上角             -->
-  <!--   BR = (395, 295)  — 右下 / M 右下脚             -->
-  <!--   B  = (256, 375)  — 底部（不可见）              -->
-  <!--   BL = (117, 295)  — 左下 / M 左下脚             -->
-  <!--   TL = (117, 135)  — 左上 / M 左上角             -->
-  <!--   F  = (256, 215)  — 前角点（立方体最近角）      -->
-  <!--                                                 -->
-  <!--   三个可见面：                                   -->
-  <!--   顶面: T-TL-F-TR                                -->
-  <!--   左面: T-F-BL-TL                                -->
-  <!--   右面: T-TR-BR-F                                -->
-  <!--                                                 -->
-  <!--   M 的四笔：                                     -->
-  <!--   左竖: TL→BL  (立方体棱线)                       -->
-  <!--   左斜: BL→T   (左面对角线)【正弦波】             -->
-  <!--   右斜: T→BR   (直线, 强调)                       -->
-  <!--   右竖: BR→TR  (立方体棱线)                       -->
-  <!-- ================================================ -->
-  <g transform="translate(30, 48)">
+  <g transform="translate(32, 22)">
 
-    <!-- ===== 立方体三个可见面 ===== -->
+    <!-- ===== 立方体（背景层） ===== -->
+    <!-- M 右竖 = cube 前棱: TR(420,55)→BR(388,400) -->
+    <!-- 右向: (35,-3)  深度: (-27,-13) -->
+    <!--
+      F0=(420,55)  F1=(388,400)  — cube 前棱 (≡ M 右竖)
+      F2=(455,52)  F3=(423,397)  — cube 右棱
+      B0=(393,42)  B1=(361,387)  — cube 后棱
+      B2=(428,39)  B3=(396,384)  — cube 后右棱
+    -->
+    <polygon points="420,55 455,52 428,39 393,42"
+             fill="url(#cubeTop)" stroke="#1a365d" stroke-width="1" stroke-linejoin="round"/>
+    <polygon points="393,42 420,55 388,400 361,387"
+             fill="url(#cubeLeft)" stroke="#1a365d" stroke-width="1" stroke-linejoin="round"/>
+    <polygon points="420,55 455,52 423,397 388,400"
+             fill="url(#cubeRight)" stroke="#1a365d" stroke-width="1" stroke-linejoin="round"/>
 
-    <!-- 顶面（最亮） -->
-    <polygon points="256,55 117,135 256,215 395,135"
-             fill="url(#cubeTop)" stroke="#1a365d" stroke-width="1.2" stroke-linejoin="round"/>
+    <!-- ===== ① ∫ 积分号 — 左竖笔（深蓝） ===== -->
+    <path d="M 50 48
+             Q 20 42, 32 72
+             L 102 365
+             Q 115 412, 155 400"
+          fill="none" stroke="#1a365d" stroke-width="24" stroke-linecap="round" stroke-linejoin="round"/>
 
-    <!-- 左面（中等亮度） -->
-    <polygon points="256,55 256,215 117,295 117,135"
-             fill="url(#cubeLeft)" stroke="#1a365d" stroke-width="1.2" stroke-linejoin="round"/>
+    <!-- ===== ② eˣ 指数曲线 — 左斜笔（亮青） ===== -->
+    <!-- BL(118,400) → CT(256,55): 平缓起 → 急速上扬 -->
+    <path d="M 118 400
+             L 125 382
+             C 133 362, 142 340, 153 315
+             C 168 282, 180 248, 193 215
+             C 205 180, 222 138, 236 100
+             C 246 76, 252 62, 256 55"
+          fill="none" stroke="url(#cyanGrad)" stroke-width="22" stroke-linecap="round"/>
 
-    <!-- 右面（最暗） -->
-    <polygon points="256,55 395,135 395,295 256,215"
-             fill="url(#cubeRight)" stroke="#1a365d" stroke-width="1.2" stroke-linejoin="round"/>
+    <!-- ===== ③ sin 正弦波 2周期 — 右斜笔（亮青） ===== -->
+    <!-- CT(256,55)→BR(388,400), 对角线 dx=132,dy=345, len≈369 -->
+    <!-- 振幅 ±15px 垂直于对角线, 交替左右凸起            -->
+    <!--                                                 -->
+    <!-- 波形点（对角线 ± 偏移）:                         -->
+    <!--   start  (256, 55)                               -->
+    <!-- → peak-R (283, 93)   +14px 右                    -->
+    <!-- → cross  (287,141)    0px                        -->
+    <!-- → peak-L (287,194)   -14px 左                    -->
+    <!-- → cross  (319,228)    0px                        -->
+    <!-- → peak-R (348,268)   +14px 右                    -->
+    <!-- → cross  (351,314)    0px                        -->
+    <!-- → peak-L (352,360)   -14px 左                    -->
+    <!-- → end    (388,400)                               -->
 
-    <!-- ===== 右斜笔：T→BR 直线（M 的右侧斜线） ===== -->
-    <!-- 穿过右面，从前角点附近经过 -->
-    <line x1="256" y1="55" x2="395" y2="295"
-          stroke="#0a1526" stroke-width="3.5" stroke-linecap="round"/>
+    <path d="M 256 55
+             Q 274 69,  283 93
+             Q 288 115, 287 141
+             Q 285 168, 287 194
+             Q 303 216, 319 228
+             Q 336 245, 348 268
+             Q 353 292, 351 314
+             Q 347 340, 352 360
+             Q 365 382, 388 400"
+          fill="none" stroke="url(#cyanGrad)" stroke-width="20" stroke-linecap="round" stroke-linejoin="round"/>
 
-    <!-- ===== 右竖笔加粗矩形（与左侧竖笔视觉匹配） ===== -->
-    <rect x="386" y="135" width="21" height="160" rx="10.5" fill="url(#stemGrad)"/>
+    <!-- ===== ④ 右竖笔 — 立方体前棱（深蓝） ===== -->
+    <line x1="388" y1="400" x2="420" y2="55"
+          stroke="#1a365d" stroke-width="24" stroke-linecap="round"/>
+    <rect x="400" y="55" width="19" height="345" rx="9.5" fill="#1a365d" opacity="0.7"/>
 
-    <!-- ===== 左竖笔：TL→BL 立方体棱线 + 加粗 ===== -->
-    <rect x="108" y="135" width="21" height="160" rx="10.5" fill="url(#stemGrad)"/>
+    <!-- ===== 装饰圆点 ===== -->
+    <!-- 中心峰（eˣ + sin 交汇） -->
+    <circle cx="256" cy="55" r="16" fill="#ffffff" opacity="0.22"/>
+    <circle cx="256" cy="55" r="8" fill="#00d4ff" opacity="0.85"/>
 
-    <!-- TL→BL 棱线强调 -->
-    <line x1="117" y1="135" x2="117" y2="295"
-          stroke="#122847" stroke-width="2" opacity="0.3"/>
+    <!-- 右下（sin + cube 交汇） -->
+    <circle cx="388" cy="400" r="10" fill="#1a365d"/>
+    <circle cx="388" cy="400" r="4.5" fill="#00d4ff" opacity="0.5"/>
 
-    <!-- ===== 左斜笔：正弦波曲线 BL→T ===== -->
-    <!-- 从左面底角到顶部，沿对角线振荡 1.5 周期 -->
-    <!-- 对角线：BL(117,295)→T(256,55)，dx=139, dy=-240，长度≈277 -->
-    <!-- 垂直于对角线振荡，振幅 24px -->
-    <path d="M 118 295
-             C 137 278, 157 288, 173 270
-             C 189 252, 171 233, 170 213
-             C 169 193, 186 181, 190 162
-             C 194 143, 178 128, 186 110
-             C 194 92, 213 81, 229 68
-             C 245 55, 253 56, 256 55"
-          fill="none" stroke="url(#waveGrad)" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"/>
-
-    <!-- ===== 交汇高光 ===== -->
-    <!-- 波与立方体在顶部 T 交汇 -->
-    <circle cx="256" cy="55" r="13" fill="#ffffff" opacity="0.35"/>
-    <circle cx="256" cy="55" r="6.5" fill="#00d4ff" opacity="0.85"/>
-
-    <!-- 立方体前角 F 处的小装饰点 -->
-    <circle cx="256" cy="215" r="3.5" fill="#1a365d" opacity="0.5"/>
+    <!-- 左下（∫ + eˣ 交汇） -->
+    <circle cx="118" cy="400" r="7" fill="#1a365d" opacity="0.5"/>
 
   </g>
 
-  <!-- ================================================ -->
-  <!-- 文字区域                                         -->
-  <!-- ================================================ -->
-  <g transform="translate(256, 520)">
-    <!-- 上排：MULTIFUNCTIONAL（轻字重） -->
+  <!-- ===== 文字 ===== -->
+  <g transform="translate(256, 490)">
     <text x="0" y="0"
           font-family="'Segoe UI', -apple-system, 'Helvetica Neue', Arial, sans-serif"
-          font-weight="300"
-          font-size="27"
-          letter-spacing="3.5"
-          fill="#1a365d"
-          text-anchor="middle">MULTIFUNCTIONAL</text>
-
-    <!-- 分隔线（亮青色） -->
-    <line x1="-110" y1="14" x2="110" y2="14"
+          font-weight="300" font-size="26" letter-spacing="3"
+          fill="#1a365d" text-anchor="middle">MULTIFUNCTIONAL</text>
+    <line x1="-105" y1="13" x2="105" y2="13"
           stroke="#00d4ff" stroke-width="1" opacity="0.4"/>
-
-    <!-- 下排：MATHEMATICS（粗字重） -->
-    <text x="0" y="43"
+    <text x="0" y="40"
           font-family="'Segoe UI', -apple-system, 'Helvetica Neue', Arial, sans-serif"
-          font-weight="600"
-          font-size="31"
-          letter-spacing="5.5"
-          fill="#1a365d"
-          text-anchor="middle">MATHEMATICS</text>
-
-    <!-- 底部装饰短线 -->
-    <rect x="-100" y="56" width="200" height="2.5" rx="1.25" fill="#00d4ff" opacity="0.55"/>
+          font-weight="600" font-size="30" letter-spacing="5"
+          fill="#1a365d" text-anchor="middle">MATHEMATICS</text>
+    <rect x="-95" y="52" width="190" height="2.5" rx="1.25" fill="#00d4ff" opacity="0.55"/>
   </g>
 </svg>
