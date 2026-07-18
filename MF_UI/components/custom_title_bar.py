@@ -518,6 +518,8 @@ def apply_frameless(window, title: str = "Multifunctional-Mathematics") -> Custo
     title_bar.close_requested.connect(window.close)
 
     # 监听最大化变化以更新按钮图标（事件过滤器 → 无 monkey-patch 链断裂风险）
+    from PySide6.QtCore import QObject as _QObj, QEvent as _QE
+
     class _WindowStateFilter(_QObj):
         def eventFilter(self, obj, event):
             if event.type() == _QE.Type.WindowStateChange:
