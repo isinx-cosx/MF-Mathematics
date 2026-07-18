@@ -389,61 +389,30 @@ def apply_frameless(window, title: str = "Multifunctional-Mathematics") -> Custo
     if central:
         layout.addWidget(central, 1)
 
-    # 外层透明容器 — 为阴影留出渲染空间
+    # 外层透明容器 — 12px 均匀边距为圆角 + 阴影留出渲染空间
     outer = QWidget()
     outer.setObjectName("mfShadowHost")
     outer.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
     outer.setStyleSheet("#mfShadowHost { background: transparent; }")
     outer_layout = QVBoxLayout(outer)
-    outer_layout.setContentsMargins(8, 8, 8, 0)
+    outer_layout.setContentsMargins(12, 12, 12, 12)
     outer_layout.setSpacing(0)
     outer_layout.addWidget(container, 1)
 
-    # 底部拖拽边 — 流畅缩放
-    resize_edge = ResizeEdge(outer)
-    outer_layout.addWidget(resize_edge, 0)
-
     window.setCentralWidget(outer)
-    # 将 framelessContainer 引用挂到 outer 上，方便外部访问
     outer.setProperty("framelessContainer", container)
 
-    # 主窗口圆角 — QPainterPath + QRegion 抗锯齿平滑裁剪
+    # 主窗口圆角 — 依赖 WA_TranslucentBackground + QSS border-radius:12px
+    # 均匀 12px 透明边距使四角自然圆润，无需 setMask（无法抗锯齿）
     window.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
-    _CORNER_RADIUS = 12  # 与 QSS #framelessContainer border-radius 一致
 
     def _apply_rounded_mask():
-        """用 QPainterPath + QRegion 裁剪为圆角矩形（抗锯齿，12px）。
-        最大化 → 清除蒙版（全屏直角）；原生缩放中 → 跳过。"""
-        from PySide6.QtGui import QPainterPath, QRegion
-        from PySide6.QtCore import QRectF
-        if window.isMaximized():
-            window.clearMask()
-            return
-        if window.property("_sys_resizing"):
-            return
-        sz = window.size()
-        if sz.width() <= 0 or sz.height() <= 0:
-            return
-        path = QPainterPath()
-        path.addRoundedRect(QRectF(0, 0, sz.width(), sz.height()),
-                            _CORNER_RADIUS, _CORNER_RADIUS)
-        region = QRegion(path.toFillPolygon().toPolygon())
-        window.setMask(region)
+        """最大化时清除假性蒙版（实际上无蒙版，仅保持接口兼容）。"""
+        # QSS border-radius + 均匀透明边距已处理圆角，无需 setMask
+        pass
 
     _apply_rounded_mask()
-    window._apply_rounded_mask = _apply_rounded_mask  # 暴露给 EdgeResizeFilter
-
-    # resize 时更新蒙版 — 事件过滤器比 monkey-patch 更可靠
-    from PySide6.QtCore import QObject as _QObj, QEvent as _QE
-
-    class _MaskResizeFilter(_QObj):
-        def eventFilter(self, obj, event):
-            if event.type() == _QE.Type.Resize:
-                _apply_rounded_mask()
-            return False
-
-    _mask_filter = _MaskResizeFilter(window)
-    window.installEventFilter(_mask_filter)
+    window._apply_rounded_mask = _apply_rounded_mask
 
     # ── 动画状态与持久引用（防止 GC 回收）──
     _anim_geo = [None]       # 保存的最大化前几何

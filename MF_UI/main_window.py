@@ -126,12 +126,7 @@ class EdgeResizeFilter(QObject):
             if hit:
                 handle = self._win.windowHandle()
                 if handle is not None:
-                    # 缩放前：清除蒙版 + 设标志防止 resize 事件重创建蒙版
-                    self._win.setProperty("_sys_resizing", True)
-                    self._win.clearMask()
                     handle.startSystemResize(self._EDGE_MAP[hit][1])
-                    # 缩放结束：恢复圆角蒙版
-                    self._win.setProperty("_sys_resizing", False)
                 return True  # 消费事件
 
         return False
@@ -197,9 +192,6 @@ class MainWindow(QMainWindow):
         # 安装全局边缘缩放过滤器（8px 边角，setUpdatesEnabled 防闪烁）
         self._edge_filter = EdgeResizeFilter(self)
 
-        # 窗口圆角蒙版（8px，最大化时自动清除）
-        self._apply_rounded_mask()
-
         # 重新居中（frameless 切换可能改变窗口位置）
         self._center_on_screen()
 
@@ -252,7 +244,7 @@ class MainWindow(QMainWindow):
             elif self._normal_geometry is not None:
                 # 还原外容器边距 + 启用阴影 + 恢复到保存的正常几何
                 if outer is not None:
-                    outer.layout().setContentsMargins(8, 8, 8, 0)
+                    outer.layout().setContentsMargins(12, 12, 12, 12)
                 if self._window_shadow is not None:
                     self._window_shadow.setEnabled(True)
                 self.setGeometry(self._normal_geometry)
@@ -689,10 +681,9 @@ class MainWindow(QMainWindow):
             self._kb_toggle_btn.setText("▼ 收起")
 
     def resizeEvent(self, event) -> None:
-        """窗口大小变化时更新圆角蒙版、键盘面板高度和还原几何。"""
+        """窗口大小变化时更新键盘面板高度和还原几何。"""
         super().resizeEvent(event)
-        # 圆角蒙版：每次 resize 重新裁剪（最大化时自动 clearMask）
-        self._apply_rounded_mask()
+        # 圆角由 QSS border-radius + 透明边距处理，无需蒙版
         # 非最大化 + 非动画期间：持续保存几何用于还原
         if not self.isMaximized() and not self._geometry_locked:
             self._normal_geometry = self.geometry()
