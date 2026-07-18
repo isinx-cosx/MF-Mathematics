@@ -11,8 +11,9 @@ from __future__ import annotations
 
 from PySide6.QtCore import Qt, Signal, QPoint, QPointF, QRect, QSize
 from PySide6.QtGui import (
-    QAction, QColor, QFont, QIcon, QPainter, QPainterPath, QPen,
+    QAction, QColor, QFont, QIcon, QPainter, QPainterPath, QPen, QPixmap,
 )
+from PySide6.QtCore import QRectF
 from PySide6.QtWidgets import (
     QFrame, QHBoxLayout, QLabel, QPushButton, QSizePolicy, QWidget,
 )
@@ -202,9 +203,19 @@ class CustomTitleBar(QWidget):
             self._icon_label = QLabel()
             self._icon_label.setObjectName("titlebar_icon")
             self._icon_label.setFixedSize(24, 24)
-            self._icon_label.setScaledContents(True)
+            # 圆角裁剪图标
             icon = QIcon(self._icon_path)
-            self._icon_label.setPixmap(icon.pixmap(24, 24))
+            src = icon.pixmap(24, 24)
+            rounded = QPixmap(24, 24)
+            rounded.fill(Qt.GlobalColor.transparent)
+            rp = QPainter(rounded)
+            rp.setRenderHint(QPainter.RenderHint.Antialiasing)
+            path = QPainterPath()
+            path.addRoundedRect(QRectF(0, 0, 24, 24), 5, 5)
+            rp.setClipPath(path)
+            rp.drawPixmap(0, 0, src)
+            rp.end()
+            self._icon_label.setPixmap(rounded)
             layout.addWidget(self._icon_label)
         else:
             self._icon_label = None
