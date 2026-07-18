@@ -387,8 +387,8 @@ def apply_frameless(window, title: str = "Multifunctional-Mathematics") -> Custo
 
     # 标题栏（最顶部）
     import os as _os
-    _icon = _os.path.join(_os.path.dirname(_os.path.dirname(
-        _os.path.abspath(__file__))), "assets", "icon.ico")
+    _icon = _os.path.join(_os.path.dirname(_os.path.dirname(_os.path.dirname(
+        _os.path.abspath(__file__)))), "assets", "icon.ico")
     if not _os.path.exists(_icon):
         _icon = ""
     title_bar = CustomTitleBar(window, title, icon_path=_icon)
