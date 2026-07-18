@@ -201,10 +201,10 @@ class CustomTitleBar(QWidget):
         if self._icon_path:
             self._icon_label = QLabel()
             self._icon_label.setObjectName("titlebar_icon")
-            self._icon_label.setFixedSize(18, 18)
+            self._icon_label.setFixedSize(24, 24)
             self._icon_label.setScaledContents(True)
             icon = QIcon(self._icon_path)
-            self._icon_label.setPixmap(icon.pixmap(18, 18))
+            self._icon_label.setPixmap(icon.pixmap(24, 24))
             layout.addWidget(self._icon_label)
         else:
             self._icon_label = None
