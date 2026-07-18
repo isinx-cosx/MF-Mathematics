@@ -1,16 +1,20 @@
 # -*- mode: python ; coding: utf-8 -*-
-from PyInstaller.utils.hooks import collect_submodules
+from PyInstaller.utils.hooks import collect_all
 
+datas = [('config.json', '.'), ('assets/icon.ico', 'assets'), ('MF_Mathematics', 'MF_Mathematics'), ('MF_AI', 'MF_AI'), ('MF_Online', 'MF_Online'), ('MF_Tutorial', 'MF_Tutorial'), ('MF_User', 'MF_User'), ('MF_UI/styles', 'styles'), ('MF_UI/components/formula_input.html', 'components')]
+binaries = []
 hiddenimports = []
-hiddenimports += collect_submodules('plot')
-hiddenimports += collect_submodules('calc')
+tmp_ret = collect_all('plot')
+datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
+tmp_ret = collect_all('calc')
+datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
 
 
 a = Analysis(
     ['MF_UI\\main.py'],
     pathex=['.', 'MF_UI'],
-    binaries=[],
-    datas=[('config.json', '.'), ('assets/icon.ico', 'assets'), ('MF_Mathematics', 'MF_Mathematics'), ('MF_AI', 'MF_AI'), ('MF_Online', 'MF_Online'), ('MF_Tutorial', 'MF_Tutorial'), ('MF_User', 'MF_User'), ('MF_UI/styles', 'styles'), ('MF_UI/components/formula_input.html', 'components')],
+    binaries=binaries,
+    datas=datas,
     hiddenimports=hiddenimports,
     hookspath=[],
     hooksconfig={},
