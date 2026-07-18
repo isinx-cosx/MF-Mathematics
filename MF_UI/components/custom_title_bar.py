@@ -364,12 +364,9 @@ def apply_frameless(window, title: str = "Multifunctional-Mathematics") -> Custo
                 and tb is not central
                 and not isinstance(tb, _QSB)]
 
-    # 创建容器 — WA_TranslucentBackground + WA_StyledBackground 确保 QSS
-    # border-radius:12px 与 QGraphicsDropShadowEffect 正确交互（离屏 pixmap 保留圆角透明区域）
+    # 创建容器
     container = QWidget()
     container.setObjectName("framelessContainer")
-    container.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
-    container.setAttribute(Qt.WidgetAttribute.WA_StyledBackground)
     layout = QVBoxLayout(container)
     layout.setContentsMargins(0, 0, 0, 0)
     layout.setSpacing(0)

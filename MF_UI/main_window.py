@@ -534,6 +534,7 @@ class MainWindow(QMainWindow):
     # ── 状态栏 ──
         self._status_bar = QStatusBar(container)
         self._status_bar.setFixedHeight(30)
+        self._status_bar.setSizeGripEnabled(False)  # 禁用内置size grip，否则矩形手柄冲破右下角圆角
         self._status_bar.showMessage("就绪")
         self._user_status_label = QLabel("未登录")
         self._user_status_label.setObjectName("user_status_label")
