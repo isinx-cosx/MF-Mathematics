@@ -177,12 +177,14 @@ class CustomTitleBar(QWidget):
 
     def __init__(self, parent: QWidget | None = None,
                  title: str = "MF-Mathematics",
+                 icon_path: str = "",
                  show_minimize: bool = True,
                  show_maximize: bool = True) -> None:
         super().__init__(parent)
         self._title = title
+        self._icon_path = icon_path
         self._drag_pos: QPoint | None = None
-        self._drag_start_offset: QPoint = QPoint()  # 鼠标在标题栏内的偏移（最大化拖拽还原定位）
+        self._drag_start_offset: QPoint = QPoint()
 
         self.setObjectName("customTitleBar")
         self.setFixedHeight(36)
@@ -193,7 +195,19 @@ class CustomTitleBar(QWidget):
     def _build_ui(self, show_min: bool, show_max: bool) -> None:
         layout = QHBoxLayout(self)
         layout.setContentsMargins(12, 0, 0, 0)
-        layout.setSpacing(0)
+        layout.setSpacing(6)
+
+        # ── 左侧：图标（16px，适配标题栏高度）──
+        if self._icon_path:
+            self._icon_label = QLabel()
+            self._icon_label.setObjectName("titlebar_icon")
+            self._icon_label.setFixedSize(18, 18)
+            self._icon_label.setScaledContents(True)
+            icon = QIcon(self._icon_path)
+            self._icon_label.setPixmap(icon.pixmap(18, 18))
+            layout.addWidget(self._icon_label)
+        else:
+            self._icon_label = None
 
         # ── 左侧：标题 ──
         self._title_label = QLabel(self._title)
@@ -372,7 +386,12 @@ def apply_frameless(window, title: str = "Multifunctional-Mathematics") -> Custo
     layout.setSpacing(0)
 
     # 标题栏（最顶部）
-    title_bar = CustomTitleBar(window, title)
+    import os as _os
+    _icon = _os.path.join(_os.path.dirname(_os.path.dirname(
+        _os.path.abspath(__file__))), "assets", "icon.ico")
+    if not _os.path.exists(_icon):
+        _icon = ""
+    title_bar = CustomTitleBar(window, title, icon_path=_icon)
     layout.addWidget(title_bar)
 
     # 菜单栏（标题栏下方）

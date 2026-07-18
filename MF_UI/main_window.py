@@ -137,6 +137,13 @@ class MainWindow(QMainWindow):
         super().__init__(flags=Qt.WindowType.FramelessWindowHint)
         self.setAttribute(Qt.WA_TranslucentBackground, True)
         self.setWindowTitle("Multifunctional-Mathematics")
+
+        # 窗口图标（任务栏 + Alt+Tab）
+        _ico = os.path.join(_root_dir, "assets", "icon.ico")
+        if os.path.exists(_ico):
+            from PySide6.QtGui import QIcon
+            self.setWindowIcon(QIcon(_ico))
+
         self.resize(1200, 800)
         self.setMinimumSize(900, 600)
         self._center_on_screen()
