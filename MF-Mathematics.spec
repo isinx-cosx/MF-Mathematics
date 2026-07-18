@@ -10,7 +10,7 @@ a = Analysis(
     ['MF_UI\\main.py'],
     pathex=['.', 'MF_UI'],
     binaries=[],
-    datas=[('config.json', '.'), ('MF_Mathematics', 'MF_Mathematics'), ('MF_AI', 'MF_AI'), ('MF_Online', 'MF_Online'), ('MF_Tutorial', 'MF_Tutorial'), ('MF_User', 'MF_User'), ('MF_UI/styles', 'styles'), ('MF_UI/components/formula_input.html', 'components')],
+    datas=[('config.json', '.'), ('assets/icon.ico', 'assets'), ('MF_Mathematics', 'MF_Mathematics'), ('MF_AI', 'MF_AI'), ('MF_Online', 'MF_Online'), ('MF_Tutorial', 'MF_Tutorial'), ('MF_User', 'MF_User'), ('MF_UI/styles', 'styles'), ('MF_UI/components/formula_input.html', 'components')],
     hiddenimports=hiddenimports,
     hookspath=[],
     hooksconfig={},
