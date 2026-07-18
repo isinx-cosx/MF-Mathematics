@@ -407,13 +407,14 @@ def apply_frameless(window, title: str = "Multifunctional-Mathematics") -> Custo
     # 将 framelessContainer 引用挂到 outer 上，方便外部访问
     outer.setProperty("framelessContainer", container)
 
-    # 主窗口圆角 — 使用 QBitmap 蒙版精确裁剪（Qt6 最可靠方案）
+    # 主窗口圆角 — QPainterPath + QRegion 抗锯齿平滑裁剪
     window.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+    _CORNER_RADIUS = 12  # 与 QSS #framelessContainer border-radius 一致
 
     def _apply_rounded_mask():
-        """用 QBitmap 蒙版将窗口裁剪为圆角矩形（radius=8px）。
-        最大化 → 清除蒙版（全屏直角）；原生缩放中 → 跳过（防 SetWindowRgn 风暴）。"""
-        from PySide6.QtGui import QBitmap, QPainter
+        """用 QPainterPath + QRegion 裁剪为圆角矩形（抗锯齿，12px）。
+        最大化 → 清除蒙版（全屏直角）；原生缩放中 → 跳过。"""
+        from PySide6.QtGui import QPainterPath, QRegion
         from PySide6.QtCore import QRectF
         if window.isMaximized():
             window.clearMask()
@@ -423,15 +424,11 @@ def apply_frameless(window, title: str = "Multifunctional-Mathematics") -> Custo
         sz = window.size()
         if sz.width() <= 0 or sz.height() <= 0:
             return
-        mask = QBitmap(sz)
-        mask.fill(Qt.GlobalColor.color0)
-        p = QPainter(mask)
-        p.setRenderHint(QPainter.RenderHint.Antialiasing)
-        p.setBrush(Qt.GlobalColor.color1)
-        p.setPen(Qt.PenStyle.NoPen)
-        p.drawRoundedRect(QRectF(0, 0, sz.width(), sz.height()), 8, 8)
-        p.end()
-        window.setMask(mask)
+        path = QPainterPath()
+        path.addRoundedRect(QRectF(0, 0, sz.width(), sz.height()),
+                            _CORNER_RADIUS, _CORNER_RADIUS)
+        region = QRegion(path.toFillPolygon().toPolygon())
+        window.setMask(region)
 
     _apply_rounded_mask()
     window._apply_rounded_mask = _apply_rounded_mask  # 暴露给 EdgeResizeFilter
