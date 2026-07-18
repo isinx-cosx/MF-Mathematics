@@ -543,9 +543,7 @@ class MainWindow(QMainWindow):
         brand_label.setObjectName("brand_label")
         self._status_bar.addPermanentWidget(brand_label)
 
-        from PySide6.QtWidgets import QSizeGrip
-        self._status_bar.addPermanentWidget(QSizeGrip(self))
-        layout.addWidget(self._status_bar, 0) 
+        layout.addWidget(self._status_bar, 0)
 
         self.setCentralWidget(container)
 
