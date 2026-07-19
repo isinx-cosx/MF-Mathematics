@@ -138,8 +138,11 @@ class MainWindow(QMainWindow):
         self.setAttribute(Qt.WA_TranslucentBackground, True)
         self.setWindowTitle("Multifunctional-Mathematics")
 
-        # 窗口图标（任务栏 + Alt+Tab）
-        _ico = os.path.join(_root_dir, "assets", "icon.ico")
+        # 窗口图标（任务栏 + Alt+Tab）— 适配开发/打包两种环境
+        if getattr(sys, 'frozen', False):
+            _ico = os.path.join(sys._MEIPASS, "assets", "icon.ico")
+        else:
+            _ico = os.path.join(_root_dir, "assets", "icon.ico")
         if os.path.exists(_ico):
             from PySide6.QtGui import QIcon
             self.setWindowIcon(QIcon(_ico))

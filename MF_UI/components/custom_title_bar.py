@@ -211,7 +211,7 @@ class CustomTitleBar(QWidget):
             rp = QPainter(rounded)
             rp.setRenderHint(QPainter.RenderHint.Antialiasing)
             path = QPainterPath()
-            path.addRoundedRect(QRectF(0, 0, 24, 24), 5, 5)
+            path.addRoundedRect(QRectF(0, 0, 24, 24), 8, 8)
             rp.setClipPath(path)
             rp.drawPixmap(0, 0, src)
             rp.end()
@@ -396,12 +396,19 @@ def apply_frameless(window, title: str = "Multifunctional-Mathematics") -> Custo
     layout.setContentsMargins(0, 0, 0, 0)
     layout.setSpacing(0)
 
-    # 标题栏（最顶部）
-    import os as _os
-    _icon = _os.path.join(_os.path.dirname(_os.path.dirname(_os.path.dirname(
-        _os.path.abspath(__file__)))), "assets", "icon.ico")
-    if not _os.path.exists(_icon):
-        _icon = ""
+    # 标题栏（最顶部）— 图标路径适配开发/打包两种环境
+    import os as _os, sys as _sys
+    _icon = ""
+    if getattr(_sys, 'frozen', False):
+        # PyInstaller 打包：从 _MEIPASS 读取
+        _icon = _os.path.join(_sys._MEIPASS, "assets", "icon.ico")
+    else:
+        # 开发环境：项目根目录/assets/
+        _root = _os.path.dirname(_os.path.dirname(_os.path.dirname(
+            _os.path.abspath(__file__))))
+        _candidate = _os.path.join(_root, "assets", "icon.ico")
+        if _os.path.exists(_candidate):
+            _icon = _candidate
     title_bar = CustomTitleBar(window, title, icon_path=_icon)
     layout.addWidget(title_bar)
 
