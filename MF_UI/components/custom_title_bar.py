@@ -401,12 +401,12 @@ def apply_frameless(window, title: str = "Multifunctional-Mathematics") -> Custo
     _icon = ""
     if getattr(_sys, 'frozen', False):
         # PyInstaller 打包：从 _MEIPASS 读取
-        _icon = _os.path.join(_sys._MEIPASS, "assets", "icon.ico")
+        _icon = _os.path.join(_sys._MEIPASS, "assets", "titlebar_icon.ico")
     else:
         # 开发环境：项目根目录/assets/
         _root = _os.path.dirname(_os.path.dirname(_os.path.dirname(
             _os.path.abspath(__file__))))
-        _candidate = _os.path.join(_root, "assets", "icon.ico")
+        _candidate = _os.path.join(_root, "assets", "titlebar_icon.ico")
         if _os.path.exists(_candidate):
             _icon = _candidate
     title_bar = CustomTitleBar(window, title, icon_path=_icon)

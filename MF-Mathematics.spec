@@ -5,7 +5,7 @@ a = Analysis(
     ['MF_UI\\main.py'],
     pathex=['.', 'MF_UI'],
     binaries=[],
-    datas=[('config.json', '.'), ('assets/icon.ico', 'assets'), ('assets/msyh.ttc', 'assets'), ('MF_Mathematics', 'MF_Mathematics'), ('MF_AI', 'MF_AI'), ('MF_Online', 'MF_Online'), ('MF_Tutorial', 'MF_Tutorial'), ('MF_User', 'MF_User'), ('MF_UI/styles', 'styles'), ('MF_UI/components/formula_input.html', 'components'), ('MF_UI/plot', 'plot'), ('MF_UI/calc', 'calc')],
+    datas=[('config.json', '.'), ('assets/icon.ico', 'assets'), ('assets/titlebar_icon.ico', 'assets'), ('assets/msyh.ttc', 'assets'), ('MF_Mathematics', 'MF_Mathematics'), ('MF_AI', 'MF_AI'), ('MF_Online', 'MF_Online'), ('MF_Tutorial', 'MF_Tutorial'), ('MF_User', 'MF_User'), ('MF_UI/styles', 'styles'), ('MF_UI/components/formula_input.html', 'components'), ('MF_UI/plot', 'plot'), ('MF_UI/calc', 'calc')],
     hiddenimports=['_import_all', 'plot.fractal.workspace', 'plot.mpl_setup'],
     hookspath=[],
     hooksconfig={},
