@@ -8,7 +8,9 @@ from MF_Mathematics.core.helpers import to_sympy
 
 from typing import Any, Dict, List, Optional, Union
 
-import sympy as sp
+import logging, sympy as sp
+
+logger = logging.getLogger(__name__)
 
 from ..core.math_object import MathObject
 from ..core.registry import register
@@ -90,8 +92,7 @@ def linear_application(problem: str) -> MathObject:
                     meaning=f"应用题解析: {problem[:50]}...",
                 )
         except Exception as _e:
-            import logging
-            logging.getLogger("MF-Mathematics").debug("AI 应用题解析不可用: %s", _e)
+            logger.debug("AI 应用题解析不可用: %s", _e)
 
         # AI 不可用时回退
         return MathObject(

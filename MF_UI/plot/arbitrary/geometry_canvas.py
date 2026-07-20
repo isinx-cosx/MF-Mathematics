@@ -7,7 +7,7 @@ QGraphicsView 驱动，坐标系渲染完全复刻 PlotCanvas.drawForeground。
 
 from __future__ import annotations
 
-import math
+import logging, math
 from enum import Enum
 from PySide6.QtCore import Qt, QPointF, QRectF, Signal
 from PySide6.QtGui import (
@@ -25,6 +25,7 @@ from MF_UI.plot.arbitrary.shapes import (
     translate_shape_inplace, compute_bounds,
 )
 
+logger = logging.getLogger(__name__)
 
 # ═══════════════════════════════════════════════════════════════
 #  枚举
@@ -95,7 +96,7 @@ try:
     _AXIS_PX = _cfg.get("plot", "axis_px", default=_AXIS_PX)
     _CURVE_PX = _cfg.get("plot", "curve_px", default=_CURVE_PX)
 except Exception:
-    pass
+    logger.debug("配置加载失败，使用默认绘图参数")
 
 SCENE_RANGE = _SCENE_RANGE
 ZOOM_MIN = _ZOOM_MIN
@@ -214,7 +215,7 @@ class GeometryCanvas(QGraphicsView):
         # 预览 item（虚线）
         self._preview_items: list[QGraphicsItem] = []
 
-        # 临时数据（构建中）
+        # 交互构建暂存点（多边形/曲线绘制过程中累积）
         self._temp_pts: list[tuple[float, float]] = []
         self._cursor_pt: tuple[float, float] = (0.0, 0.0)
         self._drag_origin: QPointF | None = None
@@ -429,8 +430,7 @@ class GeometryCanvas(QGraphicsView):
                     self._scene.addItem(item)
                     self._shape_items[s.id] = item
             except (ValueError, TypeError, AttributeError) as e:
-                import logging
-                logging.warning(f"GeometryCanvas: 图形项创建失败 shape={s.id}: {e}")
+                logger.warning("图形项创建失败 shape=%s: %s", s.id, e)
 
     def _create_item(self, s: GeometricShape, color: QColor,
                      lw: float, lw_scale: float) -> QGraphicsItem | None:
@@ -632,8 +632,7 @@ class GeometryCanvas(QGraphicsView):
                                                       QPen(PREVIEW_COLOR), QBrush(PREVIEW_COLOR))
                         dot.setZValue(4); self._preview_items.append(dot)
         except (ValueError, TypeError, AttributeError) as e:
-            import logging
-            logging.warning(f"GeometryCanvas: 预览重建失败: {e}")
+            logger.warning("预览重建失败: %s", e)
 
     # ═══════════════════════════════════════════════════════════
     #  鼠标事件

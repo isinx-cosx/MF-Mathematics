@@ -8,11 +8,13 @@ ResultDialog  : 计算结果弹窗 (含 MathDisplay + 步骤按钮)
 
 from __future__ import annotations
 
-import re
+import logging, re
 import sys as _sys
 import os as _os
 from io import BytesIO
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 _proj_root = _os.path.dirname(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))
 if _proj_root not in _sys.path:
@@ -43,8 +45,7 @@ DEFAULT_FONT_SIZE = 10
 
 
 class LatexLineEdit(QLineEdit):
-    """普通文本输入框。"""
-    pass
+    """LaTeX 数学表达式输入框，继承自 QLineEdit，预留 LaTeX 语法高亮扩展点。"""
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -497,13 +498,13 @@ def _is_undefined_value(val: Any) -> bool:
         if isinstance(val, _sp.Basic) and val.has(_sp.nan, _sp.zoo, _sp.oo):
             return True
     except Exception:
-        pass
+        logger.debug("SymPy nan/inf 检测失败，回退到基本检查")
     # numpy nan/inf
     try:
         if isinstance(val, _np.ndarray):
             return bool(_np.any(_np.isnan(val)) or _np.any(_np.isinf(val)))
     except Exception:
-        pass
+        logger.debug("NumPy nan/inf 检测失败，回退到基本检查")
     return False
 
 
@@ -532,8 +533,7 @@ def _result_to_latex(result: Any) -> str:
             from MF_Mathematics.utils.translator import MathTranslator
             return _to_implicit_mul(MathTranslator.computer_to_human(s))
         except (ValueError, TypeError, ImportError) as e:
-            import logging
-            logging.debug(f"MathTranslator 转换失败: {e}")
+            logger.debug("MathTranslator 转换失败: %s", e)
     return r"\mathrm{" + s.replace("\\", "").replace("$", "").replace("_", r"\_") + "}"
 
 

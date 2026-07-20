@@ -1,8 +1,10 @@
 """MF-Mathematics 主窗口"""
 from __future__ import annotations
 
-import sys
-import os
+import logging, os, sys
+
+logger = logging.getLogger(__name__)
+
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from PySide6.QtCore import Qt, QEvent, QObject, QPoint, QRect, QSize
 from PySide6.QtGui import QAction, QActionGroup, QKeySequence, QShortcut
@@ -632,8 +634,7 @@ class MainWindow(QMainWindow):
                         child.setText(expr)
                         return
         except Exception as _e:
-            import logging
-            logging.getLogger("MF-Mathematics").debug("恢复表达式失败: %s", _e)
+            logger.debug("恢复表达式失败: %s", _e)
 
     # ── 保存/加载工作区 ─────────────────────────────────────
 
@@ -723,8 +724,7 @@ class MainWindow(QMainWindow):
                     mode = block.calc_mode_combo.currentText()
                     return (expr, mode)
         except Exception as _e:
-            import logging
-            logging.getLogger("MF-Mathematics").debug("查找计算块失败: %s", _e)
+            logger.debug("查找计算块失败: %s", _e)
         return ("", "")
 
     # ---------- 主题切换 ----------
@@ -792,7 +792,7 @@ class MainWindow(QMainWindow):
                 self._show_welcome_dialog()
             engine.mark_launched()
         except Exception as e:
-            import logging; logging.debug(f"欢迎对话框加载失败: {e}")
+            logger.debug("欢迎对话框加载失败: %s", e)
 
     def _show_welcome_dialog(self) -> None:
         """显示欢迎对话框并在用户接受后启动引导。"""
@@ -803,7 +803,7 @@ class MainWindow(QMainWindow):
                 # 用户选择开始引导
                 self._open_guided_walkthrough()
         except Exception as e:
-            print(f"[MainWindow] 欢迎对话框出错: {e}")
+            logger.warning("欢迎对话框出错: %s", e)
 
     def _open_history(self) -> None:
         """打开计算历史记录查看器。"""
@@ -975,5 +975,4 @@ class MainWindow(QMainWindow):
                     self._user_status_label.setText("未登录")
                     self._user_status_label.setStyleSheet("color: #94a3b8;")
         except Exception as _e:
-            import logging
-            logging.getLogger("MF-Mathematics").debug("用户状态刷新失败: %s", _e)
+            logger.debug("用户状态刷新失败: %s", _e)

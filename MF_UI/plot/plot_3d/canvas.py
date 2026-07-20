@@ -12,7 +12,7 @@
 
 from __future__ import annotations
 
-import json, math, os
+import json, logging, math, os
 import numpy as np
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import QVBoxLayout, QWidget
@@ -23,6 +23,7 @@ from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg, NavigationTool
 from matplotlib.figure import Figure
 import matplotlib.ticker as ticker
 
+logger = logging.getLogger(__name__)
 
 # ═══════════════════════════════════════════════════════════════════════
 #  Config
@@ -33,7 +34,7 @@ def _load_config() -> dict:
         from MF_Mathematics.utils.config_manager import config
         return config.raw
     except Exception:
-        pass
+        logger.debug("ConfigManager 加载失败，尝试直接读取 config.json")
     try:
         root = os.path.dirname(os.path.dirname(os.path.dirname(
             os.path.dirname(os.path.abspath(__file__)))))
@@ -42,7 +43,7 @@ def _load_config() -> dict:
             with open(p, "r", encoding="utf-8") as f:
                 return json.load(f)
     except Exception:
-        pass
+        logger.debug("config.json 直接读取失败，使用默认绘图配置")
     return {}
 
 _CFG = _load_config()
@@ -194,7 +195,7 @@ class Plot3D(QWidget):
 
             self._canvas.draw_idle()
         except Exception:
-            pass
+            logger.debug("曲面构建失败，跳过该条目")
 
         self._emit_status()
         return idx
@@ -279,7 +280,7 @@ class Plot3D(QWidget):
                         for px, py in seg:
                             all_points.append([px, py, z_val])
             except Exception:
-                pass
+                logger.debug("隐式曲面等高线采样失败")
 
         if len(all_points) > 3:
             pts = np.array(all_points)
@@ -479,7 +480,7 @@ class Plot3D(QWidget):
                     linewidth=0, antialiased=True, shade=True)
                 entry["surface_obj"] = surf
         except Exception:
-            pass
+            logger.debug("曲面渲染失败，跳过该条目")
 
     def _draw_axes(self) -> None:
         """绘制/重绘三维坐标系。"""

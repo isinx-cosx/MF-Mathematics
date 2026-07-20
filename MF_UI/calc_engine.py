@@ -16,8 +16,10 @@
 
 from __future__ import annotations
 
-import sys, os
+import logging, os, sys
 from ast import literal_eval as _le
+
+logger = logging.getLogger(__name__)
 
 _base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _base not in sys.path:
@@ -1236,8 +1238,7 @@ def _build_kwargs(action: str, action_name: str, params: list[str]) -> dict | No
         return result
 
     # ── 通用回退：单参数 → expr，多参数 → 位置展开 ──
-    import logging
-    logging.debug(
+    logger.debug(
         "calc_engine._build_kwargs: 未专门处理的操作 %r, 使用通用回退", action_name)
     if len(params) == 1:
         return {"expr": params[0]}

@@ -2,8 +2,10 @@
 """Agent 推理链 — AI 自主调用数学工具完成多步推理。"""
 
 from __future__ import annotations
-import json, re
+import json, logging, re
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 TOOLS = [
     {"name": "calculate", "description": "Execute math: diff/integrate/solve/limit/simplify/eigenvalues etc",
@@ -61,13 +63,13 @@ class MathAgent:
             try:
                 return json.loads(m.group(1))
             except json.JSONDecodeError:
-                pass
+                logger.debug("JSON 解析失败 (code block), 尝试备用模式")
         m = re.search(r'\{[^{}]*"name"\s*:\s*"[^"]+"[^{}]*\}', response)
         if m:
             try:
                 return json.loads(m.group(0))
             except json.JSONDecodeError:
-                pass
+                logger.debug("JSON 解析失败 (inline pattern)")
         return None
 
     def _execute_tool(self, call: dict) -> str:
@@ -90,7 +92,7 @@ class MathAgent:
         try:
             __import__(f"MF_Mathematics.{module}", fromlist=[module])
         except ImportError:
-            pass
+            logger.debug("数学模块导入失败: %s", module)
         result = dispatch(module, action, *args, **kwargs)
         if hasattr(result, "ok") and hasattr(result, "result"):
             return str(result.result) if result.ok else f"Error: {result.error}"

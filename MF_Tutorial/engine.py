@@ -3,11 +3,12 @@
 
 from __future__ import annotations
 
-import json
-import os
+import json, logging, os
 from pathlib import Path
 
 import yaml
+
+logger = logging.getLogger(__name__)
 
 from MF_Tutorial.models import (
     Tutorial, Step, Example, FAQ, TutorialProgress,
@@ -82,7 +83,7 @@ class TutorialEngine:
                 self._tutorials[tutorial.id] = tutorial
                 loaded.append(tutorial)
             except (yaml.YAMLError, KeyError, TypeError) as e:
-                print(f"[TutorialEngine] 加载 {yaml_file.name} 失败: {e}")
+                logger.warning("加载教程 %s 失败: %s", yaml_file.name, e)
 
         loaded.sort(key=lambda t: t.order)
         return loaded
@@ -285,8 +286,8 @@ class TutorialEngine:
                     "first_launch_done": self._progress.first_launch_done,
                     "launch_count": self._progress.launch_count,
                 }, f, ensure_ascii=False, indent=2)
-        except OSError:
-            pass
+        except OSError as e:
+            logger.debug("保存教程进度失败: %s", e)
 
 
 # ═══════════════════════════════════════════════════════════════

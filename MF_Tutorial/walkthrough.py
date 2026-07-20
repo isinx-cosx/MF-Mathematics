@@ -6,8 +6,12 @@
 
 from __future__ import annotations
 
+import logging
+
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import QWidget, QApplication
+
+logger = logging.getLogger(__name__)
 
 from MF_Tutorial.engine import TutorialEngine
 from MF_Tutorial.models import Tutorial, Step
@@ -77,10 +81,10 @@ class GuidedWalkthrough:
         """
         self._tutorial = self._engine.get(tutorial_id)
         if not self._tutorial:
-            print(f"[Walkthrough] 教程 {tutorial_id} 未找到")
+            logger.warning("教程 %s 未找到", tutorial_id)
             return
         if not self._tutorial.steps:
-            print(f"[Walkthrough] 教程 {tutorial_id} 无步骤")
+            logger.warning("教程 %s 无步骤", tutorial_id)
             self._finish()
             return
 
@@ -112,7 +116,7 @@ class GuidedWalkthrough:
             target = self._find_by_object_name(step.target)
 
         if not target:
-            print(f"[Walkthrough] 目标控件未找到: {step.target}")
+            logger.warning("教程目标控件未找到: %s", step.target)
             # 跳过此步
             self._current_step += 1
             self._show_current_step()

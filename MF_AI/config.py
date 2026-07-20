@@ -6,9 +6,10 @@
 
 from __future__ import annotations
 
-import os
-import sys
+import logging, os
 from typing import Any, ClassVar
+
+logger = logging.getLogger(__name__)
 
 from MF_AI.exceptions import AIConfigError
 
@@ -36,7 +37,7 @@ def _load_dotenv(path: str | None = None) -> dict[str, str]:
         root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         search_paths.append(os.path.join(root, ".env"))
     except Exception:
-        pass
+        logger.debug("无法获取项目根目录路径，跳过 .env 搜索")
 
     result: dict[str, str] = {}
     for p in search_paths:
@@ -68,7 +69,7 @@ def _find_yaml_path() -> str | None:
         ai_dir = os.path.dirname(os.path.abspath(__file__))
         candidates.append(os.path.join(ai_dir, "config.yaml"))
     except Exception:
-        pass
+        logger.debug("无法获取 MF_AI 目录路径")
     # 2. 当前工作目录
     if os.getcwd():
         candidates.append(os.path.join(os.getcwd(), "config.yaml"))
@@ -97,16 +98,14 @@ def _load_yaml(path: str | None = None) -> dict[str, Any]:
     except ImportError:
         pass
     except Exception as e:
-        print(f"[MF_AI] 警告: config.yaml 解析失败 ({e})，使用默认配置。",
-              file=sys.stderr)
+        logger.warning("config.yaml 解析失败 (%s)，使用默认配置。", e)
         return {}
 
     # 回退：简单的手动 YAML 解析（仅支持顶层 key: value 和嵌套一层）
     try:
         return _parse_yaml_manual(yaml_path)
     except Exception as e:
-        print(f"[MF_AI] 警告: config.yaml 手动解析失败 ({e})，使用默认配置。",
-              file=sys.stderr)
+        logger.warning("config.yaml 手动解析失败 (%s)，使用默认配置。", e)
         return {}
 
 
@@ -237,8 +236,7 @@ class Config:
 
         # 启动时未配置 API Key 仅警告
         if not self._api_key:
-            print("[MF_AI] 警告: AI_API_KEY 未设置。可通过 set_api_key() 运行时配置。",
-                  file=sys.stderr)
+            logger.warning("AI_API_KEY 未设置。可通过 set_api_key() 运行时配置。")
 
     # ── YAML 辅助 ─────────────────────────────────────────
 

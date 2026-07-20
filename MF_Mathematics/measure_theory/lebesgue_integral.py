@@ -9,9 +9,11 @@ from MF_Mathematics.core.helpers import parse_func
 
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
-import numpy as np
+import logging, numpy as np
 import scipy.integrate as integrate
 import sympy as sp
+
+logger = logging.getLogger(__name__)
 
 from ..core.math_object import MathObject
 from ..core.registry import register
@@ -159,7 +161,7 @@ def integral_nonnegative(
         try:
             sym_result = float(sp.integrate(expr, (x, a, b)).evalf())
         except Exception:
-            pass
+            logger.debug("SymPy 解析积分验证失败 (非负函数)，使用数值结果")
 
         steps = [
             f"函数: f(x) = {expr}, 定义域: [{a}, {b}]",
@@ -226,7 +228,7 @@ def integral_general(
         try:
             sym_result = float(sp.integrate(expr, (x, a, b)).evalf())
         except Exception:
-            pass
+            logger.debug("SymPy 解析积分验证失败 (一般函数)，使用数值结果")
 
         steps = [
             f"函数: f(x) = {expr}, 定义域: [{a}, {b}]",

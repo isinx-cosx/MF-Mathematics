@@ -7,9 +7,11 @@ from __future__ import annotations
 
 from typing import Any, Callable, List, Optional, Tuple, Union
 
-import numpy as np
+import logging, numpy as np
 import scipy.integrate as integrate
 import sympy as sp
+
+logger = logging.getLogger(__name__)
 
 from ..core.math_object import MathObject
 from ..core.registry import register
@@ -153,7 +155,7 @@ def fubini_theorem(
             outer_sym = sp.integrate(inner_sym, (y_sym, c, d))
             sym_result = float(outer_sym.evalf())
         except Exception:
-            pass
+            logger.debug("SymPy 重积分符号验证失败，使用数值结果")
 
         steps = [
             f"被积函数: f(x,y) = {expr}",

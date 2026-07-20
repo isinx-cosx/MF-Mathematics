@@ -7,7 +7,9 @@ from __future__ import annotations
 
 from typing import Any, Union
 
-import sympy as sp
+import logging, sympy as sp
+
+logger = logging.getLogger(__name__)
 
 from ..core.math_object import MathObject
 from ..core.registry import register
@@ -131,7 +133,7 @@ def laurent_series(
                 c = sp.limit((expr * (var_sym - z0_sym) ** (-k - 1)), var_sym, z0_sym)
                 coeffs.append((k, sp.simplify(c)))
             except Exception:
-                pass
+                logger.debug("洛朗系数计算失败 (k=%s)，跳过该系数", k)
 
         # 分类主部
         principal_part = []
