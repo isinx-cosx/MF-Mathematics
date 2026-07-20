@@ -21,7 +21,7 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name='MF-Mathematics-v1.0.3',
+    name='MF-Mathematics-v1.0.4',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -40,5 +40,5 @@ coll = COLLECT(
     strip=False,
     upx=True,
     upx_exclude=[],
-    name='MF-Mathematics-v1.0.3',
+    name='MF-Mathematics-v1.0.4',
 )
