@@ -5,22 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MF-Mathematics · 在线演示</title>
 <style>
-  /* ═══════════════════════════════════════════════════════════════
-     MF-Mathematics Demo — 精确复刻 MF_UI/styles/light.qss 配色
-     ═══════════════════════════════════════════════════════════════ */
   :root {
-    --bg:         #f8fafc;
-    --surface:    #ffffff;
-    --border:     #e2e8f0;
-    --border-in:  #d1d5db;
-    --text:       #0f172a;
-    --text-muted: #475569;
-    --text-subtle:#94a3b8;
-    --primary:    #3b82f6;
-    --primary-hv: #2563eb;
-    --accent:     #00d4ff;
-    --radius:     12px;
-    --shadow:     0 1px 3px rgba(0,0,0,.06);
+    --bg:#f8fafc;--surface:#fff;--border:#e2e8f0;--border-in:#d1d5db;
+    --text:#0f172a;--text-muted:#475569;--text-subtle:#94a3b8;
+    --primary:#3b82f6;--primary-hv:#2563eb;--accent:#00d4ff;
+    --radius:12px;--shadow:0 1px 3px rgba(0,0,0,.06);
   }
   *{margin:0;padding:0;box-sizing:border-box}
   body{
@@ -29,63 +18,31 @@
     min-height:100vh;display:flex;flex-direction:column;align-items:center;
     padding:20px 16px 48px;
   }
-
-  /* ── 顶部 ── */
   .topbar{
     width:100%;max-width:960px;display:flex;align-items:center;
     justify-content:space-between;margin-bottom:20px;
   }
   .brand{font-size:20px;font-weight:700;display:flex;align-items:center;gap:10px}
-  .brand .logo{
-    width:36px;height:36px;background:var(--primary);border-radius:10px;
-    display:flex;align-items:center;justify-content:center;
-    color:#fff;font-weight:800;font-size:16px;
-  }
+  .brand .logo{width:36px;height:36px;background:var(--primary);border-radius:10px;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:16px}
   .back-link{color:var(--text-muted);text-decoration:none;font-size:14px;padding:8px 16px;border:1px solid var(--border);border-radius:8px;transition:all .15s}
   .back-link:hover{background:var(--border);color:var(--text)}
-
-  /* ── 模式选项卡 ── */
-  .tabs{
-    width:100%;max-width:960px;display:flex;gap:0;margin-bottom:0;
-  }
-  .tabs button{
-    padding:10px 24px;font-size:14px;font-weight:600;
-    border:1px solid var(--border);border-bottom:none;
-    background:#f1f5f9;color:var(--text-subtle);
-    border-radius:10px 10px 0 0;cursor:pointer;transition:all .15s;
-    margin-right:2px;
-  }
-  .tabs button.active{
-    background:var(--surface);color:var(--text);
-    border-bottom:2px solid var(--primary);
-  }
+  .tabs{width:100%;max-width:960px;display:flex;gap:0;margin-bottom:0}
+  .tabs button{padding:10px 24px;font-size:14px;font-weight:600;border:1px solid var(--border);border-bottom:none;background:#f1f5f9;color:var(--text-subtle);border-radius:10px 10px 0 0;cursor:pointer;transition:all .15s;margin-right:2px}
+  .tabs button.active{background:var(--surface);color:var(--text);border-bottom:2px solid var(--primary)}
   .tabs button:hover:not(.active){background:#e2e8f0}
-
-  /* ── 工作区卡片 ── */
   .card{
-    width:100%;max-width:960px;background:var(--surface);
-    border:1px solid var(--border);border-radius:0 16px 16px 16px;
-    padding:24px 28px;box-shadow:var(--shadow);margin-bottom:20px;
+    width:100%;max-width:960px;background:var(--surface);border:1px solid var(--border);
+    border-radius:0 16px 16px 16px;padding:24px 28px;box-shadow:var(--shadow);margin-bottom:20px;
+    transition:opacity .15s;
   }
-  .card-inner{display:none}
-  .card-inner.active{display:block}
-
-  /* ═══════ LCD 显示屏 ═══════ */
-  .lcd{
-    background:var(--bg);border:2px solid #cbd5e1;border-radius:10px;
-    padding:12px 16px;margin-bottom:12px;min-height:88px;
-    display:flex;flex-direction:column;justify-content:flex-end;align-items:flex-end;
-  }
+  .card-inner{display:none}.card-inner.active{display:block}
+  /* LCD */
+  .lcd{background:var(--bg);border:2px solid #cbd5e1;border-radius:10px;padding:12px 16px;margin-bottom:12px;min-height:88px;display:flex;flex-direction:column;justify-content:flex-end;align-items:flex-end}
   .lcd .expr{color:var(--text-muted);font-size:16px;min-height:22px;word-break:break-all}
   .lcd .result{color:var(--text);font-size:40px;font-weight:700;min-height:48px;word-break:break-all}
-
-  /* ═══════ 计算器按钮网格 ═══════ */
+  /* 按钮网格 */
   .btn-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:4px}
-  .btn-grid button{
-    padding:12px 4px;font-size:15px;font-weight:500;
-    border-radius:6px;border:none;cursor:pointer;transition:all .12s;
-    min-height:44px;font-family:inherit;
-  }
+  .btn-grid button{padding:12px 4px;font-size:15px;font-weight:500;border-radius:6px;border:none;cursor:pointer;transition:all .12s;min-height:44px;font-family:inherit}
   .btn-num{background:#fff;color:var(--text);border:1px solid var(--border)!important}
   .btn-num:hover{background:#f1f5f9}.btn-num:active{background:#e2e8f0}
   .btn-op{background:#eff6ff;color:var(--primary-hv);border:1px solid #bfdbfe!important;font-weight:600}
@@ -100,75 +57,30 @@
   .btn-paren:hover{background:#f1f5f9}.btn-paren:active{background:var(--border)}
   .btn-const{background:#f0fdf4;color:#16a34a;border:1px solid #bbf7d0!important;font-size:13px;font-weight:600}
   .btn-const:hover{background:#dcfce7}.btn-const:active{background:#bbf7d0}
-
-  /* ═══════ 代数模式 ═══════ */
+  /* 代数 */
   .calc-row{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}
-  .calc-row input{
-    flex:1 1 240px;padding:10px 14px;font-size:15px;
-    font-family:'Cascadia Code','Fira Code','Consolas',monospace;
-    border:1px solid var(--border-in);border-radius:8px;outline:none;
-    background:#fafafa;color:var(--text);transition:border-color .15s;
-  }
+  .calc-row input{flex:1 1 240px;padding:10px 14px;font-size:15px;font-family:'Cascadia Code','Fira Code','Consolas',monospace;border:1px solid var(--border-in);border-radius:8px;outline:none;background:#fafafa;color:var(--text);transition:border-color .15s}
   .calc-row input:focus{border-color:var(--primary);background:#fff}
-  .calc-row select{
-    padding:10px 14px;font-size:14px;border:1px solid var(--border-in);
-    border-radius:8px;background:#fafafa;color:var(--text);outline:none;
-    cursor:pointer;min-width:130px;
-  }
+  .calc-row select{padding:10px 14px;font-size:14px;border:1px solid var(--border-in);border-radius:8px;background:#fafafa;color:var(--text);outline:none;cursor:pointer;min-width:130px}
   .calc-row select:focus{border-color:var(--primary)}
-  .calc-row .btn-calc{
-    padding:10px 24px;font-size:14px;font-weight:600;
-    background:var(--primary);color:#fff;border:none;
-    border-radius:8px;cursor:pointer;white-space:nowrap;
-    transition:background .15s;
-  }
-  .calc-row .btn-calc:hover{background:var(--primary-hv)}
-  .btn-del{
-    width:34px;height:34px;background:transparent;color:var(--text-subtle);
-    border:none;font-size:20px;font-weight:700;border-radius:6px;cursor:pointer;
-  }
-  .btn-del:hover{background:#fee2e2;color:#ef4444}
-
-  /* ── 结果展示 ── */
-  .result-box{
-    margin-top:14px;padding:14px 18px;
-    background:#f0f9ff;border:1px solid #bfdbfe;border-radius:10px;
-    font-size:15px;color:var(--text);min-height:44px;
-  }
-  .result-box .steps{color:var(--text-muted);font-size:13px;margin-bottom:4px}
+  .btn-calc{padding:10px 24px;font-size:14px;font-weight:600;background:var(--primary);color:#fff;border:none;border-radius:8px;cursor:pointer;white-space:nowrap;transition:background .15s}
+  .btn-calc:hover{background:var(--primary-hv)}
+  .result-box{margin-top:14px;padding:14px 18px;background:#f0f9ff;border:1px solid #bfdbfe;border-radius:10px;font-size:15px;color:var(--text);min-height:44px}
+  .result-box .steps{color:var(--text-muted);font-size:13px;margin-bottom:4px;line-height:1.6}
   .result-box .answer{font-weight:700;color:var(--primary);font-size:18px;font-family:monospace}
-
-  /* ── 预设 ── */
+  /* 预设 */
   .presets{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
-  .presets button{
-    padding:8px 16px;font-size:13px;font-weight:500;
-    background:#eef2f6;color:var(--text-muted);
-    border:1px solid var(--border);border-radius:20px;cursor:pointer;
-    transition:all .15s;
-  }
+  .presets button{padding:8px 16px;font-size:13px;font-weight:500;background:#eef2f6;color:var(--text-muted);border:1px solid var(--border);border-radius:20px;cursor:pointer;transition:all .15s}
   .presets button:hover{background:#d0d9e6;color:var(--text)}
   .presets button.active{background:var(--primary);color:#fff;border-color:var(--primary)}
-
-  /* ═══════ 绘图卡片 ═══════ */
-  .plot-card{
-    width:100%;max-width:960px;background:var(--surface);
-    border:1px solid var(--border);border-radius:16px;
-    box-shadow:var(--shadow);overflow:hidden;
-  }
-  .plot-card .header{
-    padding:14px 24px;border-bottom:1px solid var(--border);
-    font-size:14px;font-weight:600;color:var(--text-muted);
-    display:flex;align-items:center;gap:8px;
-  }
-  .plot-card .header::before{
-    content:'';display:inline-block;width:8px;height:8px;
-    background:var(--accent);border-radius:50%;
-  }
+  /* 绘图 */
+  .plot-card{width:100%;max-width:960px;background:var(--surface);border:1px solid var(--border);border-radius:16px;box-shadow:var(--shadow);overflow:hidden}
+  .plot-card .header{padding:14px 24px;border-bottom:1px solid var(--border);font-size:14px;font-weight:600;color:var(--text-muted);display:flex;align-items:center;gap:8px}
+  .plot-card .header::before{content:'';display:inline-block;width:8px;height:8px;background:var(--accent);border-radius:50%}
   canvas{display:block;width:100%;height:auto;background:#fcfdfd}
-
   @media(max-width:600px){
     .card{padding:14px 10px}
-    .btn-grid button{font-size:13px;padding:8px 2px;min-height:38px}
+    .btn-grid button{font-size:13px;padding:8px 2px;min-height:42px}
     .lcd .result{font-size:28px}
     .calc-row input{font-size:14px}
     .brand{font-size:16px}
@@ -179,182 +91,133 @@
 </head>
 <body>
 
-<!-- ═══ 顶部 ═══ -->
 <div class="topbar">
   <div class="brand"><div class="logo">M</div>MF-Mathematics</div>
   <a class="back-link" href="/">← 返回首页</a>
 </div>
 
-<!-- ═══ 模式选项卡 ═══ -->
 <div class="tabs">
   <button class="active" data-tab="tabCalc">🔢 基础运算</button>
   <button data-tab="tabAlgebra">📐 代数计算</button>
 </div>
 
-<!-- ═══ 基础运算卡片 ═══ -->
 <div class="card" id="tabCalc">
   <div class="card-inner active">
-    <div class="lcd">
-      <div class="expr" id="calcExpr"></div>
-      <div class="result" id="calcResult">0</div>
-    </div>
+    <div class="lcd"><div class="expr" id="calcExpr"></div><div class="result" id="calcResult">0</div></div>
     <div class="btn-grid" id="btnGrid"></div>
   </div>
 </div>
 
-<!-- ═══ 代数计算卡片 ═══ -->
 <div class="card" id="tabAlgebra" style="display:none">
   <div class="card-inner">
     <div class="calc-row">
-      <input id="algInput" type="text" placeholder="输入表达式，如 x^2+3*x-1、sin(x)*cos(x)" autofocus>
+      <input id="algInput" type="text" placeholder="输入表达式：x^2+3*x-1、sin(x)*cos(x)">
       <select id="algMode">
-        <optgroup label="代数">
-          <option>解方程/组</option><option>解不等式/组</option>
-          <option>表达式化简</option>
-          <option>因式分解</option><option>展开</option>
-        </optgroup>
-        <optgroup label="微积分">
-          <option>求导</option><option>不定积分</option><option>定积分</option>
-          <option>极限</option>
-        </optgroup>
-        <optgroup label="数列">
-          <option>数列通项</option><option>等差数列求和</option><option>等比数列求和</option>
-        </optgroup>
-        <optgroup label="其他">
-          <option>复数运算</option><option>排列数</option><option>组合数</option>
-        </optgroup>
+        <optgroup label="代数"><option>解方程/组</option><option>解不等式/组</option><option>表达式化简</option><option>因式分解</option><option>展开</option><option>判别式</option><option>韦达定理</option></optgroup>
+        <optgroup label="微积分"><option>求导</option><option>不定积分</option><option>定积分</option><option>极限</option></optgroup>
+        <optgroup label="数列"><option>数列通项</option><option>等差数列求和</option><option>等比数列求和</option></optgroup>
+        <optgroup label="其他"><option>复数运算</option><option>排列数</option><option>组合数</option></optgroup>
       </select>
       <button class="btn-calc" id="algBtn">计算结果</button>
     </div>
-    <div class="result-box" id="algResult">
-      <span style="color:var(--text-subtle)">选择模式并输入表达式，然后点击「计算结果」</span>
-    </div>
+    <div class="result-box" id="algResult"><span style="color:var(--text-subtle)">选择模式并输入表达式，然后点击「计算结果」</span></div>
     <div class="presets" id="algPresets">
       <button data-expr="x^2+2*x-3" data-mode="解方程/组">x²+2x−3=0</button>
-      <button data-expr="x^3-4*x^2+x+6" data-mode="因式分解">因式分解 x³−4x²+x+6</button>
+      <button data-expr="x^3-4*x^2+x+6" data-mode="因式分解">因式分解</button>
       <button data-expr="sin(x)*cos(x)" data-mode="求导">求导 sin(x)cos(x)</button>
       <button data-expr="x^2*sin(x)" data-mode="不定积分">积分 x²sin(x)</button>
+      <button data-expr="tan(x)" data-mode="">绘制 tan(x)</button>
     </div>
   </div>
 </div>
 
-<!-- ═══ 绘图卡片 ═══ -->
 <div class="plot-card">
   <div class="header" id="plotTitle">f(x) = x²</div>
   <canvas id="plotCanvas"></canvas>
 </div>
 
 <script>
-/* ═══════════════════════════════════════════════════════════════════
-   MF-Mathematics Demo — 完整数学引擎 + 计算器 + 代数 + Canvas 绘图
-   纯前端，零依赖，使用原生 JS 数学解析器
-   ═══════════════════════════════════════════════════════════════════ */
 (function(){'use strict';
-
-/* ═══════════════════════════════════════════════════════════════════
-   第一部分：安全数学表达式解析器（递归下降，无 eval/Function）
-   ═══════════════════════════════════════════════════════════════════ */
-
+/* ═══════════════════════════════════════════════════════
+   1. 数学表达式解析器 — 递归下降（零 eval / new Function）
+   ═══════════════════════════════════════════════════════ */
 var TOK_NUM=1,TOK_ID=2,TOK_OP=3,TOK_LP=4,TOK_RP=5,TOK_COMMA=6;
 
+/* 预处理：替换特殊符号 */
+function preprocess(s){
+  return s.replace(/×/g,'*').replace(/÷/g,'/').replace(/−/g,'-').replace(/x²/g,'x^2');
+}
+
 function tokenize(s){
-  var tokens=[],i=0;
-  while(i<s.length){
+  var tokens=[],i=0,n=s.length;
+  while(i<n){
     var c=s[i];
     if(/\s/.test(c)){i++;continue}
-    if(/[0-9.]/.test(c)){
-      var num='';
-      while(i<s.length&&/[0-9.]/.test(s[i]))num+=s[i++];
-      tokens.push({type:TOK_NUM,value:parseFloat(num)});continue;
-    }
-    if(/[a-zA-Z]/.test(c)){
-      var id='';
-      while(i<s.length&&/[a-zA-Z0-9_]/.test(s[i]))id+=s[i++];
-      tokens.push({type:TOK_ID,value:id});continue;
-    }
+    if(/[0-9.]/.test(c)){var num='';while(i<n&&/[0-9.]/.test(s[i]))num+=s[i++];tokens.push({type:TOK_NUM,value:+num});continue}
+    if(/[a-zA-Z]/.test(c)){var id='';while(i<n&&/[a-zA-Z0-9_]/.test(s[i]))id+=s[i++];tokens.push({type:TOK_ID,value:id});continue}
     if(c==='('){tokens.push({type:TOK_LP});i++;continue}
     if(c===')'){tokens.push({type:TOK_RP});i++;continue}
     if(c===','){tokens.push({type:TOK_COMMA});i++;continue}
     if(c==='^'){tokens.push({type:TOK_OP,value:'^',prec:4,right:true});i++;continue}
+    if(c==='%'){tokens.push({type:TOK_OP,value:'%',prec:3});i++;continue}
     if(c==='*'){tokens.push({type:TOK_OP,value:'*',prec:3});i++;continue}
     if(c==='/'){tokens.push({type:TOK_OP,value:'/',prec:3});i++;continue}
     if(c==='+'){tokens.push({type:TOK_OP,value:'+',prec:2});i++;continue}
     if(c==='-'){
       var prev=tokens.length?tokens[tokens.length-1]:null;
-      if(!prev||prev.type===TOK_OP||prev.type===TOK_LP||prev.type===TOK_COMMA){
-        tokens.push({type:TOK_NUM,value:0});
-        tokens.push({type:TOK_OP,value:'u-',prec:5,right:true});
-      }else{tokens.push({type:TOK_OP,value:'-',prec:2});}
+      if(!prev||prev.type===TOK_OP||prev.type===TOK_LP||prev.type===TOK_COMMA){tokens.push({type:TOK_NUM,value:0});tokens.push({type:TOK_OP,value:'u-',prec:5,right:true})}
+      else tokens.push({type:TOK_OP,value:'-',prec:2});
       i++;continue;
     }
     i++;
   }
-  /* 插入隐式乘法 */
+  /* 隐式乘法: 2x→2*x, x(→x*(, )x→)*x, 2(→2*( */
   var out=[];
   for(var j=0;j<tokens.length;j++){
-    var a=tokens[j],b=tokens[j+1];
-    out.push(a);
-    if(!b)break;
-    var canMul=(a.type===TOK_NUM||a.type===TOK_RP||a.type===TOK_ID)&&
-               (b.type===TOK_NUM||b.type===TOK_LP||b.type===TOK_ID);
-    if(canMul){
-      var aIsNum=a.type===TOK_NUM,bIsNum=b.type===TOK_NUM;
-      if(!(aIsNum&&bIsNum))out.push({type:TOK_OP,value:'*',prec:3});
-    }
+    var a=tokens[j],b=tokens[j+1];out.push(a);if(!b)break;
+    var can=(a.type===TOK_NUM||a.type===TOK_RP||a.type===TOK_ID)&&(b.type===TOK_NUM||b.type===TOK_LP||b.type===TOK_ID);
+    if(can&&!(a.type===TOK_NUM&&b.type===TOK_NUM))out.push({type:TOK_OP,value:'*',prec:3});
   }
   return out;
 }
 
-var CONSTANTS={pi:Math.PI,'PI':Math.PI,e:Math.E,'E':Math.E};
+/* 常量 & 函数表 */
+var CONSTANTS={pi:Math.PI,PI:Math.PI,e:Math.E,E:Math.E};
 var FUNCTIONS={
-  sin:Math.sin,cos:Math.cos,tan:Math.tan,asin:Math.asin,acos:Math.acos,atan:Math.atan,
-  sqrt:Math.sqrt,abs:Math.abs,log:Math.log,log10:Math.log10,exp:Math.exp,
-  factorial:function(n){if(n<0||n!==Math.floor(n))return NaN;var r=1;for(var k=2;k<=n;k++)r*=k;return r;},
-  sign:function(x){return x>0?1:x<0?-1:0;},
-  floor:Math.floor,ceil:Math.ceil,round:Math.round,pow:Math.pow,
+  sin:Math.sin,cos:Math.cos,tan:Math.tan,
+  csc:function(x){return 1/Math.sin(x)},sec:function(x){return 1/Math.cos(x)},cot:function(x){return 1/Math.tan(x)},
+  asin:Math.asin,acos:Math.acos,atan:Math.atan,
+  acsc:function(x){return Math.asin(1/x)},asec:function(x){return Math.acos(1/x)},acot:function(x){return Math.PI/2-Math.atan(x)},
+  sinh:Math.sinh,cosh:Math.cosh,tanh:Math.tanh,
+  asinh:Math.asinh,acosh:Math.acosh,atanh:Math.atanh,
+  sqrt:Math.sqrt,cbrt:Math.cbrt,abs:Math.abs,log:Math.log,log10:Math.log10,log2:Math.log2,exp:Math.exp,
+  factorial:function(n){if(n<0||n!==Math.floor(n))return NaN;var r=1;for(var k=2;k<=n;k++)r*=k;return r},
+  sign:Math.sign,floor:Math.floor,ceil:Math.ceil,round:Math.round,pow:Math.pow,
 };
 
 function parse(tokens){
   var pos=0;
   function cur(){return tokens[pos]}
-  function eat(t){if(t!==undefined&&cur().type!==t)throw Error('expected '+t);pos++}
+  function eat(t){if(t!==undefined&&cur().type!==t)throw Error('Expected token type '+t);pos++}
   function primary(){
-    var t=cur();
+    var t=cur();if(!t)throw Error('Unexpected end');
     if(t.type===TOK_NUM){eat();return t.value}
     if(t.type===TOK_LP){eat();var v=expr();eat(TOK_RP);return v}
-    if(t.type===TOK_ID){
-      eat();var id=t.value;
-      if(cur()&&cur().type===TOK_LP){
-        eat();var args=[];if(cur().type!==TOK_RP){args.push(expr());while(cur().type===TOK_COMMA){eat();args.push(expr())}}
-        eat(TOK_RP);
-        var fn=FUNCTIONS[id];
-        if(fn)return fn.apply(null,args);
-        throw Error('Unknown function: '+id);
-      }
+    if(t.type===TOK_ID){eat();var id=t.value;
+      if(cur()&&cur().type===TOK_LP){eat();var args=[];if(cur().type!==TOK_RP){args.push(expr());while(cur().type===TOK_COMMA){eat();args.push(expr())}}eat(TOK_RP);
+        var fn=FUNCTIONS[id];if(fn)return fn.apply(null,args);throw Error('Unknown function: '+id);}
       if(CONSTANTS.hasOwnProperty(id))return CONSTANTS[id];
-      if(id==='x')return NaN; /* 变量占位，绘图时替换 */
-      throw Error('Unknown identifier: '+id);
-    }
-    throw Error('Unexpected token');
+      if(id==='x')return NaN;throw Error('Unknown identifier: '+id);}
+    throw Error('Unexpected token type: '+t.type);
   }
-  function unary(){
-    if(cur().type===TOK_OP&&cur().value==='u-'){eat();return -unary()}
-    return primary();
-  }
+  function unary(){if(cur()&&cur().type===TOK_OP&&cur().value==='u-'){eat();return -unary()}return primary()}
   function binary(minPrec){
     var left=unary();
     while(cur()&&cur().type===TOK_OP&&cur().value!=='u-'){
-      var op=cur();
-      if(op.prec===undefined)break;
-      var p=op.prec-(op.right?1:0);
-      if(p<minPrec)break;
-      eat();
+      var op=cur();if(op.prec===undefined)break;
+      var p=op.prec-(op.right?1:0);if(p<minPrec)break;eat();
       var right=binary(op.prec+(op.right?0:1));
-      switch(op.value){
-        case'+':left=left+right;break;case'-':left=left-right;break;
-        case'*':left=left*right;break;case'/':left=left/right;break;
-        case'^':left=Math.pow(left,right);break;
-      }
+      switch(op.value){case'+':left+=right;break;case'-':left-=right;break;case'*':left*=right;break;case'/':left/=right;break;case'^':left=Math.pow(left,right);break;case'%':left%=right;break;}
     }
     return left;
   }
@@ -362,63 +225,45 @@ function parse(tokens){
   return expr();
 }
 
-function safeEval(str){
-  var replaced=str
-    .replace(/×/g,'*').replace(/÷/g,'/').replace(/−/g,'-')
-    .replace(/x²/g,'x^2').replace(/(\d+)x/g,'$1*x');
-  var tokens=tokenize(replaced);
-  /* 将 x 替换为占位 */
-  var t2=[];
+/* 统一入口：替换 x 为指定值后求值 */
+function evaluate(str,xVal){
+  var s=preprocess(str);
+  var tokens=tokenize(s),t2=[];
   for(var i=0;i<tokens.length;i++){
     var t=tokens[i];
-    if(t.type===TOK_ID&&t.value==='x')t2.push({type:TOK_NUM,value:1}); /* 占位 */
+    if(xVal!==undefined&&t.type===TOK_ID&&t.value==='x')t2.push({type:TOK_NUM,value:xVal});
+    else if(xVal===undefined&&t.type===TOK_ID&&t.value==='x')t2.push({type:TOK_NUM,value:1}); /* 占位 */
     else t2.push(t);
   }
   return parse(t2);
 }
+function containsX(str){return /\bx\b/.test(preprocess(str))}
 
-function evalAt(str,x){
-  var replaced=str
-    .replace(/×/g,'*').replace(/÷/g,'/').replace(/−/g,'-')
-    .replace(/x²/g,'x^2').replace(/(\d+)x/g,'$1*x');
-  var tokens=tokenize(replaced);
-  var t2=[];
-  for(var i=0;i<tokens.length;i++){
-    var t=tokens[i];
-    if(t.type===TOK_ID&&t.value==='x')t2.push({type:TOK_NUM,value:x});
-    else t2.push(t);
-  }
-  return parse(t2);
-}
-
-function containsX(str){return /\bx\b/.test(str)}
-
-/* ═══════════════════════════════════════════════════════════════════
-   第二部分：Canvas 绘图
-   ═══════════════════════════════════════════════════════════════════ */
-
-var canvas=document.getElementById('plotCanvas');
-var ctx=canvas.getContext('2d');
+/* ═══════════════════════════════════════════════════════
+   2. Canvas 绘图 — 间断点检测 + f(2) 标记 + 轴标签
+   ═══════════════════════════════════════════════════════ */
+var canvas=document.getElementById('plotCanvas'),ctx=canvas.getContext('2d');
 var plotTitle=document.getElementById('plotTitle');
 
 function draw(fnExpr){
   var dpr=window.devicePixelRatio||1;
   var rect=canvas.parentElement.getBoundingClientRect();
-  var w=Math.min(rect.width-2,960);
-  var h=Math.round(w*0.55);
+  var w=Math.min(rect.width-2,960),h=Math.round(w*0.55);
   canvas.width=w*dpr;canvas.height=h*dpr;
   canvas.style.width=w+'px';canvas.style.height=h+'px';
   ctx.setTransform(1,0,0,1,0,0);ctx.scale(dpr,dpr);
 
-  var pad={top:24,right:24,bottom:36,left:48};
+  var pad={top:30,right:30,bottom:40,left:56};
   var pw=w-pad.left-pad.right,ph=h-pad.top-pad.bottom;
   var xMin=-5,xMax=5;
-  var N=Math.max(400,Math.round(pw*2));
+  var N=Math.min(800,Math.round(pw*2)); /* 高DPI不浪费 */
   var pts=[],yMin=Infinity,yMax=-Infinity;
   for(var i=0;i<=N;i++){
     var xv=xMin+(xMax-xMin)*i/N;
-    var yv=evalAt(fnExpr,xv);
+    var yv;try{yv=evaluate(fnExpr,xv)}catch(_){continue}
     if(typeof yv!=='number'||!isFinite(yv)||Math.abs(yv)>1000)continue;
+    /* 间断点检测：相邻Y跳变>100 → 断开 */
+    if(pts.length>0&&Math.abs(yv-pts[pts.length-1].y)>100)pts.push(null);
     pts.push({x:xv,y:yv});if(yv<yMin)yMin=yv;if(yv>yMax)yMax=yv;
   }
   if(!isFinite(yMin)){yMin=-5;yMax=5}
@@ -432,14 +277,9 @@ function draw(fnExpr){
   /* 网格 */
   ctx.strokeStyle='#e2e8f0';ctx.lineWidth=.5;
   var xStep=xMax-xMin>10?2:1;
-  for(var gx=Math.ceil(xMin);gx<=xMax;gx+=xStep){
-    ctx.beginPath();ctx.moveTo(tx(gx),pad.top);ctx.lineTo(tx(gx),h-pad.bottom);ctx.stroke();
-  }
-  var yExt=yMax-yMin;
-  var yStep=yExt>20?5:yExt>10?2:yExt>4?1:.5;
-  for(var gy=Math.ceil(yMin/yStep)*yStep;gy<=yMax;gy+=yStep){
-    ctx.beginPath();ctx.moveTo(pad.left,ty(gy));ctx.lineTo(w-pad.right,ty(gy));ctx.stroke();
-  }
+  for(var gx=Math.ceil(xMin);gx<=xMax;gx+=xStep){ctx.beginPath();ctx.moveTo(tx(gx),pad.top);ctx.lineTo(tx(gx),h-pad.bottom);ctx.stroke()}
+  var yExt=yMax-yMin,yStep=yExt>20?5:yExt>10?2:yExt>4?1:.5;
+  for(var gy=Math.ceil(yMin/yStep)*yStep;gy<=yMax;gy+=yStep){ctx.beginPath();ctx.moveTo(pad.left,ty(gy));ctx.lineTo(w-pad.right,ty(gy));ctx.stroke()}
 
   /* 坐标轴 */
   ctx.strokeStyle='#1e293b';ctx.lineWidth=1.5;
@@ -451,33 +291,43 @@ function draw(fnExpr){
   ctx.textAlign='center';
   for(var txv=Math.ceil(xMin);txv<=xMax;txv+=xStep)ctx.fillText(txv,tx(txv),h-pad.bottom+16);
   ctx.textAlign='right';
-  for(var tyv=Math.ceil(yMin/yStep)*yStep;tyv<=yMax;tyv+=yStep){
-    if(Math.abs(tyv)<.001)continue;ctx.fillText(Number(tyv.toFixed(2)),pad.left-6,ty(tyv)+4);
-  }
+  for(var tyv=Math.ceil(yMin/yStep)*yStep;tyv<=yMax;tyv+=yStep){if(Math.abs(tyv)<.001)continue;ctx.fillText(Number(tyv.toFixed(2)),pad.left-6,ty(tyv)+4)}
 
-  /* 箭头 */
+  /* 箭头 + 轴标签 */
   ctx.fillStyle='#1e293b';
-  ctx.beginPath();var ax=w-pad.right+8,ay=ty(0);ctx.moveTo(ax,ay);ctx.lineTo(ax-8,ay-4);ctx.lineTo(ax-8,ay+4);ctx.fill();
-  ctx.beginPath();var bx=tx(0),by=pad.top-8;ctx.moveTo(bx,by);ctx.lineTo(bx-4,by+8);ctx.lineTo(bx+4,by+8);ctx.fill();
+  ctx.beginPath();var ax=w-pad.right+10,ay=ty(0);ctx.moveTo(ax,ay);ctx.lineTo(ax-8,ay-4);ctx.lineTo(ax-8,ay+4);ctx.fill();
+  ctx.beginPath();var bx=tx(0),by=pad.top-10;ctx.moveTo(bx,by);ctx.lineTo(bx-4,by+8);ctx.lineTo(bx+4,by+8);ctx.fill();
   ctx.textAlign='right';ctx.fillText('O',tx(0)-6,ty(0)+14);
+  /* x / y 标签 */
+  ctx.font='bold 13px "Segoe UI",system-ui,sans-serif';ctx.textAlign='center';
+  ctx.fillText('x',w-pad.right+10,ty(0)+16);
+  ctx.fillText('y',tx(0),pad.top-12);
 
-  /* 曲线 */
-  if(pts.length>1){
-    ctx.strokeStyle='#00d4ff';ctx.lineWidth=2.5;ctx.lineJoin='round';ctx.lineCap='round';
-    ctx.beginPath();ctx.moveTo(tx(pts[0].x),ty(pts[0].y));
-    for(var k=1;k<pts.length;k++)ctx.lineTo(tx(pts[k].x),ty(pts[k].y));
-    ctx.stroke();
+  /* 曲线（支持 null 断点） */
+  ctx.strokeStyle='#00d4ff';ctx.lineWidth=2.5;ctx.lineJoin='round';ctx.lineCap='round';
+  var drawing=false;
+  for(var k=0;k<pts.length;k++){
+    if(pts[k]===null){drawing=false;continue}
+    var px=tx(pts[k].x),py=ty(pts[k].y);
+    if(!drawing){ctx.beginPath();ctx.moveTo(px,py);drawing=true}else ctx.lineTo(px,py);
   }
+  ctx.stroke();
+
+  /* f(2) 标记点 */
+  try{var f2=evaluate(fnExpr,2);if(typeof f2==='number'&&isFinite(f2)&&f2>yMin&&f2<yMax){
+    ctx.fillStyle='#ef4444';ctx.beginPath();ctx.arc(tx(2),ty(f2),5,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#0f172a';ctx.font='bold 12px "Segoe UI",system-ui,sans-serif';ctx.textAlign='left';
+    ctx.fillText('f(2)='+f2.toFixed(4),tx(2)+8,ty(f2)+4);
+  }}catch(_){}
+
   plotTitle.textContent='f(x) = '+fnExpr;
 }
 
-/* ═══════════════════════════════════════════════════════════════════
-   第三部分：基础运算 — 计算器（复刻 CalculatorWidget）
-   ═══════════════════════════════════════════════════════════════════ */
-
+/* ═══════════════════════════════════════════════════════
+   3. 基础运算 — 计算器 (复刻 CalculatorWidget + 键盘)
+   ═══════════════════════════════════════════════════════ */
 var calcExpr='',calcCurrent='0',calcDisplayExpr='';
-var calcExprEl=document.getElementById('calcExpr');
-var calcResultEl=document.getElementById('calcResult');
+var calcExprEl=document.getElementById('calcExpr'),calcResultEl=document.getElementById('calcResult');
 
 var BUTTONS=[
   ['C',0,0,'ctrl'],['⌫',0,1,'ctrl'],['(',0,2,'paren'],[')',0,3,'paren'],['÷',0,4,'op'],
@@ -489,12 +339,10 @@ var BUTTONS=[
 ];
 
 function buildCalcButtons(){
-  var grid=document.getElementById('btnGrid');
-  grid.innerHTML='';
+  var grid=document.getElementById('btnGrid');grid.innerHTML='';
   for(var i=0;i<BUTTONS.length;i++){
     var b=BUTTONS[i],text=b[0],cls=b[3];
-    var btn=document.createElement('button');
-    btn.textContent=text;btn.className='btn-'+cls;
+    var btn=document.createElement('button');btn.textContent=text;btn.className='btn-'+cls;
     btn.addEventListener('click',(function(t){return function(){onCalcBtn(t)}})(text));
     grid.appendChild(btn);
   }
@@ -503,8 +351,7 @@ function buildCalcButtons(){
 function fmtResult(v){
   if(typeof v!=='number'||!isFinite(v))return '错误';
   if(Math.abs(v)>=1e12||(Math.abs(v)<1e-10&&v!==0))return v.toExponential(6);
-  var s=v.toFixed(12);s=s.replace(/\.?0+$/,'');if(s==='')s='0';
-  if(s.length>14)s=v.toPrecision(12);
+  var s=v.toFixed(12);s=s.replace(/\.?0+$/,'');if(s==='')s='0';if(s.length>14)s=v.toPrecision(12);
   return s;
 }
 
@@ -513,19 +360,10 @@ function onCalcBtn(text){
   if(text==='⌫'){backspaceCalc();return}
   if(text==='='){evaluateCalc();return}
   if(text==='±'){toggleSign();return}
-
   var opMap={'×':'*','÷':'/','−':'-','x²':'^2','1/x':'^(-1)'};
-  if(opMap.hasOwnProperty(text)){
-    calcExpr+=opMap[text];calcCurrent='';
-    calcDisplayExpr+=text;updateCalcLCD();return;
-  }
-
+  if(opMap.hasOwnProperty(text)){calcExpr+=opMap[text];calcCurrent='';calcDisplayExpr+=text;updateCalcLCD();return}
   var funcMap={'√':'sqrt(','n!':'factorial(','xⁿ':'^(','π':'pi','e':'e','log':'log10(','ln':'log('};
-  if(funcMap.hasOwnProperty(text)){
-    calcExpr+=funcMap[text];calcCurrent='';
-    calcDisplayExpr+=text;updateCalcLCD();return;
-  }
-
+  if(funcMap.hasOwnProperty(text)){calcExpr+=funcMap[text];calcCurrent='';calcDisplayExpr+=text;updateCalcLCD();return}
   calcExpr+=text;calcDisplayExpr+=text;
   if(calcCurrent==='0'||calcCurrent==='')calcCurrent=text;else calcCurrent+=text;
   updateCalcLCD();
@@ -535,284 +373,211 @@ function backspaceCalc(){
   if(!calcExpr)return;
   var mt=['factorial(','^(-1)','^2','^(','sqrt(','log10(','log(','pi','e'];
   var found=false;
-  for(var i=0;i<mt.length;i++){
-    if(calcExpr.endsWith(mt[i])){calcExpr=calcExpr.slice(0,-mt[i].length);calcDisplayExpr=calcDisplayExpr.slice(0,-mt[i].length);found=true;break}
-  }
+  for(var i=0;i<mt.length;i++){if(calcExpr.endsWith(mt[i])){calcExpr=calcExpr.slice(0,-mt[i].length);calcDisplayExpr=calcDisplayExpr.slice(0,-mt[i].length);found=true;break}}
   if(!found){calcExpr=calcExpr.slice(0,-1);calcDisplayExpr=calcDisplayExpr.slice(0,-1)}
   if(calcCurrent.length>1)calcCurrent=calcCurrent.slice(0,-1);else calcCurrent='0';
   updateCalcLCD();
 }
 
 function toggleSign(){
-  if(!calcExpr)return;
-  if(calcExpr.startsWith('-')){calcExpr=calcExpr.slice(1);calcDisplayExpr=calcDisplayExpr.slice(1)}
+  if(!calcExpr)return;if(calcExpr.startsWith('-')){calcExpr=calcExpr.slice(1);calcDisplayExpr=calcDisplayExpr.slice(1)}
   else{calcExpr='-'+calcExpr;calcDisplayExpr='-'+calcDisplayExpr}
-  calcCurrent=calcExpr.slice(-8)||'0';
-  updateCalcLCD();
+  calcCurrent=calcExpr.slice(-8)||'0';updateCalcLCD();
 }
 
 function evaluateCalc(){
   if(!calcExpr.trim())return;
   try{
-    var e=calcExpr;
-    var openP=e.split('(').length-e.split(')').length;
+    var e=calcExpr,openP=e.split('(').length-e.split(')').length;
     for(var i=0;i<openP;i++)e+=')';
-    var val=safeEval(e);
+    var val=evaluate(e);
     if(typeof val==='number')val=fmtResult(val);
-    calcExprEl.textContent=calcDisplayExpr+' =';
-    calcResultEl.textContent=String(val);
-    calcCurrent=String(val);
-    /* 如果表达式含 x，绘图 */
+    calcExprEl.textContent=calcDisplayExpr+' =';calcResultEl.textContent=String(val);calcCurrent=String(val);
     if(containsX(calcExpr))draw(calcExpr);
   }catch(ex){calcResultEl.textContent='错误';calcCurrent='0'}
 }
 
-function updateCalcLCD(){
-  calcExprEl.textContent=calcDisplayExpr;
-  calcResultEl.textContent=calcCurrent||'0';
-}
+function updateCalcLCD(){calcExprEl.textContent=calcDisplayExpr;calcResultEl.textContent=calcCurrent||'0'}
 
-/* ═══════════════════════════════════════════════════════════════════
-   第四部分：代数计算 — 纯前端 SymPy-like 引擎
-   ═══════════════════════════════════════════════════════════════════ */
+/* 键盘支持 */
+document.addEventListener('keydown',function(e){
+  var activeCard=document.querySelector('.card-inner.active');
+  if(!activeCard)return;
+  var isCalc=activeCard.parentElement.id==='tabCalc';
+  var k=e.key;
+  if(isCalc){
+    if(/^[0-9.]$/.test(k)){onCalcBtn(k);return}
+    if(k==='+'){onCalcBtn('+');return}
+    if(k==='-'){onCalcBtn('−');return}
+    if(k==='*'){onCalcBtn('×');return}
+    if(k==='/'){e.preventDefault();onCalcBtn('÷');return}
+    if(k==='^'){onCalcBtn('xⁿ');return}
+    if(k==='('){onCalcBtn('(');return}
+    if(k===')'){onCalcBtn(')');return}
+    if(k==='Enter'){e.preventDefault();onCalcBtn('=');return}
+    if(k==='Backspace'){onCalcBtn('⌫');return}
+    if(k==='Escape'){onCalcBtn('C');return}
+    if(k==='%'){calcExpr+='%';calcDisplayExpr+='%';calcCurrent='';updateCalcLCD();return}
+  }else{
+    if(k==='Enter'){document.getElementById('algBtn').click();return}
+  }
+});
 
-var algInput=document.getElementById('algInput');
-var algMode=document.getElementById('algMode');
-var algBtn=document.getElementById('algBtn');
-var algResult=document.getElementById('algResult');
+/* ═══════════════════════════════════════════════════════
+   4. 代数计算 — 初等函数求导/积分规则 + 新增模式
+   ═══════════════════════════════════════════════════════ */
+var algInput=document.getElementById('algInput'),algMode=document.getElementById('algMode');
+var algBtn=document.getElementById('algBtn'),algResult=document.getElementById('algResult');
 var algPresets=document.getElementById('algPresets');
 
-/* 简单多项式操作 */
-function Poly(terms){this.terms=terms||{};} /* {deg:coeff} */
+/* 多项式类 */
+function Poly(terms){this.terms=terms||{}}
 Poly.fromStr=function(s){
-  s=s.replace(/\s/g,'').replace(/\^/g,'^');
-  var terms={},regex=/([+-]?\d*\.?\d*)\*?x\^?(\d*)|([+-]?\d+\.?\d*)/gi;
+  s=s.replace(/\s/g,'');var terms={};
+  var regex=/([+-]?\d*\.?\d*)\*?x\^(\d+)|([+-]?\d*\.?\d*)\*?x(?!\^)|([+-]?\d+\.?\d*)(?!\*?x)/gi;
   var match;
   while((match=regex.exec(s))!==null){
-    if(match[3]!==undefined){
-      var c=parseFloat(match[3]);
-      if(!isNaN(c))terms[0]=(terms[0]||0)+c;
-    }else{
-      var coeff=match[1],deg=match[2];
-      if(coeff===''||coeff==='+')coeff=1;else if(coeff==='-')coeff=-1;
-      else coeff=parseFloat(coeff);
-      deg=deg===''?1:parseInt(deg);
-      if(!isNaN(coeff))terms[deg]=(terms[deg]||0)+coeff;
+    if(match[1]!==undefined){var c=+match[1],d=+match[2];terms[d]=(terms[d]||0)+c}
+    else if(match[3]!==undefined){var c2=+match[3];terms[1]=(terms[1]||0)+c2}
+    else if(match[4]!==undefined){var c3=+match[4];if(!isNaN(c3))terms[0]=(terms[0]||0)+c3}
+  }
+  /* 回退：简单逐项扫描 */
+  if(Object.keys(terms).length===0){
+    s=s.replace(/--/g,'+').replace(/\+\+/g,'+');
+    var parts=s.split(/(?=[+-])/g);
+    for(var i=0;i<parts.length;i++){
+      var p=parts[i];if(!p)continue;
+      var sign=p[0]==='-'?-1:1;if(p[0]==='+'||p[0]==='-')p=p.slice(1);
+      if(!p)continue;
+      var xm=p.match(/^([\d.]*)\*?x(?:\^(\d+))?$/);
+      if(xm){var cc=+xm[1]||1;var dd=+xm[2]||1;terms[dd]=(terms[dd]||0)+sign*cc}
+      else{xm=p.match(/^([\d.]+)$/);if(xm)terms[0]=(terms[0]||0)+sign*(+xm[1])}
     }
   }
   return new Poly(terms);
 };
 Poly.prototype.toString=function(){
   var keys=Object.keys(this.terms).map(Number).sort(function(a,b){return b-a});
-  var parts=[];
-  for(var i=0;i<keys.length;i++){
-    var d=keys[i],c=this.terms[d];
-    if(c===0)continue;
-    var sign=c>=0?(parts.length?'+ ':'') :'- ';
-    var absC=Math.abs(c);
+  var parts=[];for(var i=0;i<keys.length;i++){var d=keys[i],c=this.terms[d];if(c===0)continue;
+    var sign=c>=0?(parts.length?'+ ':'') :'- ';var absC=Math.abs(c);
     var cs=absC===1&&d>0?'':(Number.isInteger(absC)?absC:absC.toFixed(4));
-    if(d===0)parts.push(sign+absC);
-    else if(d===1)parts.push(sign+cs+'x');
-    else parts.push(sign+cs+'x^'+d);
-  }
+    if(d===0)parts.push(sign+absC);else if(d===1)parts.push(sign+cs+'x');else parts.push(sign+cs+'x^'+d);}
   return parts.join(' ')||'0';
 };
 
-function solveQuadratic(a,b,c){
-  var disc=b*b-4*a*c;
-  if(disc<0)return '无实数解 (Δ='+disc.toFixed(2)+'<0)';
-  var sqrtD=Math.sqrt(disc);
-  var x1=(-b+sqrtD)/(2*a),x2=(-b-sqrtD)/(2*a);
-  return 'x₁='+x1.toFixed(6)+', x₂='+x2.toFixed(6);
+/* ── 初等函数导数规则 ── */
+var DERIV_RULES={
+  'sin':'cos(x)','cos':'-sin(x)','tan':'sec(x)^2',
+  'csc':'-csc(x)*cot(x)','sec':'sec(x)*tan(x)','cot':'-csc(x)^2',
+  'sinh':'cosh(x)','cosh':'sinh(x)','tanh':'sech(x)^2',
+  'exp(x)':'e^x','ln(x)':'1/x','log(x)':'1/(x*ln(10))','log10(x)':'1/(x*ln(10))',
+  'sqrt(x)':'1/(2*sqrt(x))','asin(x)':'1/sqrt(1-x^2)','acos(x)':'-1/sqrt(1-x^2)','atan(x)':'1/(1+x^2)',
+};
+var INTEGRAL_RULES={
+  'sin':'-cos(x)','cos':'sin(x)','tan':'-ln|cos(x)|',
+  'sec^2':'tan(x)','csc^2':'-cot(x)','sec*tan':'sec(x)','csc*cot':'-csc(x)',
+  'sinh':'cosh(x)','cosh':'sinh(x)',
+  'e^x':'e^x','1/x':'ln|x|','1/(1+x^2)':'atan(x)','1/sqrt(1-x^2)':'asin(x)',
+};
+
+function numericDerivative(expr,at){
+  var h=1e-7;try{return (evaluate(expr,at+h)-evaluate(expr,at-h))/(2*h)}catch(_){return NaN}
 }
 
+function numericIntegral(expr,a,b){
+  var N=500,h=(b-a)/N;try{var sum=evaluate(expr,a)+evaluate(expr,b);
+    for(var k=1;k<N;k++)sum+=(k%2===0?2:4)*evaluate(expr,a+k*h);return sum*h/3}catch(_){return NaN}
+}
+
+function solveQuadratic(a,b,c){var disc=b*b-4*a*c;if(disc<0)return 'No real roots (Δ='+disc.toFixed(4)+'<0)';var s=Math.sqrt(disc);return 'x₁='+((-b+s)/(2*a)).toFixed(6)+', x₂='+((-b-s)/(2*a)).toFixed(6)}
+
 function factorQuadratic(a,b,c){
-  /* 尝试整数因式分解 ax²+bx+c → (px+q)(rx+s) */
   function gcd(m,n){return n?gcd(n,m%n):Math.abs(m)}
-  for(var p=1;p<=Math.abs(a);p++){
-    if(a%p!==0)continue;
-    var r=a/p;
-    for(var q=-Math.abs(c);q<=Math.abs(c);q++){
-      if(q===0||c%q!==0)continue;
-      var s=c/q;
-      if(p*s+r*q===b){
-        var fp=p>0?(p===1?'':p):(p===-1?'-':p);
-        var fr=r>0?(r===1?'':r):(r===-1?'-':r);
-        var sq=q>0?'+'+q:q;var ss=s>0?'+'+s:s;
-        return '('+fp+'x'+sq+')('+fr+'x'+ss+')';
-      }
-    }
-  }
+  for(var p=1;p<=Math.abs(a);p++){if(a%p!==0)continue;var r=a/p;
+    for(var q=-Math.abs(c);q<=Math.abs(c);q++){if(q===0||c%q!==0)continue;var s=c/q;if(p*s+r*q===b){
+      var fp=p>0?(p===1?'':p):(p===-1?'-':p),fr=r>0?(r===1?'':r):(r===-1?'-':r);
+      var sq=q>0?'+'+q:String(q),ss=s>0?'+'+s:String(s);
+      return '('+fp+'x'+sq+')('+fr+'x'+ss+')';}}}
   return null;
 }
 
 function doAlgebra(expr,mode){
-  /* 简单纯前端实现 — 覆盖常见中小学代数问题 */
-  try{
-    switch(mode){
-      case '解方程/组':{
-        if(expr.indexOf(',')>0){
-          /* 方程组 */
-          var eqs=expr.split(',').map(function(e){return e.trim()});
-          return {result:'请使用后端求解方程组: '+eqs.join(' , '),steps:['方程组: '+eqs.join(', '),'前端仅支持单方程求解']};
-        }
-        /* 判断是否二次方程 */
-        var hasX2=/\bx\^2\b/.test(expr)||/\bx²\b/.test(expr)||/\bx\*\*2/.test(expr);
-        if(hasX2){
-          var m=expr.match(/([-+]?\d*\.?\d*)\s*\*?\s*x\^2|([-+]?\d*\.?\d*)\s*\*?\s*x²|([-+]?\d*\.?\d*)\s*\*?\s*x\*\*2/);
-          var a=m?(m[1]||m[2]||m[3]):1;a=parseFloat(a)||1;
-          var hasEq=expr.indexOf('=')>=0;
-          if(hasEq){
-            var parts=expr.split('=');
-            var left=parts[0],right=parts[1]||'0';
-            /* 移项 */
-            var p=Poly.fromStr(left+'-('+right+')');
-            var aa=p.terms[2]||0,bb=p.terms[1]||0,cc=p.terms[0]||0;
-            return {result:solveQuadratic(aa,bb,cc),steps:['方程: '+expr,'移项: '+p.toString()+' = 0','判别式法求解']};
-          }
-          return {result:'请使用 = 号连接等式，如 x^2-5*x+6=0',steps:[]};
-        }
-        if(expr.indexOf('=')>=0){
-          var p2=expr.split('=');
-          var pp=Poly.fromStr(p2[0]+'-('+p2[1]+')');
-          var a1=pp.terms[1]||0,b1=pp.terms[0]||0;
-          if(a1===0)return {result:'x 为任意实数'};
-          var xv=-b1/a1;
-          return {result:'x = '+xv.toFixed(6),steps:['方程: '+expr,'一次方程 ax+b=0','解: x = '+xv.toFixed(6)]};
-        }
-        return {result:'请使用 = 号连接等式',steps:[]};
+  try{switch(mode){
+    case '解方程/组':{if(expr.indexOf(',')>0){var eqs=expr.split(',').map(function(e){return e.trim()});return {result:'System requires backend: '+eqs.join(' , '),steps:['Frontend only supports single equations']}}
+      var hasX2=/\bx\^2\b/.test(expr)||/\bx\*\*2/.test(expr);
+      if(hasX2||(expr.indexOf('=')>=0)){
+        var parts=expr.split('=');var left=parts[0],right=parts[1]||'0';
+        try{var p=Poly.fromStr(left+'-('+right+')');var aa=p.terms[2]||0,bb=p.terms[1]||0,cc=p.terms[0]||0;
+          if(aa!==0&&(bb!==0||cc!==0)){var dr=solveQuadratic(aa,bb,cc);return {result:dr,steps:['Eq: '+expr,'Move: '+p.toString()+' = 0','Quadratic formula']};}}
+        catch(_){}
       }
+      return {result:'Use = sign: e.g. x^2-5*x+6=0',steps:[]};}
 
-      case '因式分解':{
-        var pp2=Poly.fromStr(expr);
-        var a2=pp2.terms[2]||0,b2=pp2.terms[1]||0,c2=pp2.terms[0]||0;
-        if(a2!==0){
-          var fac=factorQuadratic(a2,b2,c2);
-          if(fac)return {result:fac,steps:['原式: '+expr,'因式分解: '+fac]};
-          return {result:'无法分解为整数系数的因式',steps:['原式: '+expr,'尝试十字相乘法失败']};
-        }
-        return {result:'暂仅支持二次三项式分解',steps:['原式: '+expr]};
-      }
+    case '因式分解':{try{var pp=Poly.fromStr(expr);var a2=pp.terms[2]||0,b2=pp.terms[1]||0,c2=pp.terms[0]||0;
+      if(a2!==0){var fac=factorQuadratic(a2,b2,c2);if(fac)return {result:fac,steps:['Expr: '+expr,'Factor: '+fac]};return {result:'Cannot factor with integer coefficients',steps:['Expr: '+expr]};}
+      return {result:'Only quadratic trinomials supported',steps:['Expr: '+expr]};}catch(e){return {result:'Error: '+e.message,steps:[]};}}
 
-      case '展开':{
-        var pp3=Poly.fromStr(expr);
-        return {result:pp3.toString(),steps:['原式: '+expr,'展开: '+pp3.toString()]};
-      }
+    case '展开':{try{var pp3=Poly.fromStr(expr);return {result:pp3.toString(),steps:['Expr: '+expr,'Expand: '+pp3.toString()]};}catch(e){return {result:'Error: '+e.message,steps:[]};}}
 
-      case '求导':{
-        var fn=expr.trim();
-        try{
-          var ppd=Poly.fromStr(fn);
-          var dTerms={};
-          var keys=Object.keys(ppd.terms).map(Number);
-          for(var i=0;i<keys.length;i++){
-            var d=keys[i],c=ppd.terms[d];
-            if(d>0)dTerms[d-1]=c*d;
-          }
-          var dp=new Poly(dTerms);
-          return {result:dp.toString()||'0',steps:['原函数: '+fn,'求导 (幂法则): '+dp.toString()]};
-        }catch(e){return {result:'求导失败: '+e.message,steps:[]};}
-      }
+    case '表达式化简':{try{var pp5=Poly.fromStr(expr);return {result:pp5.toString(),steps:['Expr: '+expr,'Simplify (combine like terms): '+pp5.toString()]};}catch(e){return {result:'Error: '+e.message,steps:[]};}}
 
-      case '不定积分':{
-        var fn2=expr.trim();
-        try{
-          var ppi=Poly.fromStr(fn2);
-          var iTerms={};
-          var keys2=Object.keys(ppi.terms).map(Number);
-          for(var j=0;j<keys2.length;j++){
-            var dd=keys2[j],cc=ppi.terms[dd];
-            iTerms[dd+1]=cc/(dd+1);
-          }
-          var ip=new Poly(iTerms);
-          return {result:ip.toString()+' + C',steps:['原函数: '+fn2,'不定积分 (幂法则): '+ip.toString()+' + C']};
-        }catch(e){return {result:'积分失败: '+e.message,steps:[]};}
-      }
-
-      case '定积分':{
-        var parts3=expr.split(',').map(function(s){return s.trim()});
-        var f3=parts3[0],a3=parseFloat(parts3[1]||'0'),b3=parseFloat(parts3[2]||'1');
-        /* 用 Simpson 数值积分 */
-        var N3=1000,h3=(b3-a3)/N3,sum=evalAt(f3,a3)+evalAt(f3,b3);
-        for(var k=1;k<N3;k++)sum+=(k%2===0?2:4)*evalAt(f3,a3+k*h3);
-        var val=sum*h3/3;
-        return {result:val.toFixed(6),steps:['定积分: ∫['+a3+','+b3+'] '+f3+' dx','辛普森数值积分 (n='+N3+')','≈ '+val.toFixed(6)]};
-      }
-
-      case '极限':{
-        var parts4=expr.split(',').map(function(s){return s.trim()});
-        var f4=parts4[0],x0=parseFloat(parts4[2]||'0');
-        /* 双侧逼近 */
-        var eps=1e-8,left=evalAt(f4,x0-eps),right=evalAt(f4,x0+eps);
-        if(Math.abs(left-right)<1e-4)return {result:left.toFixed(6),steps:['极限: lim[x→'+x0+'] '+f4,'左极限 ≈ '+left.toFixed(8),'右极限 ≈ '+right.toFixed(8),'极限值 = '+left.toFixed(6)]};
-        return {result:'极限不存在',steps:['左极限≈'+left.toFixed(6),'右极限≈'+right.toFixed(6),'左右极限不相等']};
-      }
-
-      case '表达式化简':{
-        var pp5=Poly.fromStr(expr);
-        return {result:pp5.toString(),steps:['原式: '+expr,'化简 (合并同类项): '+pp5.toString()]};
-      }
-
-      case '数列通项':{
-        var parts5=expr.split(',').map(function(s){return s.trim()});
-        var formula=parts5[0],n5=parseInt(parts5[1]||'10');
-        var terms=[];
-        for(var t=1;t<=Math.min(n5,20);t++)terms.push(evalAt(formula.replace(/n/g,'('+t+')'),0));
-        return {result:'前'+n5+'项: '+terms.join(', '),steps:['通项: a_n = '+formula,'前'+n5+'项: '+terms.join(', ')]};
-      }
-
-      case '等差数列求和':{
-        var parts6=expr.split(',').map(function(s){return s.trim()});
-        var a16=parseFloat(parts6[0]||'1'),d6=parseFloat(parts6[1]||'1'),n6=parseInt(parts6[2]||'10');
-        var sum6=n6*(2*a16+(n6-1)*d6)/2;
-        return {result:sum6.toFixed(6),steps:['a₁='+a16+', d='+d6+', n='+n6,'S_n = n(2a₁+(n-1)d)/2 = '+sum6.toFixed(6)]};
-      }
-
-      case '等比数列求和':{
-        var parts7=expr.split(',').map(function(s){return s.trim()});
-        var a17=parseFloat(parts7[0]||'1'),q7=parseFloat(parts7[1]||'2'),n7=parseInt(parts7[2]||'10');
-        var sum7=q7===1?a17*n7:a17*(1-Math.pow(q7,n7))/(1-q7);
-        return {result:sum7.toFixed(6),steps:['a₁='+a17+', q='+q7+', n='+n7,'S_n = a₁(1-q^n)/(1-q) = '+sum7.toFixed(6)]};
-      }
-
-      case '复数运算':{
-        var ce=expr.replace(/i/g,'');
-        try{var cv=parseComplex(ce);return {result:'('+cv.real.toFixed(4)+') + ('+cv.imag.toFixed(4)+')i',steps:['复数: '+expr,'实部: '+cv.real.toFixed(4),'虚部: '+cv.imag.toFixed(4)]};}
-        catch(e){return {result:'解析失败',steps:[]};}
-      }
-
-      case '排列数':{
-        var parts8=expr.split(',').map(function(s){return s.trim()});
-        var n8=parseInt(parts8[0]),m8=parseInt(parts8[1]||'2');
-        var r8=1;for(var i2=0;i2<m8;i2++)r8*=(n8-i2);
-        return {result:'P('+n8+','+m8+') = '+r8,steps:['排列: P('+n8+','+m8+')','= '+n8+'!'+(n8-m8>0?'/('+(n8-m8)+')!':'')+' = '+r8]};
-      }
-
-      case '组合数':{
-        var parts9=expr.split(',').map(function(s){return s.trim()});
-        var n9=parseInt(parts9[0]),m9=parseInt(parts9[1]||'2');
-        var rn=1,rm=1;for(var i3=0;i3<m9;i3++){rn*=(n9-i3);rm*=(i3+1)}
-        return {result:'C('+n9+','+m9+') = '+Math.round(rn/rm),steps:['组合: C('+n9+','+m9+')','= '+Math.round(rn/rm)]};
-      }
-
-      case '解不等式/组':{
-        return {result:'不等式求解需后端支持。请输入一次不等式如 2*x+1>5',steps:['前端暂不支持不等式求解']};
-      }
-
-      default:
-        return {result:'请选择计算模式',steps:[]};
+    case '求导':{
+      var fn=expr.trim();
+      /* 检查是否匹配已知规则 */
+      for(var key in DERIV_RULES){if(fn===key||fn==='d/dx '+key){var dr=DERIV_RULES[key];return {result:dr,steps:['f(x) = '+fn,"f'(x) = "+dr]};}}
+      /* 多项式求导 */
+      try{var ppd=Poly.fromStr(fn);var dTerms={};var keys=Object.keys(ppd.terms).map(Number);
+        for(var i=0;i<keys.length;i++){var d=keys[i],c=ppd.terms[d];if(d>0)dTerms[d-1]=c*d}
+        var dp=new Poly(dTerms);return {result:dp.toString()||'0',steps:['f(x) = '+fn,"f'(x) = "+dp.toString()]};}
+      catch(_){}
+      /* 数值求导在 x=2 */
+      var nd=numericDerivative(fn,2);
+      if(!isNaN(nd))return {result:"f'(2) ≈ "+nd.toFixed(6),steps:['f(x) = '+fn,'Numerical derivative at x=2','≈ '+nd.toFixed(6)]};
+      return {result:'Cannot differentiate',steps:[]};
     }
-  }catch(e){return {result:'计算出错: '+(e.message||e),steps:[]};}
+
+    case '不定积分':{
+      var fn2=expr.trim();
+      for(var k2 in INTEGRAL_RULES){if(fn2===k2){return {result:INTEGRAL_RULES[k2]+' + C',steps:['f(x) = '+fn2,'∫ = '+INTEGRAL_RULES[k2]+' + C']};}}
+      try{var ppi=Poly.fromStr(fn2);var iTerms={};var keys2=Object.keys(ppi.terms).map(Number);
+        for(var j=0;j<keys2.length;j++){var dd2=keys2[j],cc2=ppi.terms[dd2];iTerms[dd2+1]=cc2/(dd2+1)}
+        var ip=new Poly(iTerms);return {result:ip.toString()+' + C',steps:['f(x) = '+fn2,'∫ = '+ip.toString()+' + C']};}
+      catch(_){}
+      var ni=numericIntegral(fn2,0,2);
+      if(!isNaN(ni))return {result:'∫₀² '+fn2+' dx ≈ '+ni.toFixed(6)+' + C',steps:['Numerical integration [0,2]','≈ '+ni.toFixed(6)]};
+      return {result:'Cannot integrate',steps:[]};
+    }
+
+    case '定积分':{var parts3=expr.split(',').map(function(s){return s.trim()});var f3=parts3[0],a3=+parts3[1]||0,b3=+parts3[2]||1;var val=numericIntegral(f3,a3,b3);if(!isNaN(val))return {result:val.toFixed(6),steps:['∫['+a3+','+b3+'] '+f3+' dx','Simpson (n=500)','≈ '+val.toFixed(6)]};return {result:'Integration failed',steps:[]};}
+
+    case '极限':{var parts4=expr.split(',').map(function(s){return s.trim()});var f4=parts4[0],x0=+(parts4[2]||'0');var eps=1e-8,left=evaluate(f4,x0-eps),right=evaluate(f4,x0+eps);if(Math.abs(left-right)<1e-4)return {result:left.toFixed(6),steps:['lim[x→'+x0+'] '+f4,'Left ≈ '+left.toFixed(8),'Right ≈ '+right.toFixed(8),'= '+left.toFixed(6)]};return {result:'Limit does not exist',steps:['Left ≈ '+left.toFixed(6),'Right ≈ '+right.toFixed(6)]};}
+
+    case '判别式':{try{var pp8=Poly.fromStr(expr);var a8=pp8.terms[2]||0,b8=pp8.terms[1]||0,c8=pp8.terms[0]||0;var disc=b8*b8-4*a8*c8;var desc=disc>0?'Two distinct real roots':disc===0?'One double root':'No real roots';return {result:'Δ = '+disc.toFixed(4)+' ('+desc+')',steps:['a='+a8+', b='+b8+', c='+c8,'Δ=b²-4ac='+disc.toFixed(4),desc]};}catch(e){return {result:'Error: need ax²+bx+c form',steps:[]};}}
+
+    case '韦达定理':{try{var pp9=Poly.fromStr(expr);var a9=pp9.terms[2]||0,b9=pp9.terms[1]||0,c9=pp9.terms[0]||0;var sum=-b9/a9,prod=c9/a9;return {result:'x₁+x₂='+sum.toFixed(4)+', x₁·x₂='+prod.toFixed(4),steps:['For '+a9+'x²+'+b9+'x+'+c9+'=0','Sum: -b/a = '+sum.toFixed(4),'Product: c/a = '+prod.toFixed(4)]};}catch(e){return {result:'Error: need ax²+bx+c form',steps:[]};}}
+
+    case '数列通项':{var parts5=expr.split(',').map(function(s){return s.trim()});var formula=parts5[0],n5=+parts5[1]||10;var terms=[];for(var t=1;t<=Math.min(n5,20);t++)terms.push(evaluate(formula.replace(/n/g,'('+t+')')));return {result:'a₁…aₙ: '+terms.map(function(v){return fmtResult(v)}).join(', '),steps:['a_n = '+formula,'First '+n5+' terms']};}
+
+    case '等差数列求和':{var parts6=expr.split(',').map(function(s){return s.trim()});var a6=+parts6[0]||1,d6=+parts6[1]||1,n6=+parts6[2]||10;var sum6=n6*(2*a6+(n6-1)*d6)/2;return {result:sum6.toFixed(6),steps:['a₁='+a6+', d='+d6+', n='+n6,'S_n = n(2a₁+(n-1)d)/2 = '+sum6.toFixed(6)]};}
+
+    case '等比数列求和':{var parts7=expr.split(',').map(function(s){return s.trim()});var a7=+parts7[0]||1,q7=+parts7[1]||2,n7=+parts7[2]||10;var sum7=q7===1?a7*n7:a7*(1-Math.pow(q7,n7))/(1-q7);return {result:sum7.toFixed(6),steps:['a₁='+a7+', q='+q7+', n='+n7,'S_n = a₁(1-q^n)/(1-q) = '+sum7.toFixed(6)]};}
+
+    case '复数运算':{var ce=expr.replace(/[ij]/g,'i');try{var cv=parseComplex(ce);return {result:'('+cv.real.toFixed(4)+') + ('+cv.imag.toFixed(4)+')i',steps:['Complex: '+expr,'Real: '+cv.real.toFixed(4),'Imag: '+cv.imag.toFixed(4)]};}catch(e){return {result:'Parse failed',steps:[]};}}
+
+    case '排列数':{var parts8=expr.split(',').map(function(s){return s.trim()});var n8=+parts8[0],m8=+parts8[1]||2;var r8=1;for(var i2=0;i2<m8;i2++)r8*=(n8-i2);return {result:'P('+n8+','+m8+') = '+r8,steps:['P('+n8+','+m8+')','= '+r8]};}
+
+    case '组合数':{var parts9=expr.split(',').map(function(s){return s.trim()});var n9=+parts9[0],m9=+parts9[1]||2;var rn=1,rm=1;for(var i3=0;i3<m9;i3++){rn*=(n9-i3);rm*=(i3+1)}return {result:'C('+n9+','+m9+') = '+Math.round(rn/rm),steps:['C('+n9+','+m9+')','= '+Math.round(rn/rm)]};}
+
+    case '解不等式/组':{return {result:'Inequality solving requires backend. Try: 2*x+1>5',steps:['Frontend limitation']};}
+    default:return {result:'Select a calculation mode',steps:[]};
+  }}catch(e){return {result:'Error: '+(e.message||e),steps:[]};}
 }
 
 function parseComplex(s){
-  s=s.replace(/[ij]/g,'i');
-  var real=0,imag=0;
-  var m=s.match(/([+-]?\d*\.?\d*)\s*([+-])\s*(\d*\.?\d*)\s*\*?\s*i/);
-  if(m){real=parseFloat(m[1]);imag=(m[2]==='-'?-1:1)*parseFloat(m[3]||'1');return{real:real,imag:imag};}
-  m=s.match(/([+-]?\d*\.?\d*)\s*i/);
-  if(m){imag=parseFloat(m[1]||'1');return{real:0,imag:imag};}
-  return{real:parseFloat(s)||0,imag:0};
+  s=s.replace(/[ij]/g,'i');var real=0,imag=0;
+  var m=s.match(/([+-]?\d*\.?\d*)\s*([+-])\s*(\d*\.?\d*)\s*\*?\s*i/);if(m){real=+m[1];imag=(m[2]==='-'?-1:1)*(+m[3]||1);return{real:real,imag:imag}}
+  m=s.match(/([+-]?\d*\.?\d*)\s*i/);if(m){imag=+m[1]||1;return{real:0,imag:imag}}
+  return{real:+s||0,imag:0};
 }
 
 function doAlgebraAndShow(expr,mode){
@@ -822,18 +587,16 @@ function doAlgebraAndShow(expr,mode){
   if(res.steps&&res.steps.length)html+='<div class="steps">'+res.steps.map(function(s){return s.replace(/</g,'&lt;')}).join('<br>')+'</div>';
   html+='<div class="answer">'+String(res.result).replace(/</g,'&lt;')+'</div>';
   algResult.innerHTML=html;
-  /* 绘图 */
   if(containsX(expr))draw(expr);
-  /* 预设高亮 */
   var btns=algPresets.querySelectorAll('button');
   for(var i=0;i<btns.length;i++)btns[i].classList.toggle('active',btns[i].dataset.expr===expr&&btns[i].dataset.mode===mode);
 }
 
-/* ═══════════════════════════════════════════════════════════════════
-   第五部分：事件绑定 & 初始化
-   ═══════════════════════════════════════════════════════════════════ */
+/* ═══════════════════════════════════════════════════════
+   5. 事件绑定 & 初始化
+   ═══════════════════════════════════════════════════════ */
 
-/* 选项卡切换 */
+/* 选项卡 */
 document.querySelector('.tabs').addEventListener('click',function(e){
   var btn=e.target.closest('button');if(!btn)return;
   var tabId=btn.dataset.tab;
@@ -848,30 +611,19 @@ document.querySelector('.tabs').addEventListener('click',function(e){
 buildCalcButtons();
 
 /* 代数 */
-algBtn.addEventListener('click',function(){
-  doAlgebraAndShow(algInput.value.trim()||'x^2',algMode.value);
-});
-algInput.addEventListener('keydown',function(e){
-  if(e.key==='Enter')doAlgebraAndShow(algInput.value.trim()||'x^2',algMode.value);
-});
+algBtn.addEventListener('click',function(){doAlgebraAndShow(algInput.value.trim()||'x^2',algMode.value)});
+algInput.addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();doAlgebraAndShow(algInput.value.trim()||'x^2',algMode.value)}});
 algPresets.addEventListener('click',function(e){
   var btn=e.target.closest('button');if(!btn)return;
-  doAlgebraAndShow(btn.dataset.expr,btn.dataset.mode);
+  if(btn.dataset.mode)doAlgebraAndShow(btn.dataset.expr,btn.dataset.mode);else draw(btn.dataset.expr);
 });
 
 /* 窗口缩放重绘 */
 var resizeTimer;
-window.addEventListener('resize',function(){
-  clearTimeout(resizeTimer);
-  resizeTimer=setTimeout(function(){
-    var fn=algInput.value.trim()||'x^2';
-    if(containsX(fn))draw(fn);else draw('x^2');
-  },200);
-});
+window.addEventListener('resize',function(){clearTimeout(resizeTimer);resizeTimer=setTimeout(function(){
+  var fn=algInput.value.trim()||'x^2';if(containsX(fn))draw(fn);else draw('x^2')},200)});
 
-/* 初始绘图 */
-draw('x^2');
-
+/* 初始绘图 */draw('x^2');
 })();
 </script>
 </body>
