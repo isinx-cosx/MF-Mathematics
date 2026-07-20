@@ -400,13 +400,13 @@ var MODES={
     modes:[
       {name:'基础运算',icon:'🔢',render:'basicArithmetic'},
       {name:'代数计算',icon:'📐',render:'algebra'},
-      {name:'微积分',icon:'∫',render:'desktopOnly',desc:'求导、不定积分、定积分、极限计算'},
-      {name:'解析几何',icon:'📏',render:'desktopOnly',desc:'几何对象计算：距离、角度、面积、体积，坐标变换与圆锥曲线分析'},
-      {name:'数列',icon:'🔗',render:'desktopOnly',desc:'数列通项生成、等差/等比数列求和'},
-      {name:'线性代数',icon:'📊',render:'desktopOnly',desc:'矩阵运算：行列式、求逆、转置、特征值与对角化'},
-      {name:'概率论与数理统计',icon:'🎲',render:'desktopOnly',desc:'概率分布、期望方差、假设检验、回归分析与 ANOVA'},
-      {name:'数值分析',icon:'🔢',render:'desktopOnly',desc:'插值逼近、数值积分、ODE 求解、求根与迭代法'},
-      {name:'数论',icon:'🔐',render:'desktopOnly',desc:'素数判定、因子分解、同余方程、数论函数'},
+      {name:'微积分',icon:'∫',render:'calculus'},
+      {name:'解析几何',icon:'📏',render:'analGeo'},
+      {name:'数列',icon:'🔗',render:'sequences'},
+      {name:'线性代数',icon:'📊',render:'linearAlgebra'},
+      {name:'概率论与数理统计',icon:'🎲',render:'probability'},
+      {name:'数值分析',icon:'🔢',render:'numerical'},
+      {name:'数论',icon:'🔐',render:'numberTheory'},
       {name:'实分析',icon:'∞',render:'desktopOnly',desc:'极限严格定义、连续性与可微性、级数收敛判别'},
       {name:'泛函分析',icon:'𝛁',render:'desktopOnly',desc:'赋范空间、算子理论、谱分析与对偶空间'},
       {name:'复分析',icon:'ℂ',render:'desktopOnly',desc:'解析函数、留数定理、共形映射与级数展开'},
@@ -417,12 +417,12 @@ var MODES={
   plot:{
     modes:[
       {name:'普通模式',icon:'📈',render:'plot2D'},
-      {name:'极坐标',icon:'🔄',render:'desktopOnly',desc:'极坐标曲线 r=f(θ)，如心形线、玫瑰线、螺线'},
+      {name:'极坐标',icon:'🔄',render:'plotPolar'},
       {name:'3D 模式',icon:'🏔️',render:'desktopOnly',desc:'三维曲面 z=f(x,y) 渲染、空间参数曲线与等高线投影'},
       {name:'复数模式',icon:'🌈',render:'desktopOnly',desc:'复平面 RGB 域着色 (Domain Coloring)、复变函数可视化'},
       {name:'向量场',icon:'🧭',render:'desktopOnly',desc:'2D/3D 梯度场、流线图与自适应密度向量场'},
       {name:'任意做图',icon:'✏️',render:'desktopOnly',desc:'自由几何构造：点、线段、圆、向量、多边形'},
-      {name:'分形探索',icon:'❄️',render:'desktopOnly',desc:'Julia 集、Mandelbrot 集、Burning Ship 与 Newton 分形'},
+      {name:'分形探索',icon:'❄️',render:'fractal'},
     ]
   }
 };
@@ -868,13 +868,182 @@ function bindPlot2DEvents(){
   });
 }
 
+/* ── 微积分工作区 ── */
+function renderCalculus(){
+  workspace.innerHTML='<div class="workspace-header"><div class="ws-title">∫ 微积分</div><div class="ws-desc">求导、不定积分、定积分、极限计算</div></div><div class="work-card"><h3>求导</h3><div class="calc-row" style="margin-bottom:12px"><input id="calDerivIn" type="text" placeholder="sin(x)*cos(x)"><select id="calDerivPt"><option value="2">x=2</option><option value="0">x=0</option><option value="1">x=1</option><option value="expr">符号求导</option></select><button class="btn-calc" id="calDerivBtn">求导</button></div><div class="result-box" id="calDerivRes"></div></div><div class="work-card"><h3>积分</h3><div class="calc-row" style="margin-bottom:12px"><input id="calIntegIn" type="text" placeholder="x^2*sin(x)"><select id="calIntegTp"><option value="indef">不定积分</option><option value="def">定积分 [0,2]</option></select><button class="btn-calc" id="calIntegBtn">积分</button></div><div class="result-box" id="calIntegRes"></div></div><div class="work-card"><h3>极限</h3><div class="calc-row"><input id="calLimitIn" type="text" placeholder="sin(x)/x"><select id="calLimitPt"><option value="0">x→0</option><option value="1">x→1</option><option value="2">x→2</option><option value="inf">x→∞</option></select><button class="btn-calc" id="calLimitBtn">求极限</button></div><div class="result-box" id="calLimitRes"></div></div><div class="plot-card" style="margin-top:14px"><div class="header">函数图像</div><canvas id="plotCanvasCalc"></canvas></div>';
+  bindCalcEvents();
+  setTimeout(function(){draw2D('x^2','plotCanvasCalc')},100);
+}
+function bindCalcEvents(){
+  var di=document.getElementById('calDerivIn'),db=document.getElementById('calDerivBtn'),dr=document.getElementById('calDerivRes'),dp=document.getElementById('calDerivPt');
+  if(db)db.addEventListener('click',function(){var e=(di?di.value.trim():'')||'x^2',p=dp?dp.value:'2';draw2D(e,'plotCanvasCalc');
+    if(p==='expr'){dr.innerHTML='<div class="answer">'+doAlgebra(e,'求导').result+'</div>'}else{var nd=numericDerivative(e,+p);dr.innerHTML='<div class="steps">f(x) = '+e+'</div><div class="answer">f\'('+p+') ≈ '+nd.toFixed(8)+'</div>'}});
+  var ii=document.getElementById('calIntegIn'),ib=document.getElementById('calIntegBtn'),ir=document.getElementById('calIntegRes'),it=document.getElementById('calIntegTp');
+  if(ib)ib.addEventListener('click',function(){var e=(ii?ii.value.trim():'')||'x^2',t=it?it.value:'indef';draw2D(e,'plotCanvasCalc');ir.innerHTML='<div class="answer">'+doAlgebra(e,t==='indef'?'不定积分':'定积分').result+'</div>'});
+  var li=document.getElementById('calLimitIn'),lb=document.getElementById('calLimitBtn'),lr=document.getElementById('calLimitRes'),lp=document.getElementById('calLimitPt');
+  if(lb)lb.addEventListener('click',function(){var e=(li?li.value.trim():'')||'sin(x)/x',pt=lp?lp.value:'0';draw2D(e,'plotCanvasCalc');
+    if(pt==='inf'){try{lr.innerHTML='<div class="answer">lim[x→∞] ≈ '+fmtResult(evaluate(e,1e8))+'</div>'}catch(ex){lr.innerHTML='<div class="answer">计算失败</div>'}}
+    else lr.innerHTML='<div class="answer">'+doAlgebra(e+',x,'+pt,'极限').result+'</div>'});
+}
+
+/* ── 解析几何工作区 ── */
+function renderAnalGeo(){
+  workspace.innerHTML='<div class="workspace-header"><div class="ws-title">📏 解析几何</div><div class="ws-desc">坐标几何：距离、中点、直线、圆、三角形面积</div></div><div class="work-card"><h3>两点距离 & 中点</h3><div class="calc-row" style="margin-bottom:12px">P₁(<input type="number" id="geoX1" value="0" style="width:70px;flex:0 0 auto">,<input type="number" id="geoY1" value="0" style="width:70px;flex:0 0 auto">) P₂(<input type="number" id="geoX2" value="3" style="width:70px;flex:0 0 auto">,<input type="number" id="geoY2" value="4" style="width:70px;flex:0 0 auto">)<button class="btn-calc" id="geoDistBtn">计算</button></div><div class="result-box" id="geoDistRes"></div></div><div class="work-card"><h3>直线方程（两点式）</h3><div class="calc-row" style="margin-bottom:12px">A(<input type="number" id="lineX1" value="1" style="width:70px;flex:0 0 auto">,<input type="number" id="lineY1" value="2" style="width:70px;flex:0 0 auto">) B(<input type="number" id="lineX2" value="4" style="width:70px;flex:0 0 auto">,<input type="number" id="lineY2" value="8" style="width:70px;flex:0 0 auto">)<button class="btn-calc" id="lineBtn">求直线</button></div><div class="result-box" id="lineRes"></div></div><div class="work-card"><h3>三角形面积</h3><div class="calc-row" style="margin-bottom:12px">a=<input type="number" id="triA" value="3" style="width:70px;flex:0 0 auto" step="any"> b=<input type="number" id="triB" value="4" style="width:70px;flex:0 0 auto" step="any"> c=<input type="number" id="triC" value="5" style="width:70px;flex:0 0 auto" step="any"><button class="btn-calc" id="triBtn">计算面积</button></div><div class="result-box" id="triRes"></div></div>';
+  bindAnalGeoEvents();
+}
+function bindAnalGeoEvents(){
+  var gdb=document.getElementById('geoDistBtn');if(gdb)gdb.addEventListener('click',function(){var x1=+document.getElementById('geoX1').value,y1=+document.getElementById('geoY1').value,x2=+document.getElementById('geoX2').value,y2=+document.getElementById('geoY2').value;var d=Math.sqrt((x2-x1)*(x2-x1)+(y2-y1)*(y2-y1));var mx=(x1+x2)/2,my=(y1+y2)/2;document.getElementById('geoDistRes').innerHTML='<div class="answer">距离: '+d.toFixed(6)+' | 中点: ('+mx.toFixed(4)+', '+my.toFixed(4)+')</div>'});
+  var lb=document.getElementById('lineBtn');if(lb)lb.addEventListener('click',function(){var x1=+document.getElementById('lineX1').value,y1=+document.getElementById('lineY1').value,x2=+document.getElementById('lineX2').value,y2=+document.getElementById('lineY2').value;var dx=x2-x1,dy=y2-y1;var A=dy,B=-dx,C=dx*y1-dy*x1;var slope=dx===0?'无穷大(垂直)':(dy/dx).toFixed(4);document.getElementById('lineRes').innerHTML='<div class="answer">'+A.toFixed(2)+'x + ('+B.toFixed(2)+')y + ('+C.toFixed(2)+') = 0<br>斜率: '+slope+'</div>'});
+  var tb=document.getElementById('triBtn');if(tb)tb.addEventListener('click',function(){var a=+document.getElementById('triA').value,b=+document.getElementById('triB').value,c=+document.getElementById('triC').value;var s=(a+b+c)/2;var area=Math.sqrt(Math.max(0,s*(s-a)*(s-b)*(s-c)));document.getElementById('triRes').innerHTML='<div class="answer">面积 (Heron): '+area.toFixed(6)+'</div>'});
+}
+
+/* ── 数列工作区 ── */
+function renderSequences(){
+  workspace.innerHTML='<div class="workspace-header"><div class="ws-title">🔗 数列</div><div class="ws-desc">通项公式、等差/等比数列求和</div></div><div class="work-card"><h3>数列通项</h3><div class="calc-row" style="margin-bottom:12px"><input id="seqTermIn" type="text" placeholder="1/n（用 n 表示变量）"><span style="font-size:13px;color:var(--text-muted)">项数:</span><select id="seqTermN"><option>5</option><option selected>10</option><option>15</option><option>20</option></select><button class="btn-calc" id="seqTermBtn">计算</button></div><div class="result-box" id="seqTermRes"></div></div><div class="work-card"><h3>等差数列求和</h3><div class="calc-row" style="margin-bottom:12px">a₁=<input type="number" id="seqA1" value="1" style="width:70px;flex:0 0 auto"> d=<input type="number" id="seqD" value="1" style="width:70px;flex:0 0 auto"> n=<input type="number" id="seqN" value="10" style="width:70px;flex:0 0 auto"><button class="btn-calc" id="seqArithBtn">求和</button></div><div class="result-box" id="seqArithRes"></div></div><div class="work-card"><h3>等比数列求和</h3><div class="calc-row" style="margin-bottom:12px">a₁=<input type="number" id="seqGA1" value="1" style="width:70px;flex:0 0 auto"> q=<input type="number" id="seqGQ" value="2" style="width:70px;flex:0 0 auto"> n=<input type="number" id="seqGN" value="10" style="width:70px;flex:0 0 auto"><button class="btn-calc" id="seqGeomBtn">求和</button></div><div class="result-box" id="seqGeomRes"></div></div><div class="presets"><button data-seq="1/n">aₙ=1/n</button><button data-seq="n^2">aₙ=n²</button><button data-seq="(-1)^n/n">aₙ=(-1)ⁿ/n</button></div>';
+  bindSeqEvents();
+}
+function bindSeqEvents(){
+  var ti=document.getElementById('seqTermIn'),tb=document.getElementById('seqTermBtn'),tr=document.getElementById('seqTermRes'),tn=document.getElementById('seqTermN');
+  if(tb)tb.addEventListener('click',function(){var f=(ti?ti.value.trim():'')||'n^2',n=+(tn?tn.value:'10');var terms=[];for(var t=1;t<=Math.min(n,20);t++){try{terms.push(fmtResult(evaluate(f.replace(/n/g,'('+t+')'))))}catch(_){terms.push('?')}}tr.innerHTML='<div class="steps">aₙ = '+f+'</div><div class="answer">'+terms.join(', ')+'</div>'});
+  function bs(bid,i1,i2,i3,rid,tp){var b=document.getElementById(bid);if(!b)return;b.addEventListener('click',function(){var a=+(document.getElementById(i1)?document.getElementById(i1).value:1)||1,dq=+(document.getElementById(i2)?document.getElementById(i2).value:1)||1,n=+(document.getElementById(i3)?document.getElementById(i3).value:10)||10;var s=tp==='arith'?n*(2*a+(n-1)*dq)/2:(dq===1?a*n:a*(1-Math.pow(dq,n))/(1-dq));document.getElementById(rid).innerHTML='<div class="answer">Sₙ = '+s.toFixed(6)+'</div>'})}
+  bs('seqArithBtn','seqA1','seqD','seqN','seqArithRes','arith');bs('seqGeomBtn','seqGA1','seqGQ','seqGN','seqGeomRes','geom');
+  var pr=document.querySelector('#workspace .presets');if(pr)pr.addEventListener('click',function(e){var b=e.target.closest('button');if(b&&b.dataset.seq&&ti){ti.value=b.dataset.seq;tb.click()}});
+}
+
+/* ── 线性代数工作区 ── */
+function renderLinearAlgebra(){
+  workspace.innerHTML='<div class="workspace-header"><div class="ws-title">📊 线性代数</div><div class="ws-desc">矩阵运算：行列式、求逆、转置、矩阵乘法</div></div><div class="work-card"><h3>矩阵 A</h3><div style="margin:8px 0;display:flex;gap:8px;align-items:center;flex-wrap:wrap"><label style="font-size:13px;color:var(--text-muted)">行:<select id="matRows"><option>2</option><option selected>3</option><option>4</option></select></label><label style="font-size:13px;color:var(--text-muted)">列:<select id="matCols"><option>2</option><option selected>3</option><option>4</option></select></label><button class="btn-calc-sm" id="matBuildBtn">创建</button><span style="margin-left:12px;font-size:13px;color:var(--text-muted)">操作:</span><select id="matOp"><option>行列式</option><option>求逆</option><option>转置</option></select><button class="btn-calc" id="matComputeBtn">计算</button></div><div id="matContainer"></div><div class="result-box" id="matResult"></div></div><div class="work-card"><h3>矩阵乘法 A×B</h3><div style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start"><div id="matACont"></div><div style="font-size:24px;color:var(--text-muted);align-self:center">×</div><div id="matBCont"></div><button class="btn-calc" id="matMulBtn" style="align-self:center">计算</button></div><div class="result-box" id="matMulResult" style="margin-top:12px"></div></div>';
+  bindLAEvents();
+}
+function buildMatInput(cid,r,c){var el=document.getElementById(cid);if(!el)return;el.innerHTML='<div class="matrix-grid" style="grid-template-columns:repeat('+c+',64px)">';for(var ri=0;ri<r;ri++)for(var ci=0;ci<c;ci++)el.innerHTML+='<input type="number" value="'+(ri===ci?1:0)+'" step="any">';el.innerHTML+='</div>'}
+function readMat(cid){var el=document.getElementById(cid);if(!el)return null;var inp=el.querySelectorAll('input'),rows=[],row=[],cols=0;for(var i=0;i<inp.length;i++){row.push(+(inp[i].value)||0);if(row.length===Math.sqrt(inp.length)||(cols>0&&row.length===cols)){rows.push(row);if(!cols)cols=row.length;row=[]}}if(row.length)rows.push(row);return rows}
+function bindLAEvents(){
+  var bb=document.getElementById('matBuildBtn');if(!bb)return;
+  bb.addEventListener('click',function(){var r=+document.getElementById('matRows').value,c=+document.getElementById('matCols').value;buildMatInput('matContainer',r,c);buildMatInput('matACont',r,c);buildMatInput('matBCont',c,r)});
+  var cb=document.getElementById('matComputeBtn');if(cb)cb.addEventListener('click',function(){
+    var m=readMat('matContainer');if(!m)return;var op=document.getElementById('matOp').value,n=m.length,cn=m[0].length,re=document.getElementById('matResult');
+    if(op==='转置'){var t=[];for(var j=0;j<cn;j++){t[j]=[];for(var i=0;i<n;i++)t[j][i]=m[i][j]}re.innerHTML='<div class="answer">'+JSON.stringify(t)+'</div>'}
+    else if(op==='行列式'){if(n!==cn){re.innerHTML='<span style="color:#ef4444">需要方阵</span>';return}function det(a){var nn=a.length;if(nn===1)return a[0][0];if(nn===2)return a[0][0]*a[1][1]-a[0][1]*a[1][0];var d=0;for(var jj=0;jj<nn;jj++){var sub=[];for(var ii=1;ii<nn;ii++){sub[ii-1]=[];for(var jj2=0;jj2<nn;jj2++)if(jj2!==jj)sub[ii-1].push(a[ii][jj2])}d+=(jj%2?-1:1)*a[0][jj]*det(sub)}return d}re.innerHTML='<div class="answer">det = '+det(m).toFixed(6)+'</div>'}
+    else if(op==='求逆'){if(n!==cn){re.innerHTML='<span style="color:#ef4444">需要方阵</span>';return}
+      function inv(aa){var nn=aa.length,aug=[];for(var i2=0;i2<nn;i2++){aug[i2]=aa[i2].slice();for(var j3=0;j3<nn;j3++)aug[i2].push(i2===j3?1:0)}
+        for(var i3=0;i3<nn;i3++){var pv=aug[i3][i3];if(Math.abs(pv)<1e-10)return null;for(var j4=0;j4<2*nn;j4++)aug[i3][j4]/=pv;for(var i4=0;i4<nn;i4++){if(i4===i3)continue;var f=aug[i4][i3];for(var j5=0;j5<2*nn;j5++)aug[i4][j5]-=f*aug[i3][j5]}}var invv=[];for(var i5=0;i5<nn;i5++)invv[i5]=aug[i5].slice(nn);return invv}
+      var iv=inv(m);re.innerHTML=iv?'<div class="answer">'+JSON.stringify(iv.map(function(r){return r.map(function(v){return +v.toFixed(4)})}))+'</div>':'<span style="color:#ef4444">矩阵不可逆</span>'}});
+  var mb=document.getElementById('matMulBtn');if(mb)mb.addEventListener('click',function(){var A=readMat('matACont'),B=readMat('matBCont'),re=document.getElementById('matMulResult');if(!A||!B||A[0].length!==B.length){re.innerHTML='<span style="color:#ef4444">维度不匹配</span>';return}var C=[];for(var ii=0;ii<A.length;ii++){C[ii]=[];for(var jj=0;jj<B[0].length;jj++){C[ii][jj]=0;for(var kk=0;kk<B.length;kk++)C[ii][jj]+=A[ii][kk]*B[kk][jj]}}re.innerHTML='<div class="answer">'+JSON.stringify(C.map(function(r){return r.map(function(v){return +v.toFixed(4)})}))+'</div>'});
+  bb.click();
+}
+
+/* ── 概率统计工作区 ── */
+function renderProbability(){
+  workspace.innerHTML='<div class="workspace-header"><div class="ws-title">🎲 概率论与数理统计</div><div class="ws-desc">描述性统计、概率分布、排列组合</div></div><div class="work-card"><h3>描述性统计</h3><div class="calc-row" style="margin-bottom:12px"><input id="statsInput" type="text" placeholder="输入数值，逗号分隔：1,2,3,4,5" style="flex:2"><button class="btn-calc" id="statsBtn">计算统计量</button></div><div class="result-box" id="statsResult"></div></div><div class="work-card"><h3>二项分布</h3><div class="calc-row" style="margin-bottom:12px">n=<input type="number" id="binomN" value="10" style="width:70px;flex:0 0 auto"> p=<input type="number" id="binomP" value="0.5" style="width:70px;flex:0 0 auto" step="any"> k=<input type="number" id="binomK" value="5" style="width:70px;flex:0 0 auto"><button class="btn-calc" id="binomBtn">P(X=k)</button></div><div class="result-box" id="binomResult"></div></div><div class="work-card"><h3>排列组合</h3><div class="calc-row">n=<input type="number" id="pcN" value="10" style="width:70px;flex:0 0 auto"> k=<input type="number" id="pcK" value="3" style="width:70px;flex:0 0 auto"><button class="btn-calc" id="pcPermBtn">P(n,k)</button><button class="btn-calc" id="pcCombBtn" style="margin-left:4px">C(n,k)</button></div><div class="result-box" id="pcResult" style="margin-top:12px"></div></div>';
+  bindProbEvents();
+}
+function bindProbEvents(){
+  var sb=document.getElementById('statsBtn');if(sb)sb.addEventListener('click',function(){var s=document.getElementById('statsInput').value.trim();if(!s){document.getElementById('statsResult').innerHTML='<span style="color:#ef4444">请输入数据</span>';return}var arr=s.split(',').map(Number).filter(function(v){return!isNaN(v)});if(!arr.length){document.getElementById('statsResult').innerHTML='<span style="color:#ef4444">无效数据</span>';return}arr.sort(function(a,b){return a-b});var n=arr.length,sum=0;for(var i=0;i<n;i++)sum+=arr[i];var mean=sum/n;var sumSq=0;for(var i=0;i<n;i++)sumSq+=(arr[i]-mean)*(arr[i]-mean);var std=Math.sqrt(sumSq/n);var median=n%2?arr[Math.floor(n/2)]:(arr[n/2-1]+arr[n/2])/2;document.getElementById('statsResult').innerHTML='<div class="steps">n='+n+' | 数据: '+arr.join(',')+'</div><div class="answer">均值: '+mean.toFixed(4)+' | 中位数: '+median.toFixed(4)+' | 标准差: '+std.toFixed(4)+'</div>'});
+  var bb=document.getElementById('binomBtn');if(bb)bb.addEventListener('click',function(){var n=+document.getElementById('binomN').value,p=+document.getElementById('binomP').value,k=+document.getElementById('binomK').value;function comb(nn,kk){if(kk>nn||kk<0)return 0;var r=1;for(var i=1;i<=kk;i++){r=r*(nn-kk+i)/i}return Math.round(r)}var prob=comb(n,k)*Math.pow(p,k)*Math.pow(1-p,n-k);document.getElementById('binomResult').innerHTML='<div class="steps">n='+n+', p='+p+', k='+k+'</div><div class="answer">P(X='+k+') = '+prob.toFixed(8)+'</div>'});
+  function bindPC(bid,type){var b=document.getElementById(bid);if(b)b.addEventListener('click',function(){var n=+document.getElementById('pcN').value,k=+document.getElementById('pcK').value;var r=1;for(var i=0;i<k;i++)r*=(n-i);document.getElementById('pcResult').innerHTML='<div class="answer">'+(type==='P'?'P':'C')+'('+n+','+k+') = '+(type==='P'?r:Math.round(r/fact(k)))+'</div>'})}function fact(x){var r=1;for(var i=2;i<=x;i++)r*=i;return r}
+  bindPC('pcPermBtn','P');bindPC('pcCombBtn','C');
+}
+
+/* ── 数值分析工作区 ── */
+function renderNumerical(){
+  workspace.innerHTML='<div class="workspace-header"><div class="ws-title">🔢 数值分析</div><div class="ws-desc">牛顿法求根、二分法、Lagrange 插值</div></div><div class="work-card"><h3>牛顿法求根</h3><div class="calc-row" style="margin-bottom:12px">f(x)=<input id="newtFn" type="text" placeholder="x^3-2*x-5" style="flex:2"> x₀=<input type="number" id="newtX0" value="2" style="width:70px;flex:0 0 auto"><button class="btn-calc" id="newtBtn">迭代</button></div><div class="result-box" id="newtResult"></div></div><div class="work-card"><h3>二分法求根</h3><div class="calc-row" style="margin-bottom:12px">f(x)=<input id="bisectFn" type="text" placeholder="x^3-x-2" style="flex:2"> [a,b]=[<input type="number" id="bisectA" value="1" style="width:70px;flex:0 0 auto">,<input type="number" id="bisectB" value="2" style="width:70px;flex:0 0 auto">]<button class="btn-calc" id="bisectBtn">求解</button></div><div class="result-box" id="bisectResult"></div></div><div class="work-card"><h3>Lagrange 插值</h3><div class="calc-row" style="margin-bottom:12px">点集:<input id="lagrInput" type="text" placeholder="(0,1),(2,5),(4,17)" style="flex:2"> 求x=<input type="number" id="lagrX" value="3" style="width:70px;flex:0 0 auto"><button class="btn-calc" id="lagrBtn">插值</button></div><div class="result-box" id="lagrResult"></div></div>';
+  bindNumericalEvents();
+}
+function bindNumericalEvents(){
+  var nb=document.getElementById('newtBtn');if(nb)nb.addEventListener('click',function(){var fn=document.getElementById('newtFn').value.trim()||'x^3-2*x-5',x=+document.getElementById('newtX0').value,steps=[],vals=[];for(var i=0;i<15;i++){var fx=evaluate(fn,x),fpx=numericDerivative(fn,x);if(Math.abs(fpx)<1e-12)break;var xn=x-fx/fpx;steps.push('x'+i+'='+x.toFixed(8)+' → ');if(Math.abs(xn-x)<1e-10){x=xn;break}x=xn;vals.push(x)}document.getElementById('newtResult').innerHTML='<div class="steps">'+steps.join('')+'</div><div class="answer">根 ≈ '+x.toFixed(10)+' (|f|='+Math.abs(evaluate(fn,x)).toExponential(2)+')</div>'});
+  var bb=document.getElementById('bisectBtn');if(bb)bb.addEventListener('click',function(){var fn=document.getElementById('bisectFn').value.trim()||'x^3-x-2',a=+document.getElementById('bisectA').value,b=+document.getElementById('bisectB').value;var fa=evaluate(fn,a),fb=evaluate(fn,b);if(fa*fb>=0){document.getElementById('bisectResult').innerHTML='<span style="color:#ef4444">f(a)·f(b)≥0，无法保证根在区间内</span>';return}var m;for(var i=0;i<50;i++){m=(a+b)/2;var fm=evaluate(fn,m);if(fm===0||(b-a)/2<1e-10)break;if(fa*fm<0){b=m;fb=fm}else{a=m;fa=fm}}document.getElementById('bisectResult').innerHTML='<div class="answer">根 ≈ '+m.toFixed(10)+' (|f|='+Math.abs(evaluate(fn,m)).toExponential(2)+')</div>'});
+  var lb=document.getElementById('lagrBtn');if(lb)lb.addEventListener('click',function(){var s=document.getElementById('lagrInput').value.trim(),x=+document.getElementById('lagrX').value;var pts=[],m;var re=/\(\s*([\d.-]+)\s*,\s*([\d.-]+)\s*\)/g;while((m=re.exec(s))!==null)pts.push({x:+m[1],y:+m[2]});if(pts.length<2){document.getElementById('lagrResult').innerHTML='<span style="color:#ef4444">至少需要2个点，格式: (0,1),(2,5)</span>';return}var result=0;for(var i=0;i<pts.length;i++){var term=pts[i].y;for(var j=0;j<pts.length;j++){if(i!==j)term*=(x-pts[j].x)/(pts[i].x-pts[j].x)}result+=term}document.getElementById('lagrResult').innerHTML='<div class="steps">插值点: '+pts.map(function(p){return '('+p.x+','+p.y+')'}).join(', ')+'</div><div class="answer">f('+x+') ≈ '+result.toFixed(8)+'</div>'});
+}
+
+/* ── 数论工作区 ── */
+function renderNumberTheory(){
+  workspace.innerHTML='<div class="workspace-header"><div class="ws-title">🔐 数论</div><div class="ws-desc">GCD/LCM、素数判定、质因数分解、欧拉函数</div></div><div class="work-card"><h3>GCD & LCM</h3><div class="calc-row" style="margin-bottom:12px">a=<input type="number" id="gcdA" value="48" style="width:80px;flex:0 0 auto"> b=<input type="number" id="gcdB" value="180" style="width:80px;flex:0 0 auto"><button class="btn-calc" id="gcdBtn">计算</button></div><div class="result-box" id="gcdResult"></div></div><div class="work-card"><h3>素数判定 & 因数分解</h3><div class="calc-row" style="margin-bottom:12px">n=<input type="number" id="primeN" value="1234567" style="width:140px;flex:0 0 auto"><button class="btn-calc" id="primeBtn">判定</button><button class="btn-calc" id="factorBtn" style="margin-left:4px">分解</button></div><div class="result-box" id="primeResult"></div></div><div class="work-card"><h3>欧拉函数 & 模逆元</h3><div class="calc-row">n=<input type="number" id="eulerN" value="60" style="width:80px;flex:0 0 auto"><button class="btn-calc" id="eulerBtn">φ(n)</button><span style="margin-left:8px;font-size:13px;color:var(--text-muted)">a⁻¹ mod m:</span> a=<input type="number" id="modinvA" value="3" style="width:70px;flex:0 0 auto"> m=<input type="number" id="modinvM" value="7" style="width:70px;flex:0 0 auto"><button class="btn-calc" id="modinvBtn">求逆</button></div><div class="result-box" id="eulerResult" style="margin-top:12px"></div></div>';
+  bindNTEvents();
+}
+function bindNTEvents(){
+  function gcd(a,b){return b?gcd(b,a%b):Math.abs(a)}
+  function lcm(a,b){return Math.abs(a*b)/gcd(a,b)}
+  var gb=document.getElementById('gcdBtn');if(gb)gb.addEventListener('click',function(){var a=+document.getElementById('gcdA').value,b=+document.getElementById('gcdB').value;document.getElementById('gcdResult').innerHTML='<div class="answer">gcd='+gcd(a,b)+' | lcm='+lcm(a,b)+'</div>'});
+  function isPrime(n){if(n<2)return false;if(n%2===0)return n===2;if(n%3===0)return n===3;for(var i=5;i*i<=n;i+=6){if(n%i===0||n%(i+2)===0)return false}return true}
+  function factorize(n){var factors=[],d=2,N=n;while(d*d<=N){while(N%d===0){factors.push(d);N/=d}d++}if(N>1)factors.push(N);return factors}
+  var pb=document.getElementById('primeBtn');if(pb)pb.addEventListener('click',function(){var n=+document.getElementById('primeN').value;document.getElementById('primeResult').innerHTML='<div class="answer">'+n+(isPrime(n)?' 是素数':' 不是素数')+'</div>'});
+  var fb=document.getElementById('factorBtn');if(fb)fb.addEventListener('click',function(){var n=+document.getElementById('primeN').value,f=factorize(n);document.getElementById('primeResult').innerHTML='<div class="steps">'+n+' 的质因数:</div><div class="answer">'+f.join(' × ')+'</div>'});
+  var eb=document.getElementById('eulerBtn');if(eb)eb.addEventListener('click',function(){var n=+document.getElementById('eulerN').value,result=n,t=n;for(var p=2;p*p<=t;p++){if(t%p===0){while(t%p===0)t/=p;result-=result/p}}if(t>1)result-=result/t;document.getElementById('eulerResult').innerHTML='<div class="answer">φ('+n+') = '+result+'</div>'});
+  var mi=document.getElementById('modinvBtn');if(mi)mi.addEventListener('click',function(){var a=+document.getElementById('modinvA').value,m=+document.getElementById('modinvM').value;function egcd(aa,bb){if(!bb)return[aa,1,0];var g=egcd(bb,aa%bb);return[g[0],g[2],g[1]-Math.floor(aa/bb)*g[2]]}var e=egcd(a,m);if(e[0]!==1){document.getElementById('eulerResult').innerHTML='<span style="color:#ef4444">无逆元: gcd('+a+','+m+')≠1</span>'}else{var inv=((e[1]%m)+m)%m;document.getElementById('eulerResult').innerHTML='<div class="answer">'+a+'⁻¹ mod '+m+' = '+inv+'</div>'}});
+}
+
+/* ── 极坐标绘图工作区 ── */
+function renderPlotPolar(){
+  workspace.innerHTML='<div class="workspace-header"><div class="ws-title">🔄 极坐标</div><div class="ws-desc">极坐标曲线 r=f(θ)，如心形线、玫瑰线、螺线</div></div><div class="work-card"><div class="calc-row" style="margin-bottom:12px"><input id="polarInput" type="text" placeholder="sin(3*x)、1+cos(x)"><button class="btn-calc" id="polarBtn">绘图</button></div><div class="presets"><button data-fn="sin(3*x)">三叶玫瑰线</button><button data-fn="1+cos(x)">心形线</button><button data-fn="x">阿基米德螺线</button><button data-fn="2*cos(2*x)">四叶玫瑰线</button><button data-fn="sin(x)/x">特殊曲线</button></div></div><div class="plot-card"><div class="header" id="polarTitle">r(θ) = sin(3θ)</div><canvas id="plotCanvasPolar"></canvas></div>';
+  bindPolarEvents();
+  setTimeout(function(){drawPolar('sin(3*x)','plotCanvasPolar')},100);
+}
+function drawPolar(fnExpr,canvasId){
+  var canvas=document.getElementById(canvasId||'plotCanvasPolar');if(!canvas)return;
+  var ctx=canvas.getContext('2d'),dpr=window.devicePixelRatio||1,rect=canvas.parentElement.getBoundingClientRect();
+  var w=Math.min(rect.width-4,1060),h=Math.round(w*0.55);
+  canvas.width=w*dpr;canvas.height=h*dpr;canvas.style.width=w+'px';canvas.style.height=h+'px';
+  ctx.setTransform(1,0,0,1,0,0);ctx.scale(dpr,dpr);
+  var pad={top:30,right:30,bottom:40,left:56},pw=w-pad.left-pad.right,ph=h-pad.top-pad.bottom,maxR=5,N=Math.min(1200,Math.round(pw*2)),pts=[];
+  for(var i=0;i<=N;i++){var theta=0+(2*Math.PI*i/N),r;try{r=evaluate(fnExpr,theta)}catch(_){continue}if(typeof r!=='number'||!isFinite(r)||Math.abs(r)>50){if(pts.length)pts.push(null);continue}if(pts.length>0&&Math.abs(r-evaluate(fnExpr,theta-8*Math.PI/N))>20)pts.push(null);var xv=r*Math.cos(theta),yv=r*Math.sin(theta);if(Math.abs(xv)>maxR||Math.abs(yv)>maxR){if(pts.length)pts.push(null);continue}pts.push({x:xv,y:yv})}
+  function tx(x){return pad.left+(x+maxR)/(2*maxR)*pw}function ty(y){return pad.top+(maxR-y)/(2*maxR)*ph}
+  var isDark=getTheme()==='dark';ctx.fillStyle=isDark?'#181825':'#fcfdfd';ctx.fillRect(0,0,w,h);
+  ctx.strokeStyle=isDark?'#313244':'#e2e8f0';ctx.lineWidth=.5;for(var g=-maxR;g<=maxR;g+=1){ctx.beginPath();ctx.moveTo(tx(g),pad.top);ctx.lineTo(tx(g),h-pad.bottom);ctx.stroke();ctx.beginPath();ctx.moveTo(pad.left,ty(g));ctx.lineTo(w-pad.right,ty(g));ctx.stroke()}
+  var axisColor=isDark?'#cdd6f4':'#1e293b';ctx.strokeStyle=axisColor;ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(pad.left,ty(0));ctx.lineTo(w-pad.right,ty(0));ctx.stroke();ctx.beginPath();ctx.moveTo(tx(0),pad.top);ctx.lineTo(tx(0),h-pad.bottom);ctx.stroke();
+  ctx.strokeStyle='#00d4ff';ctx.lineWidth=2.5;ctx.lineJoin='round';ctx.lineCap='round';var drawing=false;
+  for(var k=0;k<pts.length;k++){if(pts[k]===null){drawing=false;continue}var px=tx(pts[k].x),py=ty(pts[k].y);if(!drawing){ctx.beginPath();ctx.moveTo(px,py);drawing=true}else ctx.lineTo(px,py)}ctx.stroke();
+}
+function bindPolarEvents(){
+  var input=document.getElementById('polarInput'),btn=document.getElementById('polarBtn');if(!btn)return;
+  btn.addEventListener('click',function(){var e=(input?input.value.trim():'')||'sin(3*x)';drawPolar(e,'plotCanvasPolar');var t=document.getElementById('polarTitle');if(t)t.textContent='r(θ) = '+e});
+  if(input)input.addEventListener('keydown',function(e){if(e.key==='Enter')btn.click()});
+  var pr=document.querySelector('#workspace .presets');if(pr)pr.addEventListener('click',function(e){var b=e.target.closest('button');if(b&&b.dataset.fn){if(input)input.value=b.dataset.fn;btn.click()}});
+}
+
+/* ── 分形探索工作区 ── */
+function renderFractal(){
+  workspace.innerHTML='<div class="workspace-header"><div class="ws-title">❄️ 分形探索</div><div class="ws-desc">Mandelbrot 集与 Julia 集 — 迭代渲染</div></div><div class="work-card"><div class="calc-row" style="margin-bottom:12px"><select id="fractalType"><option value="mandelbrot">Mandelbrot 集</option><option value="julia">Julia 集</option></select><span style="font-size:13px;color:var(--text-muted)">最大迭代:</span><select id="fractalIter"><option>50</option><option selected>100</option><option>200</option><option>300</option></select><button class="btn-calc" id="fractalBtn">渲染</button><span style="font-size:12px;color:var(--text-subtle)">(点击图像放大)</span></div></div><div class="plot-card"><div class="header" id="fractalTitle">Mandelbrot 集</div><canvas id="fractalCanvas" style="cursor:crosshair"></canvas></div>';
+  bindFractalEvents();
+  setTimeout(function(){renderFractalImg()},100);
+}
+var fractalState={type:'mandelbrot',cx:-0.5,cy:0,scale:1.5,iter:100};
+function renderFractalImg(){
+  var canvas=document.getElementById('fractalCanvas');if(!canvas)return;
+  var ctx=canvas.getContext('2d'),dpr=window.devicePixelRatio||1,rect=canvas.parentElement.getBoundingClientRect();
+  var w=Math.min(rect.width-4,960),h=Math.round(w*0.6);canvas.width=w*dpr;canvas.height=h*dpr;canvas.style.width=w+'px';canvas.style.height=h+'px';
+  var img=ctx.createImageData(w,h),data=img.data;
+  var s=fractalState,iter=s.iter;
+  for(var py=0;py<h;py++){for(var px=0;px<w;px++){var zx,zy,cx,cy;
+    if(s.type==='mandelbrot'){zx=0;zy=0;cx=(px-w/2)/(w/2)*s.scale+s.cx;cy=(py-h/2)/(h/2)*s.scale+s.cy}
+    else{zx=(px-w/2)/(w/2)*s.scale;zy=(py-h/2)/(h/2)*s.scale;cx=-0.7;cy=0.27}
+    var i=0;while(i<iter&&zx*zx+zy*zy<4){var nx=zx*zx-zy*zy+cx;zy=2*zx*zy+cy;zx=nx;i++}
+    var idx=(py*w+px)*4;
+    if(i===iter){data[idx]=0;data[idx+1]=0;data[idx+2]=0;data[idx+3]=255}
+    else{var t=i/iter;data[idx]=Math.floor(9*(1-t)*t*t*t*255);data[idx+1]=Math.floor(15*(1-t)*(1-t)*t*t*255);data[idx+2]=Math.floor(8.5*(1-t)*(1-t)*(1-t)*t*255);data[idx+3]=255}
+  }}
+  ctx.putImageData(img,0,0);
+}
+function bindFractalEvents(){
+  var btn=document.getElementById('fractalBtn');if(btn)btn.addEventListener('click',function(){fractalState.type=document.getElementById('fractalType').value;fractalState.iter=+document.getElementById('fractalIter').value;fractalState.cx=fractalState.type==='mandelbrot'?-0.5:0;fractalState.cy=0;fractalState.scale=1.5;document.getElementById('fractalTitle').textContent=fractalState.type==='mandelbrot'?'Mandelbrot 集':'Julia 集';renderFractalImg()});
+  var canvas=document.getElementById('fractalCanvas');if(canvas)canvas.addEventListener('click',function(e){var rect=canvas.getBoundingClientRect(),w=rect.width,h=rect.height;var mx=(e.clientX-rect.left)/w,my=(e.clientY-rect.top)/h;fractalState.cx+=(mx-0.5)*fractalState.scale*2;fractalState.cy+=(my-0.5)*fractalState.scale*2;fractalState.scale*=0.5;renderFractalImg()});
+}
+
 /* ═══════════════════════════════════════════════════════════════
    §6 工作区统一渲染调度
    ═══════════════════════════════════════════════════════════════ */
 var RENDERERS={
   basicArithmetic:renderBasicArithmetic,
   algebra:renderAlgebra,
+  calculus:renderCalculus,
+  analGeo:renderAnalGeo,
+  sequences:renderSequences,
+  linearAlgebra:renderLinearAlgebra,
+  probability:renderProbability,
+  numerical:renderNumerical,
+  numberTheory:renderNumberTheory,
   plot2D:renderPlot2D,
+  plotPolar:renderPlotPolar,
+  fractal:renderFractal,
   desktopOnly:renderDesktopOnly,
 };
 
@@ -944,7 +1113,7 @@ document.addEventListener('keydown',function(e){
 /* 窗口缩放重绘 */
 var resizeTimer;
 window.addEventListener('resize',function(){clearTimeout(resizeTimer);resizeTimer=setTimeout(function(){
-  if(currentTab==='plot'&&currentSub===0)drawAllPlotFns();
+  if(currentTab==='plot'){if(currentSub===0)drawAllPlotFns();else if(currentSub===1)drawPolar((document.getElementById('polarInput')?document.getElementById('polarInput').value.trim():'')||'sin(3*x)','plotCanvasPolar');else if(currentSub===6)renderFractalImg()}
 },200)});
 
 document.getElementById('btnAbout').addEventListener('click',function(){
