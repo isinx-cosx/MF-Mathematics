@@ -972,3 +972,88 @@ QSplitter::handle:hover {
     color: #0f172a;
     background: transparent;
 }
+
+/* ---- 基础运算计算器 ---- */
+#calc_lcd {
+    background: #f1f5f9;
+    color: #0f172a;
+    border: 2px solid #cbd5e1;
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 24px;
+    font-weight: bold;
+}
+#calc_result {
+    color: #475569;
+    font-size: 14px;
+    padding-right: 8px;
+}
+#calc_btn_num {
+    background: #ffffff;
+    color: #1e293b;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    font-size: 16px;
+    font-weight: 500;
+}
+#calc_btn_num:hover { background: #f1f5f9; }
+#calc_btn_num:pressed { background: #e2e8f0; }
+#calc_btn_op {
+    background: #eff6ff;
+    color: #2563eb;
+    border: 1px solid #bfdbfe;
+    border-radius: 6px;
+    font-size: 16px;
+    font-weight: 600;
+}
+#calc_btn_op:hover { background: #dbeafe; }
+#calc_btn_op:pressed { background: #bfdbfe; }
+#calc_btn_eq {
+    background: #2563eb;
+    color: #ffffff;
+    border: 1px solid #1d4ed8;
+    border-radius: 6px;
+    font-size: 18px;
+    font-weight: 700;
+}
+#calc_btn_eq:hover { background: #1d4ed8; }
+#calc_btn_eq:pressed { background: #1e40af; }
+#calc_btn_func {
+    background: #f8fafc;
+    color: #475569;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    font-size: 13px;
+}
+#calc_btn_func:hover { background: #f1f5f9; }
+#calc_btn_func:pressed { background: #e2e8f0; }
+#calc_btn_ctrl {
+    background: #fef2f2;
+    color: #dc2626;
+    border: 1px solid #fecaca;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 600;
+}
+#calc_btn_ctrl:hover { background: #fee2e2; }
+#calc_btn_ctrl:pressed { background: #fecaca; }
+#calc_btn_paren {
+    background: #f8fafc;
+    color: #6366f1;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 600;
+}
+#calc_btn_paren:hover { background: #f1f5f9; }
+#calc_btn_paren:pressed { background: #e2e8f0; }
+#calc_btn_const {
+    background: #f0fdf4;
+    color: #16a34a;
+    border: 1px solid #bbf7d0;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 600;
+}
+#calc_btn_const:hover { background: #dcfce7; }
+#calc_btn_const:pressed { background: #bbf7d0; }

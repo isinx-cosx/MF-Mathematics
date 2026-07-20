@@ -19,6 +19,8 @@ import plot.plot_colors            # noqa
 import plot.grid_renderer          # noqa
 
 # calc submodules
+import calc.basic_arithmetic.workspace  # noqa
+import calc.basic_arithmetic.calculator # noqa
 import calc.algebra.workspace      # noqa
 import calc.algebra.calc_block     # noqa
 import calc.algebraic_topology.workspace  # noqa
