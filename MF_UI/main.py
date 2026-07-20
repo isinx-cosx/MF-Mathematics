@@ -20,7 +20,10 @@ def main():
         app.setApplicationName("MF-Mathematics")
 
         # ── 应用图标 ──
-        _icon_path = os.path.join(_project_root, "assets", "icon.ico")
+        if getattr(sys, 'frozen', False):
+            _icon_path = os.path.join(sys._MEIPASS, "assets", "icon.ico")
+        else:
+            _icon_path = os.path.join(_project_root, "assets", "icon.ico")
         if os.path.exists(_icon_path):
             app_icon = QIcon(_icon_path)
             app.setWindowIcon(app_icon)
