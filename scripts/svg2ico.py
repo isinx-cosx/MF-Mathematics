@@ -319,7 +319,9 @@ def render_svg_to_image(svg_path: str, width: int, height: int) -> Image.Image:
 # ---------- 生成 ICO ----------
 
 def main():
-    svg_path = "assets/icon.svg"
+    # 注意：icon.svg 已删除，此脚本已弃用。
+    # 新图标源文件：assets/icon.png（透明背景）、assets/titlebar_icon.png（圆角）
+    svg_path = "assets/icon.svg"   # 文件已不存在
     ico_path = "assets/icon.ico"
 
     # Windows 标准图标尺寸（含高DPI）

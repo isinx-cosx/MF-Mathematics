@@ -1,7 +1,7 @@
 """复分析 (Complex Analysis) 模块测试。"""
 
-import sys
-sys.path.insert(0, r'C:\Users\fsafsafsa\Desktop\Multifunctional-Mathematics')
+import sys, os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 
 def test_complex_topology() -> bool:

@@ -21,6 +21,9 @@ Thumbs.db
 
 # Project-specific
 .claude/
+logs/
+temp/
+*.log
 usage.json
 tutorial_progress.json
 ai_cache.json

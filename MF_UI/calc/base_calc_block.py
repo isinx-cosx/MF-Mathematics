@@ -88,7 +88,7 @@ class BaseCalcBlock(QWidget):
 
     def get_mode_list(self) -> list[str]:
         """返回模式名称列表。"""
-        raise NotImplementedError
+        raise NotImplementedError("子类必须实现 get_mode_list")
 
     def get_action_map(self) -> dict[str, tuple[str, str]]:
         """返回 {模式名: (module, action)} 映射。
@@ -99,7 +99,7 @@ class BaseCalcBlock(QWidget):
 
     def _get_module_name(self) -> str:
         """返回计算引擎模块名（如 "linear_algebra"）。"""
-        raise NotImplementedError
+        raise NotImplementedError("子类必须实现 _get_module_name")
 
     def on_calc_clicked(self) -> None:
         """默认分派逻辑（Pattern A：calc_engine 全局映射）。
