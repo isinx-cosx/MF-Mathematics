@@ -15,10 +15,11 @@ from .plot_3d import Plot3D, Plot3DCanvas, Plot3DWorkspace
 from .complex import ComplexWorkspace
 from .vector_field import VectorFieldWorkspace
 from .arbitrary import ArbitraryWorkspace
+from .fractal import FractalWorkspace
 
 __all__ = [
     "PlotCanvas", "FunctionBox", "PlotWorkspace",
     "SliderFunctionBox", "Plot3D", "Plot3DCanvas", "Plot3DWorkspace",
     "ComplexWorkspace", "VectorFieldWorkspace",
-    "ArbitraryWorkspace",
+    "ArbitraryWorkspace", "FractalWorkspace",
 ]
