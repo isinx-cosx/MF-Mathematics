@@ -975,18 +975,22 @@ QSplitter::handle:hover {
 
 /* ---- 基础运算计算器 ---- */
 #calc_lcd {
-    background: #f1f5f9;
-    color: #0f172a;
+    background: #f8fafc;
     border: 2px solid #cbd5e1;
-    border-radius: 8px;
-    padding: 8px 12px;
-    font-size: 24px;
-    font-weight: bold;
+    border-radius: 10px;
+}
+#calc_expr {
+    color: #64748b;
+    background: transparent;
+    font-size: 16px;
+    padding-right: 4px;
 }
 #calc_result {
-    color: #475569;
-    font-size: 14px;
-    padding-right: 8px;
+    color: #0f172a;
+    background: transparent;
+    font-size: 40px;
+    font-weight: bold;
+    padding-right: 4px;
 }
 #calc_btn_num {
     background: #ffffff;
