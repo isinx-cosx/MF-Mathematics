@@ -29,3 +29,24 @@ tutorial_progress.json
 ai_cache.json
 users.json
 workspace_save.json
+
+# AI instructions
+CLAUDE.md
+
+# PyInstaller
+*.spec
+
+# Archived code
+_archive/
+
+# Scan reports
+docs/CODE_AUDIT_REPORT.txt
+docs/CODE_SCAN_REPORT.txt
+docs/PROJECT_SCAN_REPORT_*.txt
+docs/scan_report.txt
+
+# Superpowers
+docs/superpowers/
+
+# Installer assets
+assets/installer/
