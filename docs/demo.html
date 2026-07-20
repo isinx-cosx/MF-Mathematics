@@ -24,8 +24,10 @@
   --topbar-bg:#fff;--topbar-border:#e2e8f0;
   --statusbar-bg:#fff;--lcd-bg:#f8fafc;--lcd-border:#cbd5e1;
   --input-bg:#fafafa;--result-bg:#f0f9ff;--result-border:#bfdbfe;
-  --subnav-bg:#f8fafc;--subnav-hover:#e2e8f0;--subnav-active-bg:#dbeafe;--subnav-active-text:#1e40af;
+  --combo-bg:#fff;--combo-hover:#f1f5f9;
   --plot-bg:#fcfdfd;--kb-bg:#fff;--kb-btn-bg:#fafafa;
+  --sep-color:#cbd5e1;--add-btn-bg:transparent;--add-btn-hover:#e2e8f0;--add-btn-text:#94a3b8;
+  --del-hover-bg:#fee2e2;--del-hover-text:#ef4444;
 }
 [data-theme="dark"] {
   --bg:#1e1e2e;--surface:#252540;--surface2:#1e1e2e;--border:#313244;--border-in:#45475a;
@@ -43,8 +45,10 @@
   --topbar-bg:#181825;--topbar-border:#313244;
   --statusbar-bg:#252540;--lcd-bg:#11111b;--lcd-border:#45475a;
   --input-bg:#1e1e2e;--result-bg:#1e2a3a;--result-border:#313244;
-  --subnav-bg:#1e1e2e;--subnav-hover:#313244;--subnav-active-bg:#1e3a5f;--subnav-active-text:#93c5fd;
+  --combo-bg:#1e1e2e;--combo-hover:#313244;
   --plot-bg:#181825;--kb-bg:#252540;--kb-btn-bg:#313244;
+  --sep-color:#45475a;--add-btn-bg:transparent;--add-btn-hover:#313244;--add-btn-text:#6c7086;
+  --del-hover-bg:#442222;--del-hover-text:#ef4444;
 }
 *{margin:0;padding:0;box-sizing:border-box}
 body{
@@ -53,11 +57,10 @@ body{
 }
 #app-shell{max-width:1100px;margin:0 auto;min-height:100vh;display:flex;flex-direction:column}
 
-/* ── Topbar（匹配 customTitleBar）── */
+/* ── Topbar ── */
 #topbar{
   background:var(--topbar-bg);border-bottom:1px solid var(--topbar-border);
-  padding:0 20px;height:44px;display:flex;align-items:center;justify-content:space-between;
-  flex-shrink:0;
+  padding:0 20px;height:44px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;
 }
 #topbar .brand{font-size:16px;font-weight:700;display:flex;align-items:center;gap:8px}
 #topbar .brand .logo{width:28px;height:28px;background:var(--primary);border-radius:7px;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:13px}
@@ -67,13 +70,12 @@ body{
   background:transparent;color:var(--text-muted);cursor:pointer;text-decoration:none;
   font-family:inherit;transition:all .15s;
 }
-#topbar .actions button:hover,#topbar .actions a:hover{background:var(--subnav-hover);color:var(--text)}
+#topbar .actions button:hover,#topbar .actions a:hover{background:var(--combo-hover);color:var(--text)}
 
 /* ── 工具栏（匹配 QToolBar）── */
 #toolbar{
   background:var(--toolbar-bg);border-bottom:1px solid var(--toolbar-border);
-  padding:0 16px;height:48px;display:flex;align-items:center;gap:12px;flex-shrink:0;
-  overflow-x:auto;
+  padding:4px 16px;height:48px;display:flex;align-items:center;gap:10px;flex-shrink:0;overflow-x:auto;
 }
 #toolbar .mode-tabs{display:flex;gap:2px}
 #toolbar .mode-tabs button{
@@ -81,38 +83,26 @@ body{
   border-radius:6px;background:transparent;color:var(--text-muted);cursor:pointer;
   font-family:inherit;transition:all .15s;
 }
-#toolbar .mode-tabs button:hover{background:var(--subnav-hover)}
-#toolbar .mode-tabs button.active{
-  background:var(--subnav-active-bg);color:var(--subnav-active-text);
-  border-color:var(--primary);font-weight:700;
+#toolbar .mode-tabs button:hover{background:var(--combo-hover)}
+#toolbar .mode-tabs button.active{border-color:var(--primary);color:var(--primary);font-weight:700}
+
+/* ── 子模式下拉框（匹配 QComboBox 140px）── */
+#subCombo{
+  padding:6px 10px;font-size:13px;border:1px solid var(--border-in);border-radius:4px;
+  background:var(--combo-bg);color:var(--text);outline:none;cursor:pointer;
+  min-width:140px;font-family:inherit;
 }
+#subCombo:focus{border-color:var(--primary)}
+#subCombo:hover{background:var(--combo-hover)}
+
 #toolbar .sep{width:1px;height:24px;background:var(--border);flex-shrink:0}
 #toolbar .tool-btn{
   font-size:13px;padding:6px 14px;border:1px solid transparent;border-radius:6px;
   background:transparent;color:var(--text-muted);cursor:pointer;font-family:inherit;
   white-space:nowrap;transition:all .15s;
 }
-#toolbar .tool-btn:hover{background:var(--subnav-hover);color:var(--text)}
+#toolbar .tool-btn:hover{background:var(--combo-hover);color:var(--text)}
 #toolbar .spacer{flex:1}
-
-/* ── 主区域 ── */
-#main-area{display:flex;flex:1;min-height:0}
-
-/* ── 子模式侧边导航（匹配 QComboBox）── */
-#subnav{
-  width:180px;flex-shrink:0;background:var(--subnav-bg);border-right:1px solid var(--border);
-  padding:8px 0;overflow-y:auto;
-}
-#subnav .subnav-item{
-  display:block;width:100%;padding:9px 16px;font-size:13px;text-align:left;
-  border:none;background:transparent;color:var(--text-muted);cursor:pointer;
-  font-family:inherit;transition:all .12s;border-left:3px solid transparent;
-}
-#subnav .subnav-item:hover{background:var(--subnav-hover);color:var(--text)}
-#subnav .subnav-item.active{
-  background:var(--subnav-active-bg);color:var(--subnav-active-text);
-  border-left-color:var(--primary);font-weight:600;
-}
 
 /* ── 工作区 ── */
 #workspace{flex:1;padding:20px 24px;overflow-y:auto}
@@ -128,6 +118,7 @@ body{
 .lcd{background:var(--lcd-bg);border:2px solid var(--lcd-border);border-radius:10px;padding:12px 16px;margin-bottom:12px;min-height:88px;display:flex;flex-direction:column;justify-content:flex-end;align-items:flex-end}
 .lcd .expr{color:var(--text-subtle);font-size:16px;min-height:22px;word-break:break-all;font-family:monospace}
 .lcd .result{color:var(--text-title);font-size:40px;font-weight:700;min-height:48px;word-break:break-all}
+
 /* ── 按钮网格 ── */
 .btn-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:4px}
 .btn-grid button{padding:12px 4px;font-size:15px;font-weight:500;border-radius:6px;cursor:pointer;transition:all .12s;min-height:44px;font-family:inherit}
@@ -147,23 +138,27 @@ body{
 .btn-const:hover{filter:brightness(.95)}.btn-const:active{filter:brightness(.9)}
 
 /* ── CalcBlock 风格 ── */
-.calc-row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
-.calc-row input{flex:1 1 200px;padding:10px 14px;font-size:15px;font-family:'Cascadia Code','Fira Code','Consolas',monospace;border:1px solid var(--border-in);border-radius:8px;outline:none;background:var(--input-bg);color:var(--text);transition:border-color .15s}
-.calc-row input:focus{border-color:var(--primary);background:var(--surface)}
-.calc-row select{padding:10px 14px;font-size:14px;border:1px solid var(--border-in);border-radius:8px;background:var(--input-bg);color:var(--text);outline:none;cursor:pointer;min-width:120px}
-.calc-row select:focus{border-color:var(--primary)}
-.btn-calc{padding:10px 20px;font-size:14px;font-weight:600;background:var(--primary);color:#fff;border:none;border-radius:8px;cursor:pointer;white-space:nowrap;transition:background .15s;font-family:inherit}
-.btn-calc:hover{background:var(--primary-hv)}
-.btn-calc-sm{padding:8px 16px;font-size:13px;font-weight:500;background:#e2e8f0;color:var(--text);border:none;border-radius:6px;cursor:pointer;font-family:inherit;transition:all .15s}
-.btn-calc-sm:hover{background:#cbd5e1}
-[data-theme="dark"] .btn-calc-sm{background:#45475a;color:#cdd6f4}
-[data-theme="dark"] .btn-calc-sm:hover{background:#585b70}
+.calc-block{border:1px solid var(--border);border-radius:8px;padding:10px 12px;background:var(--surface);margin-bottom:0}
+.calc-block .cb-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.calc-block .cb-row input{flex:1 1 180px;padding:8px 12px;font-size:14px;font-family:'Cascadia Code','Fira Code','Consolas',monospace;border:1px solid var(--border-in);border-radius:4px;outline:none;background:var(--input-bg);color:var(--text);transition:border-color .15s}
+.calc-block .cb-row input:focus{border-color:var(--primary);background:var(--surface)}
+.calc-block .cb-row select{padding:8px 12px;font-size:13px;border:1px solid var(--border-in);border-radius:4px;background:var(--input-bg);color:var(--text);outline:none;cursor:pointer;min-width:120px;font-family:inherit}
+.calc-block .cb-row select:focus{border-color:var(--primary)}
+.cb-separator{height:1px;background:var(--sep-color);margin:6px 0}
+.btn-calc-sm{padding:8px 12px;font-size:12px;font-weight:500;background:var(--add-btn-bg);color:var(--add-btn-text);border:1px solid var(--border);border-radius:4px;cursor:pointer;font-family:inherit;transition:all .15s}
+.btn-calc-sm:hover{background:var(--add-btn-hover);color:var(--text)}
+.btn-calc{border:none;border-radius:4px;padding:8px 16px;font-size:13px;font-weight:500;cursor:pointer;font-family:inherit;transition:all .15s}
+[data-theme="light"] .btn-calc{background:#e2e8f0;color:#0f172a}
+[data-theme="light"] .btn-calc:hover{background:#cbd5e1}
+[data-theme="dark"] .btn-calc{background:#45475a;color:#cdd6f4}
+[data-theme="dark"] .btn-calc:hover{background:#585b70}
+.btn-delete{background:transparent;border:none;color:var(--text-subtle);font-size:16px;font-weight:bold;padding:4px 8px;border-radius:4px;cursor:pointer;font-family:inherit;transition:all .12s;min-width:30px}
+.btn-delete:hover{background:var(--del-hover-bg);color:var(--del-hover-text)}
 
-.result-box{margin-top:14px;padding:14px 18px;background:var(--result-bg);border:1px solid var(--result-border);border-radius:10px;font-size:15px;color:var(--text);min-height:44px;line-height:1.6}
+.result-box{margin-top:10px;padding:14px 18px;background:var(--result-bg);border:1px solid var(--result-border);border-radius:10px;font-size:15px;color:var(--text);min-height:44px;line-height:1.6}
 .result-box .steps{color:var(--text-muted);font-size:13px;margin-bottom:4px}
 .result-box .answer{font-weight:700;color:var(--primary);font-size:18px;font-family:monospace}
 
-/* 预设 */
 .presets{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
 .presets button{padding:8px 16px;font-size:13px;font-weight:500;background:#eef2f6;color:var(--text-muted);border:1px solid var(--border);border-radius:20px;cursor:pointer;transition:all .15s;font-family:inherit}
 .presets button:hover{background:#d0d9e6;color:var(--text)}
@@ -171,34 +166,35 @@ body{
 [data-theme="dark"] .presets button{background:#313244}
 [data-theme="dark"] .presets button:hover{background:#45475a}
 
-/* 绘图卡片 */
-.plot-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;box-shadow:var(--shadow);overflow:hidden}
-.plot-card .header{padding:14px 24px;border-bottom:1px solid var(--border);font-size:14px;font-weight:600;color:var(--text-muted);display:flex;align-items:center;gap:8px}
-.plot-card .header::before{content:'';display:inline-block;width:8px;height:8px;background:var(--accent);border-radius:50%}
-canvas{display:block;width:100%;height:auto;background:var(--plot-bg)}
+/* ── 添加按钮（匹配 btn_add / plot_btn_add）── */
+.btn-add{
+  display:block;width:100%;text-align:center;padding:14px;font-size:13px;
+  background:var(--add-btn-bg);color:var(--add-btn-text);border:1px solid var(--border);
+  border-bottom:none;cursor:pointer;font-family:inherit;transition:all .15s;border-radius:0 0 8px 8px;
+}
+.btn-add:hover{background:var(--add-btn-hover);color:var(--text)}
 
-/* 矩阵输入 */
-.matrix-grid{display:inline-grid;gap:4px;margin:8px 0}
-.matrix-grid input{width:64px;padding:6px 8px;font-size:14px;text-align:center;font-family:monospace;border:1px solid var(--border-in);border-radius:4px;background:var(--input-bg);color:var(--text);outline:none}
-.matrix-grid input:focus{border-color:var(--primary)}
-.matrix-row{display:flex;gap:4px;align-items:center;margin-bottom:4px}
+/* ── 绘图左右分栏 ── */
+.plot-layout{display:flex;gap:0;border:1px solid var(--border);border-radius:12px;overflow:hidden;background:var(--surface);box-shadow:var(--shadow)}
+.plot-left{width:300px;flex-shrink:0;background:var(--bg);border-right:1px solid var(--border);padding:14px;overflow-y:auto;max-height:520px}
+.plot-left .plot-input-row{display:flex;flex-direction:column;gap:6px;margin-bottom:10px}
+.plot-left input{width:100%;padding:8px 12px;font-size:14px;font-family:'Cascadia Code','Fira Code','Consolas',monospace;border:1px solid var(--border-in);border-radius:4px;outline:none;background:var(--input-bg);color:var(--text)}
+.plot-left input:focus{border-color:var(--primary)}
+.plot-right{flex:1;min-height:380px;display:flex;align-items:center;justify-content:center}
+.plot-right canvas{display:block}
+.plot-fn-row{display:flex;gap:4px;align-items:center;margin-bottom:4px;padding:6px 8px;background:var(--surface);border:1px solid var(--border);border-radius:6px}
+.plot-fn-row input{flex:1;padding:6px 8px;font-size:13px;font-family:monospace;border:1px solid var(--border-in);border-radius:4px;outline:none;background:var(--input-bg);color:var(--text)}
+.plot-fn-row input:focus{border-color:var(--primary)}
+.plot-fn-row .fn-color{width:20px;height:20px;border-radius:50%;flex-shrink:0;cursor:pointer;border:2px solid var(--border)}
+.plot-legend{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;font-size:12px;color:var(--text-muted)}
 
-/* 键盘面板 */
-#keyboard-panel{border-top:1px solid var(--border);background:var(--kb-bg);flex-shrink:0;display:none}
-#keyboard-panel .kb-tabs{display:flex;border-bottom:1px solid var(--border);padding:0 12px;overflow-x:auto}
-#keyboard-panel .kb-tabs button{padding:6px 14px;font-size:12px;border:1px solid transparent;border-bottom:none;background:transparent;color:var(--text-muted);cursor:pointer;font-family:inherit;border-radius:4px 4px 0 0;transition:all .12s}
-#keyboard-panel .kb-tabs button.active{background:var(--surface);color:var(--text);border-color:var(--border);border-bottom:2px solid var(--primary)}
-#keyboard-panel .kb-content{padding:8px 12px;display:flex;flex-wrap:wrap;gap:3px}
-#keyboard-panel .kb-content button{padding:6px 10px;font-size:14px;font-family:monospace;background:var(--kb-btn-bg);color:var(--text);border:1px solid var(--border);border-radius:4px;cursor:pointer;transition:all .1s;min-width:38px}
-#keyboard-panel .kb-content button:hover{background:var(--subnav-hover);border-color:var(--border-in)}
-
-/* 占位卡片 */
+/* ── 占位卡片 ── */
 .placeholder-card{background:var(--surface);border:2px dashed var(--border);border-radius:12px;padding:40px 24px;text-align:center;color:var(--text-subtle)}
 .placeholder-card .ph-icon{font-size:48px;margin-bottom:12px}
 .placeholder-card .ph-title{font-size:16px;font-weight:600;color:var(--text-muted);margin-bottom:6px}
 .placeholder-card .ph-desc{font-size:13px;line-height:1.6}
 
-/* ── 状态栏（匹配 QStatusBar）── */
+/* ── 状态栏 ── */
 #statusbar{
   background:var(--statusbar-bg);border-top:1px solid var(--border);
   padding:6px 16px;height:30px;display:flex;align-items:center;justify-content:space-between;
@@ -206,26 +202,35 @@ canvas{display:block;width:100%;height:auto;background:var(--plot-bg)}
 }
 #statusbar #brand-label{font-size:11px}
 
+/* ── 键盘面板 ── */
+#keyboard-panel{border-top:1px solid var(--border);background:var(--kb-bg);flex-shrink:0;display:none}
+#keyboard-panel .kb-tabs{display:flex;border-bottom:1px solid var(--border);padding:0 12px;overflow-x:auto}
+#keyboard-panel .kb-tabs button{padding:6px 14px;font-size:12px;border:1px solid transparent;border-bottom:none;background:transparent;color:var(--text-muted);cursor:pointer;font-family:inherit;border-radius:4px 4px 0 0;transition:all .12s}
+#keyboard-panel .kb-tabs button.active{background:var(--surface);color:var(--text);border-color:var(--border);border-bottom:2px solid var(--primary)}
+#keyboard-panel .kb-content{padding:8px 12px;display:flex;flex-wrap:wrap;gap:3px}
+#keyboard-panel .kb-content button{padding:6px 10px;font-size:14px;font-family:monospace;background:var(--kb-btn-bg);color:var(--text);border:1px solid var(--border);border-radius:4px;cursor:pointer;transition:all .1s;min-width:38px}
+#keyboard-panel .kb-content button:hover{background:var(--combo-hover);border-color:var(--border-in)}
+
 /* ── 响应式 ── */
 @media(max-width:700px){
-  #main-area{flex-direction:column}
-  #subnav{width:100%;border-right:none;border-bottom:1px solid var(--border);padding:4px 0;overflow-x:auto;display:flex;flex-wrap:nowrap}
-  #subnav .subnav-item{flex-shrink:0;width:auto;padding:8px 14px;font-size:12px;border-left:none;border-bottom:3px solid transparent}
-  #subnav .subnav-item.active{border-left:none;border-bottom-color:var(--primary)}
   #workspace{padding:14px 10px}
   .btn-grid button{font-size:13px;padding:8px 2px;min-height:42px}
   .lcd .result{font-size:28px}
-  .calc-row input{font-size:14px}
   #topbar .brand{font-size:14px}
   #toolbar{gap:4px;padding:4px 8px;height:auto;flex-wrap:wrap}
   #toolbar .mode-tabs button{padding:6px 12px;font-size:12px}
   #toolbar .tool-btn{font-size:12px;padding:5px 10px}
+  #subCombo{min-width:110px;font-size:12px}
+  .plot-layout{flex-direction:column}
+  .plot-left{width:100%;border-right:none;border-bottom:1px solid var(--border);max-height:none}
+  .plot-right{min-height:300px}
+  .calc-block .cb-row{flex-direction:column;align-items:stretch}
+  .calc-block .cb-row select{min-width:auto}
 }
 </style>
 </head>
 <body>
 <div id="app-shell">
-  <!-- ═══════════════ Topbar ═══════════════ -->
   <header id="topbar">
     <span class="brand"><span class="logo">M</span>MF-Mathematics</span>
     <span class="actions">
@@ -234,26 +239,21 @@ canvas{display:block;width:100%;height:auto;background:var(--plot-bg)}
     </span>
   </header>
 
-  <!-- ═══════════════ Toolbar ═══════════════ -->
   <nav id="toolbar">
     <div class="mode-tabs" id="modeTabs">
       <button data-tab="calc" class="active">计算</button>
       <button data-tab="plot">绘图</button>
     </div>
     <span class="sep"></span>
-    <button class="tool-btn" id="btnKeyboard" title="数学键盘">⌨️ 键盘</button>
+    <select id="subCombo"></select>
     <span class="spacer"></span>
     <span class="sep"></span>
+    <button class="tool-btn" id="btnKeyboard" title="数学键盘">⌨️ 键盘</button>
     <button class="tool-btn" id="btnAbout">ℹ️ 关于</button>
   </nav>
 
-  <!-- ═══════════════ Main Area ═══════════════ -->
-  <div id="main-area">
-    <aside id="subnav"></aside>
-    <main id="workspace"></main>
-  </div>
+  <main id="workspace"></main>
 
-  <!-- ═══════════════ Keyboard Panel ═══════════════ -->
   <div id="keyboard-panel">
     <div class="kb-tabs" id="kbTabs">
       <button class="active" data-kb="basic">基本</button>
@@ -264,7 +264,6 @@ canvas{display:block;width:100%;height:auto;background:var(--plot-bg)}
     <div class="kb-content" id="kbContent"></div>
   </div>
 
-  <!-- ═══════════════ Statusbar ═══════════════ -->
   <footer id="statusbar">
     <span id="statusMsg">就绪</span>
     <span id="brand-label">MF-Vis-Science · Open Studio</span>
@@ -275,7 +274,6 @@ canvas{display:block;width:100%;height:auto;background:var(--plot-bg)}
 (function(){'use strict';
 /* ═══════════════════════════════════════════════════════════════
    §1 数学表达式解析器 — 递归下降（零 eval / new Function）
-   保留自原 demo.html，已充分验证
    ═══════════════════════════════════════════════════════════════ */
 var TOK_NUM=1,TOK_ID=2,TOK_OP=3,TOK_LP=4,TOK_RP=5,TOK_COMMA=6;
 
@@ -392,21 +390,21 @@ themeToggle.addEventListener('click',function(){setTheme(getTheme()==='dark'?'li
 try{var saved=localStorage.getItem('mf-theme');if(saved)setTheme(saved)}catch(_){}
 
 /* ═══════════════════════════════════════════════════════════════
-   §3 导航系统 — 模式配置 + 切换逻辑
+   §3 导航系统 — 下拉框匹配 QComboBox
    ═══════════════════════════════════════════════════════════════ */
 var currentTab='calc',currentSub=0;
-var subnav=document.getElementById('subnav'),workspace=document.getElementById('workspace');
+var workspace=document.getElementById('workspace'),subCombo=document.getElementById('subCombo');
 
 var MODES={
   calc:{
     modes:[
       {name:'基础运算',icon:'🔢',render:'basicArithmetic'},
-      {name:'代数',icon:'📐',render:'algebra'},
+      {name:'代数计算',icon:'📐',render:'algebra'},
       {name:'微积分',icon:'∫',render:'desktopOnly',desc:'求导、不定积分、定积分、极限计算'},
       {name:'解析几何',icon:'📏',render:'desktopOnly',desc:'几何对象计算：距离、角度、面积、体积，坐标变换与圆锥曲线分析'},
       {name:'数列',icon:'🔗',render:'desktopOnly',desc:'数列通项生成、等差/等比数列求和'},
       {name:'线性代数',icon:'📊',render:'desktopOnly',desc:'矩阵运算：行列式、求逆、转置、特征值与对角化'},
-      {name:'概率统计',icon:'🎲',render:'desktopOnly',desc:'概率分布、期望方差、假设检验、回归分析与 ANOVA'},
+      {name:'概率论与数理统计',icon:'🎲',render:'desktopOnly',desc:'概率分布、期望方差、假设检验、回归分析与 ANOVA'},
       {name:'数值分析',icon:'🔢',render:'desktopOnly',desc:'插值逼近、数值积分、ODE 求解、求根与迭代法'},
       {name:'数论',icon:'🔐',render:'desktopOnly',desc:'素数判定、因子分解、同余方程、数论函数'},
       {name:'实分析',icon:'∞',render:'desktopOnly',desc:'极限严格定义、连续性与可微性、级数收敛判别'},
@@ -418,26 +416,24 @@ var MODES={
   },
   plot:{
     modes:[
-      {name:'2D 函数',icon:'📈',render:'plot2D'},
+      {name:'普通模式',icon:'📈',render:'plot2D'},
       {name:'极坐标',icon:'🔄',render:'desktopOnly',desc:'极坐标曲线 r=f(θ)，如心形线、玫瑰线、螺线'},
-      {name:'3D 曲面',icon:'🏔️',render:'desktopOnly',desc:'三维曲面 z=f(x,y) 渲染、空间参数曲线与等高线投影'},
-      {name:'复数域着色',icon:'🌈',render:'desktopOnly',desc:'复平面 RGB 域着色 (Domain Coloring)、复变函数可视化'},
+      {name:'3D 模式',icon:'🏔️',render:'desktopOnly',desc:'三维曲面 z=f(x,y) 渲染、空间参数曲线与等高线投影'},
+      {name:'复数模式',icon:'🌈',render:'desktopOnly',desc:'复平面 RGB 域着色 (Domain Coloring)、复变函数可视化'},
       {name:'向量场',icon:'🧭',render:'desktopOnly',desc:'2D/3D 梯度场、流线图与自适应密度向量场'},
-      {name:'自由几何',icon:'✏️',render:'desktopOnly',desc:'自由几何构造：点、线段、圆、向量、多边形'},
+      {name:'任意做图',icon:'✏️',render:'desktopOnly',desc:'自由几何构造：点、线段、圆、向量、多边形'},
       {name:'分形探索',icon:'❄️',render:'desktopOnly',desc:'Julia 集、Mandelbrot 集、Burning Ship 与 Newton 分形'},
     ]
   }
 };
 
-function buildSubnav(){
-  subnav.innerHTML='';
+function fillCombo(){
+  subCombo.innerHTML='';
   var modes=MODES[currentTab].modes;
   for(var i=0;i<modes.length;i++){
-    var btn=document.createElement('button');
-    btn.className='subnav-item'+(i===currentSub?' active':'');
-    btn.textContent=modes[i].icon+' '+modes[i].name;
-    btn.addEventListener('click',(function(idx){return function(){switchSub(idx)}})(i));
-    subnav.appendChild(btn);
+    var opt=document.createElement('option');opt.value=i;opt.textContent=modes[i].name;
+    if(i===currentSub)opt.selected=true;
+    subCombo.appendChild(opt);
   }
 }
 
@@ -445,36 +441,38 @@ function switchTab(tab){
   if(currentTab===tab)return;
   currentTab=tab;currentSub=0;
   document.querySelectorAll('#modeTabs button').forEach(function(b){b.classList.toggle('active',b.dataset.tab===tab)});
-  buildSubnav();renderWorkspace();
-  status('切换到'+(tab==='calc'?'计算':'绘图')+'模式');
+  fillCombo();renderWorkspace();status('切换到'+(tab==='calc'?'计算':'绘图')+'模式');
 }
 
 function switchSub(idx){
-  currentSub=idx;buildSubnav();renderWorkspace();
+  currentSub=idx;subCombo.value=idx;renderWorkspace();
   var m=MODES[currentTab].modes[idx];status(m.name);
 }
 
 document.getElementById('modeTabs').addEventListener('click',function(e){
   var btn=e.target.closest('button');if(!btn)return;switchTab(btn.dataset.tab);
 });
+subCombo.addEventListener('change',function(){switchSub(+subCombo.value)});
 
 /* ═══════════════════════════════════════════════════════════════
-   §4 Canvas 绘图引擎 — 2D + 极坐标
+   §4 Canvas 绘图引擎 — 2D Plot
    ═══════════════════════════════════════════════════════════════ */
-function draw2D(fnExpr,canvasId){
-  var canvas=document.getElementById(canvasId||'plotCanvas2D');
+var PLOT_COLORS=['#00d4ff','#ef4444','#10b981','#f59e0b','#8b5cf6','#ec4899','#06b6d4','#84cc16'];
+
+function draw2D(fnExpr,canvasId,color){
+  var canvas=document.getElementById(canvasId||'plotCanvas');
   if(!canvas)return;
   var ctx=canvas.getContext('2d'),dpr=window.devicePixelRatio||1;
-  var rect=canvas.parentElement.getBoundingClientRect();
-  var w=Math.min(rect.width-4,1060),h=Math.round(w*0.52);
+  var parent=canvas.parentElement,rect=parent.getBoundingClientRect();
+  var w=rect.width-4,h=Math.max(380,Math.round(w*0.52));
+  if(parent.classList.contains('plot-right')){w=rect.width-4;h=Math.max(380,rect.height-8)}
   canvas.width=w*dpr;canvas.height=h*dpr;
   canvas.style.width=w+'px';canvas.style.height=h+'px';
   ctx.setTransform(1,0,0,1,0,0);ctx.scale(dpr,dpr);
 
   var pad={top:30,right:30,bottom:40,left:56};
   var pw=w-pad.left-pad.right,ph=h-pad.top-pad.bottom;
-  var xMin=-5,xMax=5;
-  var N=Math.min(800,Math.round(pw*2));
+  var xMin=-5,xMax=5,N=Math.min(800,Math.round(pw*2));
   var pts=[],yMin=Infinity,yMax=-Infinity;
   for(var i=0;i<=N;i++){
     var xv=xMin+(xMax-xMin)*i/N,yv;
@@ -485,24 +483,23 @@ function draw2D(fnExpr,canvasId){
   }
   if(!isFinite(yMin)){yMin=-5;yMax=5}
   var yr=yMax-yMin||2;yMin-=yr*.1;yMax+=yr*.1;
-
   function tx(x){return pad.left+(x-xMin)/(xMax-xMin)*pw}
   function ty(y){return pad.top+(yMax-y)/(yMax-yMin)*ph}
 
-  ctx.fillStyle=getTheme()==='dark'?'#181825':'#fcfdfd';ctx.fillRect(0,0,w,h);
-
-  ctx.strokeStyle=getTheme()==='dark'?'#313244':'#e2e8f0';ctx.lineWidth=.5;
+  var isDark=getTheme()==='dark';
+  ctx.fillStyle=isDark?'#181825':'#fcfdfd';ctx.fillRect(0,0,w,h);
+  ctx.strokeStyle=isDark?'#313244':'#e2e8f0';ctx.lineWidth=.5;
   var xStep=xMax-xMin>10?2:1;
   for(var gx=Math.ceil(xMin);gx<=xMax;gx+=xStep){ctx.beginPath();ctx.moveTo(tx(gx),pad.top);ctx.lineTo(tx(gx),h-pad.bottom);ctx.stroke()}
   var yExt=yMax-yMin,yStep=yExt>20?5:yExt>10?2:yExt>4?1:.5;
   for(var gy=Math.ceil(yMin/yStep)*yStep;gy<=yMax;gy+=yStep){ctx.beginPath();ctx.moveTo(pad.left,ty(gy));ctx.lineTo(w-pad.right,ty(gy));ctx.stroke()}
 
-  var axisColor=getTheme()==='dark'?'#cdd6f4':'#1e293b';
+  var axisColor=isDark?'#cdd6f4':'#1e293b';
   ctx.strokeStyle=axisColor;ctx.lineWidth=1.5;
   if(yMin<=0&&yMax>=0){ctx.beginPath();ctx.moveTo(pad.left,ty(0));ctx.lineTo(w-pad.right,ty(0));ctx.stroke()}
   if(xMin<=0&&xMax>=0){ctx.beginPath();ctx.moveTo(tx(0),pad.top);ctx.lineTo(tx(0),h-pad.bottom);ctx.stroke()}
 
-  var tickColor=getTheme()==='dark'?'#a6adc8':'#64748b';
+  var tickColor=isDark?'#a6adc8':'#64748b';
   ctx.fillStyle=tickColor;ctx.font='11px "Segoe UI",system-ui,sans-serif';ctx.textAlign='center';
   for(var txv=Math.ceil(xMin);txv<=xMax;txv+=xStep)ctx.fillText(txv,tx(txv),h-pad.bottom+16);
   ctx.textAlign='right';
@@ -511,11 +508,12 @@ function draw2D(fnExpr,canvasId){
   ctx.fillStyle=axisColor;
   ctx.beginPath();var ax=w-pad.right+10,ay=ty(0);ctx.moveTo(ax,ay);ctx.lineTo(ax-8,ay-4);ctx.lineTo(ax-8,ay+4);ctx.fill();
   ctx.beginPath();var bx=tx(0),by=pad.top-10;ctx.moveTo(bx,by);ctx.lineTo(bx-4,by+8);ctx.lineTo(bx+4,by+8);ctx.fill();
-  if(yMin>0||yMax<0){}else{ctx.textAlign='right';ctx.fillText('O',tx(0)-6,ty(0)+14)}
+  ctx.textAlign='right';ctx.fillText('O',tx(0)-6,ty(0)+14);
   ctx.font='bold 13px "Segoe UI",system-ui,sans-serif';ctx.textAlign='center';
   ctx.fillText('x',w-pad.right+10,ty(0)+16);ctx.fillText('y',tx(0),pad.top-12);
 
-  ctx.strokeStyle='#00d4ff';ctx.lineWidth=2.5;ctx.lineJoin='round';ctx.lineCap='round';
+  var curveColor=color||'#00d4ff';
+  ctx.strokeStyle=curveColor;ctx.lineWidth=2.5;ctx.lineJoin='round';ctx.lineCap='round';
   var drawing=false;
   for(var k=0;k<pts.length;k++){
     if(pts[k]===null){drawing=false;continue}
@@ -523,12 +521,6 @@ function draw2D(fnExpr,canvasId){
     if(!drawing){ctx.beginPath();ctx.moveTo(px,py);drawing=true}else ctx.lineTo(px,py);
   }
   ctx.stroke();
-
-  try{var f2=evaluate(fnExpr,2);if(typeof f2==='number'&&isFinite(f2)&&f2>yMin&&f2<yMax){
-    ctx.fillStyle='#ef4444';ctx.beginPath();ctx.arc(tx(2),ty(f2),5,0,Math.PI*2);ctx.fill();
-    ctx.fillStyle=getTheme()==='dark'?'#cdd6f4':'#0f172a';ctx.font='bold 12px "Segoe UI",system-ui,sans-serif';ctx.textAlign='left';
-    ctx.fillText('f(2)='+f2.toFixed(4),tx(2)+8,ty(f2)+4);
-  }}catch(_){}
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -543,7 +535,7 @@ function renderDesktopOnly(){
 
 /* ── 基础运算工作区（计算器）── */
 function renderBasicArithmetic(){
-  workspace.innerHTML='<div class="workspace-header"><div class="ws-title">🔢 基础运算</div><div class="ws-desc">标准计算器：四则运算、乘方开方、三角函数、阶乘、对数</div></div><div class="work-card"><div class="lcd"><div class="expr" id="calcExpr"></div><div class="result" id="calcResult">0</div></div><div class="btn-grid" id="btnGrid"></div></div>';
+  workspace.innerHTML='<div class="workspace-header"><div class="ws-title">🔢 基础运算</div><div class="ws-desc">计算器风格的基础数学运算 — 四则运算 · 乘方 · 开方 · 阶乘 · 三角函数 · 对数</div></div><div class="work-card"><div class="lcd"><div class="expr" id="calcExpr"></div><div class="result" id="calcResult">0</div></div><div class="btn-grid" id="btnGrid"></div></div>';
   buildCalcButtons();
 }
 
@@ -571,7 +563,6 @@ function buildCalcButtons(){
 function onCalcBtn(text){
   var calcExprEl=document.getElementById('calcExpr'),calcResultEl=document.getElementById('calcResult');
   if(!calcExprEl||!calcResultEl)return;
-
   if(text==='C'){calcExpr='';calcCurrent='0';calcDisplayExpr='';updateCalcLCD();return}
   if(text==='⌫'){backspaceCalc();return}
   if(text==='='){evaluateCalc();return}
@@ -619,110 +610,118 @@ function updateCalcLCD(){
   if(calcResultEl)calcResultEl.textContent=calcCurrent||'0';
 }
 
-/* ── 代数工作区 ── */
+/* ── 代数工作区（CalcBlock 多块管理）── */
+var ALG_MODES=[
+  '解方程/组','因式分解','展开','表达式化简','判别式','韦达定理',
+  '求导','不定积分','定积分','极限',
+  '数列通项','等差数列求和','等比数列求和',
+  '解不等式/组','复数运算','排列数','组合数',
+];
+var algBlockCounter=1;
+
 function renderAlgebra(){
-  workspace.innerHTML='<div class="workspace-header"><div class="ws-title">📐 代数</div><div class="ws-desc">多项式化简、因式分解、求导、积分、极限、复数运算</div></div><div class="work-card"><div class="calc-row"><input id="algInput" type="text" placeholder="输入表达式：x^2+3*x-1、sin(x)*cos(x)"><select id="algMode"><optgroup label="代数"><option>解方程/组</option><option>因式分解</option><option>展开</option><option>表达式化简</option><option>判别式</option><option>韦达定理</option></optgroup><optgroup label="微积分"><option>求导</option><option>不定积分</option><option>定积分</option><option>极限</option></optgroup><optgroup label="数列"><option>数列通项</option><option>等差数列求和</option><option>等比数列求和</option></optgroup><optgroup label="其他"><option>解不等式/组</option><option>复数运算</option><option>排列数</option><option>组合数</option></optgroup></select><button class="btn-calc" id="algBtn">计算结果</button></div><div class="result-box" id="algResult"><span style="color:var(--text-subtle)">选择模式并输入表达式，然后点击「计算结果」</span></div><div class="presets" id="algPresets"><button data-expr="x^2+2*x-3" data-mode="解方程/组">x²+2x−3=0</button><button data-expr="x^3-4*x^2+x+6" data-mode="因式分解">因式分解</button><button data-expr="sin(x)*cos(x)" data-mode="求导">求导 sin(x)cos(x)</button><button data-expr="x^2*sin(x)" data-mode="不定积分">积分 x²sin(x)</button><button data-expr="tan(x)" data-mode="">绘制 tan(x)</button></div></div><div class="plot-card"><div class="header" id="plotTitleAlg">f(x) = x²</div><canvas id="plotCanvasAlg"></canvas></div>';
+  var opts=ALG_MODES.map(function(m){return '<option>'+m+'</option>'}).join('');
+  workspace.innerHTML='<div class="workspace-header"><div class="ws-title">📐 代数计算</div><div class="ws-desc">包含：表达式化简、求导、积分、极限、级数展开、复数运算等</div></div><div class="work-card"><div id="algBlocks" style="display:flex;flex-direction:column"></div><button class="btn-add" id="algAddBtn">＋ 添加计算</button></div><div class="presets" style="margin-top:14px"><button data-expr="x^2+2*x-3" data-mode="解方程/组">x²+2x−3=0</button><button data-expr="x^3-4*x^2+x+6" data-mode="因式分解">因式分解</button><button data-expr="sin(x)*cos(x)" data-mode="求导">求导 sin(x)cos(x)</button><button data-expr="x^2*sin(x)" data-mode="不定积分">积分 x²sin(x)</button><button data-fn="tan(x)">绘制 tan(x)</button></div><div class="result-box" id="algResult" style="margin-top:14px"><span style="color:var(--text-subtle)">选择模式并输入表达式，然后点击「计算结果」</span></div>';
+  algBlockCounter=1;
+  addAlgBlock();
   bindAlgebraEvents();
-  setTimeout(function(){draw2D('x^2','plotCanvasAlg')},100);
 }
 
-/* ── Poly & Algebra engine ── */
+function createAlgBlockHTML(id){
+  var opts=ALG_MODES.map(function(m){return '<option>'+m+'</option>'}).join('');
+  return '<div class="calc-block" data-alg-id="'+id+'"><div class="cb-row">'+
+    '<input type="text" class="alg-input" placeholder="输入表达式：x^2+3*x-1、sin(x)*cos(x)">'+
+    '<select class="alg-mode">'+opts+'</select>'+
+    '<button class="btn-calc alg-calc-btn">计算结果</button>'+
+    '<button class="btn-delete alg-del-btn">✕</button>'+
+    '</div></div>';
+}
+
+function addAlgBlock(){
+  var container=document.getElementById('algBlocks');if(!container)return;
+  var html=createAlgBlockHTML(algBlockCounter);
+  if(algBlockCounter>1){var sep=container.querySelector('.cb-separator:last-of-type');if(!sep){var d=document.createElement('div');d.className='cb-separator';container.appendChild(d)}else{var d2=document.createElement('div');d2.className='cb-separator';container.appendChild(d2)}}
+  var wrapper=document.createElement('div');wrapper.innerHTML=html;
+  container.appendChild(wrapper.firstElementChild);
+  algBlockCounter++;
+  bindAlgBlockEvents(container.lastElementChild);
+}
+
+function bindAlgBlockEvents(block){
+  var input=block.querySelector('.alg-input'),mode=block.querySelector('.alg-mode');
+  var calcBtn=block.querySelector('.alg-calc-btn'),delBtn=block.querySelector('.alg-del-btn');
+  if(calcBtn)calcBtn.addEventListener('click',function(){
+    var expr=(input?input.value:'').trim(),m=mode?mode.value:ALG_MODES[0];
+    if(!expr){expr='x^2';if(input)input.value=expr}doAlgShow(expr,m,input);
+  });
+  if(input)input.addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();calcBtn.click()}});
+  if(delBtn)delBtn.addEventListener('click',function(){
+    var all=document.getElementById('algBlocks').querySelectorAll('.calc-block');
+    if(all.length<=1)return;
+    var prev=block.previousElementSibling;
+    if(prev&&prev.className==='cb-separator')prev.remove();
+    if(!prev||prev.className!=='cb-separator'){var next=block.nextElementSibling;if(next&&next.className==='cb-separator')next.remove()}
+    block.remove();
+  });
+}
+
+function bindAlgebraEvents(){
+  document.getElementById('algAddBtn').addEventListener('click',addAlgBlock);
+  var presets=document.querySelector('#workspace .presets');
+  if(presets)presets.addEventListener('click',function(e){
+    var btn=e.target.closest('button');if(!btn)return;
+    if(btn.dataset.fn){draw2D(btn.dataset.fn,'plotCanvasAlg');return}
+    if(btn.dataset.expr&&btn.dataset.mode){
+      var first=document.getElementById('algBlocks').querySelector('.calc-block');
+      if(first){var inp=first.querySelector('.alg-input'),sel=first.querySelector('.alg-mode');if(inp)inp.value=btn.dataset.expr;if(sel)sel.value=btn.dataset.mode;first.querySelector('.alg-calc-btn').click()}
+    }
+  });
+}
+
+/* ── Poly & Algebra Engine ── */
 function Poly(terms){this.terms=terms||{}}
 Poly.fromStr=function(s){
   s=s.replace(/\s/g,'');var terms={};
-  var regex=/([+-]?\d*\.?\d*)\*?x\^(\d+)|([+-]?\d*\.?\d*)\*?x(?!\^)|([+-]?\d+\.?\d*)(?!\*?x)/gi;
-  var match;
+  var regex=/([+-]?\d*\.?\d*)\*?x\^(\d+)|([+-]?\d*\.?\d*)\*?x(?!\^)|([+-]?\d+\.?\d*)(?!\*?x)/gi;var match;
   while((match=regex.exec(s))!==null){
     if(match[1]!==undefined){var c=+match[1],d=+match[2];terms[d]=(terms[d]||0)+c}
     else if(match[3]!==undefined){var c2=+match[3];terms[1]=(terms[1]||0)+c2}
     else if(match[4]!==undefined){var c3=+match[4];if(!isNaN(c3))terms[0]=(terms[0]||0)+c3}
   }
-  if(Object.keys(terms).length===0){
-    s=s.replace(/--/g,'+').replace(/\+\+/g,'+');
-    var parts=s.split(/(?=[+-])/g);
-    for(var i=0;i<parts.length;i++){
-      var p=parts[i];if(!p)continue;
-      var sign=p[0]==='-'?-1:1;if(p[0]==='+'||p[0]==='-')p=p.slice(1);if(!p)continue;
-      var xm=p.match(/^([\d.]*)\*?x(?:\^(\d+))?$/);
-      if(xm){var cc=+xm[1]||1;var dd=+xm[2]||1;terms[dd]=(terms[dd]||0)+sign*cc}
-      else{xm=p.match(/^([\d.]+)$/);if(xm)terms[0]=(terms[0]||0)+sign*(+xm[1])}
-    }
-  }
+  if(Object.keys(terms).length===0){s=s.replace(/--/g,'+').replace(/\+\+/g,'+');var parts=s.split(/(?=[+-])/g);
+    for(var i=0;i<parts.length;i++){var p=parts[i];if(!p)continue;var sign=p[0]==='-'?-1:1;if(p[0]==='+'||p[0]==='-')p=p.slice(1);if(!p)continue;
+      var xm=p.match(/^([\d.]*)\*?x(?:\^(\d+))?$/);if(xm){var cc=+xm[1]||1;var dd=+xm[2]||1;terms[dd]=(terms[dd]||0)+sign*cc}
+      else{xm=p.match(/^([\d.]+)$/);if(xm)terms[0]=(terms[0]||0)+sign*(+xm[1])}}}
   return new Poly(terms);
 };
 Poly.prototype.toString=function(){
-  var keys=Object.keys(this.terms).map(Number).sort(function(a,b){return b-a});
-  var parts=[];for(var i=0;i<keys.length;i++){var d=keys[i],c=this.terms[d];if(c===0)continue;
-    var sign=c>=0?(parts.length?'+ ':'') :'- ';var absC=Math.abs(c);
+  var keys=Object.keys(this.terms).map(Number).sort(function(a,b){return b-a});var parts=[];
+  for(var i=0;i<keys.length;i++){var d=keys[i],c=this.terms[d];if(c===0)continue;var sign=c>=0?(parts.length?'+ ':'') :'- ';var absC=Math.abs(c);
     var cs=absC===1&&d>0?'':(Number.isInteger(absC)?absC:absC.toFixed(4));
     if(d===0)parts.push(sign+absC);else if(d===1)parts.push(sign+cs+'x');else parts.push(sign+cs+'x^'+d);}
   return parts.join(' ')||'0';
 };
-
-var DERIV_RULES={
-  'sin':'cos(x)','cos':'-sin(x)','tan':'sec(x)^2',
-  'csc':'-csc(x)*cot(x)','sec':'sec(x)*tan(x)','cot':'-csc(x)^2',
-  'sinh':'cosh(x)','cosh':'sinh(x)','tanh':'sech(x)^2',
-  'exp(x)':'e^x','ln(x)':'1/x','log(x)':'1/(x*ln(10))','log10(x)':'1/(x*ln(10))',
-  'sqrt(x)':'1/(2*sqrt(x))','asin(x)':'1/sqrt(1-x^2)','acos(x)':'-1/sqrt(1-x^2)','atan(x)':'1/(1+x^2)',
-};
-var INTEGRAL_RULES={
-  'sin':'-cos(x)','cos':'sin(x)','tan':'-ln|cos(x)|',
-  'sec^2':'tan(x)','csc^2':'-cot(x)','sec*tan':'sec(x)','csc*cot':'-csc(x)',
-  'sinh':'cosh(x)','cosh':'sinh(x)',
-  'e^x':'e^x','1/x':'ln|x|','1/(1+x^2)':'atan(x)','1/sqrt(1-x^2)':'asin(x)',
-};
-
+var DERIV_RULES={'sin':'cos(x)','cos':'-sin(x)','tan':'sec(x)^2','csc':'-csc(x)*cot(x)','sec':'sec(x)*tan(x)','cot':'-csc(x)^2','sinh':'cosh(x)','cosh':'sinh(x)','tanh':'sech(x)^2','exp(x)':'e^x','ln(x)':'1/x','log(x)':'1/(x*ln(10))','log10(x)':'1/(x*ln(10))','sqrt(x)':'1/(2*sqrt(x))','asin(x)':'1/sqrt(1-x^2)','acos(x)':'-1/sqrt(1-x^2)','atan(x)':'1/(1+x^2)'};
+var INTEGRAL_RULES={'sin':'-cos(x)','cos':'sin(x)','tan':'-ln|cos(x)|','sec^2':'tan(x)','csc^2':'-cot(x)','sec*tan':'sec(x)','csc*cot':'-csc(x)','sinh':'cosh(x)','cosh':'sinh(x)','e^x':'e^x','1/x':'ln|x|','1/(1+x^2)':'atan(x)','1/sqrt(1-x^2)':'asin(x)'};
 function numericDerivative(expr,at){var h=1e-7;try{return (evaluate(expr,at+h)-evaluate(expr,at-h))/(2*h)}catch(_){return NaN}}
 function numericIntegral(expr,a,b){var N=500,h=(b-a)/N;try{var sum=evaluate(expr,a)+evaluate(expr,b);for(var k=1;k<N;k++)sum+=(k%2===0?2:4)*evaluate(expr,a+k*h);return sum*h/3}catch(_){return NaN}}
 function solveQuadratic(a,b,c){var disc=b*b-4*a*c;if(disc<0)return 'No real roots (Δ='+disc.toFixed(4)+'<0)';var s=Math.sqrt(disc);return 'x₁='+((-b+s)/(2*a)).toFixed(6)+', x₂='+((-b-s)/(2*a)).toFixed(6)}
-function factorQuadratic(a,b,c){
-  function gcd(m,n){return n?gcd(n,m%n):Math.abs(m)}
-  for(var p=1;p<=Math.abs(a);p++){if(a%p!==0)continue;var r=a/p;
-    for(var q=-Math.abs(c);q<=Math.abs(c);q++){if(q===0||c%q!==0)continue;var s=c/q;if(p*s+r*q===b){
-      var fp=p>0?(p===1?'':p):(p===-1?'-':p),fr=r>0?(r===1?'':r):(r===-1?'-':r);
-      var sq=q>0?'+'+q:String(q),ss=s>0?'+'+s:String(s);
-      return '('+fp+'x'+sq+')('+fr+'x'+ss+')';}}}
-  return null;
-}
+function factorQuadratic(a,b,c){function gcd(m,n){return n?gcd(n,m%n):Math.abs(m)}for(var p=1;p<=Math.abs(a);p++){if(a%p!==0)continue;var r=a/p;for(var q=-Math.abs(c);q<=Math.abs(c);q++){if(q===0||c%q!==0)continue;var s=c/q;if(p*s+r*q===b){var fp=p>0?(p===1?'':p):(p===-1?'-':p),fr=r>0?(r===1?'':r):(r===-1?'-':r);var sq=q>0?'+'+q:String(q),ss=s>0?'+'+s:String(s);return '('+fp+'x'+sq+')('+fr+'x'+ss+')';}}}return null;}
 
 function doAlgebra(expr,mode){
   try{switch(mode){
-    case '解方程/组':{if(expr.indexOf(',')>0){var eqs=expr.split(',').map(function(e){return e.trim()});return {result:'System requires backend: '+eqs.join(' , '),steps:['Frontend only supports single equations']}}
-      var hasX2=/\bx\^2\b/.test(expr)||/\bx\*\*2/.test(expr);
-      if(hasX2||(expr.indexOf('=')>=0)){
-        var parts=expr.split('=');var left=parts[0],right=parts[1]||'0';
-        try{var p=Poly.fromStr(left+'-('+right+')');var aa=p.terms[2]||0,bb=p.terms[1]||0,cc=p.terms[0]||0;
-          if(aa!==0&&(bb!==0||cc!==0)){var dr=solveQuadratic(aa,bb,cc);return {result:dr,steps:['Eq: '+expr,'Move: '+p.toString()+' = 0','Quadratic formula']};}}
-        catch(_){}
-      }return {result:'Use = sign: e.g. x^2-5*x+6=0',steps:[]};}
-    case '因式分解':{try{var pp=Poly.fromStr(expr);var a2=pp.terms[2]||0,b2=pp.terms[1]||0,c2=pp.terms[0]||0;
-      if(a2!==0){var fac=factorQuadratic(a2,b2,c2);if(fac)return {result:fac,steps:['Expr: '+expr,'Factor: '+fac]};return {result:'Cannot factor with integer coefficients',steps:['Expr: '+expr]};}
-      return {result:'Only quadratic trinomials supported',steps:['Expr: '+expr]};}catch(e){return {result:'Error: '+e.message,steps:[]};}}
+    case '解方程/组':{if(expr.indexOf(',')>0){var eqs=expr.split(',').map(function(e){return e.trim()});return {result:'System: '+eqs.join(' , '),steps:['Frontend only supports single equations']}}
+      var hasX2=/\bx\^2\b/.test(expr)||/\bx\*\*2/.test(expr);if(hasX2||(expr.indexOf('=')>=0)){var parts=expr.split('=');var left=parts[0],right=parts[1]||'0';
+        try{var p=Poly.fromStr(left+'-('+right+')');var aa=p.terms[2]||0,bb=p.terms[1]||0,cc=p.terms[0]||0;if(aa!==0&&(bb!==0||cc!==0)){var dr=solveQuadratic(aa,bb,cc);return {result:dr,steps:['Eq: '+expr,'Move: '+p.toString()+' = 0','Quadratic formula']};}}catch(_){}}return {result:'Use = sign: e.g. x^2-5*x+6=0',steps:[]};}
+    case '因式分解':{try{var pp=Poly.fromStr(expr);var a2=pp.terms[2]||0,b2=pp.terms[1]||0,c2=pp.terms[0]||0;if(a2!==0){var fac=factorQuadratic(a2,b2,c2);if(fac)return {result:fac,steps:['Expr: '+expr,'Factor: '+fac]};return {result:'Cannot factor with integer coefficients',steps:['Expr: '+expr]};}return {result:'Only quadratic trinomials supported',steps:['Expr: '+expr]};}catch(e){return {result:'Error: '+e.message,steps:[]};}}
     case '展开':{try{var pp3=Poly.fromStr(expr);return {result:pp3.toString(),steps:['Expr: '+expr,'Expand: '+pp3.toString()]};}catch(e){return {result:'Error: '+e.message,steps:[]};}}
-    case '表达式化简':{try{var pp5=Poly.fromStr(expr);return {result:pp5.toString(),steps:['Expr: '+expr,'Simplify (combine like terms): '+pp5.toString()]};}catch(e){return {result:'Error: '+e.message,steps:[]};}}
-    case '求导':{
-      var fn=expr.trim();
-      for(var key in DERIV_RULES){if(fn===key||fn==='d/dx '+key){return {result:DERIV_RULES[key],steps:['f(x) = '+fn,"f'(x) = "+DERIV_RULES[key]]};}}
-      try{var ppd=Poly.fromStr(fn);var dTerms={};var keys=Object.keys(ppd.terms).map(Number);
-        for(var i=0;i<keys.length;i++){var d=keys[i],c=ppd.terms[d];if(d>0)dTerms[d-1]=c*d}
-        var dp=new Poly(dTerms);return {result:dp.toString()||'0',steps:['f(x) = '+fn,"f'(x) = "+dp.toString()]};}
-      catch(_){}
-      var nd=numericDerivative(fn,2);
-      if(!isNaN(nd))return {result:"f'(2) ≈ "+nd.toFixed(6),steps:['f(x) = '+fn,'Numerical derivative at x=2','≈ '+nd.toFixed(6)]};
-      return {result:'Cannot differentiate',steps:[]};
-    }
-    case '不定积分':{
-      var fn2=expr.trim();
-      for(var k2 in INTEGRAL_RULES){if(fn2===k2){return {result:INTEGRAL_RULES[k2]+' + C',steps:['f(x) = '+fn2,'∫ = '+INTEGRAL_RULES[k2]+' + C']};}}
-      try{var ppi=Poly.fromStr(fn2);var iTerms={};var keys2=Object.keys(ppi.terms).map(Number);
-        for(var j=0;j<keys2.length;j++){var dd2=keys2[j],cc2=ppi.terms[dd2];iTerms[dd2+1]=cc2/(dd2+1)}
-        var ip=new Poly(iTerms);return {result:ip.toString()+' + C',steps:['f(x) = '+fn2,'∫ = '+ip.toString()+' + C']};}
-      catch(_){}
-      var ni=numericIntegral(fn2,0,2);
-      if(!isNaN(ni))return {result:'∫₀² '+fn2+' dx ≈ '+ni.toFixed(6)+' + C',steps:['Numerical integration [0,2]','≈ '+ni.toFixed(6)]};
-      return {result:'Cannot integrate',steps:[]};
-    }
+    case '表达式化简':{try{var pp5=Poly.fromStr(expr);return {result:pp5.toString(),steps:['Expr: '+expr,'Simplify: '+pp5.toString()]};}catch(e){return {result:'Error: '+e.message,steps:[]};}}
+    case '求导':{var fn=expr.trim();for(var key in DERIV_RULES){if(fn===key||fn==='d/dx '+key){return {result:DERIV_RULES[key],steps:['f(x) = '+fn,"f'(x) = "+DERIV_RULES[key]]};}}
+      try{var ppd=Poly.fromStr(fn);var dTerms={};var keys=Object.keys(ppd.terms).map(Number);for(var i=0;i<keys.length;i++){var d=keys[i],c=ppd.terms[d];if(d>0)dTerms[d-1]=c*d}var dp=new Poly(dTerms);return {result:dp.toString()||'0',steps:['f(x) = '+fn,"f'(x) = "+dp.toString()]};}catch(_){}
+      var nd=numericDerivative(fn,2);if(!isNaN(nd))return {result:"f'(2) ≈ "+nd.toFixed(6),steps:['f(x) = '+fn,'Numerical derivative at x=2','≈ '+nd.toFixed(6)]};return {result:'Cannot differentiate',steps:[]};}
+    case '不定积分':{var fn2=expr.trim();for(var k2 in INTEGRAL_RULES){if(fn2===k2){return {result:INTEGRAL_RULES[k2]+' + C',steps:['f(x) = '+fn2,'∫ = '+INTEGRAL_RULES[k2]+' + C']};}}
+      try{var ppi=Poly.fromStr(fn2);var iTerms={};var keys2=Object.keys(ppi.terms).map(Number);for(var j=0;j<keys2.length;j++){var dd2=keys2[j],cc2=ppi.terms[dd2];iTerms[dd2+1]=cc2/(dd2+1)}var ip=new Poly(iTerms);return {result:ip.toString()+' + C',steps:['f(x) = '+fn2,'∫ = '+ip.toString()+' + C']};}catch(_){}
+      var ni=numericIntegral(fn2,0,2);if(!isNaN(ni))return {result:'∫₀² '+fn2+' dx ≈ '+ni.toFixed(6)+' + C',steps:['Numerical integration [0,2]','≈ '+ni.toFixed(6)]};return {result:'Cannot integrate',steps:[]};}
     case '定积分':{var parts3=expr.split(',').map(function(s){return s.trim()});var f3=parts3[0],a3=+parts3[1]||0,b3=+parts3[2]||1;var val=numericIntegral(f3,a3,b3);if(!isNaN(val))return {result:val.toFixed(6),steps:['∫['+a3+','+b3+'] '+f3+' dx','Simpson (n=500)','≈ '+val.toFixed(6)]};return {result:'Integration failed',steps:[]};}
     case '极限':{var parts4=expr.split(',').map(function(s){return s.trim()});var f4=parts4[0],x0=+(parts4[2]||'0');var eps=1e-8,left=evaluate(f4,x0-eps),right=evaluate(f4,x0+eps);if(Math.abs(left-right)<1e-4)return {result:left.toFixed(6),steps:['lim[x→'+x0+'] '+f4,'Left ≈ '+left.toFixed(8),'Right ≈ '+right.toFixed(8),'= '+left.toFixed(6)]};return {result:'Limit does not exist',steps:['Left ≈ '+left.toFixed(6),'Right ≈ '+right.toFixed(6)]};}
     case '判别式':{try{var pp8=Poly.fromStr(expr);var a8=pp8.terms[2]||0,b8=pp8.terms[1]||0,c8=pp8.terms[0]||0;var disc=b8*b8-4*a8*c8;var desc=disc>0?'Two distinct real roots':disc===0?'One double root':'No real roots';return {result:'Δ = '+disc.toFixed(4)+' ('+desc+')',steps:['a='+a8+', b='+b8+', c='+c8,'Δ=b²-4ac='+disc.toFixed(4),desc]};}catch(e){return {result:'Error: need ax²+bx+c form',steps:[]};}}
@@ -733,61 +732,140 @@ function doAlgebra(expr,mode){
     case '复数运算':{var ce=expr.replace(/[ij]/g,'i');try{var cv=parseComplex(ce);return {result:'('+cv.real.toFixed(4)+') + ('+cv.imag.toFixed(4)+')i',steps:['Complex: '+expr,'Real: '+cv.real.toFixed(4),'Imag: '+cv.imag.toFixed(4)]};}catch(e){return {result:'Parse failed',steps:[]};}}
     case '排列数':{var parts8=expr.split(',').map(function(s){return s.trim()});var n8=+parts8[0],m8=+parts8[1]||2;var r8=1;for(var i2=0;i2<m8;i2++)r8*=(n8-i2);return {result:'P('+n8+','+m8+') = '+r8,steps:['P('+n8+','+m8+')','= '+r8]};}
     case '组合数':{var parts9=expr.split(',').map(function(s){return s.trim()});var n9=+parts9[0],m9=+parts9[1]||2;var rn=1,rm=1;for(var i3=0;i3<m9;i3++){rn*=(n9-i3);rm*=(i3+1)}return {result:'C('+n9+','+m9+') = '+Math.round(rn/rm),steps:['C('+n9+','+m9+')','= '+Math.round(rn/rm)]};}
-    case '解不等式/组':{return {result:'Inequality solving requires backend. Try: 2*x+1>5',steps:['Frontend limitation']};}
+    case '解不等式/组':{return {result:'Inequality solving requires backend',steps:['Frontend limitation']};}
     default:return {result:'Select a calculation mode',steps:[]};
   }}catch(e){return {result:'Error: '+(e.message||e),steps:[]};}
 }
+function parseComplex(s){s=s.replace(/[ij]/g,'i');var real=0,imag=0;var m=s.match(/([+-]?\d*\.?\d*)\s*([+-])\s*(\d*\.?\d*)\s*\*?\s*i/);if(m){real=+m[1];imag=(m[2]==='-'?-1:1)*(+m[3]||1);return{real:real,imag:imag}}m=s.match(/([+-]?\d*\.?\d*)\s*i/);if(m){imag=+m[1]||1;return{real:0,imag:imag}}return{real:+s||0,imag:0};}
 
-function parseComplex(s){
-  s=s.replace(/[ij]/g,'i');var real=0,imag=0;
-  var m=s.match(/([+-]?\d*\.?\d*)\s*([+-])\s*(\d*\.?\d*)\s*\*?\s*i/);if(m){real=+m[1];imag=(m[2]==='-'?-1:1)*(+m[3]||1);return{real:real,imag:imag}}
-  m=s.match(/([+-]?\d*\.?\d*)\s*i/);if(m){imag=+m[1]||1;return{real:0,imag:imag}}
-  return{real:+s||0,imag:0};
-}
-
-function doAlgebraAndShow(expr,mode){
-  var algInput=document.getElementById('algInput'),algMode=document.getElementById('algMode'),algResult=document.getElementById('algResult');
-  if(!algResult)return;
-  if(algInput)algInput.value=expr;if(algMode)algMode.value=mode;
-  var res=doAlgebra(expr,mode);
-  var html='';
-  if(res.steps&&res.steps.length)html+='<div class="steps">'+res.steps.map(function(s){return s.replace(/</g,'&lt;')}).join('<br>')+'</div>';
+function doAlgShow(expr,mode,inputEl){
+  var res=doAlgebra(expr,mode);var resultEl=document.getElementById('algResult');
+  var html='';if(res.steps&&res.steps.length)html+='<div class="steps">'+res.steps.map(function(s){return s.replace(/</g,'&lt;')}).join('<br>')+'</div>';
   html+='<div class="answer">'+String(res.result).replace(/</g,'&lt;')+'</div>';
-  algResult.innerHTML=html;
-  if(containsX(expr))draw2D(expr,'plotCanvasAlg');
-  var presets=document.getElementById('algPresets');if(presets){
-    var btns=presets.querySelectorAll('button');
-    for(var i=0;i<btns.length;i++)btns[i].classList.toggle('active',btns[i].dataset.expr===expr&&btns[i].dataset.mode===mode);
-  }
+  if(resultEl)resultEl.innerHTML=html;
+  if(containsX(expr)){var canvasId='plotCanvasAlg';var c=document.getElementById(canvasId);if(!c){var container=document.getElementById('algPlotContainer');if(container){container.innerHTML='<canvas id="'+canvasId+'"></canvas>';setTimeout(function(){draw2D(expr,canvasId)},50)}}else draw2D(expr,canvasId)}
 }
 
-function bindAlgebraEvents(){
-  var algInput=document.getElementById('algInput'),algMode=document.getElementById('algMode'),algBtn=document.getElementById('algBtn'),algPresets=document.getElementById('algPresets');
-  if(!algBtn)return;
-  algBtn.addEventListener('click',function(){doAlgebraAndShow((algInput?algInput.value:'').trim()||'x^2',algMode?algMode.value:'解方程/组')});
-  if(algInput)algInput.addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();doAlgebraAndShow(algInput.value.trim()||'x^2',algMode?algMode.value:'解方程/组')}});
-  if(algPresets)algPresets.addEventListener('click',function(e){
-    var btn=e.target.closest('button');if(!btn)return;
-    if(btn.dataset.mode)doAlgebraAndShow(btn.dataset.expr,btn.dataset.mode);else if(btn.dataset.expr)draw2D(btn.dataset.expr,'plotCanvasAlg');
+/* ── 2D 函数绘图工作区（左右分栏，匹配 PlotWorkspace）── */
+var plotFnCounter=1;
+function renderPlot2D(){
+  workspace.innerHTML='<div class="workspace-header"><div class="ws-title">📈 普通模式</div><div class="ws-desc">支持：显式 y=f(x)、隐式 f(x,y)=0、参数滑块</div></div><div class="plot-layout"><div class="plot-left"><div style="font-size:11px;color:var(--text-subtle);margin-bottom:8px" id="plotStatus">就绪</div><div id="plotFnList" style="display:flex;flex-direction:column;gap:4px"></div><button class="btn-add" id="plotAddBtn" style="border:1px solid var(--border);margin-top:6px">＋ 添加函数</button><div class="presets" style="margin-top:10px"><button data-fn="sin(x)">sin(x)</button><button data-fn="tan(x)">tan(x)</button><button data-fn="x^2">x²</button><button data-fn="x^3-3*x">x³−3x</button><button data-fn="exp(-x^2)*cos(5*x)">e^(−x²)·cos(5x)</button><button data-fn="sin(x)/x">sinc(x)</button></div><div class="plot-legend" id="plotLegend"></div></div><div class="plot-right"><canvas id="plotCanvas"></canvas></div></div>';
+  plotFnCounter=1;
+  addPlotFn();
+  bindPlot2DEvents();
+  setTimeout(function(){drawAllPlotFns()},150);
+}
+
+function addPlotFn(){
+  var list=document.getElementById('plotFnList');if(!list)return;
+  var color=PLOT_COLORS[(plotFnCounter-1)%PLOT_COLORS.length];
+  var html='<div class="plot-fn-row" data-plot-id="'+plotFnCounter+'">'+
+    '<span class="fn-color" style="background:'+color+'" title="曲线颜色"></span>'+
+    '<input type="text" class="plot-fn-input" placeholder="f(x) = sin(x)" value="'+(plotFnCounter===1?'sin(x)':'')+'">'+
+    '<button class="btn-delete plot-fn-del">✕</button></div>';
+  var wrapper=document.createElement('div');wrapper.innerHTML=html;
+  list.appendChild(wrapper.firstElementChild);
+  bindPlotFnEvents(list.lastElementChild);
+  plotFnCounter++;
+}
+
+function bindPlotFnEvents(row){
+  var input=row.querySelector('.plot-fn-input'),delBtn=row.querySelector('.plot-fn-del');
+  if(input)input.addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();drawAllPlotFns()}});
+  if(delBtn)delBtn.addEventListener('click',function(){
+    var all=document.getElementById('plotFnList').querySelectorAll('.plot-fn-row');
+    if(all.length<=1)return;row.remove();drawAllPlotFns();
   });
 }
 
-/* ── 2D 函数绘图工作区 ── */
-function renderPlot2D(){
-  workspace.innerHTML='<div class="workspace-header"><div class="ws-title">📈 2D 函数绘图</div><div class="ws-desc">绘制显函数 y=f(x) 曲线，支持间断点检测</div></div><div class="work-card"><div class="calc-row" style="margin-bottom:12px"><input id="plot2DInput" type="text" placeholder="输入函数表达式：sin(x)、x^2、tan(x)"><select id="plot2DXMin"><option value="-10">x∈[-10,10]</option><option value="-5" selected>x∈[-5,5]</option><option value="-3">x∈[-3,3]</option><option value="-2">x∈[-2,2]</option></select><button class="btn-calc" id="plot2DBtn">绘图</button></div><div class="presets"><button data-fn="sin(x)">sin(x)</button><button data-fn="tan(x)">tan(x)</button><button data-fn="x^2">x²</button><button data-fn="x^3-3*x">x³−3x</button><button data-fn="exp(-x^2)*cos(5*x)">e^(−x²)·cos(5x)</button><button data-fn="sin(x)/x">sinc(x)</button></div></div><div class="plot-card"><div class="header" id="plot2DTitle">f(x) = sin(x)</div><canvas id="plotCanvas2D"></canvas></div>';
-  bindPlot2DEvents();
-  setTimeout(function(){draw2D('sin(x)','plotCanvas2D')},100);
+function drawAllPlotFns(){
+  var rows=document.getElementById('plotFnList').querySelectorAll('.plot-fn-row');
+  if(!rows.length)return;
+  var canvas=document.getElementById('plotCanvas'),ctx=canvas.getContext('2d'),dpr=window.devicePixelRatio||1;
+  var parent=canvas.parentElement,rect=parent.getBoundingClientRect();
+  var w=rect.width-4,h=Math.max(380,rect.height-8);
+  canvas.width=w*dpr;canvas.height=h*dpr;
+  canvas.style.width=w+'px';canvas.style.height=h+'px';
+  ctx.setTransform(1,0,0,1,0,0);ctx.scale(dpr,dpr);
+
+  var pad={top:30,right:30,bottom:40,left:56};
+  var pw=w-pad.left-pad.right,ph=h-pad.top-pad.bottom;
+  var xMin=-5,xMax=5,N=Math.min(800,Math.round(pw*2));
+  var isDark=getTheme()==='dark';
+  var allPts=[];
+
+  for(var ri=0;ri<rows.length;ri++){
+    var input=rows[ri].querySelector('.plot-fn-input');
+    var fnExpr=(input?input.value.trim():'')||'x';
+    var pts=[],yMin=Infinity,yMax=-Infinity;
+    for(var i=0;i<=N;i++){
+      var xv=xMin+(xMax-xMin)*i/N,yv;
+      try{yv=evaluate(fnExpr,xv)}catch(_){continue}
+      if(typeof yv!=='number'||!isFinite(yv)||Math.abs(yv)>1000)continue;
+      if(pts.length>0&&Math.abs(yv-pts[pts.length-1].y)>100)pts.push(null);
+      pts.push({x:xv,y:yv});if(yv<yMin)yMin=yv;if(yv>yMax)yMax=yv;
+    }
+    allPts.push({pts:pts,color:PLOT_COLORS[ri%PLOT_COLORS.length],fn:fnExpr,yMin:yMin,yMax:yMax});
+  }
+
+  var yMin=Infinity,yMax=-Infinity;
+  for(var ai=0;ai<allPts.length;ai++){if(isFinite(allPts[ai].yMin)&&allPts[ai].yMin<yMin)yMin=allPts[ai].yMin;if(isFinite(allPts[ai].yMax)&&allPts[ai].yMax>yMax)yMax=allPts[ai].yMax}
+  if(!isFinite(yMin)){yMin=-5;yMax=5}
+  var yr=yMax-yMin||2;yMin-=yr*.1;yMax+=yr*.1;
+  function tx(x){return pad.left+(x-xMin)/(xMax-xMin)*pw}
+  function ty(y){return pad.top+(yMax-y)/(yMax-yMin)*ph}
+
+  ctx.fillStyle=isDark?'#181825':'#fcfdfd';ctx.fillRect(0,0,w,h);
+  ctx.strokeStyle=isDark?'#313244':'#e2e8f0';ctx.lineWidth=.5;
+  var xStep=xMax-xMin>10?2:1;
+  for(var gx=Math.ceil(xMin);gx<=xMax;gx+=xStep){ctx.beginPath();ctx.moveTo(tx(gx),pad.top);ctx.lineTo(tx(gx),h-pad.bottom);ctx.stroke()}
+  var yExt=yMax-yMin,yStep=yExt>20?5:yExt>10?2:yExt>4?1:.5;
+  for(var gy=Math.ceil(yMin/yStep)*yStep;gy<=yMax;gy+=yStep){ctx.beginPath();ctx.moveTo(pad.left,ty(gy));ctx.lineTo(w-pad.right,ty(gy));ctx.stroke()}
+
+  var axisColor=isDark?'#cdd6f4':'#1e293b';
+  ctx.strokeStyle=axisColor;ctx.lineWidth=1.5;
+  if(yMin<=0&&yMax>=0){ctx.beginPath();ctx.moveTo(pad.left,ty(0));ctx.lineTo(w-pad.right,ty(0));ctx.stroke()}
+  if(xMin<=0&&xMax>=0){ctx.beginPath();ctx.moveTo(tx(0),pad.top);ctx.lineTo(tx(0),h-pad.bottom);ctx.stroke()}
+
+  var tickColor=isDark?'#a6adc8':'#64748b';
+  ctx.fillStyle=tickColor;ctx.font='11px "Segoe UI",system-ui,sans-serif';ctx.textAlign='center';
+  for(var txv=Math.ceil(xMin);txv<=xMax;txv+=xStep)ctx.fillText(txv,tx(txv),h-pad.bottom+16);
+  ctx.textAlign='right';
+  for(var tyv=Math.ceil(yMin/yStep)*yStep;tyv<=yMax;tyv+=yStep){if(Math.abs(tyv)<.001)continue;ctx.fillText(Number(tyv.toFixed(2)),pad.left-6,ty(tyv)+4)}
+
+  ctx.fillStyle=axisColor;
+  ctx.beginPath();var ax=w-pad.right+10,ay=ty(0);ctx.moveTo(ax,ay);ctx.lineTo(ax-8,ay-4);ctx.lineTo(ax-8,ay+4);ctx.fill();
+  ctx.beginPath();var bx=tx(0),by=pad.top-10;ctx.moveTo(bx,by);ctx.lineTo(bx-4,by+8);ctx.lineTo(bx+4,by+8);ctx.fill();
+  ctx.textAlign='right';ctx.fillText('O',tx(0)-6,ty(0)+14);
+  ctx.font='bold 13px "Segoe UI",system-ui,sans-serif';ctx.textAlign='center';
+  ctx.fillText('x',w-pad.right+10,ty(0)+16);ctx.fillText('y',tx(0),pad.top-12);
+
+  /* 绘制所有曲线 */
+  var legend=document.getElementById('plotLegend');if(legend)legend.innerHTML='';
+  for(var ai=0;ai<allPts.length;ai++){
+    var d=allPts[ai],color=d.color;
+    ctx.strokeStyle=color;ctx.lineWidth=2.5;ctx.lineJoin='round';ctx.lineCap='round';
+    var drawing=false;
+    for(var k=0;k<d.pts.length;k++){
+      if(d.pts[k]===null){drawing=false;continue}
+      var px=tx(d.pts[k].x),py=ty(d.pts[k].y);
+      if(!drawing){ctx.beginPath();ctx.moveTo(px,py);drawing=true}else ctx.lineTo(px,py);
+    }
+    ctx.stroke();
+    if(legend)legend.innerHTML+='<span style="display:flex;align-items:center;gap:4px"><span style="width:12px;height:12px;border-radius:2px;background:'+color+'"></span>'+d.fn+'</span>';
+  }
+  document.getElementById('plotStatus').textContent='已渲染 '+allPts.length+' 条曲线';
 }
 
 function bindPlot2DEvents(){
-  var input=document.getElementById('plot2DInput'),btn=document.getElementById('plot2DBtn');
-  if(btn)btn.addEventListener('click',function(){
-    var expr=(input?input.value:'').trim()||'sin(x)';
-    draw2D(expr,'plotCanvas2D');
-    var title=document.getElementById('plot2DTitle');if(title)title.textContent='f(x) = '+expr;
+  document.getElementById('plotAddBtn').addEventListener('click',function(){addPlotFn();drawAllPlotFns()});
+  var presets=document.querySelector('#workspace .presets');
+  if(presets)presets.addEventListener('click',function(e){
+    var btn=e.target.closest('button');if(!btn||!btn.dataset.fn)return;
+    var first=document.getElementById('plotFnList').querySelector('.plot-fn-row');
+    if(first){var inp=first.querySelector('.plot-fn-input');if(inp)inp.value=btn.dataset.fn}
+    drawAllPlotFns();
   });
-  if(input)input.addEventListener('keydown',function(e){if(e.key==='Enter')btn.click()});
-  var presets=document.querySelector('#workspace .presets');if(presets)presets.addEventListener('click',function(e){var b=e.target.closest('button');if(b&&b.dataset.fn){if(input)input.value=b.dataset.fn;btn.click()}});
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -819,13 +897,8 @@ var currentKb='basic';
 
 function buildKeyboard(){
   var content=document.getElementById('kbContent');if(!content)return;
-  content.innerHTML='';
-  var keys=KB_DATA[currentKb]||[];
-  for(var i=0;i<keys.length;i++){
-    var btn=document.createElement('button');btn.textContent=keys[i];
-    btn.addEventListener('click',(function(k){return function(){insertSymbol(k)}})(keys[i]));
-    content.appendChild(btn);
-  }
+  content.innerHTML='';var keys=KB_DATA[currentKb]||[];
+  for(var i=0;i<keys.length;i++){var btn=document.createElement('button');btn.textContent=keys[i];btn.addEventListener('click',(function(k){return function(){insertSymbol(k)}})(keys[i]));content.appendChild(btn)}
 }
 
 function insertSymbol(sym){
@@ -847,19 +920,16 @@ document.getElementById('kbTabs').addEventListener('click',function(e){
 /* ═══════════════════════════════════════════════════════════════
    §8 全局事件 & 初始化
    ═══════════════════════════════════════════════════════════════ */
-
-/* 键盘面板切换 */
 var kbPanel=document.getElementById('keyboard-panel'),kbVisible=false;
 document.getElementById('btnKeyboard').addEventListener('click',function(){
   kbVisible=!kbVisible;kbPanel.style.display=kbVisible?'block':'none';
   document.getElementById('btnKeyboard').textContent=kbVisible?'🔽 收起':'⌨️ 键盘';
-  if(kbVisible)buildKeyboard();
-  status(kbVisible?'数学键盘已展开':'数学键盘已收起');
+  if(kbVisible)buildKeyboard();status(kbVisible?'数学键盘已展开':'数学键盘已收起');
 });
 
 /* 全局键盘快捷键 */
 document.addEventListener('keydown',function(e){
-  if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA')return; /* 输入框中不拦截 */
+  if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA')return;
   if(currentTab==='calc'&&currentSub===0){
     var k=e.key;
     if(/^[0-9.]$/.test(k)){onCalcBtn(k);return}
@@ -874,18 +944,15 @@ document.addEventListener('keydown',function(e){
 /* 窗口缩放重绘 */
 var resizeTimer;
 window.addEventListener('resize',function(){clearTimeout(resizeTimer);resizeTimer=setTimeout(function(){
-  if(currentTab==='plot'&&currentSub===0){
-    draw2D((document.getElementById('plot2DInput')?document.getElementById('plot2DInput').value.trim():'')||'sin(x)','plotCanvas2D');
-  }
+  if(currentTab==='plot'&&currentSub===0)drawAllPlotFns();
 },200)});
 
-/* 关于按钮 */
 document.getElementById('btnAbout').addEventListener('click',function(){
-  alert('MF-Mathematics 在线演示\n\n多功能数学计算与可视化\n14 种计算模式 + 7 种绘图模式\n\nGitHub: github.com/isinx-cosx/MF-Mathematics\n开源协议: MIT License\n\n纯前端实现，零 eval / new Function');
+  alert('MF-Mathematics 在线演示\n\n多功能数学计算与可视化\n14 种计算模式 + 7 种绘图模式\n\nGitHub: github.com/isinx-cosx/MF-Mathematics\n开源协议: MIT License\n\n纯前端实现，零 eval / new Function\n\n完整功能请下载桌面版');
 });
 
 /* ── 启动 ── */
-buildSubnav();renderWorkspace();status('就绪');
+fillCombo();renderWorkspace();status('就绪');
 })();
 </script>
 </body>
