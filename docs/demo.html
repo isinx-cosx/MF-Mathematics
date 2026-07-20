@@ -402,29 +402,29 @@ var MODES={
     modes:[
       {name:'基础运算',icon:'🔢',render:'basicArithmetic'},
       {name:'代数',icon:'📐',render:'algebra'},
-      {name:'微积分',icon:'∫',render:'calculus'},
-      {name:'解析几何',icon:'📏',render:'placeholder',desc:'几何对象计算：距离、角度、面积、体积，坐标变换与圆锥曲线分析'},
-      {name:'数列',icon:'🔗',render:'sequences'},
-      {name:'线性代数',icon:'📊',render:'linearAlgebra'},
-      {name:'概率统计',icon:'🎲',render:'placeholder',desc:'概率分布、期望方差、假设检验、回归分析与 ANOVA'},
-      {name:'数值分析',icon:'🔢',render:'placeholder',desc:'插值逼近、数值积分、ODE 求解、求根与迭代法'},
-      {name:'数论',icon:'🔐',render:'placeholder',desc:'素数判定、因子分解、同余方程、数论函数'},
-      {name:'实分析',icon:'∞',render:'placeholder',desc:'极限严格定义、连续性与可微性、级数收敛判别'},
-      {name:'泛函分析',icon:'𝛁',render:'placeholder',desc:'赋范空间、算子理论、谱分析与对偶空间'},
-      {name:'复分析',icon:'ℂ',render:'placeholder',desc:'解析函数、留数定理、共形映射与级数展开'},
-      {name:'代数拓扑',icon:'🔗',render:'placeholder',desc:'同伦群、同调群、基本群与覆叠空间'},
-      {name:'测度论',icon:'📐',render:'placeholder',desc:'Lebesgue 积分、可测函数、L^p 空间与 Radon-Nikodym'},
+      {name:'微积分',icon:'∫',render:'desktopOnly',desc:'求导、不定积分、定积分、极限计算'},
+      {name:'解析几何',icon:'📏',render:'desktopOnly',desc:'几何对象计算：距离、角度、面积、体积，坐标变换与圆锥曲线分析'},
+      {name:'数列',icon:'🔗',render:'desktopOnly',desc:'数列通项生成、等差/等比数列求和'},
+      {name:'线性代数',icon:'📊',render:'desktopOnly',desc:'矩阵运算：行列式、求逆、转置、特征值与对角化'},
+      {name:'概率统计',icon:'🎲',render:'desktopOnly',desc:'概率分布、期望方差、假设检验、回归分析与 ANOVA'},
+      {name:'数值分析',icon:'🔢',render:'desktopOnly',desc:'插值逼近、数值积分、ODE 求解、求根与迭代法'},
+      {name:'数论',icon:'🔐',render:'desktopOnly',desc:'素数判定、因子分解、同余方程、数论函数'},
+      {name:'实分析',icon:'∞',render:'desktopOnly',desc:'极限严格定义、连续性与可微性、级数收敛判别'},
+      {name:'泛函分析',icon:'𝛁',render:'desktopOnly',desc:'赋范空间、算子理论、谱分析与对偶空间'},
+      {name:'复分析',icon:'ℂ',render:'desktopOnly',desc:'解析函数、留数定理、共形映射与级数展开'},
+      {name:'代数拓扑',icon:'🔗',render:'desktopOnly',desc:'同伦群、同调群、基本群与覆叠空间'},
+      {name:'测度论',icon:'📐',render:'desktopOnly',desc:'Lebesgue 积分、可测函数、L^p 空间与 Radon-Nikodym'},
     ]
   },
   plot:{
     modes:[
       {name:'2D 函数',icon:'📈',render:'plot2D'},
-      {name:'极坐标',icon:'🔄',render:'plotPolar'},
-      {name:'3D 曲面',icon:'🏔️',render:'placeholder',desc:'三维曲面 z=f(x,y) 渲染、空间参数曲线与等高线投影'},
-      {name:'复数域着色',icon:'🌈',render:'placeholder',desc:'复平面 RGB 域着色 (Domain Coloring)、复变函数可视化'},
-      {name:'向量场',icon:'🧭',render:'placeholder',desc:'2D/3D 梯度场、流线图与自适应密度向量场'},
-      {name:'自由几何',icon:'✏️',render:'placeholder',desc:'自由几何构造：点、线段、圆、向量、多边形'},
-      {name:'分形探索',icon:'❄️',render:'placeholder',desc:'Julia 集、Mandelbrot 集、Burning Ship 与 Newton 分形'},
+      {name:'极坐标',icon:'🔄',render:'desktopOnly',desc:'极坐标曲线 r=f(θ)，如心形线、玫瑰线、螺线'},
+      {name:'3D 曲面',icon:'🏔️',render:'desktopOnly',desc:'三维曲面 z=f(x,y) 渲染、空间参数曲线与等高线投影'},
+      {name:'复数域着色',icon:'🌈',render:'desktopOnly',desc:'复平面 RGB 域着色 (Domain Coloring)、复变函数可视化'},
+      {name:'向量场',icon:'🧭',render:'desktopOnly',desc:'2D/3D 梯度场、流线图与自适应密度向量场'},
+      {name:'自由几何',icon:'✏️',render:'desktopOnly',desc:'自由几何构造：点、线段、圆、向量、多边形'},
+      {name:'分形探索',icon:'❄️',render:'desktopOnly',desc:'Julia 集、Mandelbrot 集、Burning Ship 与 Newton 分形'},
     ]
   }
 };
@@ -531,62 +531,14 @@ function draw2D(fnExpr,canvasId){
   }}catch(_){}
 }
 
-function drawPolar(fnExpr,canvasId){
-  var canvas=document.getElementById(canvasId||'plotCanvasPolar');
-  if(!canvas)return;
-  var ctx=canvas.getContext('2d'),dpr=window.devicePixelRatio||1;
-  var rect=canvas.parentElement.getBoundingClientRect();
-  var w=Math.min(rect.width-4,1060),h=Math.round(w*0.52);
-  canvas.width=w*dpr;canvas.height=h*dpr;
-  canvas.style.width=w+'px';canvas.style.height=h+'px';
-  ctx.setTransform(1,0,0,1,0,0);ctx.scale(dpr,dpr);
-
-  var pad={top:30,right:30,bottom:40,left:56};
-  var pw=w-pad.left-pad.right,ph=h-pad.top-pad.bottom;
-  var maxR=5;
-  var N=Math.min(1200,Math.round(pw*2));
-  var pts=[];
-  for(var i=0;i<=N;i++){
-    var theta=-Math.PI*2+(4*Math.PI*i/N);
-    var r;try{r=evaluate(fnExpr,theta)}catch(_){continue}
-    if(typeof r!=='number'||!isFinite(r)||Math.abs(r)>50){if(pts.length)pts.push(null);continue}
-    if(pts.length>0&&Math.abs(r-evaluate(fnExpr,theta-8*Math.PI/N))>20)pts.push(null);
-    var xv=r*Math.cos(theta),yv=r*Math.sin(theta);
-    if(Math.abs(xv)>maxR||Math.abs(yv)>maxR){if(pts.length)pts.push(null);continue}
-    pts.push({x:xv,y:yv});
-  }
-
-  function tx(x){return pad.left+(x+maxR)/(2*maxR)*pw}
-  function ty(y){return pad.top+(maxR-y)/(2*maxR)*ph}
-
-  ctx.fillStyle=getTheme()==='dark'?'#181825':'#fcfdfd';ctx.fillRect(0,0,w,h);
-
-  ctx.strokeStyle=getTheme()==='dark'?'#313244':'#e2e8f0';ctx.lineWidth=.5;
-  for(var g=-maxR;g<=maxR;g+=1){ctx.beginPath();ctx.moveTo(tx(g),pad.top);ctx.lineTo(tx(g),h-pad.bottom);ctx.stroke();ctx.beginPath();ctx.moveTo(pad.left,ty(g));ctx.lineTo(w-pad.right,ty(g));ctx.stroke()}
-
-  var axisColor=getTheme()==='dark'?'#cdd6f4':'#1e293b';
-  ctx.strokeStyle=axisColor;ctx.lineWidth=1.5;
-  ctx.beginPath();ctx.moveTo(pad.left,ty(0));ctx.lineTo(w-pad.right,ty(0));ctx.stroke();
-  ctx.beginPath();ctx.moveTo(tx(0),pad.top);ctx.lineTo(tx(0),h-pad.bottom);ctx.stroke();
-
-  ctx.strokeStyle='#00d4ff';ctx.lineWidth=2.5;ctx.lineJoin='round';ctx.lineCap='round';
-  var drawing=false;
-  for(var k=0;k<pts.length;k++){
-    if(pts[k]===null){drawing=false;continue}
-    var px=tx(pts[k].x),py=ty(pts[k].y);
-    if(!drawing){ctx.beginPath();ctx.moveTo(px,py);drawing=true}else ctx.lineTo(px,py);
-  }
-  ctx.stroke();
-}
-
 /* ═══════════════════════════════════════════════════════════════
    §5 工作区渲染器
    ═══════════════════════════════════════════════════════════════ */
 
-/* ── 占位工作区 ── */
-function renderPlaceholder(){
+/* ── 桌面版功能提示 ── */
+function renderDesktopOnly(){
   var m=MODES[currentTab].modes[currentSub];
-  workspace.innerHTML='<div class="workspace-header"><div class="ws-title">'+m.icon+' '+m.name+'</div><div class="ws-desc">'+(m.desc||'此功能即将上线')+'</div></div><div class="placeholder-card"><div class="ph-icon">🚧</div><div class="ph-title">开发中</div><div class="ph-desc">'+(m.desc||'')+'<br><br>此工作区正在建设中，敬请期待。</div></div>';
+  workspace.innerHTML='<div class="workspace-header"><div class="ws-title">'+m.icon+' '+m.name+'</div><div class="ws-desc">'+(m.desc||'')+'</div></div><div class="placeholder-card"><div class="ph-icon">🖥️</div><div class="ph-title">此功能需要桌面版</div><div class="ph-desc">'+(m.desc||'')+'<br><br>该功能仅在 MF-Mathematics 桌面应用（Windows）中可用。<br>请前往 <a href="https://github.com/isinx-cosx/MF-Mathematics" target="_blank" rel="noopener" style="color:var(--primary)">GitHub</a> 下载完整版本，支持 14 种计算模式 + 7 种绘图模式 + AI 智能助手 + 交互式教程。</div></div>';
 }
 
 /* ── 基础运算工作区（计算器）── */
@@ -820,126 +772,6 @@ function bindAlgebraEvents(){
   });
 }
 
-/* ── 微积分工作区 ── */
-function renderCalculus(){
-  workspace.innerHTML='<div class="workspace-header"><div class="ws-title">∫ 微积分</div><div class="ws-desc">求导、不定积分、定积分、极限计算</div></div><div class="work-card"><h3>求导</h3><div class="calc-row" style="margin-bottom:12px"><input id="calDerivInput" type="text" placeholder="输入函数：sin(x)*cos(x)"><select id="calDerivPoint"><option value="expr">符号求导</option><option value="0">x=0</option><option value="1">x=1</option><option value="2" selected>x=2</option><option value="3">x=3</option></select><button class="btn-calc" id="calDerivBtn">求导</button></div><div class="result-box" id="calDerivResult"></div></div><div class="work-card"><h3>积分</h3><div class="calc-row" style="margin-bottom:4px"><input id="calIntegInput" type="text" placeholder="输入函数：x^2*sin(x)"><select id="calIntegType"><option value="indef">不定积分</option><option value="def">定积分 [0,2]</option></select><button class="btn-calc" id="calIntegBtn">积分</button></div><div class="result-box" id="calIntegResult"></div></div><div class="work-card"><h3>极限</h3><div class="calc-row"><input id="calLimitInput" type="text" placeholder="输入函数：sin(x)/x"><select id="calLimitPoint"><option value="0">x→0</option><option value="1">x→1</option><option value="2">x→2</option><option value="inf">x→∞</option></select><button class="btn-calc" id="calLimitBtn">求极限</button></div><div class="result-box" id="calLimitResult"></div></div><div class="plot-card"><div class="header">函数图像</div><canvas id="plotCanvasCalc"></canvas></div>';
-  bindCalculusEvents();
-  setTimeout(function(){draw2D('x^2','plotCanvasCalc')},100);
-}
-
-function bindCalculusEvents(){
-  var derivInput=document.getElementById('calDerivInput'),derivBtn=document.getElementById('calDerivBtn'),derivResult=document.getElementById('calDerivResult'),derivPoint=document.getElementById('calDerivPoint');
-  var integInput=document.getElementById('calIntegInput'),integBtn=document.getElementById('calIntegBtn'),integResult=document.getElementById('calIntegResult'),integType=document.getElementById('calIntegType');
-  var limitInput=document.getElementById('calLimitInput'),limitBtn=document.getElementById('calLimitBtn'),limitResult=document.getElementById('calLimitResult'),limitPoint=document.getElementById('calLimitPoint');
-
-  if(derivBtn)derivBtn.addEventListener('click',function(){
-    var expr=(derivInput?derivInput.value:'').trim()||'x^2';
-    var point=derivPoint?derivPoint.value:'2';
-    draw2D(expr,'plotCanvasCalc');
-    if(point==='expr'){derivResult.innerHTML='<div class="steps">f(x) = '+expr+'</div><div class="answer">'+doAlgebra(expr,'求导').result+'</div>';return}
-    var nd=numericDerivative(expr,+point);
-    derivResult.innerHTML='<div class="steps">f(x) = '+expr+'</div><div class="answer">f\'('+point+') ≈ '+nd.toFixed(8)+'</div>';
-  });
-
-  if(integBtn)integBtn.addEventListener('click',function(){
-    var expr=(integInput?integInput.value:'').trim()||'x^2';
-    var type=integType?integType.value:'indef';
-    draw2D(expr,'plotCanvasCalc');
-    if(type==='indef'){integResult.innerHTML='<div class="answer">'+doAlgebra(expr,'不定积分').result+'</div>'}
-    else{integResult.innerHTML='<div class="answer">'+doAlgebra(expr+',0,2','定积分').result+'</div>'}
-  });
-
-  if(limitBtn)limitBtn.addEventListener('click',function(){
-    var expr=(limitInput?limitInput.value:'').trim()||'sin(x)/x';
-    var pt=limitPoint?limitPoint.value:'0';
-    draw2D(expr,'plotCanvasCalc');
-    if(pt==='inf'){var large=1e8;try{var vl=evaluate(expr,large);limitResult.innerHTML='<div class="answer">lim[x→∞] '+expr+' ≈ '+fmtResult(vl)+'</div>'}catch(e){limitResult.innerHTML='<div class="answer">计算失败</div>'}}
-    else limitResult.innerHTML='<div class="answer">'+doAlgebra(expr+',x,'+pt,'极限').result+'</div>';
-  });
-}
-
-/* ── 数列工作区 ── */
-function renderSequences(){
-  workspace.innerHTML='<div class="workspace-header"><div class="ws-title">🔗 数列</div><div class="ws-desc">通项公式、等差/等比数列求和</div></div><div class="work-card"><h3>数列通项</h3><div class="calc-row" style="margin-bottom:12px"><input id="seqTermInput" type="text" placeholder="通项公式：1/n（用 n 表示变量）"><span style="font-size:13px;color:var(--text-muted);white-space:nowrap">项数：</span><select id="seqTermN"><option>5</option><option selected>10</option><option>15</option><option>20</option></select><button class="btn-calc" id="seqTermBtn">计算</button></div><div class="result-box" id="seqTermResult"></div></div><div class="work-card"><h3>等差数列求和</h3><div class="calc-row" style="margin-bottom:12px"><input id="seqArithA1" type="number" value="1" style="width:80px;flex:0 0 auto" placeholder="a₁"><input id="seqArithD" type="number" value="1" style="width:80px;flex:0 0 auto" placeholder="d"><input id="seqArithN" type="number" value="10" style="width:80px;flex:0 0 auto" placeholder="n"><button class="btn-calc" id="seqArithBtn">求和</button></div><div class="result-box" id="seqArithResult"></div></div><div class="work-card"><h3>等比数列求和</h3><div class="calc-row" style="margin-bottom:12px"><input id="seqGeomA1" type="number" value="1" style="width:80px;flex:0 0 auto" placeholder="a₁"><input id="seqGeomQ" type="number" value="2" style="width:80px;flex:0 0 auto" placeholder="q"><input id="seqGeomN" type="number" value="10" style="width:80px;flex:0 0 auto" placeholder="n"><button class="btn-calc" id="seqGeomBtn">求和</button></div><div class="result-box" id="seqGeomResult"></div></div><div class="presets"><button data-seq="1/n">aₙ = 1/n</button><button data-seq="n^2">aₙ = n²</button><button data-seq="(-1)^n/n">aₙ = (-1)ⁿ/n</button><button data-seq="factorial(n)">aₙ = n!</button></div>';
-  bindSequencesEvents();
-}
-
-function bindSequencesEvents(){
-  var ti=document.getElementById('seqTermInput'),tn=document.getElementById('seqTermN'),tb=document.getElementById('seqTermBtn'),tr=document.getElementById('seqTermResult');
-  if(tb)tb.addEventListener('click',function(){
-    var formula=(ti?ti.value:'').trim()||'n^2',n=+(tn?tn.value:'10');
-    var terms=[];for(var t=1;t<=Math.min(n,20);t++){try{terms.push(fmtResult(evaluate(formula.replace(/n/g,'('+t+')')))}catch(_){terms.push('?')}}
-    tr.innerHTML='<div class="steps">aₙ = '+formula+'</div><div class="answer">'+terms.join(', ')+'</div>';
-  });
-  function bindSeq(btnId,in1,in2,in3,resId,type){
-    var b=document.getElementById(btnId);if(!b)return;
-    b.addEventListener('click',function(){
-      var a=+(document.getElementById(in1)?document.getElementById(in1).value:1)||1;
-      var dq=+(document.getElementById(in2)?document.getElementById(in2).value:1)||1;
-      var n=+(document.getElementById(in3)?document.getElementById(in3).value:10)||10;
-      var sum=type==='arith'?n*(2*a+(n-1)*dq)/2:(dq===1?a*n:a*(1-Math.pow(dq,n))/(1-dq));
-      document.getElementById(resId).innerHTML='<div class="answer">Sₙ = '+sum.toFixed(6)+'</div>';
-    });
-  }
-  bindSeq('seqArithBtn','seqArithA1','seqArithD','seqArithN','seqArithResult','arith');
-  bindSeq('seqGeomBtn','seqGeomA1','seqGeomQ','seqGeomN','seqGeomResult','geom');
-  var presets=document.querySelector('#workspace .presets');if(presets)presets.addEventListener('click',function(e){var b=e.target.closest('button');if(b&&b.dataset.seq&&ti){ti.value=b.dataset.seq;tb.click()}});
-}
-
-/* ── 线性代数工作区 ── */
-function renderLinearAlgebra(){
-  workspace.innerHTML='<div class="workspace-header"><div class="ws-title">📊 线性代数</div><div class="ws-desc">矩阵运算：行列式、求逆、转置、矩阵乘法</div></div><div class="work-card"><h3>矩阵输入</h3><div style="margin:8px 0;display:flex;gap:8px;align-items:center;flex-wrap:wrap"><label style="font-size:13px;color:var(--text-muted)">行：<select id="matRows"><option>2</option><option selected>3</option><option>4</option></select></label><label style="font-size:13px;color:var(--text-muted)">列：<select id="matCols"><option>2</option><option selected>3</option><option>4</option></select></label><button class="btn-calc-sm" id="matBuildBtn">创建矩阵</button><span style="margin-left:12px;font-size:13px;color:var(--text-muted)">操作：</span><select id="matOp"><option>行列式</option><option>求逆</option><option>转置</option></select><button class="btn-calc" id="matComputeBtn">计算</button></div><div id="matContainer"></div><div class="result-box" id="matResult"></div></div><div class="work-card"><h3>矩阵乘法</h3><div style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start"><div><div style="font-size:12px;color:var(--text-muted);margin-bottom:4px">矩阵 A</div><div id="matAContainer"></div></div><div style="font-size:24px;color:var(--text-muted);align-self:center">×</div><div><div style="font-size:12px;color:var(--text-muted);margin-bottom:4px">矩阵 B</div><div id="matBContainer"></div></div><button class="btn-calc" id="matMulBtn" style="align-self:center">计算 A×B</button></div><div class="result-box" id="matMulResult" style="margin-top:12px"></div></div>';
-  bindLinearAlgebraEvents();
-}
-
-function readMatrix(containerId){
-  var c=document.getElementById(containerId);if(!c)return null;
-  var inputs=c.querySelectorAll('input');var rows=[],row=[];var cols=0;
-  for(var i=0;i<inputs.length;i++){
-    row.push(+(inputs[i].value)||0);
-    if(row.length===Math.sqrt(inputs.length)||(cols>0&&row.length===cols)){rows.push(row);if(!cols)cols=row.length;row=[]}
-  }
-  if(row.length)rows.push(row);
-  return rows;
-}
-
-function buildMatrixInput(containerId,rows,cols){
-  var c=document.getElementById(containerId);if(!c)return;
-  c.innerHTML='<div class="matrix-grid" style="grid-template-columns:repeat('+cols+',64px)">';
-  for(var r=0;r<rows;r++)for(var cl=0;cl<cols;cl++)c.innerHTML+='<input type="number" value="'+(r===cl?1:0)+'" step="any">';
-  c.innerHTML+='</div>';
-}
-
-function bindLinearAlgebraEvents(){
-  var buildBtn=document.getElementById('matBuildBtn');if(!buildBtn)return;
-  buildBtn.addEventListener('click',function(){
-    var rows=+(document.getElementById('matRows').value),cols=+(document.getElementById('matCols').value);
-    buildMatrixInput('matContainer',rows,cols);buildMatrixInput('matAContainer',rows,cols);buildMatrixInput('matBContainer',cols,rows);
-  });
-  var computeBtn=document.getElementById('matComputeBtn');if(computeBtn)computeBtn.addEventListener('click',function(){
-    var mat=readMatrix('matContainer');if(!mat)return;
-    var op=document.getElementById('matOp').value,n=mat.length,m=mat[0].length;
-    var resEl=document.getElementById('matResult');
-    if(op==='转置'){var t=[];for(var j=0;j<m;j++){t[j]=[];for(var i=0;i<n;i++)t[j][i]=mat[i][j]}resEl.innerHTML='<div class="answer">'+JSON.stringify(t)+'</div>'}
-    else if(op==='行列式'){if(n!==m){resEl.innerHTML='<span style="color:#ef4444">需要方阵</span>';return}
-      function det(a){var nn=a.length;if(nn===1)return a[0][0];if(nn===2)return a[0][0]*a[1][1]-a[0][1]*a[1][0];var d=0;for(var jj=0;jj<nn;jj++){var sub=[];for(var ii=1;ii<nn;ii++){sub[ii-1]=[];for(var jj2=0;jj2<nn;jj2++){if(jj2===jj)continue;sub[ii-1].push(a[ii][jj2])}}d+=(jj%2?-1:1)*a[0][jj]*det(sub)}return d}
-      resEl.innerHTML='<div class="answer">det = '+det(mat).toFixed(6)+'</div>';}
-    else if(op==='求逆'){if(n!==m){resEl.innerHTML='<span style="color:#ef4444">需要方阵</span>';return}
-      function inv(aa){var nn=aa.length;var aug=[];for(var ii2=0;ii2<nn;ii2++){aug[ii2]=aa[ii2].slice();for(var jj3=0;jj3<nn;jj3++)aug[ii2].push(ii2===jj3?1:0)}
-        for(var ii3=0;ii3<nn;ii3++){var pv=aug[ii3][ii3];if(Math.abs(pv)<1e-10)return null;for(var jj4=0;jj4<2*nn;jj4++)aug[ii3][jj4]/=pv;
-        for(var ii4=0;ii4<nn;ii4++){if(ii4===ii3)continue;var f=aug[ii4][ii3];for(var jj5=0;jj5<2*nn;jj5++)aug[ii4][jj5]-=f*aug[ii3][jj5]}}
-        var invv=[];for(var ii5=0;ii5<nn;ii5++){invv[ii5]=aug[ii5].slice(nn)}return invv}
-      var invm=inv(mat);resEl.innerHTML=invm?'<div class="answer">'+JSON.stringify(invm.map(function(r){return r.map(function(v){return +v.toFixed(4)})}))+'</div>':'<span style="color:#ef4444">矩阵不可逆</span>';}
-  });
-  var mulBtn=document.getElementById('matMulBtn');if(mulBtn)mulBtn.addEventListener('click',function(){
-    var A=readMatrix('matAContainer'),B=readMatrix('matBContainer');var resEl=document.getElementById('matMulResult');
-    if(!A||!B||A[0].length!==B.length){resEl.innerHTML='<span style="color:#ef4444">维度不匹配</span>';return}
-    var C=[];for(var ii=0;ii<A.length;ii++){C[ii]=[];for(var jj=0;jj<B[0].length;jj++){C[ii][jj]=0;for(var kk=0;kk<B.length;kk++)C[ii][jj]+=A[ii][kk]*B[kk][jj]}}
-    resEl.innerHTML='<div class="answer">'+JSON.stringify(C.map(function(r){return r.map(function(v){return +v.toFixed(4)})}))+'</div>';
-  });
-  buildBtn.click();
-}
-
 /* ── 2D 函数绘图工作区 ── */
 function renderPlot2D(){
   workspace.innerHTML='<div class="workspace-header"><div class="ws-title">📈 2D 函数绘图</div><div class="ws-desc">绘制显函数 y=f(x) 曲线，支持间断点检测</div></div><div class="work-card"><div class="calc-row" style="margin-bottom:12px"><input id="plot2DInput" type="text" placeholder="输入函数表达式：sin(x)、x^2、tan(x)"><select id="plot2DXMin"><option value="-10">x∈[-10,10]</option><option value="-5" selected>x∈[-5,5]</option><option value="-3">x∈[-3,3]</option><option value="-2">x∈[-2,2]</option></select><button class="btn-calc" id="plot2DBtn">绘图</button></div><div class="presets"><button data-fn="sin(x)">sin(x)</button><button data-fn="tan(x)">tan(x)</button><button data-fn="x^2">x²</button><button data-fn="x^3-3*x">x³−3x</button><button data-fn="exp(-x^2)*cos(5*x)">e^(−x²)·cos(5x)</button><button data-fn="sin(x)/x">sinc(x)</button></div></div><div class="plot-card"><div class="header" id="plot2DTitle">f(x) = sin(x)</div><canvas id="plotCanvas2D"></canvas></div>';
@@ -958,40 +790,19 @@ function bindPlot2DEvents(){
   var presets=document.querySelector('#workspace .presets');if(presets)presets.addEventListener('click',function(e){var b=e.target.closest('button');if(b&&b.dataset.fn){if(input)input.value=b.dataset.fn;btn.click()}});
 }
 
-/* ── 极坐标绘图工作区 ── */
-function renderPlotPolar(){
-  workspace.innerHTML='<div class="workspace-header"><div class="ws-title">🔄 极坐标绘图</div><div class="ws-desc">绘制极坐标曲线 r=f(θ)，参数 0≤θ≤2π</div></div><div class="work-card"><div class="calc-row" style="margin-bottom:12px"><input id="plotPolarInput" type="text" placeholder="极坐标函数：sin(3*x)、1+cos(x)"><button class="btn-calc" id="plotPolarBtn">绘图</button></div><div class="presets"><button data-fn="sin(3*x)">三叶玫瑰线</button><button data-fn="1+cos(x)">心形线</button><button data-fn="x">阿基米德螺线</button><button data-fn="2*cos(2*x)">四叶玫瑰线</button><button data-fn="sin(x)/x">特殊曲线</button></div></div><div class="plot-card"><div class="header">r(θ) = sin(3θ)</div><canvas id="plotCanvasPolar"></canvas></div>';
-  bindPlotPolarEvents();
-  setTimeout(function(){drawPolar('sin(3*x)','plotCanvasPolar')},100);
-}
-
-function bindPlotPolarEvents(){
-  var input=document.getElementById('plotPolarInput'),btn=document.getElementById('plotPolarBtn');
-  if(btn)btn.addEventListener('click',function(){
-    var expr=(input?input.value:'').trim()||'sin(3*x)';
-    drawPolar(expr,'plotCanvasPolar');
-  });
-  if(input)input.addEventListener('keydown',function(e){if(e.key==='Enter')btn.click()});
-  var presets=document.querySelector('#workspace .presets');if(presets)presets.addEventListener('click',function(e){var b=e.target.closest('button');if(b&&b.dataset.fn){if(input)input.value=b.dataset.fn;btn.click()}});
-}
-
 /* ═══════════════════════════════════════════════════════════════
    §6 工作区统一渲染调度
    ═══════════════════════════════════════════════════════════════ */
 var RENDERERS={
   basicArithmetic:renderBasicArithmetic,
   algebra:renderAlgebra,
-  calculus:renderCalculus,
-  sequences:renderSequences,
-  linearAlgebra:renderLinearAlgebra,
   plot2D:renderPlot2D,
-  plotPolar:renderPlotPolar,
-  placeholder:renderPlaceholder,
+  desktopOnly:renderDesktopOnly,
 };
 
 function renderWorkspace(){
   var m=MODES[currentTab].modes[currentSub];
-  var renderer=RENDERERS[m.render]||renderPlaceholder;
+  var renderer=RENDERERS[m.render]||renderDesktopOnly;
   renderer();
 }
 
@@ -1063,10 +874,8 @@ document.addEventListener('keydown',function(e){
 /* 窗口缩放重绘 */
 var resizeTimer;
 window.addEventListener('resize',function(){clearTimeout(resizeTimer);resizeTimer=setTimeout(function(){
-  if(currentTab==='plot'){
-    if(currentSub===0)draw2D((document.getElementById('plot2DInput')?document.getElementById('plot2DInput').value.trim():'')||'sin(x)','plotCanvas2D');
-    else if(currentSub===1)drawPolar((document.getElementById('plotPolarInput')?document.getElementById('plotPolarInput').value.trim():'')||'sin(3*x)','plotCanvasPolar');
-    else{var canvas=document.querySelector('#workspace canvas');if(canvas)draw2D('x^2',canvas.id)}
+  if(currentTab==='plot'&&currentSub===0){
+    draw2D((document.getElementById('plot2DInput')?document.getElementById('plot2DInput').value.trim():'')||'sin(x)','plotCanvas2D');
   }
 },200)});
 
