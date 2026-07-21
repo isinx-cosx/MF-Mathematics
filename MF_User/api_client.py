@@ -113,7 +113,7 @@ class APIClient:
             RuntimeError: 验证失败（验证码错误、已过期等）。
         """
         data = {"username": username, "code": code}
-        return _api_post(f"{self.base_url}/verify-code", data)
+        return _api_post(f"{self.base_url}/verify-code", data, is_form=True)
 
     # ── 用户信息 ──────────────────────────────────────────
 
