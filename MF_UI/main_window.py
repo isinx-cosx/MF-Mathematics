@@ -941,11 +941,11 @@ class MainWindow(QMainWindow):
     def _on_user_clicked(self) -> None:
         """处理登录/用户按钮点击。"""
         try:
-            from MF_User.manager import UserManager
-            mgr = UserManager()
-            if mgr.is_logged_in or mgr.api_token:
+            from MF_User.auth_service import AuthService
+            auth = AuthService()
+            if auth.is_logged_in:
                 # 已登录 → 登出
-                mgr.logout()
+                auth.logout()
                 self._refresh_user_status()
                 self._status_msg("已登出")
             else:
@@ -956,37 +956,60 @@ class MainWindow(QMainWindow):
     def _open_login_dialog(self) -> None:
         """打开统一登录/注册/验证对话框。"""
         try:
-            from MF_User.login_dialog import LoginDialog
-            dlg = LoginDialog(self)
+            from MF_User.login_dialog import LoginRegisterDialog
+            dlg = LoginRegisterDialog(self)
             if dlg.exec() == QDialog.DialogCode.Accepted:
-                token = dlg.get_token()
-                username = dlg.get_username()
-                if token and username:
-                    from MF_User.manager import UserManager
-                    mgr = UserManager()
-                    mgr.set_api_auth(token, username)
-                    # 尝试获取在线余额
-                    balance = mgr.fetch_online_balance()
-                    self._status_msg(
-                        f"欢迎，{username}！"
-                        f"{' (余额: ' + str(balance) + ')' if balance else ''}"
-                    )
-            self._refresh_user_status()
+                # AuthService 已在对话框内部更新
+                self._refresh_user_status()
+                # 异步获取余额等用户信息
+                self._fetch_user_profile()
         except Exception as e:
             self._status_msg(f"登录失败: {e}")
+
+    def _fetch_user_profile(self) -> None:
+        """后台从 /me 获取用户资料（余额、邮箱验证状态）。"""
+        try:
+            from MF_User.auth_service import AuthService
+            from MF_User.auth_worker import AuthWorker
+            from MF_User.api_client import APIClient
+            auth = AuthService()
+            if not auth.token:
+                return
+            worker = AuthWorker(
+                self,
+                lambda: APIClient().get_me(auth.token),
+            )
+            worker.succeeded.connect(self._on_profile_loaded)
+            worker.failed.connect(
+                lambda msg: logger.warning("获取用户信息失败: %s", msg)
+            )
+            worker.start()
+        except Exception as e:
+            logger.debug("获取用户资料失败: %s", e)
+
+    def _on_profile_loaded(self, data: dict) -> None:
+        """/me 数据返回 — 更新会话并刷新 UI。"""
+        try:
+            from MF_User.auth_service import AuthService
+            AuthService().update_profile(data)
+            self._refresh_user_status()
+            auth = AuthService()
+            self._status_msg(
+                f"欢迎，{auth.username}！"
+                f"{' (余额: ' + str(auth.balance) + ')' if auth.balance else ''}"
+            )
+        except Exception as e:
+            logger.debug("处理用户资料失败: %s", e)
 
     def _refresh_user_status(self) -> None:
         """刷新工具栏登录按钮和状态栏用户标签。"""
         try:
-            from MF_User.manager import UserManager
-            mgr = UserManager()
-            if (mgr.is_logged_in and mgr.current_user) or mgr.api_token:
-                username = (mgr.current_user.username if mgr.current_user
-                            else mgr._api_username)
-                balance = mgr.api_balance
-                label = username
-                if balance:
-                    label += f" (余额: {balance})"
+            from MF_User.auth_service import AuthService
+            auth = AuthService()
+            if auth.is_logged_in:
+                label = auth.username
+                if auth.balance:
+                    label += f" (余额: {auth.balance})"
                 self._user_action.setText(label)
                 if self._user_status_label:
                     self._user_status_label.setText(f"当前用户: {label}")

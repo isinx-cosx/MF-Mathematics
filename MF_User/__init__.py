@@ -1,26 +1,38 @@
 # -*- coding: utf-8 -*-
-"""MF_User — 用户管理系统。
+"""MF_User — 用户认证系统。
 
-提供用户注册、登录、会话管理。
-当前使用内存存储，后续可切换为本地文件或云端数据库。
+提供在线登录、注册、邮箱验证及会话状态管理。
 
 用法:
-    from MF_User import UserManager
+    from MF_User import AuthService, APIClient, LoginRegisterDialog
 
-    mgr = UserManager()
-    user, err = mgr.register("alice", "password123")
-    user, err = mgr.login("alice", "password123")
-    if mgr.is_logged_in:
-        print(f"当前用户: {mgr.current_user.username}")
-    mgr.logout()
+    # 打开登录对话框
+    dlg = LoginRegisterDialog(parent)
+    if dlg.exec() == QDialog.DialogCode.Accepted:
+        auth = AuthService()
+        print(f"已登录: {auth.username}, 余额: {auth.balance}")
+
+    # 后台获取用户信息
+    from MF_User.auth_worker import AuthWorker
+    worker = AuthWorker(parent, lambda: APIClient().get_me(auth.token))
+    worker.succeeded.connect(lambda d: auth.update_profile(d))
+    worker.start()
 """
 
 from __future__ import annotations
 
-from MF_User.models import User
-from MF_User.manager import UserManager
+from MF_User.auth_service import AuthService
+from MF_User.api_client import APIClient
+from MF_User.auth_worker import AuthWorker
+from MF_User.login_dialog import LoginRegisterDialog, LoginDialog
 
-__all__ = ["User", "UserManager"]
+__all__ = [
+    "AuthService",
+    "APIClient",
+    "AuthWorker",
+    "LoginRegisterDialog",
+    "LoginDialog",
+]
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -33,9 +45,10 @@ def self_test() -> tuple[int, int, list[str]]:
     all_errors: list[str] = []
 
     modules = [
-        ("manager", "MF_User.manager"),
+        ("auth_service", "MF_User.auth_service"),
+        ("auth_worker", "MF_User.auth_worker"),
+        ("api_client", "MF_User.api_client"),
         ("login_dialog", "MF_User.login_dialog"),
-        ("register_dialog", "MF_User.register_dialog"),
     ]
 
     print("=" * 60)

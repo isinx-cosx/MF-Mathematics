@@ -1060,4 +1060,88 @@ QSplitter::handle:hover {
     font-weight: 600;
 }
 #calc_btn_const:hover { background: #dcfce7; }
+
+/* ============================================
+   登录/注册对话框
+   ============================================ */
+#loginRegisterDialog {
+    background: #f8fafc;
+}
+#loginRegisterDialog QLineEdit {
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    padding: 10px 14px;
+    font-size: 13px;
+    background: #ffffff;
+    color: #1e293b;
+}
+#loginRegisterDialog QLineEdit:focus {
+    border-color: #3b82f6;
+}
+#loginRegisterDialog QLabel#dialogTitle {
+    font-size: 18px;
+    font-weight: 700;
+    color: #0f172a;
+    background: transparent;
+}
+#loginRegisterDialog QLabel#fieldLabel {
+    font-size: 13px;
+    color: #475569;
+    background: transparent;
+}
+#loginRegisterDialog QPushButton#primaryBtn {
+    background: #3b82f6;
+    color: #ffffff;
+    border: none;
+    border-radius: 6px;
+    padding: 10px 24px;
+    font-size: 13px;
+    font-weight: 500;
+}
+#loginRegisterDialog QPushButton#primaryBtn:hover { background: #2563eb; }
+#loginRegisterDialog QPushButton#primaryBtn:pressed { background: #1d4ed8; }
+#loginRegisterDialog QPushButton#primaryBtn:disabled {
+    background: #94a3b8;
+    color: #e2e8f0;
+}
+#loginRegisterDialog QPushButton#secondaryBtn {
+    background: #f1f5f9;
+    color: #475569;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    padding: 8px 16px;
+    font-size: 12px;
+}
+#loginRegisterDialog QPushButton#secondaryBtn:hover { background: #e2e8f0; }
+#loginRegisterDialog QPushButton#linkBtn {
+    background: transparent;
+    border: none;
+    color: #94a3b8;
+    font-size: 11px;
+}
+#loginRegisterDialog QPushButton#linkBtn:hover { color: #ef4444; }
+#loginRegisterDialog QPushButton#tabBtn {
+    background: transparent;
+    color: #94a3b8;
+    border: none;
+    border-bottom: 2px solid transparent;
+    padding: 10px 24px;
+    font-size: 14px;
+    font-weight: 600;
+}
+#loginRegisterDialog QPushButton#tabBtn:hover { color: #475569; }
+#loginRegisterDialog QPushButton#tabBtnActive {
+    background: transparent;
+    color: #1e293b;
+    border: none;
+    border-bottom: 2px solid #3b82f6;
+    padding: 10px 24px;
+    font-size: 14px;
+    font-weight: 700;
+}
+#loginRegisterDialog QLineEdit#codeInput {
+    font-size: 18px;
+    letter-spacing: 6px;
+    padding: 12px 16px;
+}
 #calc_btn_const:pressed { background: #bbf7d0; }

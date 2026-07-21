@@ -1,95 +1,84 @@
 # -*- coding: utf-8 -*-
 """LoginRegisterDialog — 统一登录/注册/邮箱验证对话框。
 
-Tab 切换 + 邮箱验证码流程 + MF-Mathematics 双主题适配。
+功能对标 C:/MVS/static/index.html 网站版认证模态框：
+  - 登录/注册 Tab 切换 + 独立邮箱验证页
+  - 发送验证码 → 60s 冷却倒计时
+  - 注册成功 → 链式自动登录 → 获取余额
+  - 所有 API 调用通过 AuthWorker 在线程中执行，不阻塞 UI
+
+风格沿用桌面端 QSS 主题，使用 apply_dialog_title_bar() + apply_shadow()。
+
+用法:
+    from MF_User.login_dialog import LoginRegisterDialog
+
+    dlg = LoginRegisterDialog(parent)
+    if dlg.exec() == QDialog.DialogCode.Accepted:
+        # 登录成功，AuthService 已更新
+        from MF_User.auth_service import AuthService
+        print(AuthService().username)
 """
 
 from __future__ import annotations
 
 import re as _re
 
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtWidgets import (
     QDialog, QHBoxLayout, QLabel, QLineEdit, QPushButton,
     QStackedWidget, QVBoxLayout, QWidget,
 )
 
 from MF_User.api_client import APIClient
-
-# ── 内联样式常量 ──────────────────────────────────────────
-
-_TITLE_STYLE = "font-size:18px;font-weight:700;background:transparent;"
-_LABEL_STYLE = "font-size:13px;background:transparent;"
-_INPUT_STYLE = (
-    "QLineEdit{font-size:13px;padding:10px 14px;border:1px solid #d1d5db;"
-    "border-radius:6px;background:#fff;color:#1e293b;}"
-    "QLineEdit:focus{border-color:#3b82f6;}"
-)
-_ERROR_STYLE = "font-size:12px;color:#ef4444;background:transparent;"
-_SUCCESS_STYLE = "font-size:12px;color:#10b981;background:transparent;"
-_HINT_STYLE = "font-size:12px;color:#94a3b8;background:transparent;"
-
-_BTN_PRIMARY = (
-    "QPushButton{background:#3b82f6;color:#fff;border:none;"
-    "border-radius:6px;padding:10px 24px;font-size:13px;font-weight:500;}"
-    "QPushButton:hover{background:#2563eb;}"
-    "QPushButton:pressed{background:#1d4ed8;}"
-)
-_BTN_SECONDARY = (
-    "QPushButton{background:#f1f5f9;color:#475569;border:1px solid #d1d5db;"
-    "border-radius:6px;padding:8px 16px;font-size:12px;}"
-    "QPushButton:hover{background:#e2e8f0;}"
-)
-_BTN_LINK = (
-    "QPushButton{background:transparent;border:none;color:#94a3b8;font-size:11px;}"
-    "QPushButton:hover{color:#ef4444;}"
-)
-
-_TAB_NORMAL = (
-    "QPushButton{background:transparent;color:#94a3b8;border:none;"
-    "border-bottom:2px solid transparent;padding:10px 24px;font-size:14px;font-weight:600;}"
-    "QPushButton:hover{color:#475569;}"
-)
-_TAB_ACTIVE = (
-    "QPushButton{background:transparent;color:#1e293b;border:none;"
-    "border-bottom:2px solid #3b82f6;padding:10px 24px;font-size:14px;font-weight:700;}"
-)
+from MF_User.auth_service import AuthService
+from MF_User.auth_worker import AuthWorker
 
 
 class LoginRegisterDialog(QDialog):
     """统一登录/注册对话框 — 含邮箱验证码流程。
 
-    用法:
-        dlg = LoginRegisterDialog(parent)
-        if dlg.exec() == QDialog.DialogCode.Accepted:
-            token = dlg.get_token()
-            username = dlg.get_username()
+    登录/注册成功时内部调用 AuthService().set_auth()，
+    然后 accept() 关闭对话框。
     """
 
-    def __init__(self, parent: QWidget | None = None) -> None:
-        super().__init__(parent)
-        self.setWindowTitle("登录 — MF-Mathematics")
-        self.setFixedSize(440, 560)
-        self.setObjectName("loginDialog")
+    # 登录成功信号（token, username）
+    login_successful = Signal(str, str)
 
-        self._api = APIClient()
-        self._token: str | None = None
-        self._username: str = ""
-        self._code_cooldown: int = 0
+    def __init__(self, parent: QWidget | None = None,
+                 start_page: int = 0) -> None:
+        """初始化对话框。
+
+        Args:
+            parent: 父窗口。
+            start_page: 初始页面索引（0=登录, 1=注册, 2=验证）。
+        """
+        super().__init__(parent)
+        self.setWindowTitle("账户 — MF-Mathematics")
+        self.setFixedSize(460, 540)
+        self.setObjectName("loginRegisterDialog")
+
+        # 内部状态
+        self._pending_email: str = ""   # 用于验证页重新发送
+        self._pending_username: str = ""
+        self._pending_password: str = ""
+        self._cooldown_timer: QTimer | None = None
+        self._cooldown_seconds: int = 0
+        self._active_worker: AuthWorker | None = None
 
         self._build_ui()
-        self._apply_tab_styles(self._tab_login, self._tab_register)
+        self._switch_tab(start_page)
 
     # ═══════════════════════════════════════════════════════
     #  UI 构建
     # ═══════════════════════════════════════════════════════
 
     def _build_ui(self) -> None:
+        """构建完整对话框 UI。"""
         root = QVBoxLayout(self)
         root.setSpacing(0)
         root.setContentsMargins(0, 0, 0, 0)
 
-        # ── 标题栏（MF-Mathematics 风格） ──
+        # ── MF-Mathematics 风格标题栏 ──
         from MF_UI.components.mf_dialog import apply_dialog_title_bar
         apply_dialog_title_bar(self, "账户")
 
@@ -100,17 +89,17 @@ class LoginRegisterDialog(QDialog):
 
         self._tab_login = QPushButton("登  录")
         self._tab_login.setCursor(Qt.CursorShape.PointingHandCursor)
-        self._tab_login.clicked.connect(lambda: self._switch_page(0))
-        tab_row.addWidget(self._tab_login)
+        self._tab_login.clicked.connect(lambda: self._switch_tab(0))
 
         self._tab_register = QPushButton("注  册")
         self._tab_register.setCursor(Qt.CursorShape.PointingHandCursor)
-        self._tab_register.clicked.connect(lambda: self._switch_page(1))
-        tab_row.addWidget(self._tab_register)
+        self._tab_register.clicked.connect(lambda: self._switch_tab(1))
 
+        tab_row.addWidget(self._tab_login)
+        tab_row.addWidget(self._tab_register)
         tab_row.addStretch()
+
         tab_widget = QWidget()
-        tab_widget.setObjectName("customTitleBar")  # 复用标题栏 QSS
         tab_widget.setLayout(tab_row)
         root.addWidget(tab_widget)
 
@@ -121,46 +110,71 @@ class LoginRegisterDialog(QDialog):
         self._stack.addWidget(self._build_verify_page())
         root.addWidget(self._stack, 1)
 
+        # ── 继承父窗口 QSS ──
+        if self.parent() and hasattr(self.parent(), 'styleSheet'):
+            parent_qss = self.parent().styleSheet()
+            if parent_qss:
+                self.setStyleSheet(parent_qss)
+
     # ── 登录页 ────────────────────────────────────────────
 
     def _build_login_page(self) -> QWidget:
+        """构建登录页面。"""
         page = QWidget()
         layout = QVBoxLayout(page)
         layout.setSpacing(12)
         layout.setContentsMargins(32, 20, 32, 24)
 
+        # 标题
         title = QLabel("欢迎回来")
-        title.setStyleSheet(_TITLE_STYLE)
+        title.setObjectName("dialogTitle")
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(title)
 
-        layout.addWidget(QLabel("用户名"))
-        self._login_user = self._make_input("输入用户名")
-        self._login_user.returnPressed.connect(self._on_login)
+        layout.addSpacing(8)
+
+        # 用户名字段
+        user_lbl = QLabel("用户名")
+        user_lbl.setObjectName("fieldLabel")
+        layout.addWidget(user_lbl)
+        self._login_user = QLineEdit()
+        self._login_user.setPlaceholderText("请输入用户名")
         layout.addWidget(self._login_user)
 
-        layout.addWidget(QLabel("密码"))
-        self._login_pwd = self._make_input("输入密码", echo=QLineEdit.EchoMode.Password)
+        # 密码字段
+        pwd_lbl = QLabel("密码")
+        pwd_lbl.setObjectName("fieldLabel")
+        layout.addWidget(pwd_lbl)
+        self._login_pwd = QLineEdit()
+        self._login_pwd.setPlaceholderText("请输入密码")
+        self._login_pwd.setEchoMode(QLineEdit.EchoMode.Password)
         self._login_pwd.returnPressed.connect(self._on_login)
         layout.addWidget(self._login_pwd)
 
-        self._login_error = self._make_msg(_ERROR_STYLE)
-        layout.addWidget(self._login_error)
+        # 消息标签
+        self._login_msg = QLabel("")
+        self._login_msg.setObjectName("loginMsg")
+        self._login_msg.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._login_msg.setWordWrap(True)
+        self._login_msg.hide()
+        layout.addWidget(self._login_msg)
 
+        # 登录按钮
         login_btn = QPushButton("登  录")
-        login_btn.setStyleSheet(_BTN_PRIMARY)
+        login_btn.setObjectName("primaryBtn")
         login_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         login_btn.clicked.connect(self._on_login)
         layout.addWidget(login_btn)
 
         layout.addStretch()
 
+        # 底部切换链接
         bottom = QHBoxLayout()
         bottom.addStretch()
         link = QPushButton("还没有账号？立即注册")
-        link.setStyleSheet(_BTN_LINK)
+        link.setObjectName("linkBtn")
         link.setCursor(Qt.CursorShape.PointingHandCursor)
-        link.clicked.connect(lambda: self._switch_page(1))
+        link.clicked.connect(lambda: self._switch_tab(1))
         bottom.addWidget(link)
         bottom.addStretch()
         layout.addLayout(bottom)
@@ -170,127 +184,160 @@ class LoginRegisterDialog(QDialog):
     # ── 注册页 ────────────────────────────────────────────
 
     def _build_register_page(self) -> QWidget:
+        """构建注册页面（对标网站版 5 字段布局）。"""
         page = QWidget()
         layout = QVBoxLayout(page)
         layout.setSpacing(8)
         layout.setContentsMargins(32, 12, 32, 16)
 
+        # 标题
         title = QLabel("创建账号")
-        title.setStyleSheet(_TITLE_STYLE)
+        title.setObjectName("dialogTitle")
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(title)
 
-        layout.addWidget(QLabel("用户名"))
-        self._reg_user = self._make_input("3-20 个字符，字母数字下划线")
+        # 用户名
+        user_lbl = QLabel("用户名")
+        user_lbl.setObjectName("fieldLabel")
+        layout.addWidget(user_lbl)
+        self._reg_user = QLineEdit()
+        self._reg_user.setPlaceholderText("3-20 个字符，字母数字下划线")
         layout.addWidget(self._reg_user)
 
-        # 邮箱 + 发送验证码按钮
-        layout.addWidget(QLabel("邮箱"))
+        # 邮箱 + 发送验证码
+        email_lbl = QLabel("邮箱")
+        email_lbl.setObjectName("fieldLabel")
+        layout.addWidget(email_lbl)
         email_row = QHBoxLayout()
         email_row.setSpacing(8)
-        self._reg_email = self._make_input("your@email.com")
+        self._reg_email = QLineEdit()
+        self._reg_email.setPlaceholderText("your@email.com")
         email_row.addWidget(self._reg_email, 1)
         self._send_code_btn = QPushButton("发送验证码")
-        self._send_code_btn.setStyleSheet(_BTN_SECONDARY)
+        self._send_code_btn.setObjectName("secondaryBtn")
         self._send_code_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self._send_code_btn.clicked.connect(self._on_send_code)
         email_row.addWidget(self._send_code_btn)
         layout.addLayout(email_row)
 
-        layout.addWidget(QLabel("验证码"))
-        self._reg_code = self._make_input("输入 6 位验证码")
+        # 验证码
+        code_lbl = QLabel("验证码")
+        code_lbl.setObjectName("fieldLabel")
+        layout.addWidget(code_lbl)
+        self._reg_code = QLineEdit()
+        self._reg_code.setPlaceholderText("输入 6 位验证码")
         self._reg_code.setMaxLength(6)
-        self._reg_code.setStyleSheet(
-            "QLineEdit{font-size:15px;padding:10px 14px;letter-spacing:4px;"
-            "border:1px solid #d1d5db;border-radius:6px;background:#fff;color:#1e293b;}"
-            "QLineEdit:focus{border-color:#3b82f6;}"
-        )
+        self._reg_code.setObjectName("codeInput")
         layout.addWidget(self._reg_code)
 
-        layout.addWidget(QLabel("密码"))
-        self._reg_pwd = self._make_input("至少 6 个字符", echo=QLineEdit.EchoMode.Password)
+        # 密码
+        pwd_lbl = QLabel("密码")
+        pwd_lbl.setObjectName("fieldLabel")
+        layout.addWidget(pwd_lbl)
+        self._reg_pwd = QLineEdit()
+        self._reg_pwd.setPlaceholderText("至少 6 个字符")
+        self._reg_pwd.setEchoMode(QLineEdit.EchoMode.Password)
         layout.addWidget(self._reg_pwd)
 
-        layout.addWidget(QLabel("确认密码"))
-        self._reg_confirm = self._make_input("再次输入密码", echo=QLineEdit.EchoMode.Password)
+        # 确认密码
+        confirm_lbl = QLabel("确认密码")
+        confirm_lbl.setObjectName("fieldLabel")
+        layout.addWidget(confirm_lbl)
+        self._reg_confirm = QLineEdit()
+        self._reg_confirm.setPlaceholderText("再次输入密码")
+        self._reg_confirm.setEchoMode(QLineEdit.EchoMode.Password)
         self._reg_confirm.returnPressed.connect(self._on_register)
         layout.addWidget(self._reg_confirm)
 
-        self._reg_msg = self._make_msg(_ERROR_STYLE)
+        # 消息标签
+        self._reg_msg = QLabel("")
+        self._reg_msg.setObjectName("regMsg")
+        self._reg_msg.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._reg_msg.setWordWrap(True)
+        self._reg_msg.hide()
         layout.addWidget(self._reg_msg)
 
+        # 注册按钮
         reg_btn = QPushButton("注  册")
-        reg_btn.setStyleSheet(_BTN_PRIMARY)
+        reg_btn.setObjectName("primaryBtn")
         reg_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         reg_btn.clicked.connect(self._on_register)
         layout.addWidget(reg_btn)
 
         layout.addStretch()
 
+        # 底部切换链接
         bottom = QHBoxLayout()
         bottom.addStretch()
         link = QPushButton("已有账号？返回登录")
-        link.setStyleSheet(_BTN_LINK)
+        link.setObjectName("linkBtn")
         link.setCursor(Qt.CursorShape.PointingHandCursor)
-        link.clicked.connect(lambda: self._switch_page(0))
+        link.clicked.connect(lambda: self._switch_tab(0))
         bottom.addWidget(link)
         bottom.addStretch()
         layout.addLayout(bottom)
 
         return page
 
-    # ── 验证码页 ───────────────────────────────────────────
+    # ── 验证页 ────────────────────────────────────────────
 
     def _build_verify_page(self) -> QWidget:
+        """构建独立邮箱验证页面。"""
         page = QWidget()
         layout = QVBoxLayout(page)
         layout.setSpacing(14)
         layout.setContentsMargins(32, 24, 32, 24)
 
-        icon = QLabel("📧")
+        # 图标
+        icon = QLabel("\U0001f4e7")  # 📧
         icon.setStyleSheet("font-size:40px;background:transparent;")
         icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(icon)
 
+        # 标题
         self._verify_title = QLabel("邮箱验证")
-        self._verify_title.setStyleSheet(_TITLE_STYLE)
+        self._verify_title.setObjectName("dialogTitle")
         self._verify_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self._verify_title)
 
+        # 提示文字
         self._verify_hint = QLabel("验证码已发送至 your@email.com")
-        self._verify_hint.setStyleSheet(_HINT_STYLE)
+        self._verify_hint.setObjectName("verifyHint")
         self._verify_hint.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._verify_hint.setWordWrap(True)
         layout.addWidget(self._verify_hint)
 
+        # 验证码输入
         self._verify_code_input = QLineEdit()
         self._verify_code_input.setPlaceholderText("输入 6 位验证码")
         self._verify_code_input.setMaxLength(6)
-        self._verify_code_input.setStyleSheet(
-            "QLineEdit{font-size:22px;padding:12px 16px;letter-spacing:8px;"
-            "text-align:center;border:1px solid #d1d5db;border-radius:8px;"
-            "background:#fff;color:#1e293b;}"
-            "QLineEdit:focus{border-color:#3b82f6;}"
-        )
+        self._verify_code_input.setObjectName("codeInput")
         self._verify_code_input.returnPressed.connect(self._on_verify)
         layout.addWidget(self._verify_code_input)
 
-        self._verify_msg = self._make_msg(_ERROR_STYLE)
+        # 消息标签
+        self._verify_msg = QLabel("")
+        self._verify_msg.setObjectName("verifyMsg")
+        self._verify_msg.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._verify_msg.setWordWrap(True)
+        self._verify_msg.hide()
         layout.addWidget(self._verify_msg)
 
+        # 验证按钮
         verify_btn = QPushButton("验  证")
-        verify_btn.setStyleSheet(_BTN_PRIMARY)
+        verify_btn.setObjectName("primaryBtn")
         verify_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         verify_btn.clicked.connect(self._on_verify)
         layout.addWidget(verify_btn)
 
+        # 重新发送
         resend_row = QHBoxLayout()
         resend_row.addStretch()
-        resend_btn = QPushButton("重新发送验证码")
-        resend_btn.setStyleSheet(_BTN_LINK)
-        resend_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        resend_btn.clicked.connect(self._on_resend)
-        resend_row.addWidget(resend_btn)
+        self._resend_btn = QPushButton("重新发送验证码")
+        self._resend_btn.setObjectName("linkBtn")
+        self._resend_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._resend_btn.clicked.connect(self._on_resend)
+        resend_row.addWidget(self._resend_btn)
         resend_row.addStretch()
         layout.addLayout(resend_row)
 
@@ -298,181 +345,446 @@ class LoginRegisterDialog(QDialog):
         return page
 
     # ═══════════════════════════════════════════════════════
-    #  事件处理
+    #  页面切换
     # ═══════════════════════════════════════════════════════
 
-    # ── 页面切换 ──────────────────────────────────────────
+    def _switch_tab(self, index: int) -> None:
+        """切换 QStackedWidget 页面并更新 tab 按钮样式。
 
-    def _switch_page(self, index: int) -> None:
+        Args:
+            index: 0=登录, 1=注册, 2=验证。
+        """
         self._stack.setCurrentIndex(index)
-        self._apply_tab_styles(
-            self._tab_login if index == 0 else self._tab_register,
-            self._tab_register if index == 0 else self._tab_login,
-        )
-        # 清空消息
-        self._login_error.hide()
-        self._reg_msg.hide()
-        self._verify_msg.hide()
+        self._apply_tab_styles(index)
+        self._hide_all_msgs()
 
         # 设置焦点
         if index == 0:
             self._login_user.setFocus()
         elif index == 1:
             self._reg_user.setFocus()
+        elif index == 2:
+            self._verify_code_input.setFocus()
 
-    def _apply_tab_styles(self, active_btn: QPushButton, inactive_btn: QPushButton) -> None:
-        active_btn.setStyleSheet(_TAB_ACTIVE)
-        inactive_btn.setStyleSheet(_TAB_NORMAL)
+    def _apply_tab_styles(self, active_index: int) -> None:
+        """更新 tab 按钮的 objectName 以触发 QSS 样式切换。"""
+        if active_index == 0:
+            self._tab_login.setObjectName("tabBtnActive")
+            self._tab_register.setObjectName("tabBtn")
+        elif active_index == 1:
+            self._tab_login.setObjectName("tabBtn")
+            self._tab_register.setObjectName("tabBtnActive")
+        else:
+            # 验证页：两个 tab 都非活跃
+            self._tab_login.setObjectName("tabBtn")
+            self._tab_register.setObjectName("tabBtn")
+        # 强制重新加载 QSS
+        self._tab_login.style().unpolish(self._tab_login)
+        self._tab_login.style().polish(self._tab_login)
+        self._tab_register.style().unpolish(self._tab_register)
+        self._tab_register.style().polish(self._tab_register)
 
-    # ── 登录 ──────────────────────────────────────────────
+    # ═══════════════════════════════════════════════════════
+    #  登录
+    # ═══════════════════════════════════════════════════════
 
     def _on_login(self) -> None:
+        """处理登录表单提交。"""
         username = self._login_user.text().strip()
         password = self._login_pwd.text()
 
         if not username:
-            self._show_login_error("请输入用户名")
+            self._show_msg(self._login_msg, "请输入用户名", True)
             return
         if not password:
-            self._show_login_error("请输入密码")
+            self._show_msg(self._login_msg, "请输入密码", True)
             return
 
-        self._login_error.hide()
-        try:
-            result = self._api.login(username, password)
-            self._token = result.get("access_token", "")
-            self._username = username
-            self.accept()
-        except RuntimeError as e:
-            self._show_login_error(str(e))
+        self._set_login_enabled(False)
+        self._login_msg.hide()
 
-    # ── 发送验证码 ──────────────────────────────────────
+        worker = AuthWorker(
+            self, lambda: APIClient().login(username, password)
+        )
+        worker.succeeded.connect(
+            lambda data: self._on_login_success(data, username)
+        )
+        worker.failed.connect(self._on_login_error)
+        self._active_worker = worker
+        worker.start()
+
+    def _on_login_success(self, data: dict, username: str) -> None:
+        """登录成功回调（主线程）。"""
+        token = data.get("access_token", "")
+        if not token:
+            self._show_msg(self._login_msg, "服务器返回异常：缺少 token", True)
+            self._set_login_enabled(True)
+            return
+
+        # 保存到 AuthService
+        AuthService().set_auth(token, username)
+        self.login_successful.emit(token, username)
+        self.accept()
+
+    def _on_login_error(self, msg: str) -> None:
+        """登录失败回调（主线程）。"""
+        self._show_msg(self._login_msg, msg, True)
+        self._set_login_enabled(True)
+
+    # ═══════════════════════════════════════════════════════
+    #  发送验证码
+    # ═══════════════════════════════════════════════════════
 
     def _on_send_code(self) -> None:
+        """处理发送验证码按钮点击。"""
         email = self._reg_email.text().strip()
         if not email or not _re.match(r"^[^\s@]+@[^\s@]+\.[^\s@]+$", email):
-            self._show_reg_msg("请先输入有效的邮箱地址", True)
+            self._show_msg(self._reg_msg, "请先输入有效的邮箱地址", True)
             return
 
+        if self._cooldown_seconds > 0:
+            self._show_msg(self._reg_msg, f"请 {self._cooldown_seconds} 秒后再试", True)
+            return
+
+        self._reg_msg.hide()
         self._send_code_btn.setEnabled(False)
         self._send_code_btn.setText("发送中…")
-        self._reg_msg.hide()
 
-        try:
-            self._api.send_code(email)
-            self._show_reg_msg(f"验证码已发送至 {email}，5 分钟内有效", False)
-            self._reg_code.setFocus()
-            # 60 秒冷却
-            self._code_cooldown = 60
-            self._update_cooldown()
-        except RuntimeError as e:
-            self._show_reg_msg(str(e), True)
-            self._send_code_btn.setEnabled(True)
-            self._send_code_btn.setText("发送验证码")
+        worker = AuthWorker(
+            self, lambda: APIClient().send_code(email)
+        )
+        worker.succeeded.connect(
+            lambda data: self._on_send_code_success(data, email)
+        )
+        worker.failed.connect(self._on_send_code_error)
+        self._active_worker = worker
+        worker.start()
 
-    def _update_cooldown(self) -> None:
-        if self._code_cooldown <= 0:
-            self._send_code_btn.setEnabled(True)
-            self._send_code_btn.setText("发送验证码")
-            return
-        self._send_code_btn.setText(f"{self._code_cooldown}s")
-        self._code_cooldown -= 1
-        QTimer.singleShot(1000, self._update_cooldown)
+    def _on_send_code_success(self, data: dict, email: str) -> None:
+        """发送验证码成功回调。"""
+        msg = data.get("msg", f"验证码已发送至 {email}，5 分钟内有效")
+        self._show_msg(self._reg_msg, msg, False)
+        self._reg_code.setFocus()
+        self._start_cooldown()
 
-    # ── 注册 ──────────────────────────────────────────────
+    def _on_send_code_error(self, msg: str) -> None:
+        """发送验证码失败回调。"""
+        self._show_msg(self._reg_msg, msg, True)
+        self._send_code_btn.setEnabled(True)
+        self._send_code_btn.setText("发送验证码")
+
+    # ═══════════════════════════════════════════════════════
+    #  注册
+    # ═══════════════════════════════════════════════════════
 
     def _on_register(self) -> None:
+        """处理注册表单提交。"""
         username = self._reg_user.text().strip()
         email = self._reg_email.text().strip()
         code = self._reg_code.text().strip()
         pwd = self._reg_pwd.text()
         confirm = self._reg_confirm.text()
 
+        # 客户端验证（与网站版一致）
         if not username or len(username) < 3:
-            self._show_reg_msg("用户名至少需要 3 个字符", True); return
+            self._show_msg(self._reg_msg, "用户名至少需要 3 个字符", True)
+            return
         if not _re.match(r"[a-zA-Z0-9_]+$", username):
-            self._show_reg_msg("用户名仅支持字母、数字和下划线", True); return
+            self._show_msg(self._reg_msg, "用户名仅支持字母、数字和下划线", True)
+            return
         if not email or not _re.match(r"^[^\s@]+@[^\s@]+\.[^\s@]+$", email):
-            self._show_reg_msg("请输入有效的邮箱地址", True); return
+            self._show_msg(self._reg_msg, "请输入有效的邮箱地址", True)
+            return
         if len(code) != 6 or not code.isdigit():
-            self._show_reg_msg("请输入 6 位数字验证码", True); return
+            self._show_msg(self._reg_msg, "请输入 6 位数字验证码", True)
+            return
         if len(pwd) < 6:
-            self._show_reg_msg("密码至少需要 6 个字符", True); return
+            self._show_msg(self._reg_msg, "密码至少需要 6 个字符", True)
+            return
         if pwd != confirm:
-            self._show_reg_msg("两次输入的密码不一致", True); return
+            self._show_msg(self._reg_msg, "两次输入的密码不一致", True)
+            return
 
+        self._set_register_enabled(False)
         self._reg_msg.hide()
-        try:
-            self._api.register(username, email, pwd, code)
-            # 注册成功 → 自动登录
-            self._show_reg_msg("注册成功！正在登录…", False)
-            try:
-                result = self._api.login(username, pwd)
-                self._token = result.get("access_token", "")
-                self._username = username
-                QTimer.singleShot(600, self.accept)
-            except RuntimeError as e:
-                # 注册成功但登录失败 → 切回登录页
-                self._show_reg_msg("注册成功！请返回登录。", False)
-                self._login_user.setText(username)
-                self._login_pwd.setText(pwd)
-                QTimer.singleShot(1200, lambda: self._switch_page(0))
-        except RuntimeError as e:
-            self._show_reg_msg(str(e), True)
+
+        # 保存待用（验证页回退用）
+        self._pending_username = username
+        self._pending_email = email
+        self._pending_password = pwd
+
+        worker = AuthWorker(
+            self, lambda: APIClient().register(username, email, pwd, code)
+        )
+        worker.succeeded.connect(
+            lambda data: self._on_register_success(data, username, pwd)
+        )
+        worker.failed.connect(self._on_register_error)
+        self._active_worker = worker
+        worker.start()
+
+    def _on_register_success(self, data: dict, username: str, password: str) -> None:
+        """注册成功回调 → 链式自动登录（与网站版一致）。"""
+        msg = data.get("msg", "注册成功！正在登录…")
+        self._show_msg(self._reg_msg, msg, False)
+
+        # 链式自动登录
+        worker = AuthWorker(
+            self, lambda: APIClient().login(username, password)
+        )
+        worker.succeeded.connect(
+            lambda login_data: self._on_register_auto_login(login_data, username)
+        )
+        worker.failed.connect(
+            lambda err: self._on_register_login_failed(err, username, password)
+        )
+        self._active_worker = worker
+        worker.start()
+
+    def _on_register_error(self, msg: str) -> None:
+        """注册失败回调。"""
+        self._show_msg(self._reg_msg, msg, True)
+        self._set_register_enabled(True)
+
+    def _on_register_auto_login(self, data: dict, username: str) -> None:
+        """注册后自动登录成功回调。"""
+        token = data.get("access_token", "")
+        if token:
+            AuthService().set_auth(token, username)
+            self.login_successful.emit(token, username)
+        # 短暂延迟后关闭（让用户看到成功消息）
+        QTimer.singleShot(800, self.accept)
+
+    def _on_register_login_failed(self, msg: str, username: str,
+                                   password: str) -> None:
+        """注册成功但自动登录失败 → 切回登录页并预填。"""
+        self._show_msg(self._reg_msg, "注册成功！请返回登录。", False)
+        # 预填登录页
+        self._login_user.setText(username)
+        self._login_pwd.setText(password)
+        QTimer.singleShot(1200, lambda: self._switch_tab(0))
+
+    # ═══════════════════════════════════════════════════════
+    #  邮箱验证（独立页）
+    # ═══════════════════════════════════════════════════════
+
+    def show_verify_page(self, email: str, username: str = "",
+                          password: str = "") -> None:
+        """从外部打开验证页（如登录时返回 403 未激活）。
+
+        Args:
+            email: 用户邮箱。
+            username: 用户名（用于自动登录）。
+            password: 密码（用于自动登录）。
+        """
+        self._pending_email = email
+        self._pending_username = username
+        self._pending_password = password
+        self._verify_hint.setText(f"验证码已发送至 {email}")
+        self._switch_tab(2)
+
+    def _on_verify(self) -> None:
+        """处理验证码提交。"""
+        code = self._verify_code_input.text().strip()
+        if len(code) != 6 or not code.isdigit():
+            self._show_msg(self._verify_msg, "请输入 6 位数字验证码", True)
+            return
+
+        if not self._pending_username:
+            self._show_msg(self._verify_msg, "缺少用户名信息，请重新注册", True)
+            return
+
+        self._set_verify_enabled(False)
+        self._verify_msg.hide()
+
+        worker = AuthWorker(
+            self,
+            lambda: APIClient().verify_code(self._pending_username, code)
+        )
+        worker.succeeded.connect(self._on_verify_success)
+        worker.failed.connect(self._on_verify_error)
+        self._active_worker = worker
+        worker.start()
+
+    def _on_verify_success(self, data: dict) -> None:
+        """验证成功回调 → 链式自动登录。"""
+        msg = data.get("msg", "验证成功！")
+        self._show_msg(self._verify_msg, msg, False)
+
+        if self._pending_username and self._pending_password:
+            # 自动登录
+            worker = AuthWorker(
+                self,
+                lambda: APIClient().login(
+                    self._pending_username, self._pending_password
+                )
+            )
+            worker.succeeded.connect(
+                lambda d: self._on_verify_auto_login(d)
+            )
+            worker.failed.connect(
+                lambda err: QTimer.singleShot(
+                    1000, lambda: self._switch_tab(0)
+                )
+            )
+            self._active_worker = worker
+            worker.start()
+        else:
+            QTimer.singleShot(1000, self.accept)
+
+    def _on_verify_error(self, msg: str) -> None:
+        """验证失败回调。"""
+        self._show_msg(self._verify_msg, msg, True)
+        self._set_verify_enabled(True)
+
+    def _on_verify_auto_login(self, data: dict) -> None:
+        """验证后自动登录成功。"""
+        token = data.get("access_token", "")
+        if token and self._pending_username:
+            AuthService().set_auth(token, self._pending_username)
+        QTimer.singleShot(600, self.accept)
+
+    # ── 重新发送验证码 ──────────────────────────────────────
+
+    def _on_resend(self) -> None:
+        """验证页重新发送验证码（向 /send-code 重新请求）。"""
+        if not self._pending_email:
+            self._show_msg(self._verify_msg, "无法重新发送，请返回注册", True)
+            return
+
+        self._verify_msg.hide()
+        self._resend_btn.setEnabled(False)
+        self._resend_btn.setText("发送中…")
+
+        worker = AuthWorker(
+            self,
+            lambda: APIClient().send_code(self._pending_email)
+        )
+        worker.succeeded.connect(
+            lambda data: self._on_resend_success(data)
+        )
+        worker.failed.connect(
+            lambda msg: self._on_resend_error(msg)
+        )
+        self._active_worker = worker
+        worker.start()
+
+    def _on_resend_success(self, data: dict) -> None:
+        """重新发送验证码成功。"""
+        msg = data.get("msg", f"验证码已重新发送至 {self._pending_email}")
+        self._show_msg(self._verify_msg, msg, False)
+        self._verify_code_input.clear()
+        self._verify_code_input.setFocus()
+        self._resend_btn.setEnabled(True)
+        self._resend_btn.setText("重新发送验证码")
+        self._start_cooldown()
+
+    def _on_resend_error(self, msg: str) -> None:
+        """重新发送验证码失败。"""
+        self._show_msg(self._verify_msg, msg, True)
+        self._resend_btn.setEnabled(True)
+        self._resend_btn.setText("重新发送验证码")
 
     # ═══════════════════════════════════════════════════════
     #  辅助方法
     # ═══════════════════════════════════════════════════════
 
-    @staticmethod
-    def _make_input(placeholder: str, echo: QLineEdit.EchoMode | None = None) -> QLineEdit:
-        inp = QLineEdit()
-        inp.setPlaceholderText(placeholder)
-        inp.setStyleSheet(_INPUT_STYLE)
-        if echo is not None:
-            inp.setEchoMode(echo)
-        return inp
+    def _show_msg(self, label: QLabel, text: str, is_error: bool) -> None:
+        """显示消息标签。
 
-    @staticmethod
-    def _make_msg(style: str) -> QLabel:
-        lbl = QLabel("")
-        lbl.setStyleSheet(style)
-        lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        lbl.setWordWrap(True)
-        lbl.hide()
-        return lbl
+        Args:
+            label: 目标 QLabel。
+            text: 消息文本。
+            is_error: True=红色错误, False=绿色成功。
+        """
+        label.setText(text)
+        label.setStyleSheet(
+            f"font-size:12px;color:{'#ef4444' if is_error else '#10b981'};"
+            "background:transparent;"
+        )
+        label.show()
 
-    def _show_login_error(self, msg: str) -> None:
-        self._login_error.setText(msg)
-        self._login_error.setStyleSheet(_ERROR_STYLE)
-        self._login_error.show()
+    def _hide_all_msgs(self) -> None:
+        """隐藏所有消息标签。"""
+        for lbl in [self._login_msg, self._reg_msg, self._verify_msg]:
+            lbl.hide()
 
-    def _show_reg_msg(self, msg: str, is_error: bool) -> None:
-        self._reg_msg.setText(msg)
-        self._reg_msg.setStyleSheet(_ERROR_STYLE if is_error else _SUCCESS_STYLE)
-        self._reg_msg.show()
+    def _set_login_enabled(self, enabled: bool) -> None:
+        """启用/禁用登录页表单。"""
+        self._login_user.setEnabled(enabled)
+        self._login_pwd.setEnabled(enabled)
+        # 查找登录按钮（primaryBtn）
+        login_page = self._stack.widget(0)
+        for child in login_page.findChildren(QPushButton):
+            if child.objectName() == "primaryBtn":
+                child.setEnabled(enabled)
+                child.setText("处理中…" if not enabled else "登  录")
 
-    def _show_verify_msg(self, msg: str, is_error: bool) -> None:
-        self._verify_msg.setText(msg)
-        self._verify_msg.setStyleSheet(_ERROR_STYLE if is_error else _SUCCESS_STYLE)
-        self._verify_msg.show()
+    def _set_register_enabled(self, enabled: bool) -> None:
+        """启用/禁用注册页表单。"""
+        self._reg_user.setEnabled(enabled)
+        self._reg_email.setEnabled(enabled)
+        self._reg_code.setEnabled(enabled)
+        self._reg_pwd.setEnabled(enabled)
+        self._reg_confirm.setEnabled(enabled)
+        if enabled:
+            self._send_code_btn.setEnabled(
+                self._cooldown_seconds <= 0
+            )
+        reg_page = self._stack.widget(1)
+        for child in reg_page.findChildren(QPushButton):
+            if child.objectName() == "primaryBtn":
+                child.setEnabled(enabled)
+                child.setText("处理中…" if not enabled else "注  册")
+
+    def _set_verify_enabled(self, enabled: bool) -> None:
+        """启用/禁用验证页表单。"""
+        self._verify_code_input.setEnabled(enabled)
+        verify_page = self._stack.widget(2)
+        for child in verify_page.findChildren(QPushButton):
+            if child.objectName() == "primaryBtn":
+                child.setEnabled(enabled)
+                child.setText("处理中…" if not enabled else "验  证")
+
+    # ── 60 秒倒计时 ──────────────────────────────────────
+
+    def _start_cooldown(self) -> None:
+        """启动 60 秒发送验证码冷却倒计时。"""
+        self._cooldown_seconds = 60
+        self._send_code_btn.setEnabled(False)
+        self._send_code_btn.setText(f"{self._cooldown_seconds}s")
+
+        if self._cooldown_timer is None:
+            self._cooldown_timer = QTimer(self)
+            self._cooldown_timer.timeout.connect(self._update_cooldown)
+
+        self._cooldown_timer.start(1000)
+
+    def _update_cooldown(self) -> None:
+        """倒计时更新（每秒触发）。"""
+        self._cooldown_seconds -= 1
+        if self._cooldown_seconds <= 0:
+            self._cooldown_timer.stop()
+            self._send_code_btn.setEnabled(True)
+            self._send_code_btn.setText("发送验证码")
+        else:
+            self._send_code_btn.setText(f"{self._cooldown_seconds}s")
 
     # ═══════════════════════════════════════════════════════
-    #  公共接口
+    #  生命周期
     # ═══════════════════════════════════════════════════════
 
-    def get_token(self) -> str | None:
-        return self._token
-
-    def get_username(self) -> str:
-        return self._username
-
-    def get_api_client(self) -> APIClient:
-        return self._api
+    def closeEvent(self, event) -> None:
+        """对话框关闭时清理：停止倒计时、取消活跃 Worker。"""
+        if self._cooldown_timer is not None:
+            self._cooldown_timer.stop()
+        if self._active_worker is not None and self._active_worker.isRunning():
+            self._active_worker.cancel()
+        super().closeEvent(event)
 
 
 # ═══════════════════════════════════════════════════════════════
-#  向后兼容 LoginDialog 别名
+#  向后兼容别名
 # ═══════════════════════════════════════════════════════════════
 
 LoginDialog = LoginRegisterDialog
@@ -483,27 +795,52 @@ LoginDialog = LoginRegisterDialog
 # ═══════════════════════════════════════════════════════════════
 
 def self_test() -> tuple[int, int, list[str]]:
-    """模块导入测试。"""
+    """验证对话框可导入和基本结构。"""
     passed, failed = 0, 0
     errors: list[str] = []
+
     print("=== MF_User.login_dialog self_test ===")
+
     try:
         from MF_User.login_dialog import LoginRegisterDialog
         assert LoginRegisterDialog is not None
+        assert issubclass(LoginRegisterDialog, QDialog)
         passed += 1
-        print("  [PASS] LoginRegisterDialog 可导入")
+        print("  [PASS] LoginRegisterDialog 可导入，是 QDialog 子类")
     except Exception as e:
         failed += 1
         errors.append(str(e))
+        print(f"  [FAIL] {e}")
+
     try:
-        from MF_User.api_client import APIClient
-        assert APIClient is not None
+        from MF_User.login_dialog import LoginDialog
+        assert LoginDialog is LoginRegisterDialog
         passed += 1
-        print("  [PASS] APIClient 可导入")
+        print("  [PASS] LoginDialog 别名指向 LoginRegisterDialog")
     except Exception as e:
         failed += 1
         errors.append(str(e))
+        print(f"  [FAIL] {e}")
+
+    try:
+        # 验证所需方法存在
+        dlg_class = LoginRegisterDialog
+        assert hasattr(dlg_class, "login_successful")
+        assert hasattr(dlg_class, "show_verify_page")
+        for method in ["_on_login", "_on_send_code", "_on_register",
+                        "_on_verify", "_on_resend"]:
+            assert hasattr(dlg_class, method), f"缺少方法 {method}"
+        passed += 1
+        print("  [PASS] 所有关键方法存在")
+    except Exception as e:
+        failed += 1
+        errors.append(str(e))
+        print(f"  [FAIL] {e}")
+
     print(f"  [{passed} passed, {failed} failed]")
+    if errors:
+        for e in errors:
+            print(f"  [ERROR] {e}")
     print("=== MF_User.login_dialog self_test: DONE ===\n")
     return passed, failed, errors
 
