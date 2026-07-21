@@ -54,7 +54,7 @@ class LoginRegisterDialog(QDialog):
         """
         super().__init__(parent)
         self.setWindowTitle("账户 — MF-Mathematics")
-        self.setFixedSize(460, 540)
+        self.setFixedSize(500, 620)
         self.setObjectName("loginRegisterDialog")
 
         # 内部状态
@@ -122,8 +122,8 @@ class LoginRegisterDialog(QDialog):
         """构建登录页面。"""
         page = QWidget()
         layout = QVBoxLayout(page)
-        layout.setSpacing(12)
-        layout.setContentsMargins(32, 20, 32, 24)
+        layout.setSpacing(10)
+        layout.setContentsMargins(28, 16, 28, 20)
 
         # 标题
         title = QLabel("欢迎回来")
@@ -187,8 +187,8 @@ class LoginRegisterDialog(QDialog):
         """构建注册页面（对标网站版 5 字段布局）。"""
         page = QWidget()
         layout = QVBoxLayout(page)
-        layout.setSpacing(8)
-        layout.setContentsMargins(32, 12, 32, 16)
+        layout.setSpacing(6)
+        layout.setContentsMargins(28, 10, 28, 14)
 
         # 标题
         title = QLabel("创建账号")
@@ -285,8 +285,8 @@ class LoginRegisterDialog(QDialog):
         """构建独立邮箱验证页面。"""
         page = QWidget()
         layout = QVBoxLayout(page)
-        layout.setSpacing(14)
-        layout.setContentsMargins(32, 24, 32, 24)
+        layout.setSpacing(10)
+        layout.setContentsMargins(28, 20, 28, 20)
 
         # 图标
         icon = QLabel("\U0001f4e7")  # 📧
