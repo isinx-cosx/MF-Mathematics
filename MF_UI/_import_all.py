@@ -71,6 +71,12 @@ import dialogs.history_dialog      # noqa
 import dialogs.search_panel        # noqa
 import dialogs.settings_dialog     # noqa
 
+# MF_User — 用户认证系统
+import MF_User.auth_service        # noqa
+import MF_User.auth_worker         # noqa
+import MF_User.api_client          # noqa
+import MF_User.login_dialog        # noqa
+
 # utils
 import utils.math_guard            # noqa
 import utils.math_guard_ui         # noqa
