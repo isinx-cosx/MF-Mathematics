@@ -9,7 +9,7 @@
 #define AppPublisher "MF-Vis-Science"
 #define AppURL "https://github.com/MF-Mathematics"
 #define AppExeName "Multifunctional-Mathematics-v1.0.exe"
-#define SourceDir "C:\Users\fsafsafsa\Desktop\Multifunctional-Mathematics\dist\Multifunctional-Mathematics-v1.0"
+#define SourceDir "C:\Users\fsafsafsa\Desktop\Multifunctional-Mathematics\dist"
 #define OutputDir "C:\Users\fsafsafsa\Desktop\Multifunctional-Mathematics\dist\installer"
 #define BannerDir "C:\Users\fsafsafsa\Desktop\Multifunctional-Mathematics\assets\installer"
 #define IconDir "C:\Users\fsafsafsa\Desktop\Multifunctional-Mathematics\assets"
@@ -32,7 +32,7 @@ SolidCompression=yes
 WizardStyle=modern
 PrivilegesRequiredOverridesAllowed=dialog
 SetupIconFile={#IconDir}\icon.ico
-UninstallDisplayIcon={app}\_internal\assets\icon.ico
+UninstallDisplayIcon={app}\{#AppExeName}
 WizardImageFile={#BannerDir}\WizardImage.bmp
 WizardSmallImageFile={#BannerDir}\WizardSmallImage.bmp
 UninstallDisplayName={#AppName} {#AppVersion}
@@ -45,7 +45,7 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "创建桌面快捷方式(&D)"; GroupDescription: "其他快捷方式:"
 
 [Files]
-Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#SourceDir}\{#AppExeName}"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\{#AppName}"; Filename: "{app}\{#AppExeName}"; Comment: "多功能数学计算与可视化"
