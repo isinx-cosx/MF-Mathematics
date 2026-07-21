@@ -69,14 +69,13 @@ class LoginRegisterDialog(QDialog):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setWindowTitle("登录 — MF-Mathematics")
-        self.setFixedSize(440, 480)
+        self.setFixedSize(440, 560)
         self.setObjectName("loginDialog")
 
         self._api = APIClient()
         self._token: str | None = None
         self._username: str = ""
-        self._registered_username: str = ""   # 注册成功后暂存，验证时用
-        self._registered_password: str = ""   # 注册成功后暂存，验证完自动登录
+        self._code_cooldown: int = 0
 
         self._build_ui()
         self._apply_tab_styles(self._tab_login, self._tab_register)
@@ -173,8 +172,8 @@ class LoginRegisterDialog(QDialog):
     def _build_register_page(self) -> QWidget:
         page = QWidget()
         layout = QVBoxLayout(page)
-        layout.setSpacing(10)
-        layout.setContentsMargins(32, 16, 32, 20)
+        layout.setSpacing(8)
+        layout.setContentsMargins(32, 12, 32, 16)
 
         title = QLabel("创建账号")
         title.setStyleSheet(_TITLE_STYLE)
@@ -185,9 +184,28 @@ class LoginRegisterDialog(QDialog):
         self._reg_user = self._make_input("3-20 个字符，字母数字下划线")
         layout.addWidget(self._reg_user)
 
+        # 邮箱 + 发送验证码按钮
         layout.addWidget(QLabel("邮箱"))
+        email_row = QHBoxLayout()
+        email_row.setSpacing(8)
         self._reg_email = self._make_input("your@email.com")
-        layout.addWidget(self._reg_email)
+        email_row.addWidget(self._reg_email, 1)
+        self._send_code_btn = QPushButton("发送验证码")
+        self._send_code_btn.setStyleSheet(_BTN_SECONDARY)
+        self._send_code_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._send_code_btn.clicked.connect(self._on_send_code)
+        email_row.addWidget(self._send_code_btn)
+        layout.addLayout(email_row)
+
+        layout.addWidget(QLabel("验证码"))
+        self._reg_code = self._make_input("输入 6 位验证码")
+        self._reg_code.setMaxLength(6)
+        self._reg_code.setStyleSheet(
+            "QLineEdit{font-size:15px;padding:10px 14px;letter-spacing:4px;"
+            "border:1px solid #d1d5db;border-radius:6px;background:#fff;color:#1e293b;}"
+            "QLineEdit:focus{border-color:#3b82f6;}"
+        )
+        layout.addWidget(self._reg_code)
 
         layout.addWidget(QLabel("密码"))
         self._reg_pwd = self._make_input("至少 6 个字符", echo=QLineEdit.EchoMode.Password)
@@ -328,85 +346,79 @@ class LoginRegisterDialog(QDialog):
         except RuntimeError as e:
             self._show_login_error(str(e))
 
+    # ── 发送验证码 ──────────────────────────────────────
+
+    def _on_send_code(self) -> None:
+        email = self._reg_email.text().strip()
+        if not email or not _re.match(r"^[^\s@]+@[^\s@]+\.[^\s@]+$", email):
+            self._show_reg_msg("请先输入有效的邮箱地址", True)
+            return
+
+        self._send_code_btn.setEnabled(False)
+        self._send_code_btn.setText("发送中…")
+        self._reg_msg.hide()
+
+        try:
+            self._api.send_code(email)
+            self._show_reg_msg(f"验证码已发送至 {email}，5 分钟内有效", False)
+            self._reg_code.setFocus()
+            # 60 秒冷却
+            self._code_cooldown = 60
+            self._update_cooldown()
+        except RuntimeError as e:
+            self._show_reg_msg(str(e), True)
+            self._send_code_btn.setEnabled(True)
+            self._send_code_btn.setText("发送验证码")
+
+    def _update_cooldown(self) -> None:
+        if self._code_cooldown <= 0:
+            self._send_code_btn.setEnabled(True)
+            self._send_code_btn.setText("发送验证码")
+            return
+        self._send_code_btn.setText(f"{self._code_cooldown}s")
+        self._code_cooldown -= 1
+        QTimer.singleShot(1000, self._update_cooldown)
+
     # ── 注册 ──────────────────────────────────────────────
 
     def _on_register(self) -> None:
         username = self._reg_user.text().strip()
         email = self._reg_email.text().strip()
+        code = self._reg_code.text().strip()
         pwd = self._reg_pwd.text()
         confirm = self._reg_confirm.text()
 
         if not username or len(username) < 3:
-            self._show_reg_msg("用户名至少需要 3 个字符", True)
-            return
+            self._show_reg_msg("用户名至少需要 3 个字符", True); return
         if not _re.match(r"[a-zA-Z0-9_]+$", username):
-            self._show_reg_msg("用户名仅支持字母、数字和下划线", True)
-            return
+            self._show_reg_msg("用户名仅支持字母、数字和下划线", True); return
         if not email or not _re.match(r"^[^\s@]+@[^\s@]+\.[^\s@]+$", email):
-            self._show_reg_msg("请输入有效的邮箱地址", True)
-            return
+            self._show_reg_msg("请输入有效的邮箱地址", True); return
+        if len(code) != 6 or not code.isdigit():
+            self._show_reg_msg("请输入 6 位数字验证码", True); return
         if len(pwd) < 6:
-            self._show_reg_msg("密码至少需要 6 个字符", True)
-            return
+            self._show_reg_msg("密码至少需要 6 个字符", True); return
         if pwd != confirm:
-            self._show_reg_msg("两次输入的密码不一致", True)
-            return
+            self._show_reg_msg("两次输入的密码不一致", True); return
 
         self._reg_msg.hide()
         try:
-            self._api.register(username, email, pwd)
-            # 注册成功 → 跳到验证码页
-            self._registered_username = username
-            self._registered_password = pwd
-            self._verify_hint.setText(f"验证码已发送至 {email}")
-            self._verify_code_input.clear()
-            self._verify_msg.hide()
-            self._stack.setCurrentIndex(2)  # 验证页
-            self._apply_tab_styles(self._tab_register, self._tab_login)
-            self._verify_code_input.setFocus()
-        except RuntimeError as e:
-            self._show_reg_msg(str(e), True)
-
-    # ── 验证码 ────────────────────────────────────────────
-
-    def _on_verify(self) -> None:
-        code = self._verify_code_input.text().strip()
-        if len(code) != 6 or not code.isdigit():
-            self._show_verify_msg("请输入 6 位数字验证码", True)
-            return
-
-        self._verify_msg.hide()
-        try:
-            self._api.verify_code(self._registered_username, code)
-            # 验证成功 → 自动登录
+            self._api.register(username, email, pwd, code)
+            # 注册成功 → 自动登录
+            self._show_reg_msg("注册成功！正在登录…", False)
             try:
-                result = self._api.login(self._registered_username, self._registered_password)
+                result = self._api.login(username, pwd)
                 self._token = result.get("access_token", "")
-                self._username = self._registered_username
-                self.accept()
+                self._username = username
+                QTimer.singleShot(600, self.accept)
             except RuntimeError as e:
-                # 激活成功但登录失败 → 切回登录页
-                self._show_verify_msg(f"激活成功！请返回登录。", False)
-                self._login_user.setText(self._registered_username)
-                self._login_pwd.setText(self._registered_password)
+                # 注册成功但登录失败 → 切回登录页
+                self._show_reg_msg("注册成功！请返回登录。", False)
+                self._login_user.setText(username)
+                self._login_pwd.setText(pwd)
                 QTimer.singleShot(1200, lambda: self._switch_page(0))
         except RuntimeError as e:
-            self._show_verify_msg(str(e), True)
-
-    def _on_resend(self) -> None:
-        """重新发送验证码（等同于重新注册）。"""
-        if not self._registered_username:
-            return
-        try:
-            # 用注册信息重新发送（后端会覆盖之前的验证码）
-            self._api.register(
-                self._registered_username,
-                self._verify_hint.text().replace("验证码已发送至 ", ""),
-                self._registered_password,
-            )
-            self._show_verify_msg("验证码已重新发送", False)
-        except RuntimeError as e:
-            self._show_verify_msg(str(e), True)
+            self._show_reg_msg(str(e), True)
 
     # ═══════════════════════════════════════════════════════
     #  辅助方法

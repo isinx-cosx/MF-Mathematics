@@ -87,18 +87,32 @@ class APIClient:
         self._access_token = result.get("access_token")
         return result
 
-    # ── 注册 ──────────────────────────────────────────────
+    # ── 发送验证码 ──────────────────────────────────────
 
-    def register(self, username: str, email: str, password: str) -> dict:
-        """注册新用户。
+    def send_code(self, email: str) -> dict:
+        """向指定邮箱发送 6 位验证码（不创建用户）。
 
         Returns:
             {"msg": "..."}
 
         Raises:
-            RuntimeError: 注册失败（用户名已存在、邮箱已注册等）。
+            RuntimeError: 发送失败（邮箱已注册、频率限制等）。
         """
-        data = {"username": username, "email": email, "password": password}
+        data = {"email": email}
+        return _api_post(f"{self.base_url}/send-code", data)
+
+    # ── 注册 ──────────────────────────────────────────────
+
+    def register(self, username: str, email: str, password: str, code: str = "") -> dict:
+        """注册新用户（需先通过 send_code 获取验证码）。
+
+        Returns:
+            {"msg": "..."}
+
+        Raises:
+            RuntimeError: 注册失败。
+        """
+        data = {"username": username, "email": email, "password": password, "code": code}
         return _api_post(f"{self.base_url}/register", data)
 
     # ── 验证码 ────────────────────────────────────────────
