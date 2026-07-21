@@ -215,6 +215,9 @@ class MainWindow(QMainWindow):
         QApplication.instance().processEvents()
         self._check_first_launch()
 
+        # 后台检测新版本（非阻塞）
+        self._check_app_version()
+
     # ---------- 窗口居中 ----------
     def _center_on_screen(self):
         screen = QApplication.primaryScreen()
@@ -944,7 +947,8 @@ class MainWindow(QMainWindow):
             from MF_User.auth_service import AuthService
             auth = AuthService()
             if auth.is_logged_in:
-                # 已登录 → 登出
+                # 已登录 → 先通知服务端废止 token，再清本地
+                self._do_server_logout()
                 auth.logout()
                 self._refresh_user_status()
                 self._status_msg("已登出")
@@ -952,6 +956,26 @@ class MainWindow(QMainWindow):
                 self._open_login_dialog()
         except Exception as e:
             self._status_msg(f"用户系统错误: {e}")
+
+    def _do_server_logout(self) -> None:
+        """后台通知服务端 /logout 废止当前 token（无需关注结果）。"""
+        try:
+            from MF_User.auth_service import AuthService
+            from MF_User.auth_worker import AuthWorker
+            from MF_User.api_client import APIClient
+            auth = AuthService()
+            if not auth.token:
+                return
+            worker = AuthWorker(
+                self,
+                lambda: APIClient().logout(auth.token),
+            )
+            worker.failed.connect(
+                lambda msg: logger.debug("服务端登出失败: %s", msg)
+            )
+            worker.start()
+        except Exception as e:
+            logger.debug("服务端登出异常: %s", e)
 
     def _open_login_dialog(self) -> None:
         """打开统一登录/注册/验证对话框。"""
@@ -1023,3 +1047,44 @@ class MainWindow(QMainWindow):
                     self._user_status_label.setStyleSheet("color: #94a3b8;")
         except Exception as _e:
             logger.debug("用户状态刷新失败: %s", _e)
+
+    # ═══════════════════════════════════════════════════════════
+    #  版本检测
+    # ═══════════════════════════════════════════════════════════
+
+    _APP_VERSION = "1.0.0"
+
+    def _check_app_version(self) -> None:
+        """后台检测新版本（调用 GET /api/version），有更新时状态栏提示。"""
+        try:
+            from MF_User.auth_worker import AuthWorker
+            from MF_User.api_client import APIClient
+            worker = AuthWorker(
+                self,
+                lambda: APIClient().check_version(),
+            )
+            worker.succeeded.connect(self._on_version_checked)
+            worker.failed.connect(
+                lambda msg: logger.debug("版本检测失败: %s", msg)
+            )
+            worker.start()
+        except Exception as e:
+            logger.debug("版本检测异常: %s", e)
+
+    def _on_version_checked(self, response: dict) -> None:
+        """处理版本检测结果。"""
+        try:
+            if response.get("code") != 0:
+                logger.debug("版本检测返回非成功 code: %s", response.get("msg"))
+                return
+            data = response.get("data", {})
+            latest = data.get("latest", "")
+            if not latest:
+                return
+            if latest != self._APP_VERSION:
+                date = data.get("date", "")
+                self._status_msg(
+                    f"发现新版本 {latest}（{date}），请前往官网下载更新"
+                )
+        except Exception as e:
+            logger.debug("处理版本检测结果失败: %s", e)

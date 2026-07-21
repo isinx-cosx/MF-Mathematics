@@ -194,6 +194,36 @@ class APIClient:
         data = {"username": username, "code": code}
         return _api_post(f"{self.base_url}/verify-code", data, is_form=True)
 
+    # ── 版本检测 ──────────────────────────────────────────
+
+    def check_version(self) -> dict:
+        """检测最新版本（应用启动时调用）。
+
+        Returns:
+            标准响应 {"code": 0, "data": {"latest", "date", "download_url", "changelog"}}
+
+        Raises:
+            RuntimeError: 网络错误。
+        """
+        return _api_get(f"{self.base_url}/api/version", {})
+
+    # ── 登出 ──────────────────────────────────────────────
+
+    def logout(self, token: str) -> dict:
+        """登出：通知服务端废止当前 token（加入 JWT 黑名单）。
+
+        Args:
+            token: Bearer access_token。
+
+        Returns:
+            {"msg": "已成功登出"}
+
+        Raises:
+            RuntimeError: Token 无效或网络错误。
+        """
+        headers = {"Authorization": f"Bearer {token}"}
+        return _api_post(f"{self.base_url}/logout", {}, headers=headers)
+
     # ── 用户信息 ──────────────────────────────────────────
 
     def get_me(self, token: str) -> dict:
@@ -252,8 +282,10 @@ def self_test() -> tuple[int, int, list[str]]:
         assert callable(client.register)
         assert callable(client.verify_code)
         assert callable(client.get_me)
+        assert callable(client.check_version)
+        assert callable(client.logout)
         passed += 1
-        print("  [PASS] 5 个 API 方法均存在")
+        print("  [PASS] 7 个 API 方法均存在")
     except Exception as e:
         failed += 1
         errors.append(str(e))
