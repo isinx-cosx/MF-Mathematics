@@ -1049,42 +1049,70 @@ class MainWindow(QMainWindow):
             logger.debug("用户状态刷新失败: %s", _e)
 
     # ═══════════════════════════════════════════════════════════
-    #  版本检测
+    #  版本检测（接入 mvs-studio.com 官网 API）
     # ═══════════════════════════════════════════════════════════
 
     _APP_VERSION = "1.0.0"
 
     def _check_app_version(self) -> None:
-        """后台检测新版本（调用 GET /api/version），有更新时状态栏提示。"""
+        """启动时检查更新 — 后台请求官网 /api/version，发现新版本弹出对话框。"""
         try:
-            from MF_User.auth_worker import AuthWorker
-            from MF_User.api_client import APIClient
-            worker = AuthWorker(
-                self,
-                lambda: APIClient().check_version(),
-            )
-            worker.succeeded.connect(self._on_version_checked)
-            worker.failed.connect(
-                lambda msg: logger.debug("版本检测失败: %s", msg)
-            )
-            worker.start()
+            from PySide6.QtCore import QThread, Signal
+
+            class _VersionChecker(QThread):
+                finished = Signal(object)
+
+                def run(self) -> None:
+                    try:
+                        import requests
+                        r = requests.get(
+                            "https://www.mvs-studio.com/api/version", timeout=10
+                        )
+                        r.raise_for_status()
+                        self.finished.emit(r.json())
+                    except Exception as e:
+                        self.finished.emit(e)
+
+            self._version_thread = _VersionChecker(self)
+            self._version_thread.finished.connect(self._on_version_checked)
+            self._version_thread.start()
         except Exception as e:
             logger.debug("版本检测异常: %s", e)
 
-    def _on_version_checked(self, response: dict) -> None:
-        """处理版本检测结果。"""
+    def _on_version_checked(self, result: object) -> None:
+        """处理版本检测结果 — 新版时弹出更新对话框。"""
         try:
-            if response.get("code") != 0:
-                logger.debug("版本检测返回非成功 code: %s", response.get("msg"))
+            if isinstance(result, Exception):
+                logger.debug("版本检测失败: %s", result)
                 return
-            data = response.get("data", {})
+
+            data = result.get("data", {})
             latest = data.get("latest", "")
             if not latest:
                 return
-            if latest != self._APP_VERSION:
-                date = data.get("date", "")
-                self._status_msg(
-                    f"发现新版本 {latest}（{date}），请前往官网下载更新"
-                )
+
+            if latest > self._APP_VERSION:
+                self._show_update_dialog(latest, data)
         except Exception as e:
             logger.debug("处理版本检测结果失败: %s", e)
+
+    def _show_update_dialog(self, latest: str, data: dict) -> None:
+        """弹出新版本可用对话框。"""
+        from PySide6.QtWidgets import QMessageBox
+
+        date = data.get("date", "")
+        download_url = data.get("download_url", "")
+        changelog = data.get("changelog", "")
+
+        msg = QMessageBox(self)
+        msg.setWindowTitle("发现新版本")
+        msg.setIcon(QMessageBox.Icon.Information)
+        msg.setText(f"新版本 {latest} 可用！（当前 {self._APP_VERSION}）")
+        info = f"发布日期：{date}"
+        if changelog:
+            info += f"\n更新日志：{changelog}"
+        if download_url:
+            info += f"\n下载地址：{download_url}"
+        msg.setInformativeText(info)
+        msg.setStandardButtons(QMessageBox.StandardButton.Ok)
+        msg.exec()
