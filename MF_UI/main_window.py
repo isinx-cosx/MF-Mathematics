@@ -943,7 +943,7 @@ class MainWindow(QMainWindow):
         try:
             from MF_User.manager import UserManager
             mgr = UserManager()
-            if mgr.is_logged_in:
+            if mgr.is_logged_in or mgr.api_token:
                 # 已登录 → 登出
                 mgr.logout()
                 self._refresh_user_status()
@@ -954,15 +954,23 @@ class MainWindow(QMainWindow):
             self._status_msg(f"用户系统错误: {e}")
 
     def _open_login_dialog(self) -> None:
-        """打开登录对话框。"""
+        """打开统一登录/注册/验证对话框。"""
         try:
             from MF_User.login_dialog import LoginDialog
             dlg = LoginDialog(self)
             if dlg.exec() == QDialog.DialogCode.Accepted:
-                from MF_User.manager import UserManager
-                mgr = UserManager()
-                if mgr.current_user:
-                    self._status_msg(f"欢迎，{mgr.current_user.username}！")
+                token = dlg.get_token()
+                username = dlg.get_username()
+                if token and username:
+                    from MF_User.manager import UserManager
+                    mgr = UserManager()
+                    mgr.set_api_auth(token, username)
+                    # 尝试获取在线余额
+                    balance = mgr.fetch_online_balance()
+                    self._status_msg(
+                        f"欢迎，{username}！"
+                        f"{' (余额: ' + str(balance) + ')' if balance else ''}"
+                    )
             self._refresh_user_status()
         except Exception as e:
             self._status_msg(f"登录失败: {e}")
@@ -972,12 +980,19 @@ class MainWindow(QMainWindow):
         try:
             from MF_User.manager import UserManager
             mgr = UserManager()
-            if mgr.is_logged_in and mgr.current_user:
-                self._user_action.setText(mgr.current_user.username)
+            if (mgr.is_logged_in and mgr.current_user) or mgr.api_token:
+                username = (mgr.current_user.username if mgr.current_user
+                            else mgr._api_username)
+                balance = mgr.api_balance
+                label = username
+                if balance:
+                    label += f" (余额: {balance})"
+                self._user_action.setText(label)
                 if self._user_status_label:
-                    self._user_status_label.setText(
-                        f"当前用户: {mgr.current_user.username}")
-                    self._user_status_label.setStyleSheet("color: #10b981;")
+                    self._user_status_label.setText(f"当前用户: {label}")
+                    self._user_status_label.setStyleSheet(
+                        "color: #10b981; font-weight: 500;"
+                    )
             else:
                 self._user_action.setText("登录")
                 if self._user_status_label:

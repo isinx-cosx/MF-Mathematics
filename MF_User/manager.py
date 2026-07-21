@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""UserManager — 用户管理单例，JSON 持久化 + SHA-256 密码哈希。"""
+"""UserManager — 用户管理单例，JSON 持久化 + 在线 API 鉴权。"""
 
 from __future__ import annotations
 
@@ -9,6 +9,7 @@ import os
 import secrets
 
 from MF_User.models import User
+from MF_User.api_client import APIClient
 
 _USER_FILE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                           "users.json")
@@ -43,7 +44,41 @@ class UserManager:
         self._initialized = True
         self._users: dict[str, User] = {}
         self._current_user: User | None = None
+        self._api_token: str | None = None
+        self._api_username: str = ""
+        self._api_balance: int = 0
         self._load()
+
+    # ── API 鉴权 ──────────────────────────────────────────
+
+    @property
+    def api_token(self) -> str | None:
+        """在线 API 的 access_token。"""
+        return self._api_token
+
+    @property
+    def api_balance(self) -> int:
+        """在线账户余额。"""
+        return self._api_balance
+
+    def set_api_auth(self, token: str, username: str) -> None:
+        """设置 API 鉴权信息（登录成功后调用）。"""
+        self._api_token = token
+        self._api_username = username
+        self._current_user = User(username=username, salt="", password_hash="")
+
+    def fetch_online_balance(self) -> int:
+        """从在线 API 获取余额。"""
+        if not self._api_token:
+            return 0
+        try:
+            client = APIClient()
+            client.token = self._api_token
+            info = client.get_me()
+            self._api_balance = info.get("balance", 0)
+            return self._api_balance
+        except Exception:
+            return self._api_balance
 
     # ── 注册 ──────────────────────────────────────────────
 
