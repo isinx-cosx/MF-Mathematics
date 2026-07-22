@@ -9,20 +9,29 @@ SIZES = [16, 20, 24, 32, 40, 48, 64, 72, 80, 96, 128, 256]
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
-def make_ico(png_path: str, ico_path: str) -> int:
-    """从 PNG 生成多尺寸 ICO，返回文件字节数。"""
-    png = Image.open(png_path).convert("RGBA")
+def make_ico(src_path: str, ico_path: str) -> int:
+    """从 JPG/PNG 生成多尺寸 ICO，返回文件字节数。"""
+    img = Image.open(src_path)
+    # 保留原始色彩空间：RGB 用 24bit，RGBA 用 32bit
+    if img.mode == 'RGBA':
+        bpp = 32
+    else:
+        img = img.convert('RGB')
+        bpp = 24
 
     entries = []
     img_data = []
 
     for s in SIZES:
-        img = png.resize((s, s), Image.LANCZOS)
-        r, g, b, a = img.split()
-        img_bgra = Image.merge("RGBA", (b, g, r, a))
+        resized = img.resize((s, s), Image.LANCZOS)
+
+        if bpp == 32:
+            # RGBA → BGRA（ICO 需要）
+            r, g, b, a = resized.split()
+            resized = Image.merge("RGBA", (b, g, r, a))
 
         buf = io.BytesIO()
-        img_bgra.save(buf, format="BMP")
+        resized.save(buf, format="BMP")
         xor_data = buf.getvalue()[14:]  # 去 BMP 文件头
 
         # AND mask: 1bpp，每行 4 字节对齐
@@ -32,9 +41,14 @@ def make_ico(png_path: str, ico_path: str) -> int:
         frame = xor_data + and_mask
         entries.append(struct.pack(
             "<BBBBHHII",
-            0 if s == 256 else s,  # width
-            0 if s == 256 else s,  # height
-            0, 1, 32, len(frame), 0,
+            0 if s == 256 else s,
+            0 if s == 256 else s,
+            0,        # color palette
+            0,        # reserved
+            1,        # planes
+            bpp,      # bits per pixel
+            len(frame),
+            0,        # offset placeholder
         ))
         img_data.append(frame)
 
