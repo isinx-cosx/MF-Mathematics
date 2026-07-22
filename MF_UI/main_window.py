@@ -6,6 +6,7 @@ import logging, os, sys
 logger = logging.getLogger(__name__)
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from MF_UI import i18n
 from PySide6.QtCore import Qt, QEvent, QObject, QPoint, QRect, QSize
 from PySide6.QtGui import QAction, QActionGroup, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
@@ -161,13 +162,8 @@ class MainWindow(QMainWindow):
         self._history_pos = -1
         self._max_history = 50
 
-        self._calc_modes = [
-            "基础运算", "代数计算", "微积分", "解析几何",
-            "数列", "线性代数", "概率论与数理统计",
-            "数值分析", "数论", "实分析", "泛函分析",
-            "复分析", "代数拓扑", "测度论",
-        ]
-        self._plot_modes = ["普通模式", "极坐标", "3D模式", "复数模式", "向量场", "任意做图", "分形探索"]
+        self._calc_modes = i18n.get_calc_modes()
+        self._plot_modes = i18n.get_plot_modes()
         self.last_calc_index = 0
         self.last_plot_index = 0
 
@@ -188,6 +184,12 @@ class MainWindow(QMainWindow):
         self._current_theme = saved_theme
         qss = self._dark_qss_path if saved_theme == "dark" else self._light_qss_path
         self._apply_theme(qss)
+
+        # 从配置加载语言
+        saved_lang = self._load_saved_language()
+        i18n.set_language(saved_lang)
+        self._calc_modes = i18n.get_calc_modes()
+        self._plot_modes = i18n.get_plot_modes()
 
         # 自定义标题栏（替换原生标题栏）
         from components.custom_title_bar import apply_frameless
@@ -746,6 +748,41 @@ class MainWindow(QMainWindow):
         return ("", "")
 
     # ---------- 主题切换 ----------
+    def _apply_language(self, lang_code: str) -> None:
+        """切换界面语言并刷新所有文本。"""
+        i18n.set_language(lang_code)
+        self._calc_modes = i18n.get_calc_modes()
+        self._plot_modes = i18n.get_plot_modes()
+        # 更新下拉框
+        current_calc = self._sub_combo.currentIndex()
+        current_plot = None
+        self._sub_combo.blockSignals(True)
+        self._sub_combo.clear()
+        if self._current_mode == 0:  # 计算模式
+            self._sub_combo.addItems(self._calc_modes)
+            self._sub_combo.setCurrentIndex(min(current_calc, len(self._calc_modes) - 1))
+        else:
+            self._sub_combo.addItems(self._plot_modes)
+        self._sub_combo.blockSignals(False)
+        # 刷新工具栏
+        self._btn_calc.setText(i18n.tr("tb.calc"))
+        self._btn_plot.setText(i18n.tr("tb.plot"))
+        if hasattr(self, "_act_search"): self._act_search.setText(i18n.tr("tb.search"))
+        if hasattr(self, "_act_history"): self._act_history.setText(i18n.tr("tb.history"))
+        if hasattr(self, "_act_ai"): self._act_ai.setText(i18n.tr("tb.ai"))
+        if hasattr(self, "_act_help"): self._act_help.setText(i18n.tr("tb.help"))
+        if hasattr(self, "_act_settings"): self._act_settings.setText(i18n.tr("tb.settings"))
+        self._refresh_user_status()
+
+    @staticmethod
+    def _load_saved_language() -> str:
+        """从配置读取语言设置，默认 zh。"""
+        try:
+            from MF_Mathematics.utils.config_manager import config
+            return config.raw.get("language", {}).get("code", "zh")
+        except Exception:
+            return "zh"
+
     @staticmethod
     def _load_saved_theme() -> str:
         """从配置读取保存的主题，默认 light。"""

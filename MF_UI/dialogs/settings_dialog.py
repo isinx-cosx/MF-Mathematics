@@ -150,6 +150,13 @@ class SettingsDialog(QDialog):
         gl2 = QVBoxLayout(grp_gen)
         gl2.setSpacing(8)
 
+        row = QHBoxLayout(); row.setSpacing(8)
+        row.addWidget(QLabel("语言 / Language:"))
+        self._lang_combo = QComboBox()
+        self._lang_combo.addItems(["简体中文", "English"])
+        row.addWidget(self._lang_combo, 1)
+        gl2.addLayout(row)
+
         self._auto_update = QCheckBox("启动时自动检查更新")
         self._auto_update.setChecked(True)
         gl2.addWidget(self._auto_update)
@@ -184,7 +191,8 @@ class SettingsDialog(QDialog):
             self._plot_y_min.setText(str(plot.get("y_min", "")))
             self._plot_y_max.setText(str(plot.get("y_max", "")))
             self._auto_update.setChecked(cfg.get("auto_update", True))
-            self._precision_combo.setCurrentText(str(cfg.get("precision", 10)))
+            lang = cfg.get("language", {}).get("code", "zh")
+            self._lang_combo.setCurrentText("English" if lang == "en" else "简体中文")
         except Exception:
             pass
 
@@ -206,6 +214,9 @@ class SettingsDialog(QDialog):
             })
             config.update("numerical", {
                 "precision": int(self._precision_combo.currentText()),
+            })
+            config.update("language", {
+                "code": "en" if self._lang_combo.currentText() == "English" else "zh",
             })
         except Exception:
             pass
@@ -385,11 +396,11 @@ class SettingsDialog(QDialog):
         self.accept()
 
     def _apply_theme_now(self):
-        """将主题设置立即应用到主窗口。"""
+        """将主题和语言设置立即应用到主窗口。"""
         try:
             from MF_Mathematics.utils.config_manager import config
             theme = config.raw.get("theme", {}).get("default", "light")
-            # 查找主窗口实例并切换主题
+            lang = config.raw.get("language", {}).get("code", "zh")
             from PySide6.QtWidgets import QApplication
             for w in QApplication.topLevelWidgets():
                 if hasattr(w, "_switch_to_light") and hasattr(w, "_switch_to_dark"):
@@ -397,6 +408,8 @@ class SettingsDialog(QDialog):
                         w._switch_to_dark()
                     else:
                         w._switch_to_light()
+                    if hasattr(w, "_apply_language"):
+                        w._apply_language(lang)
                     break
         except Exception:
             pass
