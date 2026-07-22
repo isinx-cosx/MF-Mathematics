@@ -89,7 +89,7 @@
     "precision": 10
   },
   "theme": {
-    "default": "dark"
+    "default": "light"
   },
   "auto_update": {
     "enabled": true
