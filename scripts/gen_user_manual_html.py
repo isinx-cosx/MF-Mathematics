@@ -10,9 +10,12 @@ OUT = os.path.join(PROJECT, "dist", "copyright", "user_manual.html")
 def img(fname):
     path = os.path.join(IMG_DIR, fname)
     if os.path.exists(path):
+        import base64
+        with open(path, "rb") as f:
+            b64 = base64.b64encode(f.read()).decode()
         return (
-            f'<img src="{path}" alt="{fname}" style="max-width:100%;margin:10px 0;'
-            f'border:1px solid #e2e0dd;border-radius:4px">'
+            f'<img src="data:image/png;base64,{b64}" alt="{fname}" '
+            f'style="max-width:100%;margin:10px 0;border:1px solid #e2e0dd;border-radius:4px">'
             f'<p style="text-align:center;color:#78716c;font-size:10px">'
             f'图：{fname.replace(".png","").replace("_"," ")}</p>'
         )
