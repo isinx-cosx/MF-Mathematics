@@ -118,7 +118,7 @@ def build():
     # 第4章
     w('<h1 id="ch计">第4章 · 计算功能</h1>')
     w('<p>14个计算模块。多数采用CalcBlock交互模式：输入表达式→计算→分步结果。基础运算为单块即时求值。</p>')
-    w(img("10_calc_algebra.png"))
+    w(img("03_calc_algebra.png"))
     for title, desc in [
         ("4.1 基础运算", "四则运算、乘方、开方、阶乘、对数。单块即时求值。"),
         ("4.2 代数计算", "多项式展开、因式分解、方程求解。支持多计算块并行。"),
@@ -141,7 +141,7 @@ def build():
     # 第5章
     w('<h1 id="ch绘">第5章 · 绘图功能</h1>')
     w('<p>7个绘图模式，支持交互式缩放、平移、导出。</p>')
-    w(img("05_plot_2d.png"))
+    w(img("04_plot_2d.png"))
     for title, desc in [
         ("5.1 普通2D绘图", "一元函数曲线。多函数叠加、颜色自定义。"),
         ("5.2 极坐标绘图", "极坐标曲线r=f(θ)。玫瑰线、心形线、螺线。"),
@@ -163,7 +163,7 @@ def build():
       '<li>输入邮箱 → 点击"发送验证码"</li>'
       '<li>查收邮件，输入6位验证码</li>'
       '<li>设置密码（至少8位，含字母+数字）→ 点击"注册"</li></ol>')
-    w(img("03_register.png"))
+    w(img("02_login.png"))
     w('<div class="warn">验证码5分钟有效，60秒内不可重复发送。注册成功自动登录，赠送10次免费额度。</div>')
     w('<h2>6.3 邮箱验证</h2><p>未提供验证码时发送验证邮件，输入验证码激活。</p>')
     w('<h2>6.4 登录后</h2><p>工具栏显示"用户名(余额:N)"，点击可登出。</p>')
@@ -171,7 +171,7 @@ def build():
     # 第7章
     w('<h1 id="chAI">第7章 · AI智能助手</h1>')
     w('<p>自然语言输入数学问题，DeepSeek/OpenAI大模型驱动。</p>')
-    w(img("08_ai_dialog.png"))
+    w(img("07_ai_dialog.png"))
     w('<h2>7.1 使用</h2><ol><li>输入数学问题</li><li>点击发送</li><li>AI返回分步推理</li></ol>')
     w('<h2>7.2 配置API Key</h2><ol>'
       '<li>菜单→工具→AI设置</li><li>选择服务商</li><li>填入Key</li><li>保存</li></ol>')
@@ -180,7 +180,7 @@ def build():
     # 第8章
     w('<h1 id="ch键">第8章 · 键盘面板</h1>')
     w('<p>内置虚拟数学键盘，提供常用符号和函数快速输入。</p>')
-    w(img("07_keyboard.png"))
+    w(img("06_keyboard.png"))
     w('<h2>8.1 面板布局</h2>')
     w('<table><tr><th>区域</th><th>内容</th></tr>'
       '<tr><td>数字区</td><td>0-9 / 小数点 / 正负号</td></tr>'
@@ -194,11 +194,11 @@ def build():
     # 第9章
     w('<h1 id="ch设">第9章 · 设置与主题</h1>')
     w('<h2>9.1 主题切换</h2><p>亮色（Slate）/ 暗色（Catppuccin Mocha）。菜单→视图→切换，Ctrl+T。</p>')
-    w(img("04_main_dark.png"))
+    w(img("05_main_dark.png"))
     w('<h2>9.2 设置</h2><p>菜单→工具→设置：默认绘图范围/数值精度/AI服务商。</p>')
-    w(img("09_settings.png"))
+    w(img("08_settings.png"))
     w('<h2>9.3 关于</h2><p>菜单→帮助→关于：版本信息和开发团队。</p>')
-    w(img("06_about.png"))
+    w(img("08_settings.png"))
 
     # 第10章
     w('<h1 id="ch常">第10章 · 常见问题</h1>')
