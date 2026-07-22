@@ -1090,7 +1090,7 @@ class MainWindow(QMainWindow):
                     try:
                         import requests
                         r = requests.get(
-                            "https://www.mvs-studio.com/api/version", timeout=10
+                            "https://mf-vis-science.cn/api/version", timeout=10
                         )
                         r.raise_for_status()
                         self.finished.emit(r.json())

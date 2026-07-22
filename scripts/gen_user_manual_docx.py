@@ -165,7 +165,7 @@ def build():
     doc.add_heading("第 2 章 · 安装与启动", level=1)
     doc.add_heading("2.1 获取安装包", level=2)
     doc.add_paragraph("访问 MF-Mathematics 官方网站下载最新安装包：")
-    doc.add_paragraph("https://www.mvs-studio.com/download")
+    doc.add_paragraph("https://mf-vis-science.cn/download")
     doc.add_heading("2.2 安装步骤", level=2)
     for i, step in enumerate([
         "双击 Multifunctional-Mathematics-Setup.exe",
@@ -349,7 +349,7 @@ def build():
     for text in [
         "MF-Mathematics V1.0.0 用户手册",
         "MF-Vis-Science 工作室  (C) 2026",
-        "https://www.mvs-studio.com",
+        "https://mf-vis-science.cn",
     ]:
         p = doc.add_paragraph(); p.alignment = WD_ALIGN_PARAGRAPH.CENTER
         r = p.add_run(text); r.font.size = Pt(10)

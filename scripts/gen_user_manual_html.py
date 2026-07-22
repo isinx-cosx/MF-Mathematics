@@ -86,7 +86,7 @@ def build():
     # 第2章
     w('<h1 id="ch安">第2章 · 安装与启动</h1>')
     w('<h2>2.1 获取安装包</h2>')
-    w('<p>官网下载：<code>https://www.mvs-studio.com/download</code></p>')
+    w('<p>官网下载：<code>https://mf-vis-science.cn/download</code></p>')
     w('<h2>2.2 安装步骤</h2><ol>'
       '<li>双击 Multifunctional-Mathematics-Setup.exe</li>'
       '<li>选择语言（简体中文 / English）</li>'
@@ -214,7 +214,7 @@ def build():
         w(f"<h2>{q}</h2><p>{a}</p>")
 
     w('<hr><p style="text-align:center;color:#a8a29e;font-size:11px">'
-      'MF-Mathematics V1.0.0 · MF-Vis-Science工作室 ©2026 · www.mvs-studio.com</p>')
+      'MF-Mathematics V1.0.0 · MF-Vis-Science工作室 ©2026 · mf-vis-science.cn</p>')
     w("</body></html>")
 
     os.makedirs(os.path.dirname(OUT), exist_ok=True)

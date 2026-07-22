@@ -19,7 +19,7 @@ import urllib.request
 import urllib.error
 import urllib.parse
 
-DEFAULT_BASE_URL = "http://127.0.0.1:8000"
+DEFAULT_BASE_URL = "https://mf-vis-science.cn"
 DEFAULT_TIMEOUT = 10  # 秒
 
 
@@ -113,7 +113,7 @@ class APIClient:
         """初始化客户端。
 
         Args:
-            base_url: API 服务器地址，默认 http://127.0.0.1:8000。
+            base_url: API 服务器地址，默认 https://mf-vis-science.cn。
         """
         self.base_url: str = base_url.rstrip("/")
 
@@ -256,7 +256,7 @@ def self_test() -> tuple[int, int, list[str]]:
     try:
         client = APIClient()
         assert client is not None
-        assert client.base_url == "http://127.0.0.1:8000"
+        assert client.base_url == "https://mf-vis-science.cn"
         passed += 1
         print("  [PASS] APIClient 可实例化，默认 base_url 正确")
     except Exception as e:
