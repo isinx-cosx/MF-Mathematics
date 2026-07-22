@@ -99,11 +99,116 @@ class SettingsDialog(QDialog):
         l.setSpacing(12)
         l.setContentsMargins(12, 12, 12, 12)
 
-        lbl = QLabel("通用设置（更多选项即将推出）")
-        lbl.setStyleSheet("font-size: 12px;")
-        l.addWidget(lbl)
+        # ── 主题 ──
+        grp_theme = QGroupBox("外观")
+        gl = QVBoxLayout(grp_theme)
+        gl.setSpacing(8)
+        row = QHBoxLayout(); row.setSpacing(8)
+        row.addWidget(QLabel("默认主题:"))
+        self._theme_combo = QComboBox()
+        self._theme_combo.addItems(["亮色", "暗色"])
+        row.addWidget(self._theme_combo, 1)
+        gl.addLayout(row)
+        l.addWidget(grp_theme)
+
+        # ── 绘图 ──
+        grp_plot = QGroupBox("绘图默认值")
+        pl = QVBoxLayout(grp_plot)
+        pl.setSpacing(8)
+
+        row = QHBoxLayout(); row.setSpacing(8)
+        row.addWidget(QLabel("X 轴范围:"))
+        self._plot_x_min = QLineEdit()
+        self._plot_x_min.setPlaceholderText("-10")
+        self._plot_x_min.setFixedWidth(60)
+        row.addWidget(self._plot_x_min)
+        row.addWidget(QLabel("~"))
+        self._plot_x_max = QLineEdit()
+        self._plot_x_max.setPlaceholderText("10")
+        self._plot_x_max.setFixedWidth(60)
+        row.addWidget(self._plot_x_max)
+        row.addStretch()
+        pl.addLayout(row)
+
+        row = QHBoxLayout(); row.setSpacing(8)
+        row.addWidget(QLabel("Y 轴范围:"))
+        self._plot_y_min = QLineEdit()
+        self._plot_y_min.setPlaceholderText("-10")
+        self._plot_y_min.setFixedWidth(60)
+        row.addWidget(self._plot_y_min)
+        row.addWidget(QLabel("~"))
+        self._plot_y_max = QLineEdit()
+        self._plot_y_max.setPlaceholderText("10")
+        self._plot_y_max.setFixedWidth(60)
+        row.addWidget(self._plot_y_max)
+        row.addStretch()
+        pl.addLayout(row)
+        l.addWidget(grp_plot)
+
+        # ── 通用 ──
+        grp_gen = QGroupBox("通用")
+        gl2 = QVBoxLayout(grp_gen)
+        gl2.setSpacing(8)
+
+        self._auto_update = QCheckBox("启动时自动检查更新")
+        self._auto_update.setChecked(True)
+        gl2.addWidget(self._auto_update)
+
+        row = QHBoxLayout(); row.setSpacing(8)
+        row.addWidget(QLabel("数值精度:"))
+        self._precision_combo = QComboBox()
+        self._precision_combo.addItems(["6", "8", "10", "12", "15"])
+        self._precision_combo.setCurrentText("10")
+        row.addWidget(self._precision_combo)
+        row.addWidget(QLabel("位有效数字"))
+        row.addStretch()
+        gl2.addLayout(row)
+
+        l.addWidget(grp_gen)
+
+        # ── 加载当前设置 ──
+        self._load_general_settings()
         l.addStretch()
         return w
+
+    def _load_general_settings(self):
+        """从配置加载通用设置。"""
+        try:
+            from MF_Mathematics.utils.config_manager import config
+            cfg = config.raw
+            theme = cfg.get("theme", "light")
+            self._theme_combo.setCurrentText("亮色" if theme == "light" else "暗色")
+            plot = cfg.get("plot", {})
+            self._plot_x_min.setText(str(plot.get("x_min", "")))
+            self._plot_x_max.setText(str(plot.get("x_max", "")))
+            self._plot_y_min.setText(str(plot.get("y_min", "")))
+            self._plot_y_max.setText(str(plot.get("y_max", "")))
+            self._auto_update.setChecked(cfg.get("auto_update", True))
+            self._precision_combo.setCurrentText(str(cfg.get("precision", 10)))
+        except Exception:
+            pass
+
+    def _save_general_settings(self):
+        """保存通用设置到配置文件。"""
+        try:
+            from MF_Mathematics.utils.config_manager import config
+            config.update("theme", {
+                "default": "light" if self._theme_combo.currentText() == "亮色" else "dark",
+            })
+            config.update("plot", {
+                "x_min": self._plot_x_min.text().strip() or "-10",
+                "x_max": self._plot_x_max.text().strip() or "10",
+                "y_min": self._plot_y_min.text().strip() or "-10",
+                "y_max": self._plot_y_max.text().strip() or "10",
+            })
+            config.update("auto_update", {
+                "enabled": self._auto_update.isChecked(),
+            })
+            config.update("numerical", {
+                "precision": int(self._precision_combo.currentText()),
+            })
+        except Exception:
+            pass
 
     # ── AI 配置 Tab ────────────────────────────────────────
 
@@ -257,6 +362,7 @@ class SettingsDialog(QDialog):
         self._test_status.setStyleSheet(f"color: {color}; font-size: 11px;")
 
     def _on_save(self):
+        # 保存 AI 配置
         cfg = self._cfg
         key = self._api_key_input.text().strip()
         if key:
@@ -269,4 +375,7 @@ class SettingsDialog(QDialog):
             self._local_path.text().strip(),
         )
         cfg.save_to_files()
+
+        # 保存通用设置
+        self._save_general_settings()
         self.accept()

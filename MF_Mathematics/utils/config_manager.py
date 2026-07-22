@@ -74,6 +74,27 @@ class ConfigManager:
         """重新加载配置文件（用于运行时修改 config.json 后刷新）。"""
         self._load()
 
+    def save(self) -> None:
+        """将当前配置写回 config.json。"""
+        path = _resolve_config_path()
+        try:
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(self._data, f, ensure_ascii=False, indent=2)
+        except OSError as e:
+            raise OSError(f"无法写入配置文件 {path}: {e}")
+
+    def update(self, section: str, data: dict) -> None:
+        """更新指定节并立即保存。
+
+        Args:
+            section: 节名（如 \"theme\", \"plot\"）。
+            data: 要合并的键值。
+        """
+        if section not in self._data:
+            self._data[section] = {}
+        self._data[section].update(data)
+        self.save()
+
     # ── 原始访问 ──────────────────────────────────────────────────
 
     @property
