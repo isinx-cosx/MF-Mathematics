@@ -12,7 +12,10 @@
       "description": "Explosion risk — very high chance of hang"
     },
     "limit": {
-      "num_sample_epsilon": [0.001, 1e-6],
+      "num_sample_epsilon": [
+        0.001,
+        1e-06
+      ],
       "max_diff_threshold": 0.001,
       "timeout_seconds": 5,
       "oscillation_patterns": [
@@ -23,16 +26,27 @@
   },
   "plot": {
     "scene_range": 20000000,
-    "zoom_min": 1e-6,
+    "zoom_min": 1e-06,
     "zoom_max": 2000,
-    "initial_view": [-8, -6, 16, 12],
+    "initial_view": [
+      -8,
+      -6,
+      16,
+      12
+    ],
     "tick_px": 4,
     "font_px": 9,
     "axis_px": 2.0,
     "curve_px": 2.5,
     "colors": [
-      "#e74c3c", "#3498db", "#2ecc71", "#f39c12",
-      "#9b59b6", "#1abc9c", "#e67e22", "#e84393"
+      "#e74c3c",
+      "#3498db",
+      "#2ecc71",
+      "#f39c12",
+      "#9b59b6",
+      "#1abc9c",
+      "#e67e22",
+      "#e84393"
     ],
     "axes": {
       "axis_color": "#334155",
@@ -47,7 +61,11 @@
       "minor_px": 4,
       "label_offset_px": 8,
       "minors_per": 4
-    }
+    },
+    "x_min": "-10",
+    "x_max": "10",
+    "y_min": "-10",
+    "y_max": "10"
   },
   "ai": {
     "daily_free_steps": 5,
@@ -67,6 +85,13 @@
   "numerical": {
     "max_iterations": 10000000,
     "max_precision": 15,
-    "ramanujan_timeout": 1
+    "ramanujan_timeout": 1,
+    "precision": 10
+  },
+  "theme": {
+    "default": "dark"
+  },
+  "auto_update": {
+    "enabled": true
   }
 }

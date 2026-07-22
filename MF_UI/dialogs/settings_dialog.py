@@ -378,4 +378,25 @@ class SettingsDialog(QDialog):
 
         # 保存通用设置
         self._save_general_settings()
+
+        # 立即应用主题
+        self._apply_theme_now()
+
         self.accept()
+
+    def _apply_theme_now(self):
+        """将主题设置立即应用到主窗口。"""
+        try:
+            from MF_Mathematics.utils.config_manager import config
+            theme = config.raw.get("theme", {}).get("default", "light")
+            # 查找主窗口实例并切换主题
+            from PySide6.QtWidgets import QApplication
+            for w in QApplication.topLevelWidgets():
+                if hasattr(w, "_switch_to_light") and hasattr(w, "_switch_to_dark"):
+                    if theme == "dark":
+                        w._switch_to_dark()
+                    else:
+                        w._switch_to_light()
+                    break
+        except Exception:
+            pass

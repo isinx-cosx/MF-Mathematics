@@ -182,7 +182,12 @@ class MainWindow(QMainWindow):
         base_dir = os.path.dirname(os.path.abspath(__file__))
         self._light_qss_path = os.path.join(base_dir, "styles", "light.qss")
         self._dark_qss_path = os.path.join(base_dir, "styles", "dark.qss")
-        self._apply_theme(self._light_qss_path)
+
+        # 从配置加载主题
+        saved_theme = self._load_saved_theme()
+        self._current_theme = saved_theme
+        qss = self._dark_qss_path if saved_theme == "dark" else self._light_qss_path
+        self._apply_theme(qss)
 
         # 自定义标题栏（替换原生标题栏）
         from components.custom_title_bar import apply_frameless
@@ -215,8 +220,9 @@ class MainWindow(QMainWindow):
         QApplication.instance().processEvents()
         self._check_first_launch()
 
-        # 后台检测新版本（非阻塞）
-        self._check_app_version()
+        # 后台检测新版本（非阻塞，尊重用户自动更新设置）
+        if self._load_auto_update_setting():
+            self._check_app_version()
 
     # ---------- 窗口居中 ----------
     def _center_on_screen(self):
@@ -740,6 +746,24 @@ class MainWindow(QMainWindow):
         return ("", "")
 
     # ---------- 主题切换 ----------
+    @staticmethod
+    def _load_saved_theme() -> str:
+        """从配置读取保存的主题，默认 light。"""
+        try:
+            from MF_Mathematics.utils.config_manager import config
+            return config.raw.get("theme", {}).get("default", "light")
+        except Exception:
+            return "light"
+
+    @staticmethod
+    def _load_auto_update_setting() -> bool:
+        """从配置读取自动更新开关，默认 True。"""
+        try:
+            from MF_Mathematics.utils.config_manager import config
+            return config.raw.get("auto_update", {}).get("enabled", True)
+        except Exception:
+            return True
+
     def _switch_to_light(self):
         if self._current_theme == "light":
             return
