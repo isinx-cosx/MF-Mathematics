@@ -60,9 +60,11 @@ def make_ico(png_path: str, ico_path: str) -> int:
 
 if __name__ == "__main__":
     assets = os.path.join(PROJECT_ROOT, "assets")
-    for name in ["icon", "titlebar_icon"]:
-        png = os.path.join(assets, f"{name}.png")
+    for name, ext in [("icon", "jpg"), ("titlebar_icon", "jpg")]:
+        src = os.path.join(assets, f"{name}.{ext}")
         ico = os.path.join(assets, f"{name}.ico")
-        size = make_ico(png, ico)
-        print(f"  {name}.ico → {size:,} bytes ({len(SIZES)} sizes)")
+        if not os.path.exists(src):
+            src = os.path.join(assets, f"{name}.png")  # 回退 PNG
+        size = make_ico(src, ico)
+        print(f"  {name}.ico ← {os.path.basename(src)} → {size:,} bytes ({len(SIZES)} sizes)")
     print("Done.")
