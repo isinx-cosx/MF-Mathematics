@@ -54,7 +54,7 @@ class LoginRegisterDialog(QDialog):
         """
         super().__init__(parent)
         self.setWindowTitle("账户 — MF-Mathematics")
-        self.setFixedSize(500, 620)
+        self.setFixedSize(500, 680)
         self.setObjectName("loginRegisterDialog")
 
         # 内部状态
