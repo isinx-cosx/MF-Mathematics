@@ -138,29 +138,31 @@ def collect_and_sort(project_root: str) -> list[str]:
 
 def draw_page_header(c: canvas.Canvas, font_name: str, page_num: int,
                      part_label: str) -> float:
-    """绘制统一页眉：MF-Mathematics V1.0.0。"""
+    """绘制统一页眉 — 三栏布局，互不重叠。"""
     # 顶部细线
     c.setStrokeColorRGB(0.4, 0.4, 0.4)
     c.setLineWidth(0.5)
     y_line = PAGE_H - MARGIN_TOP + 5
     c.line(MARGIN_LEFT, y_line, PAGE_W - MARGIN_RIGHT, y_line)
 
-    # 单行居中标题
-    y_text = PAGE_H - MARGIN_TOP + 10
+    # 第一行：软件名称 + 版本（居中）
+    y1 = PAGE_H - MARGIN_TOP + 10
     c.setFont(font_name, 10)
-    header_text = f"{SOFTWARE_NAME}  {VERSION}"
-    c.drawCentredString(PAGE_W / 2, y_text, header_text)
+    c.drawCentredString(PAGE_W / 2, y1, f"{SOFTWARE_NAME}  {VERSION}")
 
-    # 左右页码
+    # 第二行：左=部别，右=页码
+    y2 = y1 - 14
     c.setFont(font_name, 8)
-    c.drawString(MARGIN_LEFT, y_text, f"{part_label}")
-    c.drawRightString(PAGE_W - MARGIN_RIGHT, y_text, f"第 {page_num} 页")
+    c.drawString(MARGIN_LEFT, y2, f"{part_label}")
+    c.drawRightString(PAGE_W - MARGIN_RIGHT, y2, f"第 {page_num} 页")
 
     # 底部细线
-    c.line(MARGIN_LEFT, PAGE_H - MARGIN_TOP + 18,
-           PAGE_W - MARGIN_RIGHT, PAGE_H - MARGIN_TOP + 18)
+    sep_y = y2 - 4
+    c.line(MARGIN_LEFT, sep_y, PAGE_W - MARGIN_RIGHT, sep_y)
 
-    return PAGE_H - MARGIN_TOP - 28  # 正文起始 y
+    # 正文起始 y
+    body_top = sep_y - 10
+    return body_top
 
 
 def generate_pdf(lines: list[str], output_path: str, font_name: str,

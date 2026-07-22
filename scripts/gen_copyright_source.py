@@ -11,7 +11,7 @@ LAST_PAGES = 30
 TOTAL_NEEDED = (FIRST_PAGES + LAST_PAGES) * LINES_PER_PAGE
 
 # 软件信息
-SOFTWARE_NAME = "Multifunctional-Mathematics"
+SOFTWARE_NAME = "MF-Mathematics"
 VERSION = "1.0.0"
 OUTPUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "dist", "copyright")
 
@@ -56,8 +56,8 @@ def format_page(lines: list[str], page_num: int, part_label: str) -> str:
     """格式化一页，添加页眉。"""
     header = (
         f"{'=' * 70}\n"
-        f"  软件名称: {SOFTWARE_NAME}  v{VERSION}"
-        f"     {part_label}    第 {page_num} 页\n"
+        f"  {SOFTWARE_NAME}  V{VERSION}"
+        f"          {part_label}          第 {page_num} 页\n"
         f"{'=' * 70}\n\n"
     )
     return header + "".join(lines)
