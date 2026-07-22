@@ -6,7 +6,7 @@ import os
 PROJECT_ROOT = r"C:\Users\fsafsafsa\Desktop\Multifunctional-Mathematics"
 ASSETS_DIR = os.path.join(PROJECT_ROOT, "assets")
 OUTPUT_DIR = os.path.join(ASSETS_DIR, "installer")
-ICON_SRC = os.path.join(ASSETS_DIR, "icon.ico")       # RGBA 256x256
+ICON_SRC = os.path.join(ASSETS_DIR, "icon.png")       # RGBA 2048x2048
 
 # ── MF-Mathematics 深色品牌色 ──
 C_BASE    = "#181825"   # Catppuccin base (最底)
