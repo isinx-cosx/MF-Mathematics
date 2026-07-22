@@ -93,5 +93,8 @@
   },
   "auto_update": {
     "enabled": true
+  },
+  "language": {
+    "code": "zh"
   }
 }

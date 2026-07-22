@@ -173,10 +173,21 @@ class SettingsDialog(QDialog):
 
         l.addWidget(grp_gen)
 
+        # ── 信号连接：改动即生效 ──
+        self._theme_combo.currentTextChanged.connect(lambda: self._apply_now())
+        self._lang_combo.currentTextChanged.connect(lambda: self._apply_now())
+        self._auto_update.toggled.connect(lambda: self._save_general_settings())
+        self._precision_combo.currentTextChanged.connect(lambda: self._save_general_settings())
+
         # ── 加载当前设置 ──
         self._load_general_settings()
         l.addStretch()
         return w
+
+    def _apply_now(self):
+        """保存并立即应用主题和语言。"""
+        self._save_general_settings()
+        self._apply_theme_now()
 
     def _load_general_settings(self):
         """从配置加载通用设置。"""
