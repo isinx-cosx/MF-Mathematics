@@ -1072,7 +1072,7 @@ QSplitter::handle:hover {
     border-radius: 6px;
     padding: 10px 14px;
     font-size: 13px;
-    min-height: 34px;
+    min-height: 36px;
     background: #ffffff;
     color: #1e293b;
 }

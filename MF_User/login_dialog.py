@@ -54,7 +54,7 @@ class LoginRegisterDialog(QDialog):
         """
         super().__init__(parent)
         self.setWindowTitle("账户 — MF-Mathematics")
-        self.setFixedSize(500, 680)
+        self.setFixedSize(520, 720)
         self.setObjectName("loginRegisterDialog")
 
         # 内部状态
@@ -201,7 +201,7 @@ class LoginRegisterDialog(QDialog):
         user_lbl.setObjectName("fieldLabel")
         layout.addWidget(user_lbl)
         self._reg_user = QLineEdit()
-        self._reg_user.setPlaceholderText("3-20 个字符，字母数字下划线")
+        self._reg_user.setPlaceholderText("3-20 字符，字母/数字/下划线")
         layout.addWidget(self._reg_user)
 
         # 邮箱 + 发送验证码
