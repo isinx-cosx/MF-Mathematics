@@ -6,7 +6,9 @@ from MF_UI.calc.basic_arithmetic.calculator import CalculatorWidget
 
 
 class Workspace(BaseWorkspace):
-    """基础运算工作区。"""
+    """基础运算工作区 — 单块计算器模式，不支持多块管理。"""
+
+    _enable_add_block = False
 
     def get_title(self) -> str:
         return "基础运算"

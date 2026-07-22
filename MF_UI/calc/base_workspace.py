@@ -18,6 +18,9 @@ from MF_UI.calc.base_calc_block import BaseCalcBlock
 class BaseWorkspace(QWidget):
     """计算工作区基类 — 标题 + 描述 + 卡片 + 滚动区 + 虚框按钮。"""
 
+    # 子类可覆盖：是否允许多计算块（基础运算设为 False）
+    _enable_add_block: bool = True
+
     def __init__(self, parent: QWidget | None = None):
         super().__init__(parent)
         self._block_counter = 1
@@ -56,15 +59,17 @@ class BaseWorkspace(QWidget):
         card_inner.setContentsMargins(0, 0, 0, 0)
         card_inner.addWidget(self._scroll)
 
-        # 虚框添加按钮
-        self._btn_add = QPushButton("＋ 添加计算")
-        self._btn_add.setFlat(True)
-        self._btn_add.setFixedHeight(50)
-        self._btn_add.setObjectName("btn_add")
-        self._btn_add.setCursor(Qt.CursorShape.PointingHandCursor)
-        self._btn_add.clicked.connect(self._on_add_block)
+        # 虚框添加按钮（子类可通过 _enable_add_block=False 禁用）
+        self._btn_add: QPushButton | None = None
+        if self._enable_add_block:
+            self._btn_add = QPushButton("＋ 添加计算")
+            self._btn_add.setFlat(True)
+            self._btn_add.setFixedHeight(50)
+            self._btn_add.setObjectName("btn_add")
+            self._btn_add.setCursor(Qt.CursorShape.PointingHandCursor)
+            self._btn_add.clicked.connect(self._on_add_block)
+            self._card_layout.addWidget(self._btn_add)
 
-        self._card_layout.addWidget(self._btn_add)
         self._card_layout.addStretch()
 
         root.addWidget(self._card, 1)
@@ -87,11 +92,17 @@ class BaseWorkspace(QWidget):
     # ── 计算块增删 ────────────────────────────────────────────
 
     def _on_add_block(self) -> None:
+        """添加计算块。若 _enable_add_block=False 则仅允许首次调用（初始化）。"""
+        if not self._enable_add_block and self._blocks:
+            return  # 单块模式：已有一个块，不允许添加
+
         cb = self.create_calc_block(self._block_counter, self._on_delete_block)
         cb.setFixedHeight(120)
         self._block_counter += 1
 
-        idx = self._card_layout.indexOf(self._btn_add)
+        idx = self._card_layout.indexOf(self._btn_add) if self._btn_add else -1
+        if idx < 0:
+            idx = self._card_layout.count()  # 末尾
 
         if self._blocks:
             sep = QFrame()
