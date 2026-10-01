@@ -1,0 +1,32 @@
+{
+  "name": "mfmath-ui-vue",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "MF-Mathematics 桌面端 HTML UI — Vue 3 + Vite 重写版（计算走 mf_mathematics.dll，经 C# MathBridge/WebView2）",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build && node scripts/prune-fonts.mjs",
+    "build:raw": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@codemirror/autocomplete": "^6.20.3",
+    "@codemirror/commands": "^6.11.1",
+    "@codemirror/lang-cpp": "^6.0.3",
+    "@codemirror/lang-python": "^6.2.1",
+    "@codemirror/language": "^6.12.4",
+    "@codemirror/search": "^6.7.2",
+    "@codemirror/state": "^6.7.6",
+    "@codemirror/view": "^6.43.13",
+    "@lezer/highlight": "^1.2.4",
+    "katex": "^0.16.11",
+    "mathlive": "^0.110.0",
+    "vue": "^3.5.13",
+    "vue-router": "^4.5.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.2.1",
+    "vite": "^6.0.7"
+  }
+}

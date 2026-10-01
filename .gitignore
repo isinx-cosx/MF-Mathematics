@@ -1,0 +1,37 @@
+# ── 环境变量 — 含真实凭据，绝不提交 ──
+.env
+.env.local
+.env.*.local
+
+# ── 引擎构建目录 ──
+# 含 CMake 中间产物，以及 bin\Release 下的编译结果（mf_mathematics.dll 与 5 个依赖 DLL）。
+# 编译结果刻意不入 git：它可以由源码完整重建，而每个版本 21.8 MB 二进制会让历史迅速膨胀。
+# 目录里的 DLL 照常保留在磁盘上，v2.0 这份文件夹本身是自包含、可直接分发的。
+MF_Mathematics/build/
+
+# ── 前端 ──
+node_modules/
+.npm-cache/
+dist/
+*.tsbuildinfo
+
+# ── C# 宿主 ──
+bin/
+obj/
+*.user
+
+# ── IDE / OS ──
+.vs/
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store
+desktop.ini
+
+# ── 其它 ──
+__pycache__/
+*.py[cod]
+*.log
+*.bak
+*.orig
+*.tmp

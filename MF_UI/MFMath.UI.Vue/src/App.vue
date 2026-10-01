@@ -1,0 +1,403 @@
+<script setup>
+/**
+ * App — 壳组件（对应旧版 index.html + app.js）
+ * 侧边栏导航 / 顶栏 / 内容区(router-view) / 状态栏
+ */
+import { ref, computed, onMounted, onBeforeUnmount, watch } from "vue";
+import { useRoute } from "vue-router";
+import { NAV_GROUPS, findNav } from "./router/registry.js";
+import {
+  THEME_LIST, SHAPE_LIST, DENSITY_LIST, FONT_LIST,
+  themeLabel, currentAppearance, applyAppearance, watchSystemTheme,
+  bridgeReady, bridgeVersion, isHosted,
+  themeBackgroundColor,     // onMounted 里要把窗口底色同步成当前主题色（漏了它会整段中断）
+  windowControlsAvailable, winMinimize, winToggleMaximize, winClose,
+  winIsMaximized, winStartDrag, winSetChromeBackground,
+} from "./lib/bridge.js";
+
+const route = useRoute();
+
+/* ── 侧边栏收放（localStorage 记忆）── */
+const sidebarCollapsed = ref(false);
+function toggleSidebar() {
+  sidebarCollapsed.value = !sidebarCollapsed.value;
+  try { localStorage.setItem("mf_sidebar", sidebarCollapsed.value ? "1" : "0"); } catch { /* 忽略 */ }
+}
+
+/* ── 分组手风琴（localStorage 记忆）── */
+const groupCollapsed = ref({});
+function toggleGroup(g) {
+  groupCollapsed.value[g] = !groupCollapsed.value[g];
+  try { localStorage.setItem("mf_nav_" + g, groupCollapsed.value[g] ? "1" : "0"); } catch { /* 忽略 */ }
+}
+
+/* ── 外观（配色 / 圆角阴影 / 疏密 / 字体 四组独立预设）──
+ *
+ * 旧版是一个「◐ 主题」按钮点一下就循环到下一套配色，只有 4 套且看不出差别。
+ * 现在改成弹层：配色是一网格**实时预览卡**——卡片自己挂 data-theme，
+ * 于是卡片内用的是那套主题的真实 CSS 变量渲染，改配色时预览永远跟着变，
+ * 而不是一张会过期的截图。圆角/疏密/字体各一行分段按钮，可只换其中一项。 */
+const appearance = ref(currentAppearance());
+const showAppearance = ref(false);
+
+function pickAppearance(patch) {
+  applyAppearance(patch);
+  appearance.value = currentAppearance();
+}
+
+/** 关弹层的两种方式：点外面、按 Esc。
+ *  刻意**不用**点遮罩关闭——本项目其它对话框已经因为"点周围就关"改过一轮。 */
+function onDocPointerDown(e) {
+  if (!showAppearance.value) return;
+  if (!e.target?.closest?.(".appearance-anchor")) showAppearance.value = false;
+}
+function onDocKey(e) {
+  if (e.key === "Escape") showAppearance.value = false;
+}
+
+watch(showAppearance, (open) => {
+  if (open) {
+    document.addEventListener("pointerdown", onDocPointerDown, true);
+    document.addEventListener("keydown", onDocKey);
+  } else {
+    document.removeEventListener("pointerdown", onDocPointerDown, true);
+    document.removeEventListener("keydown", onDocKey);
+  }
+});
+
+// 跟随系统：系统深浅色一变就换到同一风格的深浅版本
+const unwatchSystem = watchSystemTheme();
+onBeforeUnmount(() => {
+  unwatchSystem?.();
+  document.removeEventListener("pointerdown", onDocPointerDown, true);
+  document.removeEventListener("keydown", onDocKey);
+});
+
+/* ── 窗口外壳：顶栏本身就是标题栏 ──
+ *
+ * WPF 侧已不再画标题栏（否则顶部会出现两套最小化/最大化/关闭，
+ * 且 WPF 那条不跟随主题）。现在：
+ *   · 顶栏空白处按下 → 交给宿主 StartDrag（走系统消息，支持 Aero Snap）
+ *   · 双击顶栏 → 最大化/还原
+ *   · 右侧三个按钮 → 最小化 / 最大化(还原) / 关闭
+ * 浏览器里没有宿主，按钮直接不显示。
+ */
+const canControlWindow = ref(false);
+const isMaximized = ref(false);
+
+function syncMaximized() {
+  isMaximized.value = winIsMaximized();
+}
+
+function onTopbarMouseDown(e) {
+  // 只处理左键、且不落在按钮/输入/链接上——否则点按钮会变成拖窗口
+  if (e.button !== 0) return;
+  const t = e.target;
+  if (t && t.closest && t.closest("button, a, input, textarea, .math-field, math-field, select")) return;
+  winStartDrag();
+}
+
+function onTopbarDoubleClick(e) {
+  const t = e.target;
+  if (t && t.closest && t.closest("button, a, input, textarea, .math-field, math-field, select")) return;
+  winToggleMaximize();
+  setTimeout(syncMaximized, 120);
+}
+
+function onWinMinimize() { winMinimize(); }
+function onWinMaximize() { winToggleMaximize(); setTimeout(syncMaximized, 120); }
+function onWinClose() { winClose(); }
+
+/* ── 顶栏标题（跟随路由 meta）── */
+const current = computed(() => findNav(route.path));
+const modeTitle = computed(() => (current.value ? current.value.item.name : (route.meta?.title || "首页")));
+const modeDesc = computed(() => (current.value ? "· " + current.value.group.title : (route.meta?.desc || "")));
+
+/* ── 状态栏 ── */
+const statusText = ref("就绪");
+const engineBadge = ref("");
+const hosted = ref(false);
+
+onMounted(() => {
+  hosted.value = isHosted();
+
+  // 窗口外壳：桌面壳里才有窗口控制；并把窗口底色同步成当前主题色
+  canControlWindow.value = windowControlsAvailable();
+  syncMaximized();
+  winSetChromeBackground(themeBackgroundColor());
+  // 用户用快捷键/系统菜单最大化时也要同步按钮图标
+  window.addEventListener("resize", syncMaximized);
+  // 恢复侧栏 / 分组记忆
+  try {
+    sidebarCollapsed.value = localStorage.getItem("mf_sidebar") === "1";
+    for (const g of NAV_GROUPS) {
+      if (localStorage.getItem("mf_nav_" + g.id) === "1") groupCollapsed.value[g.id] = true;
+    }
+  } catch { /* 忽略 */ }
+
+  if (hosted.value) {
+    statusText.value = "引擎已连接（WebView2 桥）";
+    engineBadge.value = bridgeReady() ? bridgeVersion() : "桥未就绪";
+  } else {
+    statusText.value = "浏览器预览模式 — 计算功能待接入引擎";
+    engineBadge.value = "浏览器（无引擎桥）";
+  }
+});
+
+function about() { alert("MF-Mathematics\nMF-Vis-Science · Open Studio"); }
+function settings() { alert("设置（待实现）"); }
+</script>
+
+<template>
+  <!--
+    ⚠ 这里不能用 id="app"：index.html 里的挂载点已经是 <div id="app">，
+    App.vue 的根再叫 #app 就会形成两层同 id 嵌套，而全局样式
+    #app { display:flex } 会同时命中两层 —— 内层于是变成外层的 flex item，
+    flex-grow 默认 0，宽度只按内容算，于是内容较窄的页面
+    （首页、代数）右侧会空出一大块，内容够宽的绘图页反而看不出来。
+    改用 class，并把「占满挂载点」的职责写在下面的 .app-shell 上。
+  -->
+  <div class="app-shell">
+    <!-- ── 左侧导航（可收放）── -->
+    <aside id="sidebar" :class="{ collapsed: sidebarCollapsed }">
+      <div class="sidebar-head" @mousedown="onTopbarMouseDown">
+        <div class="logo">
+          <span class="logo-badge">M</span>
+          <span class="logo-text">MF-Mathematics</span>
+        </div>
+        <button class="nav-btn sidebar-toggle" :title="sidebarCollapsed ? '展开侧栏' : '收起侧栏'"
+                @click="toggleSidebar">{{ sidebarCollapsed ? "»" : "«" }}</button>
+      </div>
+
+      <nav id="nav">
+        <template v-for="g in NAV_GROUPS" :key="g.id">
+          <p class="nav-group" :class="{ collapsed: groupCollapsed[g.id] }" @click="toggleGroup(g.id)">
+            {{ g.title }} <span class="nav-arrow">▾</span>
+          </p>
+          <ul class="mode-list" :class="{ collapsed: groupCollapsed[g.id] }">
+            <li v-for="it in g.items" :key="it.route"
+                :class="{ active: current && current.item.route === it.route }"
+                @click="$router.push(it.route)">{{ it.name }}</li>
+          </ul>
+        </template>
+      </nav>
+
+      <div class="sidebar-footer appearance-anchor">
+        <!-- 外观选择器：点开弹层挑，而不是点一下循环到下一套。
+             title 保留「切换主题」四个字：既有的 cdp-window-shell 套件按它定位按钮。 -->
+        <button class="nav-btn" title="切换主题" data-icon="◐"
+                :aria-expanded="showAppearance" @click="showAppearance = !showAppearance">
+          <span>◐ 外观 · {{ themeLabel(appearance.theme) }}</span>
+        </button>
+
+        <div v-if="showAppearance" class="appearance-pop" role="dialog" aria-label="外观设置">
+          <div class="ap-head">
+            <span>外观</span>
+            <button class="ap-close" title="关闭" @click="showAppearance = false">✕</button>
+          </div>
+
+          <p class="ap-label">配色</p>
+          <div class="ap-themes">
+            <button v-for="t in THEME_LIST" :key="t.id"
+                    class="tp-card" :data-theme="t.id" :data-shape="appearance.shape"
+                    :class="{ on: appearance.theme === t.id }"
+                    :title="t.desc" @click="pickAppearance({ theme: t.id, followSystem: false })">
+              <span class="tp-preview">
+                <span class="tp-side"></span>
+                <span class="tp-body">
+                  <span class="tp-line"></span>
+                  <span class="tp-line w70"></span>
+                  <span class="tp-chip"></span>
+                </span>
+              </span>
+              <span class="tp-name">{{ t.label }}</span>
+              <span class="tp-mode">{{ t.mode === "dark" ? "深" : "浅" }}</span>
+            </button>
+          </div>
+
+          <p class="ap-label">圆角与阴影</p>
+          <div class="ap-row">
+            <button v-for="s in SHAPE_LIST" :key="s.id" class="ap-seg"
+                    :class="{ on: appearance.shape === s.id }" :title="s.desc"
+                    @click="pickAppearance({ shape: s.id })">{{ s.label }}</button>
+          </div>
+
+          <p class="ap-label">疏密</p>
+          <div class="ap-row">
+            <button v-for="d in DENSITY_LIST" :key="d.id" class="ap-seg"
+                    :class="{ on: appearance.density === d.id }" :title="d.desc"
+                    @click="pickAppearance({ density: d.id })">{{ d.label }}</button>
+          </div>
+
+          <p class="ap-label">界面字体</p>
+          <div class="ap-row">
+            <button v-for="f in FONT_LIST" :key="f.id" class="ap-seg"
+                    :class="{ on: appearance.font === f.id }" :title="f.desc"
+                    @click="pickAppearance({ font: f.id })">{{ f.label }}</button>
+          </div>
+
+          <label class="ap-follow">
+            <input type="checkbox" :checked="appearance.followSystem"
+                   @change="pickAppearance({ followSystem: $event.target.checked })" />
+            <span>跟随系统深浅色</span>
+          </label>
+          <p class="ap-hint">公式与代码始终等宽，不受界面字体影响。</p>
+        </div>
+
+        <button class="nav-btn" title="设置" data-icon="⚙" @click="settings">
+          <span>⚙ 设置</span>
+        </button>
+      </div>
+    </aside>
+
+    <!-- ── 右侧 ── -->
+    <main id="main">
+      <!-- 顶栏同时也是标题栏：空白处可拖动窗口、双击最大化 -->
+      <header id="topbar" @mousedown="onTopbarMouseDown" @dblclick="onTopbarDoubleClick">
+        <div class="topbar-title">
+          <span id="modeTitle">{{ modeTitle }}</span>
+          <span id="modeDesc">{{ modeDesc }}</span>
+        </div>
+        <div class="topbar-actions">
+          <button class="btn btn-ghost">搜索</button>
+          <button class="btn btn-ghost">历史</button>
+          <button class="btn btn-ghost" @click="about">关于</button>
+          <!-- 窗口控制：只有桌面壳里才可用；浏览器里不显示（点了也没意义） -->
+          <span v-if="canControlWindow" class="win-controls">
+            <button class="win-btn" title="最小化" @click="onWinMinimize">─</button>
+            <button class="win-btn" :title="isMaximized ? '还原' : '最大化'" @click="onWinMaximize">
+              {{ isMaximized ? "❐" : "□" }}
+            </button>
+            <button class="win-btn win-close" title="关闭" @click="onWinClose">✕</button>
+          </span>
+        </div>
+      </header>
+
+      <!-- 内容区：路由视图（替代旧 iframe） -->
+      <div class="view-host">
+        <router-view />
+      </div>
+
+      <footer id="statusbar">
+        <span id="statusText">{{ statusText }}</span>
+        <span>{{ engineBadge }}</span>
+      </footer>
+    </main>
+  </div>
+</template>
+
+<style scoped>
+/* 外壳占满挂载点 #app（后者是 display:flex 的 row 容器）：
+   flex:1 让它横向吃满剩余空间，min-width:0 防止内部超宽内容把它撑大。 */
+.app-shell {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: row;
+}
+
+.view-host {
+  flex: 1;
+  overflow: auto;
+  background: var(--bg);
+}
+
+/* 顶栏是标题栏：拖动手感交给系统（StartDrag 走 WM_NCLBUTTONDOWN），
+   这里只需避免文字被选中、并保持默认箭头光标。 */
+#topbar { user-select: none; }
+.sidebar-head { user-select: none; }
+
+/* ═══════════════ 外观选择弹层 ═══════════════
+   用 position:fixed 而不是 absolute：外层 #sidebar 是 overflow:hidden，
+   absolute 会被裁掉；fixed 以视口为参照，能正常浮在内容区上面。 */
+.appearance-pop {
+  position: fixed;
+  left: calc(var(--pane-gap) + 2px);
+  bottom: calc(var(--pane-gap) + 56px);
+  width: 302px;
+  max-height: calc(100vh - 90px);
+  overflow-y: auto;
+  z-index: 900;
+  padding: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-3);
+  text-align: left;
+}
+.ap-head {
+  display: flex; align-items: center; justify-content: space-between;
+  font-weight: 700; font-size: 13px; margin-bottom: 10px;
+}
+.ap-close {
+  width: 22px; height: 22px; padding: 0;
+  border: none; border-radius: var(--r-sm);
+  background: transparent; color: var(--text-muted);
+}
+.ap-close:hover { background: var(--danger-soft); color: var(--danger); }
+.ap-label {
+  font-size: 11.5px; color: var(--text-subtle);
+  margin: 10px 0 6px; font-weight: 600;
+}
+
+/* ── 配色网格：每张卡自带 data-theme，于是卡里用的是那套主题的真实变量 ──
+   预览不是截图，改配色时预览自动跟着变，永远不会与实际不一致。 */
+.ap-themes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.tp-card {
+  position: relative;
+  display: flex; flex-direction: column; gap: 3px;
+  padding: 5px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  transition: transform .12s, box-shadow .12s;
+}
+.tp-card:hover { transform: translateY(-1px); box-shadow: var(--shadow-2); }
+.tp-card.on { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+.tp-preview {
+  display: flex; height: 34px; overflow: hidden;
+  border-radius: calc(var(--r-sm) - 1px);
+  border: 1px solid var(--border);
+  background: var(--bg);
+}
+.tp-side { width: 11px; background: var(--surface-alt); border-right: 1px solid var(--border); }
+.tp-body {
+  flex: 1; padding: 5px 5px 0 5px;
+  display: flex; flex-direction: column; gap: 3px;
+  background: var(--surface);
+}
+.tp-line { height: 3px; border-radius: 2px; background: var(--text-subtle); opacity: .55; }
+.tp-line.w70 { width: 70%; }
+.tp-chip { width: 26px; height: 6px; border-radius: 3px; background: var(--grad); margin-top: 1px; }
+.tp-name {
+  font-size: 10.5px; color: var(--text); font-weight: 600;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.tp-mode {
+  position: absolute; top: 4px; right: 4px;
+  font-size: 9px; line-height: 1;
+  padding: 2px 3px; border-radius: 3px;
+  background: var(--accent-soft); color: var(--accent);
+}
+
+/* ── 分段按钮（圆角 / 疏密 / 字体）── */
+.ap-row { display: flex; gap: 5px; }
+.ap-seg {
+  flex: 1; height: 26px; padding: 0 4px;
+  font-size: 11.5px; font-weight: 600;
+  background: var(--surface-alt); color: var(--text-muted);
+  border: 1px solid var(--border); border-radius: var(--r-sm);
+  transition: all .12s;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.ap-seg:hover { color: var(--text); border-color: var(--accent); }
+.ap-seg.on { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); }
+
+.ap-follow {
+  display: flex; align-items: center; gap: 7px;
+  margin-top: 12px; font-size: 12px; color: var(--text-muted); cursor: pointer;
+}
+.ap-follow input { accent-color: var(--accent); cursor: pointer; }
+.ap-hint { font-size: 10.5px; color: var(--text-subtle); margin-top: 6px; line-height: 1.5; }
+</style>
