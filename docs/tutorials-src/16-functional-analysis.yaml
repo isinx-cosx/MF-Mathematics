@@ -1,0 +1,46 @@
+id: "functional-analysis"
+title: "泛函分析 — 无穷维空间的数学"
+difficulty: advanced
+category: calculation
+duration: "10 分钟"
+order: 16
+summary: >
+  泛函分析将线性代数和微积分推广到无穷维空间。学习 Banach 空间、
+  Hilbert 空间、线性算子、谱理论以及泛函分析的核心定理。
+steps:
+  - target: "main_window.mode_selector"
+    text: "<b>切换到泛函分析模式</b><br>在子模式下拉框中选择「泛函分析」。"
+    highlight: rect
+    placement: bottom
+    action: select
+    action_value: "泛函分析"
+  - target: "main_window.toolbar"
+    text: "<b>计算 Lp 范数</b><br>输入一个函数表达式如 <code>x^2</code>，选择「Lp范数」并计算。"
+    highlight: rect
+    placement: bottom
+  - target: "main_window.mode_selector"
+    text: "<b>探索更多高级主题</b><br>尝试 Hilbert 空间、算子范数、谱半径、Hahn-Banach 定理等。"
+    highlight: rect
+    placement: bottom
+examples:
+  - label: "L2 范数计算"
+    expr: "x^2"
+    mode: "泛函分析"
+    action: "Lp范数"
+    description: "计算函数在 [0,1] 上的 L2 范数"
+  - label: "Hilbert 空间判定"
+    expr: "L2(0,1)"
+    mode: "泛函分析"
+    action: "Hilbert空间"
+    description: "判断给定的内积空间是否为 Hilbert 空间"
+  - label: "算子范数"
+    expr: "[[1,0],[0,2]]"
+    mode: "泛函分析"
+    action: "算子范数"
+    description: "计算线性算子的范数"
+faq:
+  - q: "Banach 空间和 Hilbert 空间的区别？"
+    a: "Banach 空间是完备的赋范线性空间；Hilbert 空间还需要范数由内积诱导。每个 Hilbert 空间都是 Banach 空间，但反之不成立。"
+  - q: "Hahn-Banach 定理的意义？"
+    a: "Hahn-Banach 定理保证我们可以将子空间上的有界线性泛函延拓到全空间，这是泛函分析的基石之一。"
+prerequisites: ["linear-algebra", "real-analysis"]

@@ -1,0 +1,48 @@
+id: "algebraic-topology"
+title: "代数拓扑 — 用代数研究空间的形状"
+difficulty: advanced
+category: calculation
+duration: "10 分钟"
+order: 18
+summary: >
+  代数拓扑用代数工具（群、环）研究拓扑空间的"洞"和连通性。
+  学习基本群、同调群、贝蒂数、欧拉示性数、上同调以及持续同调。
+steps:
+  - target: "main_window.mode_selector"
+    text: "<b>切换到代数拓扑模式</b><br>在子模式下拉框中选择「代数拓扑」。"
+    highlight: rect
+    placement: bottom
+    action: select
+    action_value: "代数拓扑"
+  - target: "main_window.toolbar"
+    text: "<b>计算基本群</b><br>输入空间名称如 <code>S1</code>（圆），选择「基本群」计算。"
+    highlight: rect
+    placement: bottom
+  - target: "main_window.mode_selector"
+    text: "<b>探索更多拓扑不变量</b><br>尝试贝蒂数、欧拉示性数、同调群、持续同调等。"
+    highlight: rect
+    placement: bottom
+examples:
+  - label: "圆的基本群"
+    expr: "S1"
+    mode: "代数拓扑"
+    action: "基本群"
+    description: "计算圆周 S¹ 的基本群 π₁(S¹) = Z"
+  - label: "球面的贝蒂数"
+    expr: "S2"
+    mode: "代数拓扑"
+    action: "贝蒂数"
+    description: "计算二维球面 S² 的贝蒂数"
+  - label: "环面的欧拉示性数"
+    expr: "T2"
+    mode: "代数拓扑"
+    action: "欧拉示性数"
+    description: "计算环面 T² 的欧拉示性数 χ(T²) = 0"
+faq:
+  - q: "什么是基本群？"
+    a: "基本群 π₁(X) 是拓扑空间 X 上基于某点的所有闭路径的同伦等价类构成的群。它衡量空间的'一维洞'。圆的基本群是 Z。"
+  - q: "贝蒂数告诉我们什么？"
+    a: "第 k 个贝蒂数 β_k 表示空间中 k 维洞的数量。β₀ 是连通分量数，β₁ 是环状洞数，β₂ 是空腔数。"
+  - q: "持续同调有什么用？"
+    a: "持续同调是拓扑数据分析的核心工具。它通过多尺度过滤来分析点云数据的拓扑特征，广泛用于生物信息学、材料科学和机器学习。"
+prerequisites: ["linear-algebra"]

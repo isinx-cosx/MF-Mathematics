@@ -23,6 +23,9 @@ const REAL_VIEWS = {
   "/plot/geometry": () => import("../views/plot/PlotGeometryView.vue"),
   // 控制台：在应用里写 Python/C++ 小程序，两条语言都通过 mfmath 调同一个 C++ 引擎
   "/tools/console": () => import("../views/tools/ConsoleView.vue"),
+  // 教程系统（v1 只有帮助浏览器一个入口，这里教程目录与示例库都在导航里）
+  "/tutorial": () => import("../views/tutorial/TutorialCatalogView.vue"),
+  "/examples": () => import("../components/tutorial/ExampleLibrary.vue"),
 };
 
 /** 学科计算视图统一走 CalcView（按路由末段读取 VIEW_CONFIGS 的配置） */
@@ -52,6 +55,14 @@ for (const g of NAV_GROUPS) {
     });
   }
 }
+
+// 教程正文：不在 NAV_GROUPS 里（不是导航项，而是从目录或引导进入的详情页）
+routes.push({
+  path: "/tutorial/:id",
+  name: "tutorial-article",
+  component: () => import("../views/tutorial/HelpArticleView.vue"),
+  meta: { title: "教程", desc: "帮助" },
+});
 
 const router = createRouter({
   // hash 模式：file:// 与 dev server 都可用，无需服务端配合

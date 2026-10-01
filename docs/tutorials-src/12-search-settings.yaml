@@ -1,0 +1,76 @@
+# ── 搜索与设置 ──────────────────────────────────────────────
+id: search-settings
+title: "联网搜索与软件设置"
+difficulty: beginner
+category: settings
+duration: "4 分钟"
+order: 12
+summary: >
+  学习使用联网搜索功能查找数学知识和配置软件参数。
+
+steps:
+  - target: "toolbar.search_button"
+    text: "点击工具栏的「搜索」按钮，打开搜索面板。"
+    highlight: circle
+    placement: bottom
+    action: click
+
+  - target: "search_panel.input"
+    text: >
+      输入数学关键词进行搜索。<br>
+      支持三种搜索引擎：<br>
+      • DuckDuckGo 即时回答<br>
+      • Wolfram Alpha 短答案<br>
+      • 自定义搜索端点
+    highlight: rect
+    placement: top
+    action: type
+    action_value: "Riemann zeta function"
+
+  - target: "search_panel.results"
+    text: "搜索结果在此展示。常用结果会自动缓存加速后续查询。"
+    highlight: rect
+    placement: bottom
+    action: wait
+
+  - target: "toolbar.settings_button"
+    text: "点击「设置」打开配置面板。"
+    highlight: circle
+    placement: bottom
+    action: click
+
+  - target: "settings_dialog.ai_tab"
+    text: >
+      AI 配置选项卡：<br>
+      • 选择 AI 服务商（DeepSeek/OpenAI/Ollama）<br>
+      • 填入 API Key<br>
+      • 配置本地模型路径<br>
+      • 调整模型参数（温度、最大 Token）
+    highlight: rect
+    placement: left
+    action: wait
+
+  - target: "settings_dialog.appearance_tab"
+    text: >
+      外观设置：<br>
+      • 切换亮色/暗色主题<br>
+      • 调整字体大小
+    highlight: rect
+    placement: left
+    action: wait
+
+examples:
+  - label: "搜索数学定义"
+    expr: "什么是黎曼猜想"
+    mode: "联网搜索"
+    description: "搜索并展示数学概念"
+  - label: "配置 DeepSeek API"
+    expr: ""
+    mode: "设置"
+    description: "在设置中配置 API Key"
+
+faq:
+  - q: "搜索功能需要联网吗？"
+    a: "是的，搜索需要网络连接。常用结果会本地缓存。"
+  - q: "API Key 安全吗？"
+    a: "API Key 使用系统密钥环存储，不会明文保存到配置文件中。"

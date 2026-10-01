@@ -1,4 +1,4 @@
-﻿# One-click regression: launch host with CDP port, run all verification scripts, summarize.
+# One-click regression: launch host with CDP port, run all verification scripts, summarize.
 # Usage (Windows PowerShell 5.1 or PowerShell 7):
 #   powershell -ExecutionPolicy Bypass -File run-all.ps1
 # Prereq: Vue built (npm run build) and host built (dotnet build -c Release)
@@ -8,7 +8,9 @@
 # (ASCII only, so the summary parses regardless of console encoding.)
 
 $ErrorActionPreference = "Continue"
-$hostExe = "C:\Users\fsafsafsa\Desktop\cppcshap\MFMath.Host\bin\Release\net10.0-windows\MFMath.exe"
+# v2.0：宿主就在同一棵树里的 ..\..\MFMath.Host（旧版这里指向 cppcshap 的宿主，已改）
+$hostExe = (Resolve-Path (Join-Path $PSScriptRoot "..\..\MFMath.Host\bin\Release\net10.0-windows\MFMath.exe") -ErrorAction SilentlyContinue)
+if (-not $hostExe) { $hostExe = "C:\Users\fsafsafsa\Desktop\MVS知识库\Multifunctional系列\Multifunctional-Mathematics-v2.0\MFMath.Host\bin\Release\net10.0-windows\MFMath.exe" }
 $tests = @(
   "unit-result-model",
   "cdp-bridge-verify", "cdp-window-shell", "cdp-appearance", "cdp-input-notation", "cdp-font-load", "cdp-plot-verify", "cdp-plot-p3", "cdp-plot-p4",
@@ -16,7 +18,11 @@ $tests = @(
   "cdp-plot-extrema", "cdp-plot-extrema-domain", "cdp-plot-3d", "cdp-plot-vector", "cdp-plot-fractal",
   "cdp-complex-modes", "cdp-plot-geometry", "cdp-plot-truth", "cdp-calc-workspace", "cdp-basic-calc",
   "cdp-diff-at-param", "cdp-fractal-orient", "cdp-fractal-clickzoom", "cdp-geometry-line", "cdp-geometry-aspect", "cdp-canvas-theme",
-  "cdp-console", "cdp-modes-render", "audit-modes"
+  "cdp-console", "cdp-modes-render",
+  # 本轮新增：教程系统 + 数学键盘（18 篇教程目录/正文、引导走查的上一步与暂停、
+  # 完成判定、126 键键盘、LaTeX 插入与占位符、搜索、无焦点时的明确提示）
+  "cdp-tutorials-keypad",
+  "audit-modes"
 )
 
 if (-not (Test-Path $hostExe)) {

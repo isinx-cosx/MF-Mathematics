@@ -1,0 +1,55 @@
+# ── 进阶技巧 ────────────────────────────────────────────────
+id: tips-and-tricks
+title: "进阶技巧与效率提升"
+difficulty: advanced
+category: general
+duration: "5 分钟"
+order: 14
+summary: >
+  掌握各种效率提升技巧：快捷键、表达式技巧、AI 妙用、
+  工作区联动、性能优化等。
+
+steps:
+  - target: "main_window.toolbar"
+    text: >
+      <b>效率技巧速览</b><br><br>
+      <b>快捷键</b><br>
+      • F1 — 打开帮助文档<br>
+      • Enter — 执行计算<br>
+      • Esc — 关闭对话框/引导<br><br>
+      <b>表达式技巧</b><br>
+      • 用 \\pi 输入 π，\\int 输入 ∫<br>
+      • 用 * 表示乘法，** 表示指数<br>
+      • 隐式乘法：2x 等同于 2*x<br><br>
+      <b>AI 妙用</b><br>
+      • 从工作区打开 AI → 自动传递上下文<br>
+      • 用 AI 解释复杂结果的含义<br>
+      • 配置 API Key 后无使用限制<br><br>
+      <b>性能优化</b><br>
+      • 复杂度守卫保护系统稳定性<br>
+      • 极限计算有超时保护<br>
+      • 步骤查看器有结果缓存
+    highlight: rect
+    placement: bottom
+    action: wait
+
+examples:
+  - label: "LaTeX 快捷输入"
+    expr: "∫_0^∞ e^{-x^2} dx"
+    mode: "代数"
+    action: "定积分"
+    description: "用 LaTeX 风格输入复杂积分"
+  - label: "上下文感知 AI"
+    expr: ""
+    mode: "AI 助手"
+    description: "在工作区计算后打开 AI 助手，AI 会自动知道你在做什么"
+
+faq:
+  - q: "最常用的快捷键有哪些？"
+    a: "F1 帮助、Enter 计算、Esc 关闭。工作区内的模式切换和操作选择用下拉菜单即可。"
+  - q: "表达式输入有什么限制？"
+    a: "系统有三重守卫：WARN（警告但允许）、BLOCK（阻止极度复杂）、REJECT（拒绝数学错误）。"
+  - q: "计算太慢怎么办？"
+    a: "复杂计算可尝试 AI 加速（配置 API Key 后无限制），或在数值分析模块使用近似方法。"
+  - q: "如何报告 Bug 或提出建议？"
+    a: "欢迎提交 Issue 或 Pull Request 到项目仓库。"

@@ -116,7 +116,7 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onKeydown));
         </div>
       </div>
       <div class="dialog-footer">
-        <button class="btn btn-ghost" @click="emit('steps')">查看步骤</button>
+        <button class="btn btn-ghost" data-tour="result_dialog.steps_button" @click="emit('steps')">查看步骤</button>
         <button v-if="rawJson" class="btn btn-ghost" title="复制可读的数学文本" @click="copyResult">复制结果</button>
         <button v-if="rawJson" class="btn btn-ghost" title="复制引擎原始 JSON（调试用）" @click="copyRawJson">复制 JSON</button>
         <button class="btn btn-primary" @click="emit('close')">关闭</button>

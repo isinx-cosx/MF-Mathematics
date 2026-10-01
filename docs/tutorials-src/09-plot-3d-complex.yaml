@@ -1,0 +1,64 @@
+# ── 3D 绘图与复数着色 ──────────────────────────────────────
+id: plot-3d-complex
+title: "3D 绘图与复数域着色"
+difficulty: intermediate
+category: plot
+duration: "5 分钟"
+order: 9
+summary: >
+  学习绘制 3D 曲面/参数图，以及复数函数的域着色可视化。
+
+steps:
+  - target: "toolbar.plot_button"
+    text: "点击「绘图」进入绘图模式。"
+    highlight: circle
+    placement: bottom
+    action: click
+
+  - target: "main_window.mode_selector"
+    text: "选择「3D 绘图」或「复数着色」。"
+    highlight: rect
+    placement: right
+    action: wait
+
+  - target: "plot_workspace.add_function"
+    text: >
+      3D 示例：<b>sin(sqrt(x^2+y^2))</b> — 涟漪曲面<br>
+      复数示例：<b>z^2 + 1</b>
+    highlight: rect
+    placement: right
+    action: click
+
+  - target: "plot_canvas"
+    text: >
+      3D 视图操作：<br>
+      • 拖拽旋转<br>
+      • 滚轮缩放<br>
+      • 右键平移
+    highlight: rect
+    placement: bottom
+    action: wait
+
+examples:
+  - label: "3D 鞍面"
+    expr: "x^2 - y^2"
+    mode: "3D 绘图"
+    description: "经典的双曲抛物面"
+  - label: "3D 波纹"
+    expr: "sin(sqrt(x^2+y^2))"
+    mode: "3D 绘图"
+    description: "中心向外扩散的波纹"
+  - label: "复数 z²"
+    expr: "z^2"
+    mode: "复数着色"
+    description: "观察 z² 在复平面上的映射"
+  - label: "复数 exp(z)"
+    expr: "exp(z)"
+    mode: "复数着色"
+    description: "指数函数的域着色"
+
+faq:
+  - q: "3D 图像如何导出？"
+    a: "右键画布可导出 PNG 图片。也可用 matplotlib 的保存功能导出高分辨率图像。"
+  - q: "复数着色的颜色代表什么？"
+    a: "色相表示幅角（Argument），亮度表示模长（Modulus）。"

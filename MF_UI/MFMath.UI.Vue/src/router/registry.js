@@ -55,6 +55,16 @@ export const NAV_GROUPS = [
     title: "工具",
     items: [{ name: "控制台", route: "/tools/console" }],
   },
+  {
+    // 教程系统的入口。v1 的帮助浏览器只能从菜单/F1 打开，且"交互式引导"
+    // 硬编码只能引导 quick-start；这里把教程与示例库放进导航，任何人都能直接进。
+    id: "help",
+    title: "帮助",
+    items: [
+      { name: "使用教程", route: "/tutorial" },
+      { name: "示例任务库", route: "/examples" },
+    ],
+  },
 ];
 
 /** 按路径查导航项 */

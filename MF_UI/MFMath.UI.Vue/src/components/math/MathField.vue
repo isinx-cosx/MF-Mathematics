@@ -27,6 +27,7 @@
 import { onMounted, onBeforeUnmount, ref, watch } from "vue";
 import "mathlive";
 import { toEngineExpr } from "../../lib/plot/prepare.js";
+import { createFieldHandle } from "../../lib/math/activeField.js";
 
 const props = defineProps({
   modelValue: { type: String, default: "" },   // 引擎语法
@@ -37,6 +38,7 @@ const emit = defineEmits(["update:modelValue", "change", "focus", "blur", "enter
 const el = ref(null);
 const editing = ref(false);       // 用户正在输入：此时不回写 LaTeX
 const lastEmitted = ref(null);    // 记住自己发出的值，避免回环
+let field = null;                 // 数学键盘的"最后聚焦输入框"登记句柄
 
 function latexFromEngine(text) {
   // 引擎语法 → 可让 MathLive 正确显示的 LaTeX。
@@ -63,7 +65,21 @@ onMounted(() => {
     emit("update:modelValue", eng);
   };
   mf.addEventListener("input", onInput);
-  mf.addEventListener("focusin", () => { editing.value = true; emit("focus"); });
+  // 登记为"最后聚焦的数学输入框"，供数学键盘插入符号用（见 lib/math/activeField.js）。
+  // v1 靠 QApplication.focusWidget() 实时取焦点，点键盘时焦点已跑掉，只能靠
+  // 按钮 NoFocus 兜住；这里改成记住最后一次聚焦的字段，更稳。
+  field = createFieldHandle({
+    kind: "mathfield",
+    insertLatex: (latex, options) => insertLatex(latex, options),
+    focus: () => el.value?.focus(),
+  });
+  // 三种入口都登记：focusin / focus / pointerdown。
+  // 只挂 focusin 不够 —— 实测 MathLive 的元素在程序化 focus() 时不触发它，
+  // 而真实鼠标点击会先走 pointerdown，所以三者合起来才覆盖全。
+  const markActive = () => { editing.value = true; emit("focus"); field?.activate(); };
+  mf.addEventListener("focusin", markActive);
+  mf.addEventListener("focus", markActive);
+  mf.addEventListener("pointerdown", markActive);
   mf.addEventListener("focusout", () => { editing.value = false; emit("blur"); });
   mf.addEventListener("keydown", (e) => {
     if (e.key === "Enter") emit("enter", e);
@@ -71,7 +87,7 @@ onMounted(() => {
   cleanup = () => mf.removeEventListener("input", onInput);
 });
 let cleanup = null;
-onBeforeUnmount(() => { if (cleanup) cleanup(); });
+onBeforeUnmount(() => { if (cleanup) cleanup(); field?.deactivate(); });
 
 // 外部改值才回写（用户输入过程中 editing=true，跳过以免光标跳动）
 watch(

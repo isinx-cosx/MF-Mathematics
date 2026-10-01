@@ -8,7 +8,9 @@
     "dev": "vite",
     "build": "vite build && node scripts/prune-fonts.mjs",
     "build:raw": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "tutorials": "node tools/build-tutorials.mjs",
+    "check:ui": "node tools/build-tutorials.mjs && node tools/check-ui.mjs"
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6.20.3",

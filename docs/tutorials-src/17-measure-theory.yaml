@@ -1,0 +1,46 @@
+id: "measure-theory"
+title: "测度论 — 长度、面积与积分的推广"
+difficulty: advanced
+category: calculation
+duration: "10 分钟"
+order: 17
+summary: >
+  测度论是现代概率论和积分理论的数学基础。学习 σ-代数、勒贝格测度、
+  可测函数、勒贝格积分、三大收敛定理以及 Fubini 定理。
+steps:
+  - target: "main_window.mode_selector"
+    text: "<b>切换到测度论模式</b><br>在子模式下拉框中选择「测度论」。"
+    highlight: rect
+    placement: bottom
+    action: select
+    action_value: "测度论"
+  - target: "main_window.toolbar"
+    text: "<b>计算勒贝格测度</b><br>输入一个集合如 <code>[0,1]</code>，选择「勒贝格测度」计算。"
+    highlight: rect
+    placement: bottom
+  - target: "main_window.mode_selector"
+    text: "<b>探索勒贝格积分</b><br>尝试非负函数积分、一般积分、以及单调/控制收敛定理。"
+    highlight: rect
+    placement: bottom
+examples:
+  - label: "勒贝格测度"
+    expr: "[0,1]"
+    mode: "测度论"
+    action: "勒贝格测度"
+    description: "计算区间 [0,1] 的勒贝格测度"
+  - label: "非负函数积分"
+    expr: "x^2"
+    mode: "测度论"
+    action: "非负函数积分"
+    description: "计算 x² 在 (0,1) 上的勒贝格积分"
+  - label: "单调收敛定理"
+    expr: "1-exp(-n*x)"
+    mode: "测度论"
+    action: "单调收敛定理"
+    description: "验证单调收敛定理"
+faq:
+  - q: "勒贝格积分与黎曼积分有什么区别？"
+    a: "勒贝格积分按函数值划分定义域（纵切），而黎曼积分按定义域划分（横切）。勒贝格积分可以处理更多类型的函数，且有更好的极限定理。"
+  - q: "什么是 σ-代数？"
+    a: "σ-代数是一个集合系，对可数并、可数交和补运算封闭。它是定义测度的基础结构。最常用的是 Borel σ-代数。"
+prerequisites: ["real-analysis"]

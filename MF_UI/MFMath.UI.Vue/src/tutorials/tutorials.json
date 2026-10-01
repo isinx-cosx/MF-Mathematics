@@ -1,0 +1,1604 @@
+{
+  "generatedFrom": "MF_Tutorial/tutorials/*.yaml",
+  "categories": {
+    "general": {
+      "icon": "📖",
+      "label": "入门指南"
+    },
+    "calculation": {
+      "icon": "🧮",
+      "label": "计算模块"
+    },
+    "plot": {
+      "icon": "📊",
+      "label": "绘图系统"
+    },
+    "ai": {
+      "icon": "🤖",
+      "label": "AI 功能"
+    },
+    "tools": {
+      "icon": "🔧",
+      "label": "工具"
+    },
+    "settings": {
+      "icon": "⚙️",
+      "label": "设置"
+    }
+  },
+  "tutorials": [
+    {
+      "id": "quick-start",
+      "title": "快速入门 — 认识 MF-Mathematics",
+      "difficulty": "beginner",
+      "difficultyIcon": "🔵",
+      "difficultyLabel": "入门",
+      "category": "general",
+      "categoryIcon": "📖",
+      "categoryLabel": "入门指南",
+      "duration": "3 分钟",
+      "order": 1,
+      "summary": "了解 MF-Mathematics 的整体布局和核心功能：计算、绘图、AI 助手三大模块， 快速上手完成你的第一次计算。",
+      "version": "41e15a87",
+      "prerequisites": [],
+      "steps": [
+        {
+          "index": 1,
+          "target": "main_window.toolbar",
+          "text": "这是主工具栏，所有功能从这里开始。<br> <b>计算</b> — 数学计算与步骤推导<br> <b>绘图</b> — 2D/3D/复数/向量场/几何做图<br> <b>AI</b> — AI 数学助手对话<br> <b>搜索</b> — 联网搜索数学知识<br> <b>设置</b> — 配置 AI 和软件偏好",
+          "highlight": "rect",
+          "placement": "bottom",
+          "actionType": "wait",
+          "actionValue": ""
+        },
+        {
+          "index": 2,
+          "target": "main_window.mode_selector",
+          "text": "在计算模式下，这里切换子模式：<br> <b>代数</b> — 化简、展开、因式分解、求导、积分等<br> <b>线性代数</b> — 矩阵运算、特征值、线性方程组<br> <b>概率统计</b> — 分布、假设检验、回归分析<br> <b>数值分析</b> — 插值、数值积分、ODE 求解",
+          "highlight": "rect",
+          "placement": "right",
+          "actionType": "wait",
+          "actionValue": ""
+        },
+        {
+          "index": 3,
+          "target": "main_window.theme_toggle",
+          "text": "点击这里可以切换亮色/暗色主题，选择你喜欢的界面风格。",
+          "highlight": "circle",
+          "placement": "left",
+          "actionType": "wait",
+          "actionValue": ""
+        },
+        {
+          "index": 4,
+          "target": "main_window.help_button",
+          "text": "任何时候按 <b>F1</b> 或点击这里打开帮助文档。<br> 内置教程、示例任务和常见问题都在这里！",
+          "highlight": "circle",
+          "placement": "bottom",
+          "actionType": "wait",
+          "actionValue": ""
+        }
+      ],
+      "examples": [
+        {
+          "index": 1,
+          "label": "第一次计算：化简多项式",
+          "expr": "x^2 + 2x + 1",
+          "mode": "代数",
+          "operation": "化简",
+          "description": "体验基本的代数化简功能"
+        },
+        {
+          "index": 2,
+          "label": "绘制一个函数图像",
+          "expr": "sin(x)",
+          "mode": "2D 绘图",
+          "operation": "",
+          "description": "切换到绘图模式，画出 sin(x) 曲线"
+        }
+      ],
+      "faq": [
+        {
+          "q": "MF-Mathematics 是免费的吗？",
+          "a": "是的，完全免费。AI 功能需配置 API Key（支持 DeepSeek、OpenAI、Ollama）。"
+        },
+        {
+          "q": "软件需要联网吗？",
+          "a": "基础计算和绘图完全离线可用。AI 功能和联网搜索需要网络连接。"
+        }
+      ],
+      "source": "01-quick-start.yaml"
+    },
+    {
+      "id": "basic-calculation",
+      "title": "基础计算 — 代数化简与求导",
+      "difficulty": "beginner",
+      "difficultyIcon": "🔵",
+      "difficultyLabel": "入门",
+      "category": "calculation",
+      "categoryIcon": "🧮",
+      "categoryLabel": "计算模块",
+      "duration": "5 分钟",
+      "order": 2,
+      "summary": "学习如何输入表达式、选择计算模式、查看结果。 从多项式化简和求导开始，掌握最基本的计算流程。",
+      "version": "5c10b79c",
+      "prerequisites": [],
+      "steps": [
+        {
+          "index": 1,
+          "target": "toolbar.calc_button",
+          "text": "点击工具栏的「计算」按钮，进入计算模式。",
+          "highlight": "circle",
+          "placement": "bottom",
+          "actionType": "click",
+          "actionValue": ""
+        },
+        {
+          "index": 2,
+          "target": "main_window.mode_selector",
+          "text": "在下拉菜单中选择「代数」。代数模块支持化简、展开、因式分解、求导、积分等。",
+          "highlight": "rect",
+          "placement": "right",
+          "actionType": "select",
+          "actionValue": "代数"
+        },
+        {
+          "index": 3,
+          "target": "calc_block.input",
+          "text": "在输入框中输入你的数学表达式。<br> 试试输入：<b>x^2 + 2*x + 1</b><br> 或使用数学键盘输入符号。",
+          "highlight": "rect",
+          "placement": "top",
+          "actionType": "type",
+          "actionValue": "x^2 + 2*x + 1"
+        },
+        {
+          "index": 4,
+          "target": "calc_block.action_dropdown",
+          "text": "选择操作类型。对于多项式，选择「化简」。",
+          "highlight": "rect",
+          "placement": "right",
+          "actionType": "select",
+          "actionValue": "化简"
+        },
+        {
+          "index": 5,
+          "target": "calc_block.calc_button",
+          "text": "点击「计算」按钮！<br> 结果会弹出显示：结果、推导步骤、数学含义。",
+          "highlight": "circle",
+          "placement": "left",
+          "actionType": "click",
+          "actionValue": ""
+        },
+        {
+          "index": 6,
+          "target": "calc_block.ai_accel_button",
+          "text": "如果表达式特别复杂，可以点击「AI 加速」让 AI 辅助计算。<br> 注意：需要先配置 API Key。",
+          "highlight": "circle",
+          "placement": "top",
+          "actionType": "wait",
+          "actionValue": ""
+        }
+      ],
+      "examples": [
+        {
+          "index": 1,
+          "label": "化简多项式",
+          "expr": "x^2 + 2*x + 1",
+          "mode": "代数",
+          "operation": "化简",
+          "description": ""
+        },
+        {
+          "index": 2,
+          "label": "展开乘积",
+          "expr": "(x+1)*(x-1)",
+          "mode": "代数",
+          "operation": "展开",
+          "description": ""
+        },
+        {
+          "index": 3,
+          "label": "因式分解",
+          "expr": "x^2 - 1",
+          "mode": "代数",
+          "operation": "因式分解",
+          "description": ""
+        },
+        {
+          "index": 4,
+          "label": "求导 sin(x^2)",
+          "expr": "sin(x^2)",
+          "mode": "代数",
+          "operation": "求导",
+          "description": ""
+        },
+        {
+          "index": 5,
+          "label": "不定积分",
+          "expr": "x*sin(x)",
+          "mode": "代数",
+          "operation": "不定积分",
+          "description": ""
+        }
+      ],
+      "faq": [
+        {
+          "q": "输入表达式的格式是什么？",
+          "a": "支持自然数学格式：x^2 表示 x²，* 表示乘法，sin/cos/log 等函数直接用。也可用键盘输入特殊符号。"
+        },
+        {
+          "q": "为什么显示「计算失败」？",
+          "a": "可能的原因：表达式语法错误、该操作不支持此类型表达式、或表达式超出复杂度限制。请检查输入。"
+        },
+        {
+          "q": "如何查看详细的推导步骤？",
+          "a": "计算结果弹出后，点击「步骤」按钮，AI 会生成像老师手写一样的逐步推导过程。"
+        }
+      ],
+      "source": "02-basic-calculation.yaml"
+    },
+    {
+      "id": "plot-2d",
+      "title": "2D 绘图 — 画出你的第一个函数",
+      "difficulty": "beginner",
+      "difficultyIcon": "🔵",
+      "difficultyLabel": "入门",
+      "category": "plot",
+      "categoryIcon": "📊",
+      "categoryLabel": "绘图系统",
+      "duration": "5 分钟",
+      "order": 3,
+      "summary": "学习如何绘制函数图像：添加函数、设置范围、调整视图、 使用滑块探索参数变化。",
+      "version": "8ef1e614",
+      "prerequisites": [],
+      "steps": [
+        {
+          "index": 1,
+          "target": "toolbar.plot_button",
+          "text": "点击工具栏的「绘图」按钮，进入绘图模式。",
+          "highlight": "circle",
+          "placement": "bottom",
+          "actionType": "click",
+          "actionValue": ""
+        },
+        {
+          "index": 2,
+          "target": "main_window.mode_selector",
+          "text": "在下拉菜单中选择「2D 绘图」（通常为默认选项）。",
+          "highlight": "rect",
+          "placement": "right",
+          "actionType": "select",
+          "actionValue": "2D 绘图"
+        },
+        {
+          "index": 3,
+          "target": "plot_workspace.add_function",
+          "text": "点击「添加函数」按钮，输入你想画的函数。<br> 试试：<b>sin(x)</b><br> 也可以添加多个函数进行对比。",
+          "highlight": "rect",
+          "placement": "right",
+          "actionType": "click",
+          "actionValue": ""
+        },
+        {
+          "index": 4,
+          "target": "plot_workspace.function_input",
+          "text": "输入函数表达式。支持各种常见函数：sin, cos, tan, log, exp 等。",
+          "highlight": "rect",
+          "placement": "top",
+          "actionType": "type",
+          "actionValue": "sin(x)"
+        },
+        {
+          "index": 5,
+          "target": "plot_workspace.sliders",
+          "text": "如果有参数（如 a*sin(x) 中的 a），这里会出现滑块。<br> 拖动滑块实时观察图像变化，非常直观！",
+          "highlight": "rect",
+          "placement": "top",
+          "actionType": "wait",
+          "actionValue": ""
+        },
+        {
+          "index": 6,
+          "target": "plot_canvas",
+          "text": "画布支持：<br> • 滚轮缩放<br> • 拖拽平移<br> • 右键重置视图",
+          "highlight": "rect",
+          "placement": "bottom",
+          "actionType": "wait",
+          "actionValue": ""
+        }
+      ],
+      "examples": [
+        {
+          "index": 1,
+          "label": "正弦函数",
+          "expr": "sin(x)",
+          "mode": "2D 绘图",
+          "operation": "",
+          "description": "经典的三角函数图像"
+        },
+        {
+          "index": 2,
+          "label": "参数探索",
+          "expr": "a*sin(b*x)",
+          "mode": "2D 绘图",
+          "operation": "",
+          "description": "拖动 a 和 b 滑块观察变化"
+        },
+        {
+          "index": 3,
+          "label": "多项式",
+          "expr": "x^3 - 3*x",
+          "mode": "2D 绘图",
+          "operation": "",
+          "description": "三次函数，有趣的拐点"
+        },
+        {
+          "index": 4,
+          "label": "隐函数：圆",
+          "expr": "x^2 + y^2 = 25",
+          "mode": "2D 绘图",
+          "operation": "",
+          "description": "隐函数绘图：x² + y² = 25"
+        }
+      ],
+      "faq": [
+        {
+          "q": "如何同时画多个函数？",
+          "a": "多次点击「添加函数」即可添加多条曲线，每条用不同颜色区分。"
+        },
+        {
+          "q": "图像显示不完整怎么办？",
+          "a": "使用滚轮缩放或拖拽平移调整视图。也可以在侧边栏手动设置 X/Y 轴范围。"
+        },
+        {
+          "q": "支持隐函数吗？",
+          "a": "支持！输入 x^2+y^2=25 这样的等式，会自动识别为隐函数并绘制。"
+        }
+      ],
+      "source": "03-plot-2d.yaml"
+    },
+    {
+      "id": "ai-assistant",
+      "title": "AI 数学助手 — 你的私人数学导师",
+      "difficulty": "beginner",
+      "difficultyIcon": "🔵",
+      "difficultyLabel": "入门",
+      "category": "ai",
+      "categoryIcon": "🤖",
+      "categoryLabel": "AI 功能",
+      "duration": "4 分钟",
+      "order": 4,
+      "summary": "学习使用 AI 助手进行数学问答：流式对话、LaTeX 公式渲染、 上下文感知，以及如何配置 API Key。",
+      "version": "baea3950",
+      "prerequisites": [],
+      "steps": [
+        {
+          "index": 1,
+          "target": "toolbar.ai_button",
+          "text": "点击工具栏的「AI」按钮，打开 AI 数学助手对话框。",
+          "highlight": "circle",
+          "placement": "bottom",
+          "actionType": "click",
+          "actionValue": ""
+        },
+        {
+          "index": 2,
+          "target": "ai_dialog.input",
+          "text": "在输入框中输入你的数学问题。<br> 试试：<b>请帮我解释什么是导数？</b><br> AI 会用中文回答，公式会用 LaTeX 渲染为漂亮图片。",
+          "highlight": "rect",
+          "placement": "top",
+          "actionType": "type",
+          "actionValue": "请帮我解释什么是导数？"
+        },
+        {
+          "index": 3,
+          "target": "ai_dialog.send_button",
+          "text": "点击发送或按 Enter，AI 会流式输出回复。",
+          "highlight": "circle",
+          "placement": "left",
+          "actionType": "click",
+          "actionValue": ""
+        },
+        {
+          "index": 4,
+          "target": "ai_dialog.context_label",
+          "text": "当你从计算工作区打开 AI 助手时，AI 会自动感知：<br> • 当前表达式<br> • 当前计算模式<br> 你不需要重复描述问题！",
+          "highlight": "rect",
+          "placement": "bottom",
+          "actionType": "wait",
+          "actionValue": ""
+        },
+        {
+          "index": 5,
+          "target": "main_window.ai_settings",
+          "text": "使用 AI 功能需要配置 API Key。<br> 去「设置 → AI 配置」中添加你的 Key。<br> 支持 DeepSeek、OpenAI、本地 Ollama。",
+          "highlight": "rect",
+          "placement": "left",
+          "actionType": "wait",
+          "actionValue": ""
+        }
+      ],
+      "examples": [
+        {
+          "index": 1,
+          "label": "解释数学概念",
+          "expr": "什么是泰勒展开？请用简单易懂的方式解释。",
+          "mode": "AI 助手",
+          "operation": "",
+          "description": "让 AI 解释概念"
+        },
+        {
+          "index": 2,
+          "label": "辅助解题",
+          "expr": "请帮我解这个方程：x^3 - 3x + 1 = 0",
+          "mode": "AI 助手",
+          "operation": "",
+          "description": "AI 辅助解方程"
+        }
+      ],
+      "faq": [
+        {
+          "q": "AI 功能需要付费吗？",
+          "a": "AI 功能需要你自己的 API Key（如 DeepSeek）。软件本身不收费，API 费用由对应服务商收取。"
+        },
+        {
+          "q": "如何配置 API Key？",
+          "a": "去设置 → AI 配置，填入 API Key 和 Base URL。支持 DeepSeek、OpenAI、Ollama。"
+        },
+        {
+          "q": "可以使用本地模型吗？",
+          "a": "可以！安装 Ollama 后，在设置中启用本地模型即可离线使用。"
+        }
+      ],
+      "source": "04-ai-assistant.yaml"
+    },
+    {
+      "id": "ai-steps-accelerate",
+      "title": "步骤推导与 AI 加速",
+      "difficulty": "intermediate",
+      "difficultyIcon": "🟡",
+      "difficultyLabel": "进阶",
+      "category": "ai",
+      "categoryIcon": "🤖",
+      "categoryLabel": "AI 功能",
+      "duration": "4 分钟",
+      "order": 5,
+      "summary": "学习使用 AI 生成详细推导步骤，以及利用 AI 加速处理复杂计算。",
+      "version": "1026a3e0",
+      "prerequisites": [],
+      "steps": [
+        {
+          "index": 1,
+          "target": "calc_block.input",
+          "text": "先输入一个需要推导的表达式，例如：<b>derivative(x^2*sin(x), x)</b>",
+          "highlight": "rect",
+          "placement": "top",
+          "actionType": "type",
+          "actionValue": "derivative(x^2*sin(x), x)"
+        },
+        {
+          "index": 2,
+          "target": "calc_block.calc_button",
+          "text": "点击「计算」得到结果。",
+          "highlight": "circle",
+          "placement": "left",
+          "actionType": "click",
+          "actionValue": ""
+        },
+        {
+          "index": 3,
+          "target": "result_dialog.steps_button",
+          "text": "在结果对话框中点击「步骤」按钮。<br> AI 会生成详细的逐步推导过程，<br> 就像老师在黑板上书写一样！",
+          "highlight": "circle",
+          "placement": "bottom",
+          "actionType": "click",
+          "actionValue": ""
+        },
+        {
+          "index": 4,
+          "target": "step_viewer.content",
+          "text": "步骤查看器展示推导过程：<br> • LaTeX 公式渲染<br> • 每步都有解释说明<br> • 支持复制纯文本",
+          "highlight": "rect",
+          "placement": "left",
+          "actionType": "wait",
+          "actionValue": ""
+        },
+        {
+          "index": 5,
+          "target": "calc_block.ai_accel_button",
+          "text": "对于 SymPy 难以处理的高复杂度表达式，<br> 点击「AI 加速」让 AI 直接计算。<br> 每天免费 3 次（配置 API Key 后无限制）。",
+          "highlight": "circle",
+          "placement": "top",
+          "actionType": "wait",
+          "actionValue": ""
+        }
+      ],
+      "examples": [
+        {
+          "index": 1,
+          "label": "求导步骤",
+          "expr": "derivative(x^2*sin(x), x)",
+          "mode": "代数",
+          "operation": "求导",
+          "description": "AI 展示乘积法则的逐步应用"
+        },
+        {
+          "index": 2,
+          "label": "积分步骤",
+          "expr": "integrate(x*exp(x), x)",
+          "mode": "代数",
+          "operation": "不定积分",
+          "description": "分部积分法的详细推导"
+        }
+      ],
+      "faq": [
+        {
+          "q": "步骤推导和 AI 加速有什么区别？",
+          "a": "步骤推导是解释型的，展示推导过程。AI 加速是计算型的，处理常规引擎无法完成的复杂计算。"
+        },
+        {
+          "q": "每天能用多少次？",
+          "a": "步骤推导 5 次/天，AI 加速 3 次/天。配置 API Key 后无限制。"
+        }
+      ],
+      "source": "05-ai-steps-accelerate.yaml"
+    },
+    {
+      "id": "linear-algebra",
+      "title": "线性代数 — 矩阵与向量运算",
+      "difficulty": "intermediate",
+      "difficultyIcon": "🟡",
+      "difficultyLabel": "进阶",
+      "category": "calculation",
+      "categoryIcon": "🧮",
+      "categoryLabel": "计算模块",
+      "duration": "5 分钟",
+      "order": 6,
+      "summary": "学习进行矩阵运算、特征值计算、线性方程组求解等线性代数操作。",
+      "version": "f5544e6e",
+      "prerequisites": [],
+      "steps": [
+        {
+          "index": 1,
+          "target": "main_window.mode_selector",
+          "text": "切换计算模式为「线性代数」。",
+          "highlight": "rect",
+          "placement": "right",
+          "actionType": "select",
+          "actionValue": "线性代数"
+        },
+        {
+          "index": 2,
+          "target": "calc_block.input",
+          "text": "输入矩阵。格式示例：<br> <b>[[1,2,3],[4,5,6],[7,8,9]]</b><br> 或向量：<b>[1,2,3]</b>",
+          "highlight": "rect",
+          "placement": "top",
+          "actionType": "type",
+          "actionValue": "[[1,2,3],[4,5,6],[7,8,9]]"
+        },
+        {
+          "index": 3,
+          "target": "calc_block.action_dropdown",
+          "text": "选择操作：行列式、特征值、逆矩阵、秩、高斯消元等。",
+          "highlight": "rect",
+          "placement": "right",
+          "actionType": "wait",
+          "actionValue": ""
+        }
+      ],
+      "examples": [
+        {
+          "index": 1,
+          "label": "计算行列式",
+          "expr": "[[1,2],[3,4]]",
+          "mode": "线性代数",
+          "operation": "行列式",
+          "description": ""
+        },
+        {
+          "index": 2,
+          "label": "求特征值",
+          "expr": "[[1,2],[2,1]]",
+          "mode": "线性代数",
+          "operation": "特征值",
+          "description": ""
+        },
+        {
+          "index": 3,
+          "label": "矩阵求逆",
+          "expr": "[[1,2],[3,4]]",
+          "mode": "线性代数",
+          "operation": "逆矩阵",
+          "description": ""
+        },
+        {
+          "index": 4,
+          "label": "解线性方程组",
+          "expr": "x+y=3, 2x-y=0",
+          "mode": "线性代数",
+          "operation": "解线性方程组",
+          "description": ""
+        }
+      ],
+      "faq": [
+        {
+          "q": "如何输入矩阵？",
+          "a": "使用嵌套列表格式：[[1,2],[3,4]] 表示 2×2 矩阵。向量用 [1,2,3]。"
+        },
+        {
+          "q": "支持复数矩阵吗？",
+          "a": "支持。用 I 表示虚数单位，如 [[1+I, 2], [3, 4-I]]。"
+        }
+      ],
+      "source": "06-linear-algebra.yaml"
+    },
+    {
+      "id": "probability-statistics",
+      "title": "概率统计 — 分布、检验与回归",
+      "difficulty": "intermediate",
+      "difficultyIcon": "🟡",
+      "difficultyLabel": "进阶",
+      "category": "calculation",
+      "categoryIcon": "🧮",
+      "categoryLabel": "计算模块",
+      "duration": "5 分钟",
+      "order": 7,
+      "summary": "学习使用概率统计功能：常见分布计算、假设检验、回归分析。",
+      "version": "d864a1e8",
+      "prerequisites": [],
+      "steps": [
+        {
+          "index": 1,
+          "target": "main_window.mode_selector",
+          "text": "切换计算模式为「概率统计」。",
+          "highlight": "rect",
+          "placement": "right",
+          "actionType": "select",
+          "actionValue": "概率统计"
+        },
+        {
+          "index": 2,
+          "target": "calc_block.action_dropdown",
+          "text": "选择统计操作：正态分布、t 检验、卡方检验、线性回归等。",
+          "highlight": "rect",
+          "placement": "right",
+          "actionType": "wait",
+          "actionValue": ""
+        },
+        {
+          "index": 3,
+          "target": "calc_block.input",
+          "text": "输入数据或参数。例如回归分析：<br> <b>x=[1,2,3,4,5], y=[2,4,5,4,5]</b>",
+          "highlight": "rect",
+          "placement": "top",
+          "actionType": "wait",
+          "actionValue": ""
+        }
+      ],
+      "examples": [
+        {
+          "index": 1,
+          "label": "正态分布概率",
+          "expr": "P(|X|<1.96)",
+          "mode": "概率统计",
+          "operation": "正态分布",
+          "description": "标准正态 P(|X|<1.96) ≈ 0.95"
+        },
+        {
+          "index": 2,
+          "label": "线性回归",
+          "expr": "x=[1,2,3,4,5], y=[2.1,3.9,6.2,8.1,9.8]",
+          "mode": "概率统计",
+          "operation": "线性回归",
+          "description": ""
+        },
+        {
+          "index": 3,
+          "label": "二项分布",
+          "expr": "n=10, p=0.5, k=5",
+          "mode": "概率统计",
+          "operation": "二项分布",
+          "description": ""
+        }
+      ],
+      "faq": [
+        {
+          "q": "支持哪些概率分布？",
+          "a": "二项、泊松、正态、t、卡方、F、均匀、指数、Gamma、Beta 等。"
+        },
+        {
+          "q": "如何输入多组数据？",
+          "a": "用逗号分隔：x=[1,2,3], y=[4,5,6]。"
+        }
+      ],
+      "source": "07-probability-statistics.yaml"
+    },
+    {
+      "id": "numerical-analysis",
+      "title": "数值分析 — 插值、积分与微分方程",
+      "difficulty": "intermediate",
+      "difficultyIcon": "🟡",
+      "difficultyLabel": "进阶",
+      "category": "calculation",
+      "categoryIcon": "🧮",
+      "categoryLabel": "计算模块",
+      "duration": "5 分钟",
+      "order": 8,
+      "summary": "学习数值分析方法：拉格朗日/牛顿插值、数值积分、ODE 求解。",
+      "version": "f9674ba9",
+      "prerequisites": [],
+      "steps": [
+        {
+          "index": 1,
+          "target": "main_window.mode_selector",
+          "text": "切换计算模式为「数值分析」。",
+          "highlight": "rect",
+          "placement": "right",
+          "actionType": "select",
+          "actionValue": "数值分析"
+        },
+        {
+          "index": 2,
+          "target": "calc_block.action_dropdown",
+          "text": "选择数值方法：插值、数值积分、ODE 求解、误差分析等。",
+          "highlight": "rect",
+          "placement": "right",
+          "actionType": "wait",
+          "actionValue": ""
+        },
+        {
+          "index": 3,
+          "target": "calc_block.input",
+          "text": "ODE 示例：<b>y'=y/x, y(1)=1</b><br> 支持 y'、y''、dy/dx 等多种导数格式。",
+          "highlight": "rect",
+          "placement": "top",
+          "actionType": "type",
+          "actionValue": "y'=y/x, y(1)=1"
+        }
+      ],
+      "examples": [
+        {
+          "index": 1,
+          "label": "拉格朗日插值",
+          "expr": "points=[(0,1),(1,2),(2,4)]",
+          "mode": "数值分析",
+          "operation": "拉格朗日插值",
+          "description": ""
+        },
+        {
+          "index": 2,
+          "label": "数值积分",
+          "expr": "sin(x), x=0..pi",
+          "mode": "数值分析",
+          "operation": "辛普森积分",
+          "description": ""
+        },
+        {
+          "index": 3,
+          "label": "ODE: y'=y/x",
+          "expr": "y'=y/x, y(1)=1",
+          "mode": "数值分析",
+          "operation": "ODE 求解",
+          "description": ""
+        },
+        {
+          "index": 4,
+          "label": "RK4 方法",
+          "expr": "y'=x+y, y(0)=1, h=0.1, N=10",
+          "mode": "数值分析",
+          "operation": "RK4",
+          "description": ""
+        }
+      ],
+      "faq": [
+        {
+          "q": "ODE 支持哪些格式？",
+          "a": "支持 y'=...、y''=...、dy/dx=...、f(x)'=... 等多种写法。"
+        },
+        {
+          "q": "数值积分精度如何？",
+          "a": "支持梯形法、辛普森法、高斯求积等，可在设置中调整精度参数。"
+        }
+      ],
+      "source": "08-numerical-analysis.yaml"
+    },
+    {
+      "id": "plot-3d-complex",
+      "title": "3D 绘图与复数域着色",
+      "difficulty": "intermediate",
+      "difficultyIcon": "🟡",
+      "difficultyLabel": "进阶",
+      "category": "plot",
+      "categoryIcon": "📊",
+      "categoryLabel": "绘图系统",
+      "duration": "5 分钟",
+      "order": 9,
+      "summary": "学习绘制 3D 曲面/参数图，以及复数函数的域着色可视化。",
+      "version": "b03c2eb8",
+      "prerequisites": [],
+      "steps": [
+        {
+          "index": 1,
+          "target": "toolbar.plot_button",
+          "text": "点击「绘图」进入绘图模式。",
+          "highlight": "circle",
+          "placement": "bottom",
+          "actionType": "click",
+          "actionValue": ""
+        },
+        {
+          "index": 2,
+          "target": "main_window.mode_selector",
+          "text": "选择「3D 绘图」或「复数着色」。",
+          "highlight": "rect",
+          "placement": "right",
+          "actionType": "wait",
+          "actionValue": ""
+        },
+        {
+          "index": 3,
+          "target": "plot_workspace.add_function",
+          "text": "3D 示例：<b>sin(sqrt(x^2+y^2))</b> — 涟漪曲面<br> 复数示例：<b>z^2 + 1</b>",
+          "highlight": "rect",
+          "placement": "right",
+          "actionType": "click",
+          "actionValue": ""
+        },
+        {
+          "index": 4,
+          "target": "plot_canvas",
+          "text": "3D 视图操作：<br> • 拖拽旋转<br> • 滚轮缩放<br> • 右键平移",
+          "highlight": "rect",
+          "placement": "bottom",
+          "actionType": "wait",
+          "actionValue": ""
+        }
+      ],
+      "examples": [
+        {
+          "index": 1,
+          "label": "3D 鞍面",
+          "expr": "x^2 - y^2",
+          "mode": "3D 绘图",
+          "operation": "",
+          "description": "经典的双曲抛物面"
+        },
+        {
+          "index": 2,
+          "label": "3D 波纹",
+          "expr": "sin(sqrt(x^2+y^2))",
+          "mode": "3D 绘图",
+          "operation": "",
+          "description": "中心向外扩散的波纹"
+        },
+        {
+          "index": 3,
+          "label": "复数 z²",
+          "expr": "z^2",
+          "mode": "复数着色",
+          "operation": "",
+          "description": "观察 z² 在复平面上的映射"
+        },
+        {
+          "index": 4,
+          "label": "复数 exp(z)",
+          "expr": "exp(z)",
+          "mode": "复数着色",
+          "operation": "",
+          "description": "指数函数的域着色"
+        }
+      ],
+      "faq": [
+        {
+          "q": "3D 图像如何导出？",
+          "a": "右键画布可导出 PNG 图片。也可用 matplotlib 的保存功能导出高分辨率图像。"
+        },
+        {
+          "q": "复数着色的颜色代表什么？",
+          "a": "色相表示幅角（Argument），亮度表示模长（Modulus）。"
+        }
+      ],
+      "source": "09-plot-3d-complex.yaml"
+    },
+    {
+      "id": "vector-field-geometry",
+      "title": "向量场与几何做图",
+      "difficulty": "advanced",
+      "difficultyIcon": "🟣",
+      "difficultyLabel": "高级",
+      "category": "plot",
+      "categoryIcon": "📊",
+      "categoryLabel": "绘图系统",
+      "duration": "6 分钟",
+      "order": 10,
+      "summary": "学习绘制 2D/3D 向量场，以及 GeoGebra 风格的任意几何做图。",
+      "version": "b9a194da",
+      "prerequisites": [],
+      "steps": [
+        {
+          "index": 1,
+          "target": "main_window.mode_selector",
+          "text": "选择「向量场」或「任意做图」。",
+          "highlight": "rect",
+          "placement": "right",
+          "actionType": "wait",
+          "actionValue": ""
+        },
+        {
+          "index": 2,
+          "target": "plot_workspace.add_function",
+          "text": "向量场示例：<b>[-y, x]</b> — 旋转场<br> 添加多个向量函数可叠加显示。",
+          "highlight": "rect",
+          "placement": "right",
+          "actionType": "click",
+          "actionValue": ""
+        },
+        {
+          "index": 3,
+          "target": "geometry_canvas",
+          "text": "几何做图工具栏：<br> • 点、线段、圆、向量<br> • 直线、椭圆、矩形、多边形<br> • 撤销/重做、网格吸附<br> • 拖拽/缩放画布",
+          "highlight": "rect",
+          "placement": "bottom",
+          "actionType": "wait",
+          "actionValue": ""
+        }
+      ],
+      "examples": [
+        {
+          "index": 1,
+          "label": "旋转向量场",
+          "expr": "F(x,y)=[-y, x]",
+          "mode": "向量场",
+          "operation": "",
+          "description": "绕原点的旋转向量场"
+        },
+        {
+          "index": 2,
+          "label": "梯度场",
+          "expr": "F(x,y)=[2x, 2y]",
+          "mode": "向量场",
+          "operation": "",
+          "description": "f(x,y)=x²+y² 的梯度"
+        },
+        {
+          "index": 3,
+          "label": "画三角形",
+          "expr": "",
+          "mode": "任意做图",
+          "operation": "",
+          "description": "用几何工具画任意三角形并标注"
+        },
+        {
+          "index": 4,
+          "label": "外接圆构造",
+          "expr": "",
+          "mode": "任意做图",
+          "operation": "",
+          "description": "作三角形的外接圆"
+        }
+      ],
+      "faq": [
+        {
+          "q": "向量场支持 3D 吗？",
+          "a": "支持。输入三个分量的向量函数即可生成 3D 向量场。"
+        },
+        {
+          "q": "几何做图可以导出吗？",
+          "a": "可以导出为图片，也支持撤销/重做操作历史。"
+        }
+      ],
+      "source": "10-vector-field-geometry.yaml"
+    },
+    {
+      "id": "math-keyboard",
+      "title": "数学键盘 — 符号输入利器",
+      "difficulty": "beginner",
+      "difficultyIcon": "🔵",
+      "difficultyLabel": "入门",
+      "category": "tools",
+      "categoryIcon": "🔧",
+      "categoryLabel": "工具",
+      "duration": "3 分钟",
+      "order": 11,
+      "summary": "学习使用浮动数学键盘，快速输入各种数学符号、希腊字母和运算符。",
+      "version": "f5a927a1",
+      "prerequisites": [],
+      "steps": [
+        {
+          "index": 1,
+          "target": "main_window.keyboard_button",
+          "text": "点击工具栏的键盘图标，打开数学符号键盘。",
+          "highlight": "circle",
+          "placement": "bottom",
+          "actionType": "click",
+          "actionValue": ""
+        },
+        {
+          "index": 2,
+          "target": "math_keyboard.panel",
+          "text": "键盘包含 6 个分类标签：<br> • 基础运算 (+, -, ×, ÷, =, ≠)<br> • 希腊字母 (α, β, γ, π, θ)<br> • 微积分 (∫, ∂, ∇, lim, ∞)<br> • 集合逻辑 (∈, ∀, ∃, ∪, ∩)<br> • 矩阵向量<br> • 常用函数",
+          "highlight": "rect",
+          "placement": "top",
+          "actionType": "wait",
+          "actionValue": ""
+        },
+        {
+          "index": 3,
+          "target": "math_keyboard.titlebar",
+          "text": "键盘可以：<br> • 拖拽标题栏移动位置<br> • 拖拽右下角缩放大小<br> • 点击 ✕ 关闭<br> 点击符号即可输入到当前输入框。",
+          "highlight": "rect",
+          "placement": "bottom",
+          "actionType": "wait",
+          "actionValue": ""
+        }
+      ],
+      "examples": [
+        {
+          "index": 1,
+          "label": "输入积分符号",
+          "expr": "∫",
+          "mode": "数学键盘",
+          "operation": "",
+          "description": "打开键盘 → 微积分 → 点击 ∫"
+        },
+        {
+          "index": 2,
+          "label": "输入希腊字母",
+          "expr": "α, β, γ",
+          "mode": "数学键盘",
+          "operation": "",
+          "description": "打开键盘 → 希腊字母 → 点击对应符号"
+        }
+      ],
+      "faq": [
+        {
+          "q": "键盘挡住了我的输入怎么办？",
+          "a": "键盘可拖拽到任意位置，也可拖拽右下角缩小。不需要时点 ✕ 关闭。"
+        },
+        {
+          "q": "支持快捷键输入吗？",
+          "a": "部分符号支持 LaTeX 风格输入：\\pi → π, \\int → ∫ 等。"
+        }
+      ],
+      "source": "11-math-keyboard.yaml"
+    },
+    {
+      "id": "search-settings",
+      "title": "联网搜索与软件设置",
+      "difficulty": "beginner",
+      "difficultyIcon": "🔵",
+      "difficultyLabel": "入门",
+      "category": "settings",
+      "categoryIcon": "⚙️",
+      "categoryLabel": "设置",
+      "duration": "4 分钟",
+      "order": 12,
+      "summary": "学习使用联网搜索功能查找数学知识和配置软件参数。",
+      "version": "b53c4d84",
+      "prerequisites": [],
+      "steps": [
+        {
+          "index": 1,
+          "target": "toolbar.search_button",
+          "text": "点击工具栏的「搜索」按钮，打开搜索面板。",
+          "highlight": "circle",
+          "placement": "bottom",
+          "actionType": "click",
+          "actionValue": ""
+        },
+        {
+          "index": 2,
+          "target": "search_panel.input",
+          "text": "输入数学关键词进行搜索。<br> 支持三种搜索引擎：<br> • DuckDuckGo 即时回答<br> • Wolfram Alpha 短答案<br> • 自定义搜索端点",
+          "highlight": "rect",
+          "placement": "top",
+          "actionType": "type",
+          "actionValue": "Riemann zeta function"
+        },
+        {
+          "index": 3,
+          "target": "search_panel.results",
+          "text": "搜索结果在此展示。常用结果会自动缓存加速后续查询。",
+          "highlight": "rect",
+          "placement": "bottom",
+          "actionType": "wait",
+          "actionValue": ""
+        },
+        {
+          "index": 4,
+          "target": "toolbar.settings_button",
+          "text": "点击「设置」打开配置面板。",
+          "highlight": "circle",
+          "placement": "bottom",
+          "actionType": "click",
+          "actionValue": ""
+        },
+        {
+          "index": 5,
+          "target": "settings_dialog.ai_tab",
+          "text": "AI 配置选项卡：<br> • 选择 AI 服务商（DeepSeek/OpenAI/Ollama）<br> • 填入 API Key<br> • 配置本地模型路径<br> • 调整模型参数（温度、最大 Token）",
+          "highlight": "rect",
+          "placement": "left",
+          "actionType": "wait",
+          "actionValue": ""
+        },
+        {
+          "index": 6,
+          "target": "settings_dialog.appearance_tab",
+          "text": "外观设置：<br> • 切换亮色/暗色主题<br> • 调整字体大小",
+          "highlight": "rect",
+          "placement": "left",
+          "actionType": "wait",
+          "actionValue": ""
+        }
+      ],
+      "examples": [
+        {
+          "index": 1,
+          "label": "搜索数学定义",
+          "expr": "什么是黎曼猜想",
+          "mode": "联网搜索",
+          "operation": "",
+          "description": "搜索并展示数学概念"
+        },
+        {
+          "index": 2,
+          "label": "配置 DeepSeek API",
+          "expr": "",
+          "mode": "设置",
+          "operation": "",
+          "description": "在设置中配置 API Key"
+        }
+      ],
+      "faq": [
+        {
+          "q": "搜索功能需要联网吗？",
+          "a": "是的，搜索需要网络连接。常用结果会本地缓存。"
+        },
+        {
+          "q": "API Key 安全吗？",
+          "a": "API Key 使用系统密钥环存储，不会明文保存到配置文件中。"
+        }
+      ],
+      "source": "12-search-settings.yaml"
+    },
+    {
+      "id": "themes-appearance",
+      "title": "主题切换与界面定制",
+      "difficulty": "beginner",
+      "difficultyIcon": "🔵",
+      "difficultyLabel": "入门",
+      "category": "settings",
+      "categoryIcon": "⚙️",
+      "categoryLabel": "设置",
+      "duration": "2 分钟",
+      "order": 13,
+      "summary": "学习切换亮色/暗色主题，调整界面外观，让软件更符合你的使用习惯。",
+      "version": "023514cf",
+      "prerequisites": [],
+      "steps": [
+        {
+          "index": 1,
+          "target": "main_window.theme_toggle",
+          "text": "点击工具栏右侧的主题切换按钮。<br> 一键切换亮色 ↔ 暗色模式。",
+          "highlight": "circle",
+          "placement": "bottom",
+          "actionType": "click",
+          "actionValue": ""
+        },
+        {
+          "index": 2,
+          "target": "main_window.toolbar",
+          "text": "工具栏和菜单栏会立即响应主题切换。所有按钮和图标都会适配。",
+          "highlight": "rect",
+          "placement": "bottom",
+          "actionType": "wait",
+          "actionValue": ""
+        }
+      ],
+      "examples": [],
+      "faq": [
+        {
+          "q": "暗色模式所有界面都支持吗？",
+          "a": "主要界面已完成适配。部分高级功能（如几何做图）的画布颜色可独立设置。"
+        },
+        {
+          "q": "可以自定义颜色吗？",
+          "a": "可以编辑 MF_UI/styles/ 下的 QSS 文件来自定义主题样式。"
+        }
+      ],
+      "source": "13-themes-appearance.yaml"
+    },
+    {
+      "id": "tips-and-tricks",
+      "title": "进阶技巧与效率提升",
+      "difficulty": "advanced",
+      "difficultyIcon": "🟣",
+      "difficultyLabel": "高级",
+      "category": "general",
+      "categoryIcon": "📖",
+      "categoryLabel": "入门指南",
+      "duration": "5 分钟",
+      "order": 14,
+      "summary": "掌握各种效率提升技巧：快捷键、表达式技巧、AI 妙用、 工作区联动、性能优化等。",
+      "version": "f831784f",
+      "prerequisites": [],
+      "steps": [
+        {
+          "index": 1,
+          "target": "main_window.toolbar",
+          "text": "<b>效率技巧速览</b><br><br> <b>快捷键</b><br> • F1 — 打开帮助文档<br> • Enter — 执行计算<br> • Esc — 关闭对话框/引导<br><br> <b>表达式技巧</b><br> • 用 \\\\pi 输入 π，\\\\int 输入 ∫<br> • 用 * 表示乘法，** 表示指数<br> • 隐式乘法：2x 等同于 2*x<br><br> <b>AI 妙用</b><br> • 从工作区打开 AI → 自动传递上下文<br> • 用 AI 解释复杂结果的含义<br> • 配置 API Key 后无使用限制<br><br> <b>性能优化</b><br> • 复杂度守卫保护系统稳定性<br> • 极限计算有超时保护<br> • 步骤查看器有结果缓存",
+          "highlight": "rect",
+          "placement": "bottom",
+          "actionType": "wait",
+          "actionValue": ""
+        }
+      ],
+      "examples": [
+        {
+          "index": 1,
+          "label": "LaTeX 快捷输入",
+          "expr": "∫_0^∞ e^{-x^2} dx",
+          "mode": "代数",
+          "operation": "定积分",
+          "description": "用 LaTeX 风格输入复杂积分"
+        },
+        {
+          "index": 2,
+          "label": "上下文感知 AI",
+          "expr": "",
+          "mode": "AI 助手",
+          "operation": "",
+          "description": "在工作区计算后打开 AI 助手，AI 会自动知道你在做什么"
+        }
+      ],
+      "faq": [
+        {
+          "q": "最常用的快捷键有哪些？",
+          "a": "F1 帮助、Enter 计算、Esc 关闭。工作区内的模式切换和操作选择用下拉菜单即可。"
+        },
+        {
+          "q": "表达式输入有什么限制？",
+          "a": "系统有三重守卫：WARN（警告但允许）、BLOCK（阻止极度复杂）、REJECT（拒绝数学错误）。"
+        },
+        {
+          "q": "计算太慢怎么办？",
+          "a": "复杂计算可尝试 AI 加速（配置 API Key 后无限制），或在数值分析模块使用近似方法。"
+        },
+        {
+          "q": "如何报告 Bug 或提出建议？",
+          "a": "欢迎提交 Issue 或 Pull Request 到项目仓库。"
+        }
+      ],
+      "source": "14-tips-and-tricks.yaml"
+    },
+    {
+      "id": "complex-analysis",
+      "title": "复分析 — 复数域上的微积分",
+      "difficulty": "intermediate",
+      "difficultyIcon": "🟡",
+      "difficultyLabel": "进阶",
+      "category": "calculation",
+      "categoryIcon": "🧮",
+      "categoryLabel": "计算模块",
+      "duration": "8 分钟",
+      "order": 15,
+      "summary": "探索复数域上的数学：从复数的基本运算到 Cauchy 积分定理、留数计算、 Laurent 级数展开，以及 Riemann ζ 函数的数值探索。",
+      "version": "0383d5b2",
+      "prerequisites": "[\"basic-calculation\"]",
+      "steps": [
+        {
+          "index": 1,
+          "target": "main_window.mode_selector",
+          "text": "<b>切换到复分析模式</b><br>在顶部工具栏的子模式下拉框中选择「复分析」。",
+          "highlight": "rect",
+          "placement": "bottom",
+          "actionType": "select",
+          "actionValue": "复分析"
+        },
+        {
+          "index": 2,
+          "target": "main_window.toolbar",
+          "text": "<b>输入复数表达式</b><br>在输入框中输入复数运算如 <code>3+4i</code>，选择「复数运算」点击计算。",
+          "highlight": "rect",
+          "placement": "bottom",
+          "actionType": null,
+          "actionValue": ""
+        },
+        {
+          "index": 3,
+          "target": "main_window.mode_selector",
+          "text": "<b>尝试 Cauchy 积分定理</b><br>输入积分表达式测试围道积分和留数定理。",
+          "highlight": "rect",
+          "placement": "bottom",
+          "actionType": null,
+          "actionValue": ""
+        }
+      ],
+      "examples": [
+        {
+          "index": 1,
+          "label": "复数基本运算",
+          "expr": "3+4i",
+          "mode": "复分析",
+          "operation": "复数运算",
+          "description": "计算复数的模长、辐角、共轭"
+        },
+        {
+          "index": 2,
+          "label": "Cauchy 积分",
+          "expr": "1/(z^2+1)",
+          "mode": "复分析",
+          "operation": "Cauchy积分",
+          "description": "沿围道积分 f(z)=1/(z²+1)"
+        },
+        {
+          "index": 3,
+          "label": "留数计算",
+          "expr": "1/(z^3-z)",
+          "mode": "复分析",
+          "operation": "留数",
+          "description": "计算有理函数的留数"
+        }
+      ],
+      "faq": [
+        {
+          "q": "什么是 Cauchy 积分定理？",
+          "a": "若 f(z) 在单连通区域 D 内全纯，则沿 D 内任意闭合曲线的积分为零。这是复分析中最重要的定理之一。"
+        },
+        {
+          "q": "留数定理如何工作？",
+          "a": "留数定理将围道积分转化为被积函数在奇点处的留数之和乘以 2πi。它极大地简化了复杂积分的计算。"
+        }
+      ],
+      "source": "15-complex-analysis.yaml"
+    },
+    {
+      "id": "functional-analysis",
+      "title": "泛函分析 — 无穷维空间的数学",
+      "difficulty": "advanced",
+      "difficultyIcon": "🟣",
+      "difficultyLabel": "高级",
+      "category": "calculation",
+      "categoryIcon": "🧮",
+      "categoryLabel": "计算模块",
+      "duration": "10 分钟",
+      "order": 16,
+      "summary": "泛函分析将线性代数和微积分推广到无穷维空间。学习 Banach 空间、 Hilbert 空间、线性算子、谱理论以及泛函分析的核心定理。",
+      "version": "17a7f1b3",
+      "prerequisites": "[\"linear-algebra\", \"real-analysis\"]",
+      "steps": [
+        {
+          "index": 1,
+          "target": "main_window.mode_selector",
+          "text": "<b>切换到泛函分析模式</b><br>在子模式下拉框中选择「泛函分析」。",
+          "highlight": "rect",
+          "placement": "bottom",
+          "actionType": "select",
+          "actionValue": "泛函分析"
+        },
+        {
+          "index": 2,
+          "target": "main_window.toolbar",
+          "text": "<b>计算 Lp 范数</b><br>输入一个函数表达式如 <code>x^2</code>，选择「Lp范数」并计算。",
+          "highlight": "rect",
+          "placement": "bottom",
+          "actionType": null,
+          "actionValue": ""
+        },
+        {
+          "index": 3,
+          "target": "main_window.mode_selector",
+          "text": "<b>探索更多高级主题</b><br>尝试 Hilbert 空间、算子范数、谱半径、Hahn-Banach 定理等。",
+          "highlight": "rect",
+          "placement": "bottom",
+          "actionType": null,
+          "actionValue": ""
+        }
+      ],
+      "examples": [
+        {
+          "index": 1,
+          "label": "L2 范数计算",
+          "expr": "x^2",
+          "mode": "泛函分析",
+          "operation": "Lp范数",
+          "description": "计算函数在 [0,1] 上的 L2 范数"
+        },
+        {
+          "index": 2,
+          "label": "Hilbert 空间判定",
+          "expr": "L2(0,1)",
+          "mode": "泛函分析",
+          "operation": "Hilbert空间",
+          "description": "判断给定的内积空间是否为 Hilbert 空间"
+        },
+        {
+          "index": 3,
+          "label": "算子范数",
+          "expr": "[[1,0],[0,2]]",
+          "mode": "泛函分析",
+          "operation": "算子范数",
+          "description": "计算线性算子的范数"
+        }
+      ],
+      "faq": [
+        {
+          "q": "Banach 空间和 Hilbert 空间的区别？",
+          "a": "Banach 空间是完备的赋范线性空间；Hilbert 空间还需要范数由内积诱导。每个 Hilbert 空间都是 Banach 空间，但反之不成立。"
+        },
+        {
+          "q": "Hahn-Banach 定理的意义？",
+          "a": "Hahn-Banach 定理保证我们可以将子空间上的有界线性泛函延拓到全空间，这是泛函分析的基石之一。"
+        }
+      ],
+      "source": "16-functional-analysis.yaml"
+    },
+    {
+      "id": "measure-theory",
+      "title": "测度论 — 长度、面积与积分的推广",
+      "difficulty": "advanced",
+      "difficultyIcon": "🟣",
+      "difficultyLabel": "高级",
+      "category": "calculation",
+      "categoryIcon": "🧮",
+      "categoryLabel": "计算模块",
+      "duration": "10 分钟",
+      "order": 17,
+      "summary": "测度论是现代概率论和积分理论的数学基础。学习 σ-代数、勒贝格测度、 可测函数、勒贝格积分、三大收敛定理以及 Fubini 定理。",
+      "version": "4ba5920f",
+      "prerequisites": "[\"real-analysis\"]",
+      "steps": [
+        {
+          "index": 1,
+          "target": "main_window.mode_selector",
+          "text": "<b>切换到测度论模式</b><br>在子模式下拉框中选择「测度论」。",
+          "highlight": "rect",
+          "placement": "bottom",
+          "actionType": "select",
+          "actionValue": "测度论"
+        },
+        {
+          "index": 2,
+          "target": "main_window.toolbar",
+          "text": "<b>计算勒贝格测度</b><br>输入一个集合如 <code>[0,1]</code>，选择「勒贝格测度」计算。",
+          "highlight": "rect",
+          "placement": "bottom",
+          "actionType": null,
+          "actionValue": ""
+        },
+        {
+          "index": 3,
+          "target": "main_window.mode_selector",
+          "text": "<b>探索勒贝格积分</b><br>尝试非负函数积分、一般积分、以及单调/控制收敛定理。",
+          "highlight": "rect",
+          "placement": "bottom",
+          "actionType": null,
+          "actionValue": ""
+        }
+      ],
+      "examples": [
+        {
+          "index": 1,
+          "label": "勒贝格测度",
+          "expr": "[0,1]",
+          "mode": "测度论",
+          "operation": "勒贝格测度",
+          "description": "计算区间 [0,1] 的勒贝格测度"
+        },
+        {
+          "index": 2,
+          "label": "非负函数积分",
+          "expr": "x^2",
+          "mode": "测度论",
+          "operation": "非负函数积分",
+          "description": "计算 x² 在 (0,1) 上的勒贝格积分"
+        },
+        {
+          "index": 3,
+          "label": "单调收敛定理",
+          "expr": "1-exp(-n*x)",
+          "mode": "测度论",
+          "operation": "单调收敛定理",
+          "description": "验证单调收敛定理"
+        }
+      ],
+      "faq": [
+        {
+          "q": "勒贝格积分与黎曼积分有什么区别？",
+          "a": "勒贝格积分按函数值划分定义域（纵切），而黎曼积分按定义域划分（横切）。勒贝格积分可以处理更多类型的函数，且有更好的极限定理。"
+        },
+        {
+          "q": "什么是 σ-代数？",
+          "a": "σ-代数是一个集合系，对可数并、可数交和补运算封闭。它是定义测度的基础结构。最常用的是 Borel σ-代数。"
+        }
+      ],
+      "source": "17-measure-theory.yaml"
+    },
+    {
+      "id": "algebraic-topology",
+      "title": "代数拓扑 — 用代数研究空间的形状",
+      "difficulty": "advanced",
+      "difficultyIcon": "🟣",
+      "difficultyLabel": "高级",
+      "category": "calculation",
+      "categoryIcon": "🧮",
+      "categoryLabel": "计算模块",
+      "duration": "10 分钟",
+      "order": 18,
+      "summary": "代数拓扑用代数工具（群、环）研究拓扑空间的\"洞\"和连通性。 学习基本群、同调群、贝蒂数、欧拉示性数、上同调以及持续同调。",
+      "version": "033482c7",
+      "prerequisites": "[\"linear-algebra\"]",
+      "steps": [
+        {
+          "index": 1,
+          "target": "main_window.mode_selector",
+          "text": "<b>切换到代数拓扑模式</b><br>在子模式下拉框中选择「代数拓扑」。",
+          "highlight": "rect",
+          "placement": "bottom",
+          "actionType": "select",
+          "actionValue": "代数拓扑"
+        },
+        {
+          "index": 2,
+          "target": "main_window.toolbar",
+          "text": "<b>计算基本群</b><br>输入空间名称如 <code>S1</code>（圆），选择「基本群」计算。",
+          "highlight": "rect",
+          "placement": "bottom",
+          "actionType": null,
+          "actionValue": ""
+        },
+        {
+          "index": 3,
+          "target": "main_window.mode_selector",
+          "text": "<b>探索更多拓扑不变量</b><br>尝试贝蒂数、欧拉示性数、同调群、持续同调等。",
+          "highlight": "rect",
+          "placement": "bottom",
+          "actionType": null,
+          "actionValue": ""
+        }
+      ],
+      "examples": [
+        {
+          "index": 1,
+          "label": "圆的基本群",
+          "expr": "S1",
+          "mode": "代数拓扑",
+          "operation": "基本群",
+          "description": "计算圆周 S¹ 的基本群 π₁(S¹) = Z"
+        },
+        {
+          "index": 2,
+          "label": "球面的贝蒂数",
+          "expr": "S2",
+          "mode": "代数拓扑",
+          "operation": "贝蒂数",
+          "description": "计算二维球面 S² 的贝蒂数"
+        },
+        {
+          "index": 3,
+          "label": "环面的欧拉示性数",
+          "expr": "T2",
+          "mode": "代数拓扑",
+          "operation": "欧拉示性数",
+          "description": "计算环面 T² 的欧拉示性数 χ(T²) = 0"
+        }
+      ],
+      "faq": [
+        {
+          "q": "什么是基本群？",
+          "a": "基本群 π₁(X) 是拓扑空间 X 上基于某点的所有闭路径的同伦等价类构成的群。它衡量空间的'一维洞'。圆的基本群是 Z。"
+        },
+        {
+          "q": "贝蒂数告诉我们什么？",
+          "a": "第 k 个贝蒂数 β_k 表示空间中 k 维洞的数量。β₀ 是连通分量数，β₁ 是环状洞数，β₂ 是空腔数。"
+        },
+        {
+          "q": "持续同调有什么用？",
+          "a": "持续同调是拓扑数据分析的核心工具。它通过多尺度过滤来分析点云数据的拓扑特征，广泛用于生物信息学、材料科学和机器学习。"
+        }
+      ],
+      "source": "18-algebraic-topology.yaml"
+    }
+  ]
+}

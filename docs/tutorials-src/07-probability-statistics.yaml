@@ -1,0 +1,52 @@
+# ── 概率统计 ────────────────────────────────────────────────
+id: probability-statistics
+title: "概率统计 — 分布、检验与回归"
+difficulty: intermediate
+category: calculation
+duration: "5 分钟"
+order: 7
+summary: >
+  学习使用概率统计功能：常见分布计算、假设检验、回归分析。
+
+steps:
+  - target: "main_window.mode_selector"
+    text: "切换计算模式为「概率统计」。"
+    highlight: rect
+    placement: right
+    action: select
+    action_value: "概率统计"
+
+  - target: "calc_block.action_dropdown"
+    text: "选择统计操作：正态分布、t 检验、卡方检验、线性回归等。"
+    highlight: rect
+    placement: right
+    action: wait
+
+  - target: "calc_block.input"
+    text: >
+      输入数据或参数。例如回归分析：<br>
+      <b>x=[1,2,3,4,5], y=[2,4,5,4,5]</b>
+    highlight: rect
+    placement: top
+    action: wait
+
+examples:
+  - label: "正态分布概率"
+    expr: "P(|X|<1.96)"
+    mode: "概率统计"
+    action: "正态分布"
+    description: "标准正态 P(|X|<1.96) ≈ 0.95"
+  - label: "线性回归"
+    expr: "x=[1,2,3,4,5], y=[2.1,3.9,6.2,8.1,9.8]"
+    mode: "概率统计"
+    action: "线性回归"
+  - label: "二项分布"
+    expr: "n=10, p=0.5, k=5"
+    mode: "概率统计"
+    action: "二项分布"
+
+faq:
+  - q: "支持哪些概率分布？"
+    a: "二项、泊松、正态、t、卡方、F、均匀、指数、Gamma、Beta 等。"
+  - q: "如何输入多组数据？"
+    a: "用逗号分隔：x=[1,2,3], y=[4,5,6]。"

@@ -4,8 +4,13 @@
  * 侧边栏导航 / 顶栏 / 内容区(router-view) / 状态栏
  */
 import { ref, computed, onMounted, onBeforeUnmount, watch } from "vue";
-import { useRoute } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 import { NAV_GROUPS, findNav } from "./router/registry.js";
+import TourOverlay from "./components/tutorial/TourOverlay.vue";
+import WelcomeDialog from "./components/tutorial/WelcomeDialog.vue";
+import MathKeypad from "./components/math/MathKeypad.vue";
+import { initTutorials, isFirstLaunch, markLaunched } from "./lib/tutorial/store.js";
+import { start as startTour } from "./lib/tutorial/tour.js";
 import {
   THEME_LIST, SHAPE_LIST, DENSITY_LIST, FONT_LIST,
   themeLabel, currentAppearance, applyAppearance, watchSystemTheme,
@@ -16,6 +21,30 @@ import {
 } from "./lib/bridge.js";
 
 const route = useRoute();
+const router = useRouter();
+
+/* ── 教程系统：首次启动欢迎窗 + 引导遮罩（TourOverlay 常驻挂载，自己判断是否显示）── */
+initTutorials();
+const showWelcome = ref(false);
+
+/** 从欢迎窗/教程页启动引导：关掉欢迎窗并回到首页，让遮罩有界面可高亮 */
+function onStartTour() {
+  showWelcome.value = false;
+  if (startTour("quick-start")) router.replace("/");
+}
+function openTutorial() { router.replace("/tutorial"); }
+
+/* ── 数学键盘面板 ──
+ * v1 是"左下角按钮切换、默认隐藏"，且**基础运算页整页隐藏键盘入口**
+ * （那一页自带计算器键盘）。这两条都保留：显隐记忆到 localStorage，
+ * 基础运算路由下不显示（避免两套键盘叠在一起）。 */
+const keypadVisible = ref(false);
+const KEYPAD_HEIGHT = 236;
+const keypadAllowed = computed(() => route.path !== "/calc/basic");
+function toggleKeypad() {
+  keypadVisible.value = !keypadVisible.value;
+  try { localStorage.setItem("mf_kb_visible", keypadVisible.value ? "1" : "0"); } catch { /* 忽略 */ }
+}
 
 /* ── 侧边栏收放（localStorage 记忆）── */
 const sidebarCollapsed = ref(false);
@@ -133,7 +162,14 @@ onMounted(() => {
     for (const g of NAV_GROUPS) {
       if (localStorage.getItem("mf_nav_" + g.id) === "1") groupCollapsed.value[g.id] = true;
     }
+    keypadVisible.value = localStorage.getItem("mf_kb_visible") === "1";
   } catch { /* 忽略 */ }
+
+  // 首次启动的欢迎窗：v1 的语义是"弹过一次就永久置真"（点跳过也算），保持一致。
+  // markLaunched() 在 v1 里是 if 之外无条件调用的，所以 launch_count 才会一直涨；
+  // 这里同样无条件记一次，便于将来做"新版本再弹一次"。
+  if (isFirstLaunch.value) showWelcome.value = true;
+  markLaunched();
 
   if (hosted.value) {
     statusText.value = "引擎已连接（WebView2 桥）";
@@ -169,12 +205,15 @@ function settings() { alert("设置（待实现）"); }
                 @click="toggleSidebar">{{ sidebarCollapsed ? "»" : "«" }}</button>
       </div>
 
-      <nav id="nav">
+      <nav id="nav" data-tour="main_window.toolbar">
         <template v-for="g in NAV_GROUPS" :key="g.id">
-          <p class="nav-group" :class="{ collapsed: groupCollapsed[g.id] }" @click="toggleGroup(g.id)">
+          <p class="nav-group" :class="{ collapsed: groupCollapsed[g.id] }" @click="toggleGroup(g.id)"
+             :data-tour="g.id === 'calc' ? 'toolbar.calc_button' : (g.id === 'plot' ? 'toolbar.plot_button' : undefined)">
             {{ g.title }} <span class="nav-arrow">▾</span>
           </p>
-          <ul class="mode-list" :class="{ collapsed: groupCollapsed[g.id] }">
+          <!-- 计算模式列表 = 旧版教程里说的「这里切换子模式」，故沿用 main_window.mode_selector -->
+          <ul class="mode-list" :class="{ collapsed: groupCollapsed[g.id] }"
+              :data-tour="g.id === 'calc' ? 'main_window.mode_selector' : undefined">
             <li v-for="it in g.items" :key="it.route"
                 :class="{ active: current && current.item.route === it.route }"
                 @click="$router.push(it.route)">{{ it.name }}</li>
@@ -185,7 +224,7 @@ function settings() { alert("设置（待实现）"); }
       <div class="sidebar-footer appearance-anchor">
         <!-- 外观选择器：点开弹层挑，而不是点一下循环到下一套。
              title 保留「切换主题」四个字：既有的 cdp-window-shell 套件按它定位按钮。 -->
-        <button class="nav-btn" title="切换主题" data-icon="◐"
+        <button class="nav-btn" title="切换主题" data-icon="◐" data-tour="main_window.theme_toggle"
                 :aria-expanded="showAppearance" @click="showAppearance = !showAppearance">
           <span>◐ 外观 · {{ themeLabel(appearance.theme) }}</span>
         </button>
@@ -244,7 +283,7 @@ function settings() { alert("设置（待实现）"); }
           <p class="ap-hint">公式与代码始终等宽，不受界面字体影响。</p>
         </div>
 
-        <button class="nav-btn" title="设置" data-icon="⚙" @click="settings">
+        <button class="nav-btn" title="设置" data-icon="⚙" data-tour="toolbar.settings_button" @click="settings">
           <span>⚙ 设置</span>
         </button>
       </div>
@@ -259,8 +298,13 @@ function settings() { alert("设置（待实现）"); }
           <span id="modeDesc">{{ modeDesc }}</span>
         </div>
         <div class="topbar-actions">
-          <button class="btn btn-ghost">搜索</button>
+          <button class="btn btn-ghost" data-tour="toolbar.search_button">搜索</button>
           <button class="btn btn-ghost">历史</button>
+          <button class="btn btn-ghost" data-tour="main_window.keyboard_button"
+                  :title="keypadVisible ? '收起数学键盘' : '打开数学键盘'"
+                  @click="toggleKeypad">{{ keypadVisible ? "▼ 收起" : "⌨ 键盘" }}</button>
+          <button class="btn btn-ghost" data-tour="main_window.help_button" title="使用教程"
+                  @click="openTutorial">帮助</button>
           <button class="btn btn-ghost" @click="about">关于</button>
           <!-- 窗口控制：只有桌面壳里才可用；浏览器里不显示（点了也没意义） -->
           <span v-if="canControlWindow" class="win-controls">
@@ -278,11 +322,19 @@ function settings() { alert("设置（待实现）"); }
         <router-view />
       </div>
 
+      <!-- 数学键盘面板：默认隐藏，由顶栏「⌨ 键盘」切换；基础运算页不显示 -->
+      <MathKeypad v-if="keypadVisible && keypadAllowed" class="keypad-host"
+                  :style="{ height: KEYPAD_HEIGHT + 'px' }" />
+
       <footer id="statusbar">
         <span id="statusText">{{ statusText }}</span>
         <span>{{ engineBadge }}</span>
       </footer>
     </main>
+
+    <!-- 首次启动欢迎窗 + 引导遮罩 -->
+    <WelcomeDialog v-if="showWelcome" @close="showWelcome = false" @start-tour="onStartTour" />
+    <TourOverlay />
   </div>
 </template>
 
@@ -300,6 +352,16 @@ function settings() { alert("设置（待实现）"); }
   flex: 1;
   overflow: auto;
   background: var(--bg);
+}
+
+/* 数学键盘面板：#main 是 overflow:hidden 的纵向 flex，所以这里 flex:none 定高，
+   内部自己滚动（.kp-body 有 overflow:auto）。 */
+.keypad-host {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
 }
 
 /* 顶栏是标题栏：拖动手感交给系统（StartDrag 走 WM_NCLBUTTONDOWN），

@@ -15,6 +15,7 @@ import { getViewConfig } from "../../lib/engine/viewConfigs.js";
 import { ENGINE_MAP, ENGINE_VAR_SPECS } from "../../lib/engine/engineMap.js";
 import { buildEngineArgs, buildEngineArgsFromValues, toEngineExpr, hasEngineMode, needsVarDialog } from "../../lib/engine/calcArgs.js";
 import { engineCall, isHosted, bridgeVersion } from "../../lib/bridge.js";
+import { takePending, pickMode } from "../../lib/workspace/pendingInput.js";
 
 const route = useRoute();
 const hosted = isHosted();
@@ -38,7 +39,25 @@ watch(config, () => {
   blocks.value = [makeBlock()];
   statusText.value = `${config.value.title} · ${modes.value.length} 个模式` +
     (hosted ? ` · ${bridgeVersion()}` : " · 浏览器预览（无引擎）");
+  // 示例库 / 教程正文送来的表达式（跨路由携带）。取一次即清空，避免下次进来被
+  // 旧示例反复覆盖。v1 在这里只做 setText 且 mode 匹配不到就静默忽略，这里明说。
+  const pending = takePending();
+  if (pending) applyPending(pending);
 }, { immediate: true });
+
+/** 把送来的表达式与操作填进第一个计算块 */
+function applyPending(p) {
+  const b = blocks.value[0];
+  if (!b) return;
+  if (p.expr) b.expr = p.expr;
+  const wanted = pickMode(p.operation, modes.value);
+  if (p.operation && !wanted) {
+    statusText.value = `已填入表达式，但示例要的操作「${p.operation}」在本页模式列表里没有对应项，请手动选择`;
+  } else {
+    if (wanted) b.mode = wanted;
+    statusText.value = `已加载示例：${p.label || p.expr}`;
+  }
+}
 
 function addBlock() {
   if (single.value) return;
@@ -177,10 +196,11 @@ const varDialogCount = computed(() => modes.value.filter((m) => needsVarDialog(m
               <MathField
                 v-model="b.expr"
                 class="cb-input"
+                data-tour="calc_block.input"
                 placeholder="输入表达式，如 x^2+3*x-1"
                 @enter="calc(b)"
               />
-              <select v-model="b.mode" class="select cb-mode">
+              <select v-model="b.mode" class="select cb-mode" data-tour="calc_block.action_dropdown">
                 <option
                   v-for="m in modes"
                   :key="m"
@@ -189,7 +209,8 @@ const varDialogCount = computed(() => modes.value.filter((m) => needsVarDialog(m
                   :data-var-dialog="needsVarDialog(m)"
                 >{{ m }}{{ hasEngineMode(m) ? "" : "（未接入引擎）" }}</option>
               </select>
-              <button class="btn btn-primary cb-calc" :disabled="b.computing" @click="calc(b)">
+              <button class="btn btn-primary cb-calc" data-tour="calc_block.calc_button"
+                      :disabled="b.computing" @click="calc(b)">
                 {{ b.computing ? "计算中…" : "计算结果" }}
               </button>
               <button

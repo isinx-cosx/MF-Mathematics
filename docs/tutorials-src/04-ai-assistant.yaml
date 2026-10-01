@@ -1,0 +1,70 @@
+# ── AI 数学助手 ──────────────────────────────────────────────
+id: ai-assistant
+title: "AI 数学助手 — 你的私人数学导师"
+difficulty: beginner
+category: ai
+duration: "4 分钟"
+order: 4
+summary: >
+  学习使用 AI 助手进行数学问答：流式对话、LaTeX 公式渲染、
+  上下文感知，以及如何配置 API Key。
+
+steps:
+  - target: "toolbar.ai_button"
+    text: "点击工具栏的「AI」按钮，打开 AI 数学助手对话框。"
+    highlight: circle
+    placement: bottom
+    action: click
+
+  - target: "ai_dialog.input"
+    text: >
+      在输入框中输入你的数学问题。<br>
+      试试：<b>请帮我解释什么是导数？</b><br>
+      AI 会用中文回答，公式会用 LaTeX 渲染为漂亮图片。
+    highlight: rect
+    placement: top
+    action: type
+    action_value: "请帮我解释什么是导数？"
+
+  - target: "ai_dialog.send_button"
+    text: "点击发送或按 Enter，AI 会流式输出回复。"
+    highlight: circle
+    placement: left
+    action: click
+
+  - target: "ai_dialog.context_label"
+    text: >
+      当你从计算工作区打开 AI 助手时，AI 会自动感知：<br>
+      • 当前表达式<br>
+      • 当前计算模式<br>
+      你不需要重复描述问题！
+    highlight: rect
+    placement: bottom
+    action: wait
+
+  - target: "main_window.ai_settings"
+    text: >
+      使用 AI 功能需要配置 API Key。<br>
+      去「设置 → AI 配置」中添加你的 Key。<br>
+      支持 DeepSeek、OpenAI、本地 Ollama。
+    highlight: rect
+    placement: left
+    action: wait
+
+examples:
+  - label: "解释数学概念"
+    expr: "什么是泰勒展开？请用简单易懂的方式解释。"
+    mode: "AI 助手"
+    description: "让 AI 解释概念"
+  - label: "辅助解题"
+    expr: "请帮我解这个方程：x^3 - 3x + 1 = 0"
+    mode: "AI 助手"
+    description: "AI 辅助解方程"
+
+faq:
+  - q: "AI 功能需要付费吗？"
+    a: "AI 功能需要你自己的 API Key（如 DeepSeek）。软件本身不收费，API 费用由对应服务商收取。"
+  - q: "如何配置 API Key？"
+    a: "去设置 → AI 配置，填入 API Key 和 Base URL。支持 DeepSeek、OpenAI、Ollama。"
+  - q: "可以使用本地模型吗？"
+    a: "可以！安装 Ollama 后，在设置中启用本地模型即可离线使用。"

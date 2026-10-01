@@ -1,0 +1,57 @@
+# ── 线性代数计算 ────────────────────────────────────────────
+id: linear-algebra
+title: "线性代数 — 矩阵与向量运算"
+difficulty: intermediate
+category: calculation
+duration: "5 分钟"
+order: 6
+summary: >
+  学习进行矩阵运算、特征值计算、线性方程组求解等线性代数操作。
+
+steps:
+  - target: "main_window.mode_selector"
+    text: "切换计算模式为「线性代数」。"
+    highlight: rect
+    placement: right
+    action: select
+    action_value: "线性代数"
+
+  - target: "calc_block.input"
+    text: >
+      输入矩阵。格式示例：<br>
+      <b>[[1,2,3],[4,5,6],[7,8,9]]</b><br>
+      或向量：<b>[1,2,3]</b>
+    highlight: rect
+    placement: top
+    action: type
+    action_value: "[[1,2,3],[4,5,6],[7,8,9]]"
+
+  - target: "calc_block.action_dropdown"
+    text: "选择操作：行列式、特征值、逆矩阵、秩、高斯消元等。"
+    highlight: rect
+    placement: right
+    action: wait
+
+examples:
+  - label: "计算行列式"
+    expr: "[[1,2],[3,4]]"
+    mode: "线性代数"
+    action: "行列式"
+  - label: "求特征值"
+    expr: "[[1,2],[2,1]]"
+    mode: "线性代数"
+    action: "特征值"
+  - label: "矩阵求逆"
+    expr: "[[1,2],[3,4]]"
+    mode: "线性代数"
+    action: "逆矩阵"
+  - label: "解线性方程组"
+    expr: "x+y=3, 2x-y=0"
+    mode: "线性代数"
+    action: "解线性方程组"
+
+faq:
+  - q: "如何输入矩阵？"
+    a: "使用嵌套列表格式：[[1,2],[3,4]] 表示 2×2 矩阵。向量用 [1,2,3]。"
+  - q: "支持复数矩阵吗？"
+    a: "支持。用 I 表示虚数单位，如 [[1+I, 2], [3, 4-I]]。"

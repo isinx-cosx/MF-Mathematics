@@ -1,0 +1,46 @@
+id: "complex-analysis"
+title: "复分析 — 复数域上的微积分"
+difficulty: intermediate
+category: calculation
+duration: "8 分钟"
+order: 15
+summary: >
+  探索复数域上的数学：从复数的基本运算到 Cauchy 积分定理、留数计算、
+  Laurent 级数展开，以及 Riemann ζ 函数的数值探索。
+steps:
+  - target: "main_window.mode_selector"
+    text: "<b>切换到复分析模式</b><br>在顶部工具栏的子模式下拉框中选择「复分析」。"
+    highlight: rect
+    placement: bottom
+    action: select
+    action_value: "复分析"
+  - target: "main_window.toolbar"
+    text: "<b>输入复数表达式</b><br>在输入框中输入复数运算如 <code>3+4i</code>，选择「复数运算」点击计算。"
+    highlight: rect
+    placement: bottom
+  - target: "main_window.mode_selector"
+    text: "<b>尝试 Cauchy 积分定理</b><br>输入积分表达式测试围道积分和留数定理。"
+    highlight: rect
+    placement: bottom
+examples:
+  - label: "复数基本运算"
+    expr: "3+4i"
+    mode: "复分析"
+    action: "复数运算"
+    description: "计算复数的模长、辐角、共轭"
+  - label: "Cauchy 积分"
+    expr: "1/(z^2+1)"
+    mode: "复分析"
+    action: "Cauchy积分"
+    description: "沿围道积分 f(z)=1/(z²+1)"
+  - label: "留数计算"
+    expr: "1/(z^3-z)"
+    mode: "复分析"
+    action: "留数"
+    description: "计算有理函数的留数"
+faq:
+  - q: "什么是 Cauchy 积分定理？"
+    a: "若 f(z) 在单连通区域 D 内全纯，则沿 D 内任意闭合曲线的积分为零。这是复分析中最重要的定理之一。"
+  - q: "留数定理如何工作？"
+    a: "留数定理将围道积分转化为被积函数在奇点处的留数之和乘以 2πi。它极大地简化了复杂积分的计算。"
+prerequisites: ["basic-calculation"]

@@ -1,0 +1,84 @@
+# ── 2D 绘图入门 ──────────────────────────────────────────────
+id: plot-2d
+title: "2D 绘图 — 画出你的第一个函数"
+difficulty: beginner
+category: plot
+duration: "5 分钟"
+order: 3
+summary: >
+  学习如何绘制函数图像：添加函数、设置范围、调整视图、
+  使用滑块探索参数变化。
+
+steps:
+  - target: "toolbar.plot_button"
+    text: "点击工具栏的「绘图」按钮，进入绘图模式。"
+    highlight: circle
+    placement: bottom
+    action: click
+
+  - target: "main_window.mode_selector"
+    text: "在下拉菜单中选择「2D 绘图」（通常为默认选项）。"
+    highlight: rect
+    placement: right
+    action: select
+    action_value: "2D 绘图"
+
+  - target: "plot_workspace.add_function"
+    text: >
+      点击「添加函数」按钮，输入你想画的函数。<br>
+      试试：<b>sin(x)</b><br>
+      也可以添加多个函数进行对比。
+    highlight: rect
+    placement: right
+    action: click
+
+  - target: "plot_workspace.function_input"
+    text: "输入函数表达式。支持各种常见函数：sin, cos, tan, log, exp 等。"
+    highlight: rect
+    placement: top
+    action: type
+    action_value: "sin(x)"
+
+  - target: "plot_workspace.sliders"
+    text: >
+      如果有参数（如 a*sin(x) 中的 a），这里会出现滑块。<br>
+      拖动滑块实时观察图像变化，非常直观！
+    highlight: rect
+    placement: top
+    action: wait
+
+  - target: "plot_canvas"
+    text: >
+      画布支持：<br>
+      • 滚轮缩放<br>
+      • 拖拽平移<br>
+      • 右键重置视图
+    highlight: rect
+    placement: bottom
+    action: wait
+
+examples:
+  - label: "正弦函数"
+    expr: "sin(x)"
+    mode: "2D 绘图"
+    description: "经典的三角函数图像"
+  - label: "参数探索"
+    expr: "a*sin(b*x)"
+    mode: "2D 绘图"
+    description: "拖动 a 和 b 滑块观察变化"
+  - label: "多项式"
+    expr: "x^3 - 3*x"
+    mode: "2D 绘图"
+    description: "三次函数，有趣的拐点"
+  - label: "隐函数：圆"
+    expr: "x^2 + y^2 = 25"
+    mode: "2D 绘图"
+    description: "隐函数绘图：x² + y² = 25"
+
+faq:
+  - q: "如何同时画多个函数？"
+    a: "多次点击「添加函数」即可添加多条曲线，每条用不同颜色区分。"
+  - q: "图像显示不完整怎么办？"
+    a: "使用滚轮缩放或拖拽平移调整视图。也可以在侧边栏手动设置 X/Y 轴范围。"
+  - q: "支持隐函数吗？"
+    a: "支持！输入 x^2+y^2=25 这样的等式，会自动识别为隐函数并绘制。"

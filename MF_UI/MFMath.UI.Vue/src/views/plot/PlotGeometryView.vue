@@ -203,6 +203,7 @@ function shapeSummary(s) {
     <div class="geo-main">
       <GeometryCanvas
         ref="canvasRef"
+        data-tour="geometry_canvas"
         :shapes="shapes"
         :tool="tool"
         :selected-id="selectedId"

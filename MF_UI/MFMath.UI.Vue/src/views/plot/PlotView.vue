@@ -716,6 +716,7 @@ onMounted(() => {
     <div class="desmos-main">
       <PlotCanvas
         ref="canvasRef"
+        data-tour="plot_canvas"
         v-model="view"
         :curves="curves"
         :params="params"

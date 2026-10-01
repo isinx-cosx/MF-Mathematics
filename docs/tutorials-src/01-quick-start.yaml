@@ -1,0 +1,66 @@
+# ── 快速入门：软件概述 ────────────────────────────────────────
+id: quick-start
+title: "快速入门 — 认识 MF-Mathematics"
+difficulty: beginner
+category: general
+duration: "3 分钟"
+order: 1
+summary: >
+  了解 MF-Mathematics 的整体布局和核心功能：计算、绘图、AI 助手三大模块，
+  快速上手完成你的第一次计算。
+
+steps:
+  - target: "main_window.toolbar"
+    text: >
+      这是主工具栏，所有功能从这里开始。<br>
+      <b>计算</b> — 数学计算与步骤推导<br>
+      <b>绘图</b> — 2D/3D/复数/向量场/几何做图<br>
+      <b>AI</b> — AI 数学助手对话<br>
+      <b>搜索</b> — 联网搜索数学知识<br>
+      <b>设置</b> — 配置 AI 和软件偏好
+    highlight: rect
+    placement: bottom
+    action: wait
+
+  - target: "main_window.mode_selector"
+    text: >
+      在计算模式下，这里切换子模式：<br>
+      <b>代数</b> — 化简、展开、因式分解、求导、积分等<br>
+      <b>线性代数</b> — 矩阵运算、特征值、线性方程组<br>
+      <b>概率统计</b> — 分布、假设检验、回归分析<br>
+      <b>数值分析</b> — 插值、数值积分、ODE 求解
+    highlight: rect
+    placement: right
+    action: wait
+
+  - target: "main_window.theme_toggle"
+    text: "点击这里可以切换亮色/暗色主题，选择你喜欢的界面风格。"
+    highlight: circle
+    placement: left
+    action: wait
+
+  - target: "main_window.help_button"
+    text: >
+      任何时候按 <b>F1</b> 或点击这里打开帮助文档。<br>
+      内置教程、示例任务和常见问题都在这里！
+    highlight: circle
+    placement: bottom
+    action: wait
+
+examples:
+  - label: "第一次计算：化简多项式"
+    expr: "x^2 + 2x + 1"
+    mode: "代数"
+    action: "化简"
+    description: "体验基本的代数化简功能"
+  - label: "绘制一个函数图像"
+    expr: "sin(x)"
+    mode: "2D 绘图"
+    action: ""
+    description: "切换到绘图模式，画出 sin(x) 曲线"
+
+faq:
+  - q: "MF-Mathematics 是免费的吗？"
+    a: "是的，完全免费。AI 功能需配置 API Key（支持 DeepSeek、OpenAI、Ollama）。"
+  - q: "软件需要联网吗？"
+    a: "基础计算和绘图完全离线可用。AI 功能和联网搜索需要网络连接。"

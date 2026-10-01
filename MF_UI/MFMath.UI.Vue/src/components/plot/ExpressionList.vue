@@ -144,9 +144,12 @@ defineExpose({ focusRow });
       </div>
 
       <!-- 表达式输入：MathLive 就地排版 -->
+      <!-- data-tour 只标在第一行：教程里"函数输入框"指的是用户要输入的那一格，
+           多行都标会让 querySelector 命中不确定。 -->
       <MathField
         :ref="(el) => setFieldRef(row.id, el)"
         :model-value="row.text"
+        :data-tour="i === 0 ? 'plot_workspace.function_input' : undefined"
         placeholder="输入表达式，如 y=x^2 或 cosx"
         @update:model-value="(v) => update(row.id, { text: v })"
         @change="emit('change')"
@@ -167,7 +170,7 @@ defineExpose({ focusRow });
       <div v-if="row.error" class="expr-error">{{ row.error }}</div>
     </div>
 
-    <button class="add-row" @click="emit('add', local.length - 1)">＋ 添加表达式</button>
+    <button class="add-row" data-tour="plot_workspace.add_function" @click="emit('add', local.length - 1)">＋ 添加表达式</button>
   </div>
 </template>
 

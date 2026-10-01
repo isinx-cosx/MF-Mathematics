@@ -94,7 +94,7 @@ onBeforeUnmount(stopAnim);
 </script>
 
 <template>
-  <div class="param-block">
+  <div class="param-block" data-tour="plot_workspace.sliders">
     <div class="param-row">
       <span class="param-name">{{ name }}</span>
       <input
