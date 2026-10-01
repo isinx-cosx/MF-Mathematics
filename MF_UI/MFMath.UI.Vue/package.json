@@ -10,7 +10,7 @@
     "build:raw": "vite build",
     "preview": "vite preview",
     "tutorials": "node tools/build-tutorials.mjs",
-    "check:ui": "node tools/build-tutorials.mjs && node tools/check-ui.mjs"
+    "check:ui": "node tools/build-tutorials.mjs && node tools/check-ui.mjs && node tools/check-examples.mjs"
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6.20.3",

@@ -193,6 +193,50 @@ const afterFinish = await evalJs(`(() => { try { return JSON.parse(localStorage.
 check("走到最后一步才标记为已学", Object.keys(afterFinish || {}).includes("quick-start"),
   JSON.stringify(Object.keys(afterFinish || {})));
 
+console.log("=== 示例库跳转（回归：曾经显示积分、跳到解方程）===");
+
+await goto("/examples");
+check("示例库可打开", await waitTrue(`!!document.querySelector('.ex-card')`));
+
+// 「不定积分」示例：expr=x*sin(x)，v1 数据里 mode="代数"、action="不定积分"。
+// 旧实现按 mode（分类）跳到代数页，代数页没有「不定积分」→ 模式停在默认值
+// 「解方程/组」→ 点计算跑成 solve_sym，报"方程含超越函数（x*sin(x)）」。
+const clickedIntegral = await evalJs(`(() => {
+  const cards = [...document.querySelectorAll('.ex-card')];
+  const card = cards.find(c => ((c.querySelector('.ex-label') || {}).textContent || '').trim() === '不定积分');
+  if (!card) return 'not-found';
+  const btn = [...card.querySelectorAll('button')].find(b => b.textContent.includes('加载到工作区'));
+  if (!btn) return 'no-button';
+  btn.click();
+  return 'clicked';
+})()`);
+check("找到「不定积分」示例并点加载", clickedIntegral === "clicked", String(clickedIntegral));
+await sleep(900);
+const hash = await evalJs(`location.hash`);
+check("跳到微积分页而不是代数页", String(hash).includes("/calc/calculus"), String(hash));
+const pickedMode = await evalJs(`(document.querySelector('select.cb-mode') || {}).value || ''`);
+check("选中的模式是不定积分（不是解方程/组）", String(pickedMode).trim() === "不定积分", String(pickedMode));
+const exprInBox = await evalJs(`(() => { const f = document.querySelector('math-field.cb-input'); return f ? String(f.value) : ''; })()`);
+check("表达式已填入输入框", String(exprInBox).includes("sin"), String(exprInBox).slice(0, 30));
+
+// 真算一次：不定积分有参数弹窗，确认后应得到 -x*cos(x)+sin(x)+C，而不是任何报错
+await evalJs(`(() => { const b = document.querySelector('.cb-calc'); if (b) b.click(); return true; })()`);
+await sleep(700);
+await evalJs(`(() => {
+  for (const b of document.querySelectorAll('button')) {
+    if ((b.textContent || '').trim() === '计算') { b.click(); return true; }
+  }
+  return false;
+})()`);
+await sleep(1200);
+const blockErr = await evalJs(`(document.querySelector('.cb-error') || {}).textContent || ''`);
+const errText = String(blockErr);
+check("计算没有报错（尤其不再报超越函数拦截）",
+  !errText.includes("超越") && !errText.includes("请输入"), errText.trim().slice(0, 60) || "（无错误）");
+const dlgText = await evalJs(`(() => { const d = document.querySelector('.dialog, [class*=dialog]'); return d ? d.textContent.replace(/\\s+/g, ' ').slice(0, 200) : ''; })()`);
+check("结果是含 cos 与 sin 的原函数（积分真的算出来了）",
+  /cos/.test(String(dlgText)) && /sin/.test(String(dlgText)), String(dlgText).slice(0, 90));
+
 console.log("=== 数学键盘 ===");
 
 await goto("/calc/algebra");

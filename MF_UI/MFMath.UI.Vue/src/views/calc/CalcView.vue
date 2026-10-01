@@ -32,7 +32,9 @@ const blocks = ref([]);
 const statusText = ref("");
 
 function makeBlock() {
-  return { id: nextId++, expr: "", mode: modes.value[0] || "", error: "", computing: false, lastResult: null };
+  // blocked：示例带来的操作没能在本页匹配上时的拦截原因。非空则**不允许计算** ——
+  // 否则会带着该页默认模式（第一个模式）去算，算出来用户看不懂，还会误判成"功能出错"。
+  return { id: nextId++, expr: "", mode: modes.value[0] || "", error: "", computing: false, lastResult: null, blocked: "" };
 }
 
 watch(config, () => {
@@ -50,13 +52,22 @@ function applyPending(p) {
   const b = blocks.value[0];
   if (!b) return;
   if (p.expr) b.expr = p.expr;
-  const wanted = pickMode(p.operation, modes.value);
+  // 优先用调用方已解析好的目标模式（示例库会先反查"这个操作属于哪个页面"，
+  // 见 lib/workspace/pendingInput.js 的 resolveExample）。
+  const wanted = (p.mode && modes.value.includes(p.mode)) ? p.mode : pickMode(p.operation, modes.value);
   if (p.operation && !wanted) {
-    statusText.value = `已填入表达式，但示例要的操作「${p.operation}」在本页模式列表里没有对应项，请手动选择`;
-  } else {
-    if (wanted) b.mode = wanted;
-    statusText.value = `已加载示例：${p.label || p.expr}`;
+    // 关键修复：早先这里只改状态栏文字，模式仍留在默认值上，用户一点「计算」
+    // 就用错了动作（积分示例因此跑成 solve_sym，报"方程含超越函数"）。
+    // 现在把该块**拦住**，并说明要用户先选操作。
+    const msg = `示例要的操作「${p.operation}」在本页没有对应模式。表达式已填入，请先手动选择操作再计算。`;
+    patchBlock(b.id, { blocked: msg, error: msg });
+    statusText.value = msg;
+    return;
   }
+  if (wanted) {
+    patchBlock(b.id, { mode: wanted, blocked: "", error: "" });
+  }
+  statusText.value = `已加载示例：${p.label || p.expr}`;
 }
 
 function addBlock() {
@@ -100,6 +111,8 @@ function modeNeedsInput(mode) {
 function calc(block) {
   const expr = String(block.expr || "").trim();
   const mode = block.mode;
+  // 被示例拦住的块：先让用户选对操作，不要用默认模式算出一个不相干的结果
+  if (block.blocked) { patchBlock(block.id, { error: block.blocked }); return; }
   if (!expr && modeNeedsInput(mode)) { patchBlock(block.id, { error: "请输入表达式" }); return; }
   patchBlock(block.id, { error: "", computing: true });
 
@@ -200,7 +213,8 @@ const varDialogCount = computed(() => modes.value.filter((m) => needsVarDialog(m
                 placeholder="输入表达式，如 x^2+3*x-1"
                 @enter="calc(b)"
               />
-              <select v-model="b.mode" class="select cb-mode" data-tour="calc_block.action_dropdown">
+              <select v-model="b.mode" class="select cb-mode" data-tour="calc_block.action_dropdown"
+                      @change="patchBlock(b.id, { blocked: '', error: '' })">
                 <option
                   v-for="m in modes"
                   :key="m"

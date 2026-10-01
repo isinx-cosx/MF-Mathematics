@@ -43,6 +43,8 @@ const MODE_ROUTES = [
   ["代数", "/calc/algebra"],
   ["极坐标", "/plot/polar"],
   ["复平面", "/plot/complex"],
+  // 教程里绘图示例写的是"复数着色"（旧版说法），落到复平面页
+  ["复数着色", "/plot/complex"],
   ["向量场", "/plot/vector"],
   ["任意做图", "/plot/geometry"],
   ["几何", "/plot/geometry"],
@@ -76,13 +78,98 @@ export function routeForMode(mode) {
 }
 
 /**
+ * 操作名 → 真实模式名 的别名表。
+ *
+ * 教程数据（来自 v1）用的是**旧版界面**的操作名，与 v2.0 页面里的模式名有出入。
+ * 不建这张表就会出现"示例说要去算积分、结果跳到解方程"这类错位——
+ * 实测的错配正是下面这三条（另加已补进代数页的「因式分解」）。
+ */
+export const ALIASES = {
+  "解线性方程组": "求解方程组",
+  "辛普森积分": "辛普森法则",
+  "ODE 求解": "ODE数值解",
+  "ODE求解": "ODE数值解",
+  "常微分方程": "ODE数值解",
+  // 旧版把"化简"当作模式名，v2.0 代数页里叫"表达式化简"
+  "化简": "表达式化简",
+};
+
+/**
+ * 全局模式索引：模式名 → 所在页面路由。
+ *
+ * 为什么必须有它：教程示例里的 `mode` 字段是**计算分类**（"代数"、"数值分析"），
+ * 而 `action` 才是具体操作（"不定积分"、"辛普森积分"）。原实现只按分类决定页面，
+ * 于是「不定积分」被送到代数页；代数页没有这个模式 → 匹配失败 →
+ * 模式停留在该页默认值（恰好是「解方程/组」）→ 用户点计算，
+ * 引擎收到的是 solve_sym 而不是 integrate，报出"方程含超越函数"。
+ * 正确做法：**先用操作名反查它属于哪个页面**，分类只作兜底。
+ */
+let modeHomeIndex = null;
+let modeHomeLoading = null;
+
+/** 查某操作名所属的页面路由；索引未就绪时返回 null（调用方先 await ensureModeIndex()） */
+export function modeHome(operation) {
+  if (!operation) return null;
+  const name = ALIASES[operation] || operation;
+  if (!modeHomeIndex) return null;
+  return modeHomeIndex.get(name) || null;
+}
+
+/** 构建模式索引（动态 import 只为避开 pendingInput ↔ viewConfigs 的循环依赖） */
+export async function ensureModeIndex() {
+  if (modeHomeIndex) return modeHomeIndex;
+  if (modeHomeLoading) return modeHomeLoading;
+  modeHomeLoading = (async () => {
+    const { getViewConfig } = await import("../engine/viewConfigs.js");
+    const CALC_ROUTES = [
+      "algebra", "calculus", "analytic-geometry", "sequences", "linear-algebra", "probability",
+      "numerical", "number-theory", "real-analysis", "functional-analysis", "complex-analysis",
+      "algebraic-topology", "measure-theory",
+    ];
+    const idx = new Map();
+    for (const k of CALC_ROUTES) {
+      const cfg = getViewConfig(k) || { modes: [] };
+      for (const m of cfg.modes || []) if (!idx.has(m)) idx.set(m, `/calc/${k}`);
+    }
+    modeHomeIndex = idx;
+    return idx;
+  })();
+  return modeHomeLoading;
+}
+
+/** 供工具/测试注入索引 */
+export function __setModeIndex(map) {
+  modeHomeIndex = map instanceof Map ? map : new Map(Object.entries(map || {}));
+}
+
+/**
+ * 把一个示例解析成"跳哪、选哪个模式"。
+ * @returns {{ok:true, route:string, mode:string|null, via:string} | {ok:false, reason:string}}
+ */
+export function resolveExample({ mode, operation } = {}) {
+  const opRaw = String(operation || "").trim();
+  const op = opRaw ? (ALIASES[opRaw] || opRaw) : "";
+  if (op && modeHomeIndex) {
+    const home = modeHome(op);
+    if (home) return { ok: true, route: home, mode: op, via: "operation" };
+    // 有具体操作但任何页面都没有这个模式：**不能**退回按分类乱跳，
+    // 否则用户会落到不相干的页面、还带着一个不相干的默认模式（正是这次的 bug）。
+    return { ok: false, reason: `操作「${opRaw}」在当前界面里没有对应模式` };
+  }
+  const info = routeForMode(mode);
+  if (info.ok) return { ok: true, route: info.route, mode: null, via: "category" };
+  return { ok: false, reason: info.reason || "无法定位到目标界面" };
+}
+
+/**
  * 操作名 → 目标视图里的模式名。
- * v1 是 `calc_mode_combo` 里找 itemText 包含该串的项；这里做同样的包含匹配，
- * 但**匹配不到时返回 null 让调用方说明**，而不是像 v1 那样静默忽略。
+ * 先按别名表归一，再做包含匹配；**匹配不到时返回 null 让调用方说明**，
+ * 而不是像 v1 那样静默忽略（那正是"跳到解方程"这类错位的根源）。
  */
 export function pickMode(operation, availableModes) {
-  const op = String(operation || "").trim();
-  if (!op) return null;
+  const opRaw = String(operation || "").trim();
+  if (!opRaw) return null;
+  const op = ALIASES[opRaw] || opRaw;
   const list = Array.isArray(availableModes) ? availableModes : [];
   if (list.includes(op)) return op;
   return list.find((x) => x.includes(op) || op.includes(x)) || null;

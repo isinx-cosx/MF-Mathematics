@@ -15,7 +15,7 @@
 import { computed, ref } from "vue";
 import { useRouter } from "vue-router";
 import { TUTORIALS, CATEGORY_META } from "../../lib/tutorial/store.js";
-import { setPending, routeForMode } from "../../lib/workspace/pendingInput.js";
+import { setPending, resolveExample, ensureModeIndex } from "../../lib/workspace/pendingInput.js";
 
 const router = useRouter();
 
@@ -51,13 +51,25 @@ function flash(msg) {
   hintTimer = setTimeout(() => { hint.value = ""; }, 4200);
 }
 
-function load(ex) {
-  const info = routeForMode(ex.mode);
+async function load(ex) {
+  // 先备好"操作名 → 所属页面"索引，再解析。
+  // 早先只按示例的 mode（那是**计算分类**，如"代数"）决定页面，于是「不定积分」
+  // 被送到代数页，代数页没有这个模式 → 匹配失败 → 模式留在该页默认值
+  // （恰好是「解方程/组」）→ 用户点计算，引擎收到 solve_sym 而不是 integrate。
+  await ensureModeIndex();
+  const info = resolveExample(ex);
   if (!info.ok) {
+    // 解析不了就**不跳转**，就地说明。绝不落到一个不相干的页面 + 不相干的默认模式。
     flash(`无法加载「${ex.label}」：${info.reason}`);
     return;
   }
-  setPending({ expr: ex.expr, operation: ex.operation, label: ex.label, from: "example" });
+  setPending({
+    expr: ex.expr,
+    operation: ex.operation,
+    mode: info.mode,     // 已解析好的目标模式（来自操作名反查）
+    label: ex.label,
+    from: "example",
+  });
   router.push(info.route);
 }
 
