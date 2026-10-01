@@ -28,11 +28,41 @@ export const PENDING = {
   "calc_block.ai_accel_button": "AI 加速按钮尚未实现（方案 P3）",
   "main_window.ai_settings": "AI 设置入口尚未实现（方案 P3）",
   "step_viewer.content": "分步显示尚未实现（本轮明确不做的步骤系统）",
-  "settings_dialog.ai_tab": "设置面板尚未实现（方案 P1）",
-  "settings_dialog.appearance_tab": "设置面板尚未实现（外观本身已可用，但设置面板未做，P1）",
   "search_panel.input": "在线搜索面板尚未实现（方案 P1）",
   "search_panel.results": "在线搜索面板尚未实现（方案 P1）",
 };
+
+/**
+ * 目标"在别的页面"或"要满足前置条件才出现"时的提示。
+ *
+ * 为什么需要它：引导不会自动跳页（v1 也没有），于是教程里"设置 → AI 配置"
+ * 这类步骤在计算页上必然找不到目标 —— 若不区分，界面就会误报"该界面尚未实现"，
+ * 而其实它已经做好了，只是不在当前页。这类**误报**和 v1 的静默跳过一样有害：
+ * 用户会以为功能缺失。
+ *
+ * route：目标所在页面（与当前路由不同时，界面给出"前往该界面"按钮）
+ * note ：需要用户先做什么（例如先打开数学键盘、先算一次让结果对话框出现）
+ */
+export const TARGET_HINTS = {
+  "settings_dialog.appearance_tab": { route: "/settings", note: "该设置在设置面板的「外观」分组里" },
+  "settings_dialog.ai_tab": { route: "/settings", note: "该设置在设置面板的「AI」分组里（本轮是占位，功能依赖 P3）" },
+  "math_keyboard.panel": { note: "先点顶栏的「⌨ 键盘」把面板打开" },
+  "math_keyboard.titlebar": { note: "先点顶栏的「⌨ 键盘」把面板打开" },
+  "result_dialog.steps_button": { note: "先在本页点一次「计算结果」，结果对话框打开后才有这个按钮" },
+  "plot_workspace.sliders": { note: "表达式里要含参数（例如 sin(a*x)）才会出现参数滑块" },
+  "ai_dialog.input": { note: "AI 助手尚未实现（方案 P3）" },
+  "ai_dialog.send_button": { note: "AI 助手尚未实现（方案 P3）" },
+  "ai_dialog.context_label": { note: "AI 助手尚未实现（方案 P3）" },
+  "calc_block.ai_accel_button": { note: "AI 加速尚未实现（方案 P3）" },
+  "main_window.ai_settings": { note: "AI 设置尚未实现（方案 P3）" },
+  "search_panel.input": { note: "在线搜索面板尚未实现（方案 P1）" },
+  "search_panel.results": { note: "在线搜索面板尚未实现（方案 P1）" },
+  "toolbar.ai_button": { note: "AI 助手尚未实现（方案 P3）" },
+};
+
+export function hintFor(name) {
+  return TARGET_HINTS[name] || null;
+}
 
 /** 界面里确实注册了 data-tour 的名字（与源码一致，供文档与校验脚本对照） */
 export const REGISTERED = [
@@ -45,6 +75,8 @@ export const REGISTERED = [
   "toolbar.plot_button",
   "toolbar.search_button",
   "toolbar.settings_button",
+  "settings_dialog.appearance_tab",
+  "settings_dialog.ai_tab",
   "calc_block.input",
   "calc_block.calc_button",
   "calc_block.action_dropdown",

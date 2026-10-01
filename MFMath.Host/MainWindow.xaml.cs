@@ -85,12 +85,15 @@ public partial class MainWindow : Window
     {
         if (!e.IsSuccess) return;
 
-        // 引擎桥（数学计算）、窗口桥（外壳控制）、控制台桥（跑用户代码）分开注册：
-        // JS 侧分别是 hostObjects.sync.mf / .win / .con。
+        // 引擎桥（数学计算）、窗口桥（外壳控制）、控制台桥（跑用户代码）、设置桥（文件与系统信息）
+        // 分开注册：JS 侧分别是 hostObjects.sync.mf / .win / .con / .sys。
         Browser.CoreWebView2.AddHostObjectToScript("mf", new MathBridge());
         Browser.CoreWebView2.AddHostObjectToScript("win", new WindowBridge(this));
         ConsoleBridge console = new ConsoleBridge();
         Browser.CoreWebView2.AddHostObjectToScript("con", console);
+        // 设置面板：报路径、查依赖 DLL 在不在、读写设置 JSON、打开目录、导出诊断包。
+        // 放独立桥是因为它只做"文件与系统信息"，不含数学/窗口/进程，加设置项也不会撑大另外三个。
+        Browser.CoreWebView2.AddHostObjectToScript("sys", new SettingsBridge());
         // 关窗时把控制台里还活着的子进程带走，不留孤儿
         Closed += (_, _) => { try { console.StopAll(); } catch { } };
 

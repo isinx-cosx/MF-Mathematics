@@ -181,7 +181,9 @@ onMounted(() => {
 });
 
 function about() { alert("MF-Mathematics\nMF-Vis-Science · Open Studio"); }
-function settings() { alert("设置（待实现）"); }
+/* 设置自本轮起是真实页面（之前是 alert("设置（待实现）")）。
+   侧栏底部的「外观」快捷入口保留：一个改外观，一个进完整设置，两者不冲突。 */
+function settings() { router.replace("/settings"); }
 </script>
 
 <template>

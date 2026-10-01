@@ -133,8 +133,22 @@ export function engineCall(name, args) {
   }
 }
 
-/** 函数是否存在 */
+/**
+ * 函数是否存在（能力探测）。
+ *
+ * 走宿主方法 `mf.FunctionExists`，它内部调的是 C ABI 导出 `function_exists`。
+ * **不能**用 engineCall("function_exists", …)：那是 C 导出，**不在 424 个已注册
+ * 动作里**，当成动作去 Dispatch 必然返回错误信封，于是这个探测以前**恒为 false**
+ * （连宿主里也一样，是本次引擎自检把它逼出来的）。
+ * 保底分支只为兼容"没有宿主方法、只有 Dispatch 透传"的旧桥。
+ */
 export function functionExists(name) {
+  const mf = bridgeObj();
+  if (mf) {
+    try {
+      return !!mf.FunctionExists(name);
+    } catch { /* 旧桥没有这个方法，退到下面的动作探测 */ }
+  }
   const r = engineCall("function_exists", { name });
   return r && !r.isError ? !!r.value : false;
 }

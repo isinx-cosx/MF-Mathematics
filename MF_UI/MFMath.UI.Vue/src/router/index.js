@@ -26,6 +26,9 @@ const REAL_VIEWS = {
   // 教程系统（v1 只有帮助浏览器一个入口，这里教程目录与示例库都在导航里）
   "/tutorial": () => import("../views/tutorial/TutorialCatalogView.vue"),
   "/examples": () => import("../components/tutorial/ExampleLibrary.vue"),
+  // 设置面板：**容器**而非单页，分组按依赖分三批填内容（外观/引擎/组件/存储先做，
+  // 搜索依赖 P1、AI 依赖 P3、更新依赖 P5，先以占位列出并向用户说明依赖）。
+  "/settings": () => import("../views/settings/SettingsView.vue"),
 };
 
 /** 学科计算视图统一走 CalcView（按路由末段读取 VIEW_CONFIGS 的配置） */
@@ -62,6 +65,16 @@ routes.push({
   name: "tutorial-article",
   component: () => import("../views/tutorial/HelpArticleView.vue"),
   meta: { title: "教程", desc: "帮助" },
+});
+
+// 设置：同样不在 NAV_GROUPS 里（入口是侧栏底部的「设置」按钮，面板内部自带分组导航）。
+// ⚠️ 必须在这里显式注册：上面的路由是**按 NAV_GROUPS 的项循环生成**的，
+// 不放进导航就等于没有路由 —— 之前漏了这一步，点「设置」后内容区一片空白。
+routes.push({
+  path: "/settings",
+  name: "settings",
+  component: () => import("../views/settings/SettingsView.vue"),
+  meta: { title: "设置", desc: "外观 · 引擎 · 组件 · 数据" },
 });
 
 const router = createRouter({

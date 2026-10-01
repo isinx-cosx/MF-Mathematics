@@ -24,17 +24,19 @@
  *    （入口在教程目录/正文页，这里只负责走）。
  */
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
-import { useRoute } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 import {
   tourState, currentTutorial, currentStep, stepCount, isLast, canPrev,
   currentTargetName, next, prev, togglePause, skip, finish, noteMissing,
 } from "../../lib/tutorial/tour.js";
-import { resolveTarget, sanitizeTourHtml } from "../../lib/tutorial/targets.js";
+import { resolveTarget, sanitizeTourHtml, hintFor } from "../../lib/tutorial/targets.js";
 
 const route = useRoute();
+const router = useRouter();
 
 const rect = ref(null);          // { x, y, w, h, circle }
 const missingReason = ref("");
+const missingHint = ref(null);   // { route?, note? }：目标在别的页 / 需先满足前置条件
 const tooltipEl = ref(null);
 const tipPos = ref({ left: 0, top: 0 });
 
@@ -56,16 +58,22 @@ function locate() {
   if (!tourState.active || tourState.paused || !s) {
     rect.value = null;
     missingReason.value = "";
+    missingHint.value = null;
     return;
   }
   const info = resolveTarget(s.target);
   if (!info.available) {
     rect.value = null;
     missingReason.value = info.reason;
+    // 区分两种情况，避免误报"该界面尚未实现"：
+    //   ① 目标在另一个页面（引导不自动跳页）→ 给"前往该界面"按钮；
+    //   ② 需要先满足前置条件（先打开键盘、先算一次让结果对话框出现）→ 给操作提示。
+    missingHint.value = hintFor(s.target);
     noteMissing(tourState.index);
     return;
   }
   missingReason.value = "";
+  missingHint.value = null;
   const el = info.el;
   try { el.scrollIntoView({ block: "nearest", inline: "nearest" }); } catch { /* 老内核无此 API */ }
   const r = el.getBoundingClientRect();
@@ -181,6 +189,13 @@ watch(() => [tourState.index, tourState.paused, tourState.active, route.path], (
           <b>这一步的目标界面还没做</b>，不是你的操作问题。<br>
           <span class="tip-reason">{{ missingReason }}</span>
         </p>
+        <template v-else-if="missingHint">
+          <p class="tip-missing soft">
+            <span class="tip-reason">{{ missingHint.note }}</span>
+          </p>
+          <button v-if="missingHint.route && missingHint.route !== route.path"
+                  class="tbtn wide" @click="router.push(missingHint.route)">前往该界面</button>
+        </template>
         <div v-else class="tip-text" v-html="tipHtml" />
         <p v-if="step?.actionType === 'type' && step?.actionValue" class="tip-hint">
           该步可自动填入：<code>{{ step.actionValue }}</code>
@@ -259,6 +274,12 @@ watch(() => [tourState.index, tourState.paused, tourState.active, route.path], (
   border: 1px solid color-mix(in srgb, #f59e0b 40%, transparent);
 }
 .tip-reason { color: var(--text-subtle, #64748b); }
+/* 目标在别的页面 / 需要前置条件：这是提示，不是故障，所以用中性色而非警示色 */
+.tip-missing.soft {
+  background: var(--surface-alt, #f1f5f9);
+  border-color: var(--border, #d1d5db);
+}
+.tbtn.wide { width: 100%; justify-content: center; margin: 2px 0 0; }
 .tip-hint { font-size: 12px; color: var(--text-subtle, #64748b); margin: 8px 0 0; }
 .tip-paused { font-size: 13px; margin: 0; }
 .tip-actions { display: flex; align-items: center; gap: 6px; margin-top: 12px; }

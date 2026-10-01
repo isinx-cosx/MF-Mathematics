@@ -74,6 +74,21 @@ export function cancelInstall(jobId) {
   }
 }
 
+/**
+ * 卸载一个可选组件：删掉它的安装目录，保留下载缓存（重装可省一次下载）。
+ * 只接受 "python" / "cpp"，宿主侧会拒绝其它名字。
+ * @returns {{ok:boolean, removed?:boolean, bytes?:number, error?:string}|null}
+ */
+export function uninstallComponent(name) {
+  const c = conObj();
+  if (!c) return null;
+  try {
+    return parse(c.Uninstall(name));
+  } catch (e) {
+    return { ok: false, error: String(e && e.message ? e.message : e) };
+  }
+}
+
 /** 换组件下载源（企业内网镜像 / 本地测试）。传空字符串恢复成默认的官网地址。 */
 export function setDownloadBase(url) {
   const c = conObj();

@@ -328,6 +328,32 @@ public class ConsoleBridge
         return id;
     }
 
+    /// <summary>
+    /// 卸载一个可选组件：删掉它的安装目录。
+    ///
+    /// 只接受 python / cpp 两个已知名字（不接受任意路径，避免变成"删目录"原语）。
+    /// **不删 cache/**：那里面是下载好的组件包，重装时能省一次下载（几十 MB）。
+    /// 如果控制台里还有进程在用该组件，删除会失败并把系统错误原样返回——
+    /// 这比"假装卸掉了"好，用户能看懂"请先关闭控制台里的运行"。
+    /// </summary>
+    public string Uninstall(string name)
+    {
+        string kind = (name ?? "").Trim().ToLowerInvariant();
+        string? dir = kind == "python" ? PythonDir : (kind == "cpp" ? CppDir : null);
+        if (dir == null) return "{\"ok\":false,\"error\":" + Json("未知组件：" + kind) + "}";
+        try
+        {
+            if (!Directory.Exists(dir)) return "{\"ok\":true,\"removed\":false,\"bytes\":0}";
+            long bytes = DirSize(dir);
+            Directory.Delete(dir, true);
+            return "{\"ok\":true,\"removed\":true,\"bytes\":" + bytes + "}";
+        }
+        catch (Exception ex)
+        {
+            return "{\"ok\":false,\"error\":" + Json(ex.Message) + "}";
+        }
+    }
+
     /// <summary>取消一个正在进行的安装/下载（保留 .part，下次能续传）。</summary>
     public string CancelInstall(string jobId)
     {
