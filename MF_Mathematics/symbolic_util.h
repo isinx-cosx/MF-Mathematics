@@ -99,52 +99,344 @@ inline std::string factor_of_root(const std::string& var, const std::string& roo
 }
 
 // ── 安全求解 ────────────────────────────────────────────────────────────────
+//
+// 背景：SymEngine 的通用求解器 solve() 对"未知量出现在超越函数内部"的方程会
+// **栈溢出崩溃**（实测 20*cos(20*x)=0 即 sin(20*x) 的驻点方程会崩），
+// 这是进程级故障，catch 不住，所以必须先于 solve() 判断。
+//
+// 但旧实现是"对打印出来的整串做子串匹配"，判据过宽，把可精确求解的也算进来了：
+//   sin(x)=0      —— 三角方程，教科书标准题
+//   x^2 - sin(1)  —— sin(1) 只是常数，未知量是多项式
+//   sqrt(x) = 2   —— 代数运算（sqrt/cbrt/pow 不是超越），x=4
+//   abs(x) = 3    —— 分段运算
+//   x*sin(x)=0    —— 乘积形式，x=0 是精确解
+// 现在改为**结构化判据**：走一遍表达式树，只有当某节点的超越函数**它的自变量里含
+// 未知量**时才算危险；并分三类区别对待（超越 / 分段 / 未知量在指数上）。
 
-/**
- * 表达式是否含超越函数（三角/指数/对数/根式等）。
- * 用于在进入 SymEngine 求解器前拦截：求解器对部分含参数的超越方程会
- * **栈溢出崩溃**（实测 sin(20*x) 的驻点方程 20*cos(20*x)=0 会崩），
- * 这是进程级故障，无法用异常捕获，只能提前拦截。
- */
-inline bool has_transcendental(const std::string& expr_str) {
-  static const char* kFns[] = {
+/** 超越函数头（按节点字符串前缀识别：不依赖 SymEngine 的类层次，跨版本稳） */
+inline const std::vector<std::string>& transcendental_heads() {
+  static const std::vector<std::string> kHeads = {
       "sin(", "cos(", "tan(", "csc(", "sec(", "cot(",
-      "asin(", "acos(", "atan(", "arcsin(", "arccos(", "arctan(",
+      "asin(", "acos(", "atan(", "acsc(", "asec(", "acot(",
+      "arcsin(", "arccos(", "arctan(",
       "sinh(", "cosh(", "tanh(", "asinh(", "acosh(", "atanh(",
-      "exp(", "log(", "sqrt(", "cbrt(", "abs(", "SymEngine::pow(", "gamma(", "erf(",
+      "exp(", "log(", "gamma(", "erf(", "zeta(", "lambertw",
   };
-  for (const char* f : kFns) {
-    if (expr_str.find(f) != std::string::npos) return true;
+  return kHeads;
+}
+
+/** 三角函数头（这些可以交给 SymEngine 的 solve_trig，而不是拒绝） */
+inline const std::vector<std::string>& trig_heads() {
+  static const std::vector<std::string> kHeads = {
+      "sin", "cos", "tan", "csc", "sec", "cot",
+      "asin", "acos", "atan", "acsc", "asec", "acot",
+      "arcsin", "arccos", "arctan",
+  };
+  return kHeads;
+}
+
+/** 分段/多值函数头。它们**不是**超越函数，但通用求解器对它们给不出正确解
+ *  （会静默返回空集或错误解），所以必须单独识别、单独说明 —— 不能当"安全"放过，
+ *  那样等于把一个错答案返给用户。 */
+inline const std::vector<std::string>& piecewise_heads() {
+  static const std::vector<std::string> kHeads = {
+      "Abs(", "abs(", "sign(", "signum(", "floor(", "ceil(", "Max(", "Min(",
+  };
+  return kHeads;
+}
+
+/** 根式头。实测：通用求解器对 sqrt(x)-2 直接返回**空集**（答案 x=4 明明存在），
+ *  属静默错答，比报错更糟；根式方程本就该"平方去根号 + 验根"，所以单独拦住并说清楚。 */
+inline const std::vector<std::string>& radical_heads() {
+  static const std::vector<std::string> kHeads = {"sqrt(", "cbrt("};
+  return kHeads;
+}
+
+/** 节点是否以某个函数头开头；命中则返回函数名（去掉左括号） */
+inline std::string head_of(const SymEngine::Basic& b, const std::vector<std::string>& heads) {
+  const std::string s = SymEngine::str(b);
+  for (const auto& h : heads) {
+    if (s.rfind(h, 0) == 0) return h.substr(0, h.size() - 1);
+  }
+  return "";
+}
+
+/** 该节点的参数里是否含未知量（即"自变量含未知量"） */
+inline bool args_contain_symbol(const SymEngine::Basic& b, const std::string& var) {
+  for (const auto& a : b.get_args()) {
+    if (contains_symbol(*a, var)) return true;
   }
   return false;
 }
 
 /**
- * 安全求解：含超越函数时直接抛错（显式告知"超出精确符号求解范围"），
- * 绝不把这类方程交给 SymEngine 求解器（会栈溢出）。
+ * 找"未知量出现在其内部的"超越/分段函数头。
+ * @param is_piecewise 输出：命中的是分段函数（而非超越函数）
+ * @return 函数名；空串表示表达式对求解器是安全的
+ */
+inline std::string unsafe_head(const SymEngine::Basic& b, const std::string& var, bool& is_piecewise) {
+  std::string h = head_of(b, transcendental_heads());
+  bool pw = false;
+  if (h.empty()) {
+    h = head_of(b, piecewise_heads());
+    pw = !h.empty();
+  }
+  if (!h.empty() && args_contain_symbol(b, var)) {
+    is_piecewise = pw;
+    return h;
+  }
+  for (const auto& a : b.get_args()) {
+    const std::string r = unsafe_head(*a, var, is_piecewise);
+    if (!r.empty()) return r;
+  }
+  return "";
+}
+
+/** 未知量出现在指数上（x^x、2^x 之类）也属超越方程，通用求解器同样会崩 */
+inline bool symbolic_exponent(const SymEngine::Basic& b, const std::string& var) {
+  if (SymEngine::is_a<SymEngine::Pow>(b)) {
+    const auto& args = b.get_args();
+    if (args.size() == 2 && contains_symbol(*args[1], var)) return true;
+  }
+  for (const auto& a : b.get_args()) {
+    if (symbolic_exponent(*a, var)) return true;
+  }
+  return false;
+}
+
+inline bool is_trig_head(const std::string& h) {
+  for (const auto& t : trig_heads()) {
+    if (h == t) return true;
+  }
+  return false;
+}
+
+/** 是否存在"含未知量的根式"：sqrt(x)、cbrt(x)、x^(1/2) 之类 */
+inline bool has_unknown_radical(const SymEngine::Basic& b, const std::string& var) {
+  if (!head_of(b, radical_heads()).empty() && args_contain_symbol(b, var)) return true;
+  if (SymEngine::is_a<SymEngine::Pow>(b)) {
+    const auto& a = b.get_args();
+    // 非整数指数且底数含未知量 → 根式/多值
+    if (a.size() == 2 && SymEngine::is_a<SymEngine::Rational>(*a[1])
+        && contains_symbol(*a[0], var)) {
+      return true;
+    }
+  }
+  for (const auto& c : b.get_args()) {
+    if (has_unknown_radical(*c, var)) return true;
+  }
+  return false;
+}
+
+/**
+ * 求解器返回的集合是否"真的是一组解"。
+ * 必须排掉两种"看着像成功其实没解出来"的返回：
+ *   · ConditionSet：实测 solve_trig 对 x*sin(x) 返回 {x | 0 == x*sin(x)} ——
+ *     这只是把原方程复述了一遍，当通解报给用户等于什么都没说；
+ *   · 空集：分不清"确实无解"和"没解出来"（sqrt(x)-2 就返回空集，而 x=4 是解）。
+ * 因此：非空 FiniteSet 算解；ImageSet（如 {2*n*pi | n∈Z}）是真正的参数族，算解；
+ * Union 逐个成员判断（sin(x)=0 的通解就是两个 ImageSet 的并集）。
+ * strict 模式下不接受无穷族与并集 —— 驻点/交点这类场景拿到"部分解"会静默漏解，
+ * 比报错更糟。
+ */
+inline bool is_usable_solution(const SymEngine::RCP<const SymEngine::Set>& s, bool allow_infinite) {
+  if (SymEngine::is_a<SymEngine::FiniteSet>(*s)) return !s->get_args().empty();
+  if (!allow_infinite) return false;
+  if (SymEngine::is_a<SymEngine::ImageSet>(*s)) return true;
+  if (SymEngine::is_a<SymEngine::Union>(*s)) {
+    bool any = false;
+    for (const auto& part : s->get_args()) {
+      const auto ps = SymEngine::rcp_dynamic_cast<const SymEngine::Set>(part);
+      if (ps.is_null()) return false;          // RCP 没有 operator!，用 is_null()
+      if (!is_usable_solution(ps, true)) return false;
+      any = true;
+    }
+    return any;
+  }
+  return false;
+}
+
+/**
+ * 求解策略。
+ *   Strict    —— 危险形式直接抛错。**驻点/交点/实根性判定必须用这个**：
+ *                那些场景下"部分解"会静默漏掉极值或交点，比报错更糟。
+ *   Decompose —— 先做乘积零积分解，把能精确求解的部分解出来，
+ *                解不了的部分写进 note。**只有 solve_sym 用这个**：
+ *                它的职责就是把解集报给用户看，部分解 + 说明是诚实的。
+ *                factor_sym（expression.cpp）仍走 Strict —— 因式分解只认确定的
+ *                有限根，给出不完整的根表比直接说不支持更糟。
+ */
+enum class SolvePolicy { Strict, Decompose };
+
+/** 把 f=0 按乘积拆成因式，逐个尝试精确求解；解不了的记进 unsolved */
+inline void decompose_factors(const SymEngine::RCP<const SymEngine::Basic>& eq,
+                              const SymEngine::RCP<const SymEngine::Symbol>& x,
+                              const std::string& var,
+                              SymEngine::set_basic& roots,
+                              std::vector<std::string>& unsolved) {
+  using SymEngine::RCP;
+  using SymEngine::Basic;
+  // Pow(f, n) = 0 ⇔ f = 0（n 为正整数时；常数因子直接跳过）
+  if (SymEngine::is_a<SymEngine::Pow>(*eq)) {
+    const auto& a = eq->get_args();
+    if (a.size() == 2 && SymEngine::is_a_Number(*a[1])) {
+      decompose_factors(a[0], x, var, roots, unsolved);
+      return;
+    }
+  }
+  if (SymEngine::is_a<SymEngine::Mul>(*eq)) {
+    for (const auto& f : eq->get_args()) {
+      if (SymEngine::is_a_Number(*f)) continue;
+      if (!contains_symbol(*f, var)) continue;   // 不含未知量的因子不影响解
+      decompose_factors(f, x, var, roots, unsolved);
+    }
+    return;
+  }
+  bool pw = false;
+  if (!unsafe_head(*eq, var, pw).empty() || symbolic_exponent(*eq, var)) {
+    // 这一项本身解不了：先看能不能当三角方程解（solve_trig），否则记为未解
+    if (!pw) {
+      try {
+        const auto s = SymEngine::solve_trig(eq, x);
+        if (SymEngine::is_a<SymEngine::FiniteSet>(*s)) {
+          for (const auto& r : s->get_args()) roots.insert(r);
+          return;
+        }
+      } catch (...) {
+        // 落到下面的"未解"
+      }
+    }
+    unsolved.push_back(SymEngine::str(*eq));
+    return;
+  }
+  try {
+    const auto sol = SymEngine::solve(eq, x);
+    if (SymEngine::is_a<SymEngine::FiniteSet>(*sol)) {
+      for (const auto& r : sol->get_args()) roots.insert(r);
+      return;
+    }
+  } catch (...) {
+    // 求解器自己失败 → 记为未解
+  }
+  unsolved.push_back(SymEngine::str(*eq));
+}
+
+/**
+ * 安全求解。
  *
- * @param eq  已化简为 f(x)=0 形式的表达式
- * @param var 求解变量名
- * @param what 调用方描述（用于错误信息，如 "驻点"、"交点"）
+ * @param eq       已化简为 f(x)=0 形式的表达式
+ * @param x        求解变量
+ * @param what     调用方描述（用于错误信息，如 "驻点方程"、"交点方程"）
+ * @param policy   见 SolvePolicy
+ * @param note_out 非空时写入说明（部分解、通解形式等），调用方应回传给用户
  */
 inline SymEngine::RCP<const SymEngine::Set> safe_solve(
     const SymEngine::RCP<const SymEngine::Basic>& eq,
     const SymEngine::RCP<const SymEngine::Symbol>& x,
-    const std::string& what = "方程") {
+    const std::string& what = "方程",
+    SolvePolicy policy = SolvePolicy::Strict,
+    std::string* note_out = nullptr) {
+  using namespace SymEngine;
+  const std::string var = x->get_name();
   const std::string s = SymEngine::str(*eq);
-  if (has_transcendental(s)) {
-    throw std::invalid_argument(
-        what + "含超越函数（" + s +
-        "），超出精确符号求解范围；本接口已主动拦截以避免求解器崩溃。"
-        "请改用数值方法（如曲线交点/极值的数值扫描）或代入具体参数后再求解。");
+
+  bool piecewise = false;
+  const std::string head = unsafe_head(*eq, var, piecewise);
+  const bool sym_exp = symbolic_exponent(*eq, var);
+
+  // ① 判据通过（未知量不在超越函数内部、不在指数上、不在根式里）→ 正常交给求解器。
+  //    这里包含 sin(1) 这类**常数**超越函数：它不含未知量，是普通系数，不该被拦。
+  if (head.empty() && !sym_exp && !has_unknown_radical(*eq, var)) {
+    return SymEngine::solve(eq, x);
   }
-  return SymEngine::solve(eq, x);
+
+  // ② 含未知量的根式：实测通用求解器对 sqrt(x)-2 返回**空集**（x=4 明明有解），
+  //    属静默错答。根式方程本就该"平方去根号 + 验根"，这里拦住并说清做法。
+  if (has_unknown_radical(*eq, var)) {
+    throw std::invalid_argument(
+        what + "含未知量的根式（" + s +
+        "）；通用求解器对根式方程会返回空集或引入增根，本接口不返回可能错误的解集。"
+        "请先平方（或换元）去根号后求解，再代回原方程验根；也可用数值求根。");
+  }
+
+  // ③ 三角方程：SymEngine 有专用求解器 solve_trig，不必拒绝。
+  //    通用 solve() 会在 sin(20*x)=0 这类上栈溢出，而 solve_trig 正是为此写的。
+  //    但它的返回必须过 is_usable_solution：实测它对 x*sin(x) 返回的是
+  //    {x | 0 == x*sin(x)}（复述原方程的条件集），当通解报出去等于什么都没说。
+  if (!piecewise && is_trig_head(head)) {
+    try {
+      const auto s_trig = SymEngine::solve_trig(eq, x);
+      // strict 只认"确定的有限解"：拿到参数族或空集会让驻点/交点静默漏解
+      const bool allow_infinite = (policy == SolvePolicy::Decompose);
+      if (is_usable_solution(s_trig, allow_infinite)) {
+        if (note_out && !SymEngine::is_a<SymEngine::FiniteSet>(*s_trig)) {
+          *note_out = "该三角方程的解是无穷族（周期通解），以集合形式给出，含整数参数";
+        }
+        return s_trig;
+      }
+    } catch (...) {
+      // solve_trig 也解不了 → 继续走下面的分解/报错
+    }
+  }
+
+  // ③b 指数/对数：走 exp/log 的专用路径 solve_rational（递归远浅于通用 solve）。
+  //     只接受**非空有限解集**：空集分不清"确实无解"和"没解出来"，宁可退回报错。
+  if (!piecewise && (head == "exp" || head == "log")) {
+    try {
+      const auto s_rat = SymEngine::solve_rational(eq, x);
+      if (is_usable_solution(s_rat, false)) {
+        return s_rat;
+      }
+    } catch (...) {
+      // 落到下面的分解/报错
+    }
+  }
+
+  // ③ 乘积形式：按零积分解出可求解的因子（x*sin(x)=0 → x=0）
+  if (policy == SolvePolicy::Decompose) {
+    set_basic roots;
+    std::vector<std::string> unsolved;
+    decompose_factors(eq, x, var, roots, unsolved);
+    if (!unsolved.empty() && note_out) {
+      std::string joined;
+      for (std::size_t i = 0; i < unsolved.size(); ++i) {
+        if (i) joined += "、";
+        joined += unsolved[i];
+      }
+      *note_out = "精确解只覆盖可因式分解的部分；下列因子含超越函数，需要数值方法"
+                  "（zeros_and_poles / intersections / local_extrema）或参数化解：" + joined;
+    }
+    if (!roots.empty() || unsolved.empty()) {
+      return SymEngine::make_rcp<const SymEngine::FiniteSet>(roots);
+    }
+  }
+
+  // ④ 仍然不行 → 报错，但要说清"是哪个函数、哪一类、能怎么办"
+  if (piecewise) {
+    throw std::invalid_argument(
+        what + "含分段函数 " + head + "()（" + s +
+        "），需要分区间讨论；通用求解器对分段方程会给出不完整的结果，"
+        "本接口不返回可能错误的解集。请分区间改写后分别求解，或改用数值方法"
+        "（曲线交点 / 极值的数值扫描）。");
+  }
+  if (sym_exp) {
+    throw std::invalid_argument(
+        what + "的未知量出现在指数上（" + s +
+        "），属超越方程；通用求解器对这类形式会栈溢出，本接口已拦截以避免进程崩溃。"
+        "请改用数值方法（zeros_and_poles / intersections），或代入具体参数后再求。");
+  }
+  throw std::invalid_argument(
+      what + "含超越函数 " + head + "()，且未知量就在它内部（" + s +
+      "）；SymEngine 的通用求解器对这类方程会栈溢出，本接口已拦截以避免进程崩溃。"
+      "可用的替代：数值求根（zeros_and_poles / intersections / local_extrema）、"
+      "或代入具体参数后再求。");
 }
 
 /** 字符串形式的安全求解（内部先解析）。 */
 inline SymEngine::RCP<const SymEngine::Set> safe_solve_str(
-    const std::string& expr, const std::string& var, const std::string& what = "方程") {
-  return safe_solve(SymEngine::parse(expr), SymEngine::symbol(var), what);
+    const std::string& expr, const std::string& var, const std::string& what = "方程",
+    SolvePolicy policy = SolvePolicy::Strict, std::string* note_out = nullptr) {
+  return safe_solve(SymEngine::parse(expr), SymEngine::symbol(var), what, policy, note_out);
 }
 
 // ── 表达式复杂度 ────────────────────────────────────────────────────────────

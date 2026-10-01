@@ -126,13 +126,23 @@ Value to_pretty_array(const std::vector<std::string>& v) {
  *  化为 a（如 x²-a² 的根 ±√(a²) → ±a，因式分解即得 (x + a)*(x - a)）。
  *  归约只在多项式恒等验证通过后采用，不做无据化简。 */
 std::vector<std::string> exact_roots(const RCP<const Basic>& eq,
-                                     const std::string& var) {
+                                     const std::string& var,
+                                     mf::symutil::SolvePolicy policy = mf::symutil::SolvePolicy::Strict,
+                                     std::string* note = nullptr,
+                                     std::string* general = nullptr) {
   const auto x = SymEngine::symbol(var);
-  const auto sol = mf::symutil::safe_solve(eq, x, "方程");
+  const auto sol = mf::symutil::safe_solve(eq, x, "方程", policy, note);
   std::vector<std::string> out;
-  if (!SymEngine::is_a<SymEngine::FiniteSet>(*sol))
+  if (!SymEngine::is_a<SymEngine::FiniteSet>(*sol)) {
+    // 非有限集（例如三角方程的周期通解 ImageSet/ConditionSet）：
+    // 有 general 出口就原样回传，没有就按老规矩报错 —— 不静默丢结果。
+    if (general != nullptr) {
+      *general = SymEngine::str(*sol);
+      return out;
+    }
     throw std::invalid_argument(
         "无法求出精确解集（该方程形式超出符号求解范围；若含参数请逐项处理）");
+  }
   const auto& fs = SymEngine::down_cast<const SymEngine::FiniteSet&>(*sol);
   for (const auto& rt : fs.get_args()) out.push_back(SymEngine::str(*rt));
   out = mf::symutil::reduce_root_radicals(out, var);
@@ -716,7 +726,11 @@ void register_all() {
     const std::string expr = get_equation(args, "expr");
     const std::string var = get_string_opt(args, "var", "x");
     const auto e = SymEngine::parse(expr);
-    const auto roots = exact_roots(e, var);
+    // Decompose：x*sin(x)=0 这类乘积形式先把可解因式解出来（得 x=0），
+    // 解不了的部分写进 note。旧行为是一律抛错，等于把"有精确解的那部分"也一起拒了。
+    std::string note;
+    std::string general;
+    const auto roots = exact_roots(e, var, mf::symutil::SolvePolicy::Decompose, &note, &general);
     // 参数列表：除求解变量外的自由符号
     std::vector<std::string> params;
     for (const auto& n : symbol_names(*e))
@@ -735,6 +749,9 @@ void register_all() {
       obj.set("delta", Value(rn.delta));
       obj.set("deltaSign", Value(std::string(mf::symutil::sign_name(rn.delta_sign))));
     }
+    // 通解（周期解等无穷族）与部分解说明：有就给，避免"看起来解完了其实没解完"
+    if (!general.empty()) obj.set("generalSolution", Value(general));
+    if (!note.empty()) obj.set("note", Value(note));
     return obj;
   }, "{expr: string, var?: string = \"x\"}"));
 

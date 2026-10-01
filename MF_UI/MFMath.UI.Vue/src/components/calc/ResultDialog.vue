@@ -32,7 +32,24 @@ const state = computed(() => {
   return { k: "ok", text: "" };
 });
 
-const nodes = computed(() => (state.value.k === "ok" ? toResultNodes(props.result.value) : []));
+const nodes = computed(() => (state.value.k === "ok" ? toResultNodes(displayValue.value) : []));
+
+/**
+ * 显示用结果：只做一处删减——三角方程的周期通解。
+ *
+ * 引擎对 `sin(x)-1/2`、`cos(x)=0` 这类方程给出 generalSolution（无穷族）时，
+ * solutions 一定是空数组（"没有可枚举的有限根"），两者并排显示会变成
+ * 「解集 = （空）」+「通解 = {2*n*pi + pi | …}」，看起来像自相矛盾，
+ * 用户会以为没解出来。原始数据不做任何改动，仍然能在「复制原始 JSON」里看到。
+ */
+const displayValue = computed(() => {
+  const v = props.result?.value;
+  if (!v || typeof v !== "object" || Array.isArray(v)) return v;
+  const emptySolutions = Array.isArray(v.solutions) && v.solutions.length === 0;
+  if (!emptySolutions || !v.generalSolution) return v;
+  const { solutions, ...rest } = v;
+  return rest;
+});
 
 /**
  * 上下文用 prepare_expr 的 LaTeX：它保留**用户书写的顺序**（x^2-4 → x^{2} - 4），
@@ -57,7 +74,7 @@ const contextLatex = computed(() => {
  * 「复制原始 JSON」单独取（调试用）。
  */
 function resultAsText() {
-  const v = props.result?.value;
+  const v = displayValue.value;
   if (v === null || v === undefined) return "";
   if (typeof v === "number") return fmtNum(v);
   if (typeof v === "string") return v;

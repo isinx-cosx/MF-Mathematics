@@ -22,7 +22,21 @@
 | 引导目标 | 已实现 22 个、待实现 9 个（此前 20 / 11）；设置分组登记为目标后，教程里 `settings_dialog.*` 两步不再是"目标不存在" |
 | 引导提示 | 新增"目标在别的页面 / 需先满足前置条件"的提示与"前往该界面"按钮，避免把"不在当前页"误报成"界面未实现" |
 | 修掉的 bug | `lib/bridge.js` 的 `functionExists()` 此前**恒为 false**（把 C ABI 导出 `function_exists` 当成已注册动作去 Dispatch）；`/settings` 路由漏注册（点设置后内容区空白） |
-| 回归用例 | 新增 `cdp-settings.mjs`（25 项）与 `cdp-tutorials-keypad.mjs`（30 项），均已登记进 `run-all.ps1` |
+| 回归用例 | 新增 `cdp-settings.mjs`（25 项）与 `cdp-tutorials-keypad.mjs`（37 项），均已登记进 `run-all.ps1` |
+| 引擎超越方程拦截 | 由"表达式里出现 sin/cos/exp/log 就一律拒绝、且文案恒称『方程』"改为**按结构判定 + 分流**：三角方程交给专用求解器给出周期通解，根式/分段/指数含未知量给出**准确原因**再拒绝（详见下节） |
+
+### 本轮引擎修复：超越方程拦截的误伤（`symbolic_util.h` / `symbolic_api.cpp`）
+
+- **旧行为（代码原文）**：`has_transcendental(expr_str)` 在**打印出来的整串表达式**里做子串匹配，命中 `asin(`…`exp(`…`sqrt(`…`cbrt(`…`abs(`…`gamma(`…`erf(` 中任意一个就抛错。于是三类误伤同时发生：`sin(x)=0`（教科书三角方程）、`x^2-sin(1)`（`sin(1)` 只是常数，未知量其实在多项式里）、`sqrt(x)-2`／`abs(x)-3`／`x*sin(x)=0`（代数或乘积形式，x=4、±3、0 都是精确解）全被拦。文案主体恒为"含超越函数（整串表达式）"，既不区分根式/分段/指数，也不给替代做法；上下文前缀由各调用方自己传（`solve_sym` 传"方程"、求驻点传"驻点方程"、绘图交点传"交点方程"）——所以同一句"含超越函数"会同时出现在解方程、求驻点、求交点里，用户看不出到底哪一类、下一步能做什么。
+- **新行为**：改判**结构**——未知量是否真的落在超越函数/根式/分段函数的参数里，或落在指数上——然后分流：
+  - 三角方程 → 专用 `solve_trig`，返回周期通解集合（新字段 `generalSolution`）与 `note`；`solutions` 保持空数组，避免下游把它当成有限根。
+  - 采纳解集前先过 `is_usable_solution`：非空 `FiniteSet` 一律可用，`ImageSet` / `Union` 只在允许无穷时可用，`ConditionSet` / `EmptySet` 一律丢弃——防止把"原式复述"当成解（此项是本轮自己发现的回归，已写进电池用例）。
+  - 根式 / 分段（`abs`、`sign`、`floor`、`ceil`…）/ 指数含未知量 → 仍然拒绝，但文案点明原因，且带上原始表达式与替代做法（实测原文："方程含未知量的根式（-2 + sqrt(x)）；…请先平方（或换元）去根号后求解，再代回原方程验根" / "方程含分段函数 abs()（-3 + abs(x)），需要分区间讨论…" / "方程的未知量出现在指数上（-2 + exp(x)），属超越方程…"）。
+  - `solve_sym` 对外走 `SolvePolicy::Decompose`（整式与三角因子可分解时给出**部分根 + note** 说明哪些因子未解）；`monotonicity`、`local_extrema`、`global_extrema` 等内部调用仍是 `Strict`，宁缺勿错。
+- **验证**：424 个动作全量扫描 + 针对性电池无崩溃、无挂死（含此前会栈溢出的 `sin(20*x)` 写法）；准确性套件 2180 用例中 3 处失败逐条复核为**预期改进**，已就地更新用例（`cases_core.py` 两条由"期望报错"改为校验周期通解，`cases_calculus.py` 一条放宽为子串"超越"），现为 **2180 通过 / 0 失败 / 0 跳过，覆盖 424/424**。
+- **界面侧同步做掉的三件事**（否则引擎算对了、用户看到的仍是"没解出来"）：结果窗把 `generalSolution` 翻成中文标签「通解」并定性为文字（集合族记法 `{2*n*pi + pi | …}` 引擎解析器不认，送去排版只会失败）；`solutions` 为空而通解存在时**收掉"解集（空）"**（两者并排显示看着像自相矛盾，原始 JSON 不变）；新增端到端回归 `tests/cdp-engine-solve.mjs`（13 项断言，已登记进 `run-all.ps1`），在真实宿主里从输入框走到结果窗，覆盖通解 / 部分解 / 拒绝文案 / 二次方程显示四类结局。
+- **界面的坑（本轮踩到并记录）**：宿主读的是 `MFMath.Host\bin\Release\net10.0-windows\wwwroot`，那是 `dist` 的**拷贝**（csproj 的 `Content Include="..\MF_UI\MFMath.UI.Vue\dist\**"`）。改了前端只跑 `npm run build` 不够，必须再 `dotnet build -c Release`，否则端到端测试对着旧界面跑——本轮第二遍里"通解标签没出现、'解集（空）'还在"这 2 项失败就是这个原因。（第一遍那 8 项失败是测试脚本自己的 bug：MathLive 的 `value` setter 异步生效，紧接着派发 `input` 事件时界面读到的还是空串，于是报"请输入表达式"；两者叠加过，别把账只记在一处。）
+- **仍未解决**：`exp(x)-2`、`log(x)-1` 仍被拒（通用求解器有风险、`solve_rational` 对该形式没给出非空有限解集），文案准确；要彻底修需先对 exp/log 形式做经验探测。
 
 ### 设置面板的分批状态（按依赖）
 
@@ -89,7 +103,9 @@
 | 教程与键盘自检 | `npm run check:ui` | 通过（引导目标无静默失效、126 键对齐） |
 | 前端构建 | `npm run build` | 通过（prune-fonts 另删 38 个冗余字体省 0.767 MB） |
 | 宿主构建 | `dotnet build MFMath.Host -c Release --no-incremental` | 0 警告 0 错误 |
-| **端到端** | 启动宿主（CDP 9222）→ `node tests/cdp-tutorials-keypad.mjs` | **30 项断言全通过** |
+| **端到端** | 启动宿主（CDP 9222）→ `node tests/cdp-tutorials-keypad.mjs` | **37 项断言全通过** |
+| **端到端（解方程）** | 同上 → `node tests/cdp-engine-solve.mjs` | **13 项断言全通过**（通解 / 部分解 / 拒绝文案 / 二次方程无回归） |
+| 结果模型单测 | `node tests/unit-result-model.mjs` | 30 / 0 |
 
 ---
 
@@ -260,6 +276,7 @@
 | 准确性套件冻结后无法自主扩展 | 未开始 | 保留预言机源码与原始输出，新用例离线重生成 |
 | 教程进度存在本地 | 已实现 localStorage | P1 的 `store` 桥迁到 `%APPDATA%`，届时可读 v1 旧进度 |
 | 站点仓库有未提交的内容改写 | 见 §3.4 第 6 条 | 需要你确认是否保留 |
+| **编译结果不入 git 是刻意的** | `.gitignore` 第 7–10 行写明理由：DLL 可由源码完整重建，每版 21.8 MB 二进制会让历史膨胀；DLL 留在磁盘上，所以直接拷这份文件夹仍能运行 | 换机器/新克隆要"开箱即用"时，需先 `cmake --build`，或另建发布目录只跟踪发行版 DLL |
 
 ---
 
@@ -275,7 +292,13 @@
 | `src/lib/math/{keypadSymbols,activeField}.js` | 126 键定义（LaTeX 化）/ 插入目标判定 |
 | `src/components/math/{MathKeypad,MathField}.vue` | 键盘面板 / 输入框（登记为可插入目标） |
 | `src/lib/workspace/pendingInput.js` | 跨路由把示例表达式送进目标界面（含完整 mode→路由映射） |
-| `tests/cdp-tutorials-keypad.mjs` | 真实宿主内 30 项端到端断言，已登记进 `tests/run-all.ps1` |
+| `tests/cdp-tutorials-keypad.mjs` | 真实宿主内 37 项端到端断言，已登记进 `tests/run-all.ps1` |
+| `tests/cdp-engine-solve.mjs` | 真实宿主内 13 项解方程端到端断言（通解带中文标签、部分解带说明、根式拒绝文案准确、二次方程无回归），同样登记进 `run-all.ps1` |
+| `src/lib/engine/resultModel.js` | 新增 `generalSolution` 的中文标签「通解」，并把它归入"按文字显示"的元信息字段（引擎解析器不认集合族记法） |
+| `src/components/calc/ResultDialog.vue` | 显示层删减：`solutions` 为空且存在 `generalSolution` 时不显示"解集（空）"（原始 JSON 不变） |
+| `MF_Mathematics/symbolic_util.h` | 超越判定由"字符串包含"改为**结构判定**；新增 `SolvePolicy::{Strict,Decompose}`、`is_usable_solution`、`decompose_factors`、`transcendental_heads` 等，并为每类拒绝配准确文案 |
+| `MF_Mathematics/symbolic_api.cpp` | `solve_sym` 走 `Decompose` 策略并输出 `generalSolution` / `note`；`exact_roots` 允许回传非有限解集 |
+| `MF_Mathematics/tests/accuracy/cases_core.py`、`cases_calculus.py`（位于 v1 树） | 3 条用例随行为改进同步更新；准确性套件目前仍在 v1 树，用 `MF_ACC_DLL` 指到 v2.0 的 DLL 运行 |
 
 ## 附录 B：复现验证的三条命令
 
@@ -290,9 +313,15 @@ cmake --build "$V2\MF_Mathematics\build" --config Release --target mf_mathematic
 npm run check:ui --prefix "$V2\MF_UI\MFMath.UI.Vue"
 npm run build    --prefix "$V2\MF_UI\MFMath.UI.Vue"
 
-# 3) 宿主 + 端到端（教程系统与数学键盘 30 项断言）
+# 3) 宿主 + 端到端（教程系统与数学键盘 37 项、解方程 13 项断言）
 dotnet build "$V2\MFMath.Host\MFMath.Host.csproj" -c Release --no-incremental
 $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = "--remote-debugging-port=9222"
 Start-Process "$V2\MFMath.Host\bin\Release\net10.0-windows\MFMath.exe"
 node "$V2\MF_UI\MFMath.UI.Vue\tests\cdp-tutorials-keypad.mjs"
+node "$V2\MF_UI\MFMath.UI.Vue\tests\cdp-engine-solve.mjs"
 ```
+
+> **改了前端就必须重跑 `dotnet build -c Release`**：宿主把界面固定映射到
+> `MFMath.Host\bin\Release\net10.0-windows\wwwroot`，那是个**拷贝**（csproj 的
+> `Content Include=..\MF_UI\MFMath.UI.Vue\dist\**`）。只跑 `npm run build` 的话，
+> 界面改动不会进宿主，端到端测试会对着旧界面跑——本轮就在这里白跑了一轮。

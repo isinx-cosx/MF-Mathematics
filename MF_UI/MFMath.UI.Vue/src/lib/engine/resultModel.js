@@ -24,6 +24,10 @@ import { symLatex } from "../plot/prepare.js";
 /** 引擎结果里的元信息字段：即使含数字/等号也按原文显示 */
 export const PLAIN_KEYS = new Set([
   "solveMethod", "solveNote", "valueFieldNote",  // 求解方式与取值域说明
+  // generalSolution：Engine 的周期通解写成集合族记法
+  // （`{2*n*pi + pi | n in (-oo, oo)} U {2*n*pi | …}`），引擎自己的解析器不认 `|`
+  // 与 `{}`，送去排版只会失败退回文字；直接定性为文字，省一次无用的解析尝试。
+  "generalSolution",
   "kind", "nature", "deltaSign", "signDefinite", // 极值/判别式结论
   "realness", "realnessReason",                  // 实根性判定
   "method", "reason", "note", "error", "steps",  // 方法、原因、步骤说明
@@ -48,6 +52,9 @@ export const FIELD_LABELS = {
   signDefinite: "正定性",
   solutions: "解集",
   solution: "解",
+  // 三角方程的周期通解走这个字段（解集 solutions 为空是**正常**的：
+  // 无有限根可列，全部解在通解里）。
+  generalSolution: "通解",
   roots: "根",
   exact: "精确形式",
   params: "参数",
