@@ -7,17 +7,18 @@
  *   · 抽屉只占右侧一条，主界面仍可操作、可复制、可切页面。
  *
  * 渲染纪律（模型输出是不可信输入）：
- *   · 正文**绝不用 v-html**，也不拼 HTML 字符串；纯文本走插值，
- *     公式片段交给 MathLatex（KaTeX 在它内部安全渲染）；
- *   · 公式识别只做 $...$ / $$...$$ 的切分，识别不了就整段当纯文本显示。
+ *   · 正文交给 AiMarkdown：它把 markdown 解析成 **token 树**再摆成 DOM，
+ *     **全程没有 v-html、没有拼 HTML 字符串** —— 模型写的 HTML 只会以文本被转义显示。
+ *     这也是不引 marked + DOMPurify 的原因：结构上不存在注入面，就不用赌净化器写对了；
+ *   · 公式交给 MathLatex（KaTeX）；`$...$` 里不像公式的内容按占位符当文本。
  */
 import { computed, nextTick, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import MathLatex from "../math/MathLatex.vue";
+import AiMarkdown from "./AiMarkdown.vue";
 import {
   aiConfig, aiState, aiMessages, aiTestState, aiHosted,
   initAi, refreshAiConfig, aiTest, clearChat, contextBudget,
-  currentContext, estimateMessagesTokens, splitMath,
+  currentContext, estimateMessagesTokens,
   buildMessages, sendTurn, stopTurn,
 } from "../../lib/ai/bridge.js";
 
@@ -39,9 +40,7 @@ onMounted(() => {
 
 watch(() => props.open, (v) => { if (v) { refreshAiConfig(); scrollToEnd(); } });
 
-/* ── 公式切分：实现放在 bridge.js（唯一一份，且可离线断言）────────────── */
-const asstSegments = computed(() => splitMath(aiState.value.stream));
-const msgSegments = (m) => splitMath(m.content);
+/* ── 正文渲染：交给 AiMarkdown（token 树 + 模板，无 v-html）────────────── */
 
 /* ── 发送 ─────────────────────────────────────────────────────────── */
 function send() {
@@ -149,10 +148,7 @@ function openSettings() {
             <summary>思考过程（{{ m.reasoning.length }} 字）</summary>
             <div class="ai-reason-body">{{ m.reasoning }}</div>
           </details>
-          <template v-for="(s, j) in msgSegments(m)" :key="j">
-            <MathLatex v-if="s.kind === 'math'" :latex="s.value" :display="s.display" :fallback="s.value" />
-            <span v-else class="ai-text">{{ s.value }}</span>
-          </template>
+          <AiMarkdown :text="m.content" />
         </div>
       </template>
 
@@ -164,10 +160,7 @@ function openSettings() {
       </details>
 
       <div v-if="aiState.running && aiState.stream" class="ai-asst ai-streaming" data-ai="stream">
-        <template v-for="(s, j) in asstSegments" :key="j">
-          <MathLatex v-if="s.kind === 'math'" :latex="s.value" :display="s.display" :fallback="s.value" />
-          <span v-else class="ai-text">{{ s.value }}</span>
-        </template>
+        <AiMarkdown :text="aiState.stream" />
         <span class="ai-caret">▌</span>
       </div>
 

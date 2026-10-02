@@ -24,6 +24,7 @@ import { getPage } from "../workspace/store.js";
 import { HostRelayClient } from "./client.ts";
 import { collect } from "./collect.ts";
 import { isRelayHosted, relayCancelAll } from "./relay.ts";
+import { parseInline } from "./markdown.ts";
 
 /* ── 宿主桥 ──────────────────────────────────────────────────────────── */
 
@@ -329,37 +330,27 @@ export function contextBudget(cfg = aiConfig.value) {
   };
 }
 
-/* ── 正文切分：把 $...$ / $$...$$ 摘出来交给 MathLatex 渲染 ────────────── */
+/* ── 正文切分（适配层）：公式/文本压平，供测试与旧调用方使用 ──────────── */
 
 /**
- * 把一段模型正文切成 [{kind:"text"|"math", value, display}]。
+ * 把一行正文压平成 `[{kind:"text"|"math", value, display}]`。
  *
- * 两条刻意的克制：
- *   ① **只认 `$...$` 与 `$$...$$`**，不做 markdown、不拼 HTML。模型输出是不可信输入，
- *      多一个渲染器就多一片注入面；面板里正文走插值，公式只交给 KaTeX。
- *   ② **内容不像公式就不当公式**：模型有时会把 `$...$` 当**占位符**写出来
- *      （"行内 $...$，独立成行 $$...$$"），照字面渲染成空公式会让用户看到
- *      "行内 ... 或独立成行 ..." —— 实测踩过。所以要求公式里至少有一个
- *      字母/数字/反斜杠/运算符，否则原样当文本。
+ * 真正的解析在 `markdown.ts`（行内 token 树，含粗体/代码/链接），
+ * 这里只是**适配层**：把树压平。刻意不在这里再写一份公式识别 ——
+ * 「`$...$` 里不像公式就当占位符文本」这条规矩只能有一个实现。
  */
 export function splitMath(text) {
-  const src = String(text || "");
-  const out = [];
-  const re = /\$\$([\s\S]+?)\$\$|\$([^$\n]+?)\$/g;
-  const MATHISH = /[A-Za-z0-9\\^_=+\-*/<>()[\]]/;
-  let last = 0;
-  let m;
-  while ((m = re.exec(src)) !== null) {
-    const raw = m[1] !== undefined ? m[1] : m[2];
-    const display = m[1] !== undefined;
-    const value = String(raw || "").trim();
-    if (!value || !MATHISH.test(value)) continue;   // 占位符/空白：留在文本里
-    if (m.index > last) out.push({ kind: "text", value: src.slice(last, m.index) });
-    out.push({ kind: "math", value, display });
-    last = m.index + m[0].length;
-  }
-  if (last < src.length) out.push({ kind: "text", value: src.slice(last) });
-  return out.length ? out : [{ kind: "text", value: src }];
+  const flat = [];
+  const walk = (tokens) => {
+    for (const t of tokens) {
+      if (t.type === "math") flat.push({ kind: "math", value: t.tex, display: t.display });
+      else if (t.type === "text") flat.push({ kind: "text", value: t.text });
+      else if (t.type === "code") flat.push({ kind: "text", value: "`" + t.text + "`" });
+      else if (Array.isArray(t.content)) walk(t.content);
+    }
+  };
+  walk(parseInline(text));
+  return flat.length ? flat : [{ kind: "text", value: String(text || "") }];
 }
 
 /* ── 发送 / 停止（走 TS 客户端；宿主只负责带密钥发请求与转发字节）───────── */

@@ -47,8 +47,39 @@ function pickScenario(text) {
   if (has("无DONE")) return "nodone";
   if (has("思考")) return "reasoning";
   if (has("公式")) return "math";
+  if (has("markdown")) return "markdown";
   return "normal";
 }
+
+/** markdown 全家桶 + 故意混进 HTML：用来断言"渲染了，但没有注入面" */
+const MARKDOWN_SAMPLE = [
+  "# 标题一",
+  "",
+  "**粗体** 与 *斜体* 与 `行内代码` 与 ~~删除~~。",
+  "",
+  "- 无序甲",
+  "- 无序乙",
+  "",
+  "1. 有序甲",
+  "2. 有序乙",
+  "",
+  "| 量 | 值 |",
+  "| --- | ---: |",
+  "| $x$ | 1 |",
+  "| y | 2 |",
+  "",
+  "```python",
+  "print('$这个不该被当公式$')",
+  "```",
+  "",
+  "> 引用一行",
+  "",
+  "行内公式 $x^2+1$；占位符 $...$ 应当原样显示。",
+  "",
+  "安全链接 [示例](https://example.com/a) 与危险链接 [坏](javascript:alert(1))。",
+  "",
+  "<img src=x onerror=alert(1)> 与 <script>alert(2)</script> 都应当只是文本。",
+].join("\n");
 
 /** 让一段文字逐字发出去，可指定间隔 */
 async function streamText(res, text, gapMs) {
@@ -186,6 +217,14 @@ const server = http.createServer((req, res) => {
         await streamText(res, "由定义可得 $f'(x)=2x$，于是", 0);
         res.write(wrap({ content: "$$\\int_0^1 2x\\,dx = 1$$" }));
         await streamText(res, "这就是结果。", 0);
+        res.write(wrap({}, "stop"));
+        res.write(usageChunk());
+        res.write("data: [DONE]\n\n");
+        res.end();
+        return;
+
+      case "markdown":
+        await streamText(res, MARKDOWN_SAMPLE, 0);
         res.write(wrap({}, "stop"));
         res.write(usageChunk());
         res.write("data: [DONE]\n\n");

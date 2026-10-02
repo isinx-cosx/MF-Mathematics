@@ -16,6 +16,8 @@ $tests = @(
   # 协议层的离线单测：SSE 分帧（含"任意字节切分一致"），不需要宿主。TS 层搬过来之后
   # 这类纯逻辑第一次可以脱离窗口测 —— 这也是把协议放进 TS 的直接收益。
   "unit-sse",
+  # markdown 解析（同样是纯逻辑）：重点在"递归不会把自己卡死"与"注入面为零"
+  "unit-markdown",
   "cdp-bridge-verify", "cdp-window-shell", "cdp-appearance", "cdp-input-notation", "cdp-font-load", "cdp-plot-verify", "cdp-plot-p3", "cdp-plot-p4",
   "cdp-plot-region", "cdp-plot-p5", "cdp-plot-final", "cdp-plot-asymptote",
   "cdp-plot-extrema", "cdp-plot-extrema-domain", "cdp-plot-3d", "cdp-plot-vector", "cdp-plot-fractal",

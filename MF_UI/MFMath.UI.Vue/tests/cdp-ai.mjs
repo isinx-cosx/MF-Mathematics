@@ -135,6 +135,11 @@ if (!pageReady) {
 
 check("宿主提供 ai 桥", (await evalJs(`window.__mfAi.hosted()`)) === true);
 
+// 先清掉**已落盘的旧会话**：否则"回答只出现一次""思考过程只出现一次"这类断言
+// 会被上一次运行留下的 ai-chat.json 影响，变成看运气的用例。
+await evalJs(`window.__mfAi.clear()`);
+await sleep(200);
+
 const info0 = await evalJs(`JSON.stringify(window.__mfAi.info())`);
 check("读到脱敏配置", typeof info0 === "string" && info0.includes("baseUrl"), String(info0).slice(0, 80));
 
@@ -235,9 +240,12 @@ const reasonState = String(await evalJs(`JSON.stringify({
 })`));
 check("思考过程挂在消息上（收尾后实时块清空）",
   /"live":""/.test(reasonState) && /"last":"[^"]+"/.test(reasonState), reasonState.slice(0, 160));
-check("面板里「思考过程」只出现一次", await evalJs(`(() => {
-  const t = (document.querySelector('[data-ai=panel]').textContent || "");
-  return (t.match(/思考过程/g) || []).length;
+// 只在**最后一条助手消息**里数「思考过程」：面板级计数会被历史消息干扰
+check("思考过程只挂在最后一条消息上（不重复、不悬空）", await evalJs(`(() => {
+  const panel = document.querySelector('[data-ai=panel]');
+  const list = panel.querySelectorAll('.ai-asst');
+  const last = list[list.length - 1];
+  return last ? (last.textContent.match(/思考过程/g) || []).length : -1;
 })()`) === 1);
 
 // 公式切分的占位符回归：模型把 $...$ 当占位符写出来时，不该被当成空公式吃掉
@@ -245,9 +253,59 @@ const splitCase = String(await evalJs(`JSON.stringify({
   placeholder: window.__mfAi.splitMath("行内 $...$ 与 $$...$$"),
   real: window.__mfAi.splitMath("取 $x^2+1$ 的导数")
 })`));
+const splitObj = (() => { try { return JSON.parse(splitCase); } catch { return {}; } })();
+const flatPlaceholder = (splitObj.placeholder || []).map((t) => t.value).join("");
 check("$...$ 占位符原样保留（不当空公式）",
-  /行内 \$\.\.\.\$ 与 \$\$\.\.\.\$\$/.test(splitCase), splitCase.slice(0, 120));
+  flatPlaceholder === "行内 $...$ 与 $$...$$", JSON.stringify(flatPlaceholder));
 check("真公式仍然被摘出来交给 KaTeX", /"kind":"math"/.test(splitCase) && /x\^2\+1/.test(splitCase), splitCase.slice(0, 160));
+
+console.log("=== ②b markdown 渲染（且不引入注入面）===");
+await runTurn("给我一段 markdown", /"doneReason":"stop"/);
+const md = String(await evalJs(`(() => {
+  const panel = document.querySelector('[data-ai=panel]');
+  // ⚠ 必须取"最后一个"：querySelector 配 :last-of-type 返回的是文档里**第一个**
+  // 满足"自己是父级里最后一个同类元素"的节点，也就是最早那条消息，不是最新那条。
+  const all = panel.querySelectorAll('[data-ai=markdown]');
+  const last = all[all.length - 1];
+  if (!last) return JSON.stringify({ none: true });
+  return JSON.stringify({
+    strong: [...last.querySelectorAll('strong')].map(e => e.textContent.trim()),
+    em: [...last.querySelectorAll('em')].map(e => e.textContent.trim()),
+    strike: [...last.querySelectorAll('s')].map(e => e.textContent.trim()),
+    code: [...last.querySelectorAll('code')].map(e => e.textContent.trim()),
+    li: [...last.querySelectorAll('li')].map(e => e.textContent.trim()),
+    h: [...last.querySelectorAll('h3')].map(e => e.textContent.trim()),
+    pre: last.querySelectorAll('pre').length,
+    quote: last.querySelectorAll('blockquote').length,
+    table: last.querySelectorAll('table').length,
+    th: [...last.querySelectorAll('th')].map(e => e.textContent.trim()),
+    katex: last.querySelectorAll('.katex').length,
+    linkHref: (last.querySelector('a.md-link') || {}).getAttribute ? last.querySelector('a.md-link').getAttribute('href') : '',
+    unsafeLinks: last.querySelectorAll('.md-link-unsafe').length,
+    imgs: last.querySelectorAll('img').length,
+    scripts: last.querySelectorAll('script').length,
+    escapedHtml: last.innerHTML.includes('&lt;img') && last.innerHTML.includes('&lt;script'),
+    rawText: last.textContent.includes('<img src=x onerror=alert(1)>')
+  });
+})()`));
+const mdObj = (() => { try { return JSON.parse(md); } catch { return {}; } })();
+check("粗体渲染成 <strong>", Array.isArray(mdObj.strong) && mdObj.strong.includes("粗体"), md.slice(0, 80));
+check("斜体/删除线渲染", (mdObj.em || []).includes("斜体") && (mdObj.strike || []).includes("删除"), md.slice(0, 80));
+check("行内代码渲染成 <code>", (mdObj.code || []).includes("行内代码"));
+check("无序列表渲染成 <li>", (mdObj.li || []).includes("无序甲") && (mdObj.li || []).includes("无序乙"));
+check("有序列表也在（甲/乙）", (mdObj.li || []).includes("有序甲"));
+check("标题渲染成 <h3>", (mdObj.h || []).includes("标题一"));
+check("围栏代码块渲染成 <pre>", mdObj.pre >= 1, String(mdObj.pre));
+check("代码块里的 $ 不被当公式（literal）", (mdObj.code || []).some((c) => c.includes("$这个不该被当公式$")), JSON.stringify(mdObj.code || []).slice(0, 80));
+check("引用渲染成 <blockquote>", mdObj.quote >= 1);
+check("表格渲染成 <table> 且有表头", mdObj.table >= 1 && (mdObj.th || []).includes("量"), JSON.stringify(mdObj.th || []));
+check("公式仍交给 KaTeX（表格单元里的 $x$ 也算）", mdObj.katex >= 2, String(mdObj.katex));
+check("$...$ 占位符在正文里原样显示", String(await evalJs(`document.querySelector('[data-ai=panel]').textContent.includes('占位符 $...$')`)) === "true");
+check("安全链接可点但 href 正确", String(mdObj.linkHref || "").startsWith("https://example.com"), String(mdObj.linkHref));
+check("危险协议链接不生成 <a>", mdObj.unsafeLinks >= 1);
+check("模型写的 HTML **没有**变成元素（img/script 数量为 0）", mdObj.imgs === 0 && mdObj.scripts === 0,
+  `img=${mdObj.imgs} script=${mdObj.scripts}`);
+check("HTML 被转义成文本显示（不是被吃掉）", mdObj.escapedHtml === true && mdObj.rawText === true);
 
 console.log("=== ③ 停止（流式进行时按下）===");
 await resetTurn();
