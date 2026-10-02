@@ -4,7 +4,6 @@
 #include <string>
 #include <vector>
 
-#include "../mf_export.h"
 
 namespace mf::measure_theory {
 
@@ -13,7 +12,7 @@ struct SigmaAlgebraResult {
     bool is_sigma_algebra = false;
     long long collection_size = 0;
 };
-MF_API SigmaAlgebraResult is_sigma_algebra(
+SigmaAlgebraResult is_sigma_algebra(
     const std::vector<std::vector<long long>>& collection,
     const std::vector<long long>& X);
 
@@ -23,12 +22,12 @@ struct GeneratedSigmaAlgebra {
     std::vector<std::vector<long long>> sets;
     long long iterations = 0;
 };
-MF_API GeneratedSigmaAlgebra generate_sigma_algebra(
+GeneratedSigmaAlgebra generate_sigma_algebra(
     const std::vector<std::vector<long long>>& generators,
     const std::vector<long long>& X);
 
 // 由离散点集的所有连续子段(开区间)生成 Borel σ-代数。
-MF_API GeneratedSigmaAlgebra borel_sigma_algebra(
+GeneratedSigmaAlgebra borel_sigma_algebra(
     const std::vector<long long>& elements);
 
 }  // namespace mf::measure_theory

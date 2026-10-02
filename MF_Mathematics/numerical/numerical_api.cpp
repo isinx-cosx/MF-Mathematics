@@ -35,6 +35,8 @@ using mf::api::get_keyword;
 using mf::api::get_string_opt;
 using mf::api::get_double_array;
 using mf::api::to_double_array;
+using mf::api::get_int_bounded;
+using mf::api::get_int_opt_bounded;
 
 Value ode_to_value(const ODEResult& r) {
     Value obj = Value::make_object();
@@ -140,15 +142,15 @@ void register_all() {
     // ── 数值积分 ───────────────────────────────────────────────────────────
     register_function("trapezoidal_rule", make_handler([](const Value& args) {
         return Value(trapezoidal_rule(get_string(args, "f"), get_double(args, "a"),
-                                      get_double(args, "b"), get_int_opt(args, "n", 100)));
+                                      get_double(args, "b"), get_int_opt_bounded(args, "n", 100, -9223372036854775807, 10000000, "积分节点数")));
     }));
     register_function("simpson_rule", make_handler([](const Value& args) {
         return Value(simpson_rule(get_string(args, "f"), get_double(args, "a"),
-                                  get_double(args, "b"), get_int_opt(args, "n", 100)));
+                                  get_double(args, "b"), get_int_opt_bounded(args, "n", 100, -9223372036854775807, 10000000, "积分节点数")));
     }));
     register_function("gauss_quadrature", make_handler([](const Value& args) {
         return Value(gauss_quadrature(get_string(args, "f"), get_double(args, "a"),
-                                      get_double(args, "b"), get_int_opt(args, "n", 3)));
+                                      get_double(args, "b"), get_int_opt_bounded(args, "n", 3, -9223372036854775807, 10000000, "节点数")));
     }));
     register_function("numerical_derivative", make_handler([](const Value& args) {
         return Value(numerical_derivative(get_string(args, "f"), get_double(args, "x"),
@@ -187,8 +189,8 @@ void register_all() {
             throw std::invalid_argument("x_range/y_range 须为 [min, max]");
         const PhasePortraitResult r = phase_portrait(
             get_string(args, "dx_dt"), get_string(args, "dy_dt"), xr[0], xr[1],
-            yr[0], yr[1], get_int_opt(args, "n_trajectories", 5),
-            get_int_opt(args, "resolution", 20));
+            yr[0], yr[1], get_int_opt_bounded(args, "n_trajectories", 5, -9223372036854775807, 100, "轨迹条数"),
+            get_int_opt_bounded(args, "resolution", 20, -9223372036854775807, 200, "相图分辨率"));
         Value obj = Value::make_object();
         Value field = Value::make_object();
         field.set("X", to_matrix_value(r.X));
@@ -230,7 +232,7 @@ void register_all() {
     register_function("least_squares_fit", make_handler([](const Value& args) {
         const LeastSquaresResult r = least_squares_fit(
             get_double_array(args, "x"), get_double_array(args, "y"),
-            get_int_opt(args, "degree", 2));
+            get_int_opt_bounded(args, "degree", 2, -9223372036854775807, 20, "拟合阶数"));
         Value obj = Value::make_object();
         obj.set("coeffs", to_double_array(r.coeffs));
         obj.set("r_squared", Value(r.r_squared));
@@ -248,7 +250,7 @@ void register_all() {
         // 于是 error_stability.cpp 里的 geometric 分支永远不可达 ——
         // 用户看到的是「未知级数: g*e*o*m*e*t*r*i*c」，而头文件声明支持 geometric。
         return Value(truncation_error(get_keyword(args, "series"), get_double(args, "x"),
-                                      get_int(args, "n"),
+                                      get_int_bounded(args, "n", -9223372036854775807, 1000000, "采样点数"),
                                       get_double_opt(args, "true_value", 0.0)));
     }));
     register_function("rounding_error_estimate", make_handler([](const Value& args) {
@@ -263,7 +265,7 @@ void register_all() {
         const GradientDescentResult r = gradient_descent(
             get_string(args, "f"), get_double_opt(args, "x0", 1.0),
             get_double_opt(args, "learning_rate", 0.1),
-            get_int_opt(args, "max_iter", 1000), get_double_opt(args, "tol", 1e-6));
+            get_int_opt_bounded(args, "max_iter", 1000, -9223372036854775807, 100000, "最大迭代次数"), get_double_opt(args, "tol", 1e-6));
         Value obj = Value::make_object();
         obj.set("x_min", Value(r.x_min));
         obj.set("f_min", Value(r.f_min));
@@ -288,7 +290,7 @@ void register_all() {
         int it = 0;
         return vector_to_value(jacobi_iteration(
             A, b, x0, get_double_opt(args, "tol", 1e-6),
-            static_cast<int>(get_int_opt(args, "max_iter", 1000)), it));
+            static_cast<int>(get_int_opt_bounded(args, "max_iter", 1000, -9223372036854775807, 100000, "最大迭代次数")), it));
     }));
     register_function("gauss_seidel", make_handler([](const Value& args) {
         const Eigen::MatrixXd A = get_matrix(args, "A");
@@ -298,7 +300,7 @@ void register_all() {
         int it = 0;
         return vector_to_value(gauss_seidel(
             A, b, x0, get_double_opt(args, "tol", 1e-6),
-            static_cast<int>(get_int_opt(args, "max_iter", 1000)), it));
+            static_cast<int>(get_int_opt_bounded(args, "max_iter", 1000, -9223372036854775807, 100000, "最大迭代次数")), it));
     }));
     register_function("conjugate_gradient", make_handler([](const Value& args) {
         const Eigen::MatrixXd A = get_matrix(args, "A");
@@ -308,14 +310,14 @@ void register_all() {
         int it = 0;
         return vector_to_value(conjugate_gradient(
             A, b, x0, get_double_opt(args, "tol", 1e-6),
-            static_cast<int>(get_int_opt(args, "max_iter", 1000)), it));
+            static_cast<int>(get_int_opt_bounded(args, "max_iter", 1000, -9223372036854775807, 100000, "最大迭代次数")), it));
     }));
     register_function("power_method", make_handler([](const Value& args) {
         const Eigen::MatrixXd A = get_matrix(args, "A");
         require_square(A);          // 幂法/Eigen 越界同样会崩宿主
         const PowerResult r = power_method(
             A, get_double_opt(args, "tol", 1e-8),
-            static_cast<int>(get_int_opt(args, "max_iter", 1000)));
+            static_cast<int>(get_int_opt_bounded(args, "max_iter", 1000, -9223372036854775807, 100000, "最大迭代次数")));
         Value obj = Value::make_object();
         obj.set("eigenvalue", Value(r.eigenvalue));
         obj.set("eigenvector", vector_to_value(r.eigenvector));
@@ -327,7 +329,7 @@ void register_all() {
         require_square(A);
         return complex_array_to_value(qr_algorithm(
             A, get_double_opt(args, "tol", 1e-8),
-            static_cast<int>(get_int_opt(args, "max_iter", 1000))));
+            static_cast<int>(get_int_opt_bounded(args, "max_iter", 1000, -9223372036854775807, 100000, "最大迭代次数"))));
     }));
 }
 

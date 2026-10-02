@@ -17,7 +17,6 @@
 #include <string>
 #include <vector>
 
-#include "../mf_export.h"
 #include "la_internal.h"
 
 namespace mf::linear_algebra {
@@ -34,7 +33,7 @@ struct EigenvaluesResult {
     std::string method;
     std::string note;
 };
-MF_API EigenvaluesResult eigenvalues(
+EigenvaluesResult eigenvalues(
     const std::vector<std::vector<double>>& matrix);
 
 // 特征向量(与特征值配对)。特征向量同样可能是复向量。
@@ -49,15 +48,15 @@ struct EigenvectorsResult {
     std::string method;
     std::string note;
 };
-MF_API EigenvectorsResult eigenvectors(
+EigenvectorsResult eigenvectors(
     const std::vector<std::vector<double>>& matrix);
 
 // 特征多项式 det(A - λI)(SymEngine 符号计算)。
-MF_API std::string characteristic_polynomial(
+std::string characteristic_polynomial(
     const std::vector<std::vector<double>>& matrix);
 
 // 可对角化(实数域上):无复特征值，且各特征值的几何重数之和 == 矩阵阶数。
-MF_API bool is_diagonalizable(
+bool is_diagonalizable(
     const std::vector<std::vector<double>>& matrix);
 
 // 对角化 A = P·D·P⁻¹(实数域上)。
@@ -67,7 +66,7 @@ struct DiagonalizeResult {
     Matrix D;
     std::string reason;  // 不可对角化时的说明
 };
-MF_API DiagonalizeResult diagonalize(
+DiagonalizeResult diagonalize(
     const std::vector<std::vector<double>>& matrix);
 
 }  // namespace mf::linear_algebra

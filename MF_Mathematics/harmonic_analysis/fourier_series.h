@@ -6,7 +6,6 @@
 #include <utility>
 #include <vector>
 
-#include "../mf_export.h"
 
 namespace mf::harmonic_analysis {
 
@@ -15,7 +14,7 @@ struct FourierCoeffResult {
     double value = 0.0;
     std::string name;  // a_0 / a_n / b_n
 };
-MF_API FourierCoeffResult fourier_coeff(const std::string& f, long long n,
+FourierCoeffResult fourier_coeff(const std::string& f, long long n,
                                         double period,
                                         const std::string& coeff_type);
 
@@ -24,7 +23,7 @@ struct FourierSeriesResult {
     std::string expression;
     std::vector<std::pair<std::string, std::string>> coeffs;  // (name, value)
 };
-MF_API FourierSeriesResult fourier_series(const std::string& f, long long n_terms,
+FourierSeriesResult fourier_series(const std::string& f, long long n_terms,
                                           double period);
 
 // 复傅里叶系数 c_n = (1/T)∫_0^T f(x) e^{-2πinx/T} dx。
@@ -32,7 +31,7 @@ struct ComplexCoeffResult {
     std::complex<double> value;
     std::string expression;
 };
-MF_API ComplexCoeffResult complex_fourier_coeff(const std::string& f, long long n,
+ComplexCoeffResult complex_fourier_coeff(const std::string& f, long long n,
                                                 double period);
 
 // 正交性:∫_0^T e^{inωx}·e^{-imωx} dx = T(n=m) 或 0(n≠m),ω=2π/T。
@@ -40,7 +39,7 @@ struct OrthogonalityResult {
     std::complex<double> integral;
     bool orthogonal = false;
 };
-MF_API OrthogonalityResult orthogonality_check(long long n, long long m,
+OrthogonalityResult orthogonality_check(long long n, long long m,
                                                double period);
 
 }  // namespace mf::harmonic_analysis

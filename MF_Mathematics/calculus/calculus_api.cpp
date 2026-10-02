@@ -28,6 +28,9 @@ using mf::api::get_string;
 using mf::api::get_string_opt;
 using mf::api::get_equation;
 using mf::api::get_string_or_number;
+using mf::api::get_int_bounded;
+using mf::api::get_int_opt_bounded;
+using mf::api::arg_error;
 
 // 趋近点:数字或字符串 "oo"/"+oo"/"-oo"(handler 存储为 std::function,只能引用自由函数)。
 double point_of(const Value& args) {
@@ -44,7 +47,7 @@ void register_all() {
 
     register_function("diff", make_handler([](const Value& args) {
         return Value(diff(get_string(args, "expr"), get_string_opt(args, "var", "x"),
-                          get_int_opt(args, "order", 1)));
+                          get_int_opt_bounded(args, "order", 1, -9223372036854775807, 1000, "求导阶数")));
     }));
     // 在某点求导。**含参数时返回符号结果**（f=a*x^2 在 x=2 处是 4*a，不是一个报错），
     // 不含参数时仍然返回数值——因此这里按"结果文本能否整体解析为数字"来决定 JSON 类型。
@@ -52,7 +55,7 @@ void register_all() {
         const std::string s = diff_at_str(get_string(args, "expr"),
                                           get_string_opt(args, "var", "x"),
                                           get_double(args, "point"),
-                                          get_int_opt(args, "order", 1));
+                                          get_int_opt_bounded(args, "order", 1, -9223372036854775807, 1000, "求导阶数"));
         // 必须整串都能解析才算数值：stod("4*a") 会只看前一位，绝不能当 4 用
         std::size_t used = 0;
         try {
@@ -215,7 +218,7 @@ void register_all() {
         return Value(taylor(get_string(args, "expr"),
                             get_string_opt(args, "var", "x"),
                             get_double_opt(args, "point", 0.0),
-                            get_int_opt(args, "order", 3)));
+                            get_int_opt_bounded(args, "order", 3, -9223372036854775807, 200, "泰勒展开阶数")));
     }));
 
     // ── integrals_app ───────────────────────────────────────────────────────
@@ -249,16 +252,26 @@ void register_all() {
     register_function("series_sum", make_handler([](const Value& args) {
         bool infinite = true;
         long long b = -1;
+        // ⚠ b 会**逐项求值**（每项一次符号代换），给个大数就是让引擎算那么多次，
+        //   用户看到的是"卡死"而不是"算不完"。所以这里有上限；但解析与报错仍走原路
+        //   （字符串用 stoll、数字用 as_int），免得把"b 不是整数"这类报错文案换掉。
+        const auto check_b = [](long long v) {
+            if (v < -1000000 || v > 1000000)
+                throw arg_error("求和上界 b 超出可计算范围 [-1000000, 1000000]：收到 " +
+                                std::to_string(v) +
+                                "。求和是逐项求值，范围再大算不完；请缩小范围或分批做。");
+            return v;
+        };
         if (args.is_object() && args.has("b")) {
             const Value& bv = args["b"];
             if (bv.is_string()) {
                 const std::string bs = bv.as_string();
                 if (bs != "oo" && bs != "inf") {
-                    b = std::stoll(bs);
+                    b = check_b(std::stoll(bs));
                     infinite = false;
                 }
             } else {
-                b = bv.as_int();
+                b = check_b(bv.as_int());
                 infinite = false;
             }
         }
@@ -275,7 +288,7 @@ void register_all() {
         return Value(power_series(get_string(args, "expr"),
                                   get_string_opt(args, "var", "x"),
                                   get_double_opt(args, "point", 0.0),
-                                  get_int_opt(args, "n", 5)));
+                                  get_int_opt_bounded(args, "n", 5, -9223372036854775807, 200, "幂级数项数")));
     }));
     register_function("power_series_radius", make_handler([](const Value& args) {
         const double R = power_series_radius(get_string(args, "expr"),

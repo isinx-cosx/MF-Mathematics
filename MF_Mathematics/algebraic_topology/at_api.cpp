@@ -32,6 +32,8 @@ using mf::api::get_int_opt;
 using mf::api::get_double_opt;
 using mf::api::get_bool_opt;
 using mf::api::get_string;
+using mf::api::get_int_bounded;
+using mf::api::get_int_opt_bounded;
 using namespace mf::algebraic_topology;
 
 // ── 单形/复形的 JSON 解析与序列化 ─────────────────────────────────────────
@@ -133,21 +135,21 @@ void register_all() {
     }));
 
     register_function("homology_group", make_handler([](const Value& args) {
-        const long long n = get_int(args, "n");
+        const long long n = get_int_bounded(args, "n", -9223372036854775807, 100, "维数 n");
         if (args.has("space"))
             return homology_group_to_value(homology_group(args["space"].as_string(), n));
         return homology_group_to_value(homology_group(or_space(args), n));
     }));
 
     register_function("cohomology_group", make_handler([](const Value& args) {
-        const long long n = get_int(args, "n");
+        const long long n = get_int_bounded(args, "n", -9223372036854775807, 100, "维数 n");
         if (args.has("space"))
             return homology_group_to_value(cohomology_group(args["space"].as_string(), n));
         return homology_group_to_value(cohomology_group(or_space(args), n));
     }));
 
     register_function("betti_numbers", make_handler([](const Value& args) {
-        const long long max_dim = get_int_opt(args, "max_dim", -1);
+        const long long max_dim = get_int_opt_bounded(args, "max_dim", -1, -9223372036854775807, 20, "最大维数");
         if (args.has("space")) {
             std::vector<long long> b = betti_numbers(args["space"].as_string());
             if (max_dim >= 0 && static_cast<std::size_t>(max_dim) + 1 < b.size())
@@ -193,7 +195,7 @@ void register_all() {
         return obj;
     }));
     register_function("mapping_degree", make_handler([](const Value& args) {
-        const MappingDegree md = mapping_degree(get_int(args, "sphere_dim"));
+        const MappingDegree md = mapping_degree(get_int_bounded(args, "sphere_dim", -9223372036854775807, 1000, "球面维数"));
         Value obj = Value::make_object();
         obj.set("sphere_dim", Value(md.sphere_dim));
         obj.set("antipodal_degree", Value(md.antipodal_degree));
@@ -210,7 +212,7 @@ void register_all() {
         return obj;
     }));
     register_function("hairy_ball_theorem", make_handler([](const Value& args) {
-        const HairyBall hb = hairy_ball_theorem(get_int(args, "sphere_dim"));
+        const HairyBall hb = hairy_ball_theorem(get_int_bounded(args, "sphere_dim", -9223372036854775807, 100, "球面维数"));
         Value obj = Value::make_object();
         obj.set("sphere_dim", Value(hb.sphere_dim));
         obj.set("nonzero_vector_field_exists", Value(hb.nonzero_vector_field_exists));
@@ -218,7 +220,7 @@ void register_all() {
         return obj;
     }));
     register_function("boundary_operator", make_handler([](const Value& args) {
-        const BoundaryOperator bo = boundary_operator(get_int(args, "dimension"));
+        const BoundaryOperator bo = boundary_operator(get_int_bounded(args, "dimension", -9223372036854775807, 1000, "维数"));
         Value obj = Value::make_object();
         obj.set("dimension", Value(bo.dimension));
         obj.set("formula", Value(bo.formula));
@@ -236,7 +238,7 @@ void register_all() {
     register_function("filtration", make_handler([](const Value& args) {
         const auto points = get_point_cloud(args, "point_cloud");
         const double ms = get_double_opt(args, "max_scale", 1.0);
-        const long long md = get_int_opt(args, "max_dim", 2);
+        const long long md = get_int_opt_bounded(args, "max_dim", 2, -9223372036854775807, 20, "最大维数");
         const FiltrationResult fr = filtration(points, ms, md);
         Value obj = Value::make_object();
         obj.set("n_points", Value(fr.n_points));

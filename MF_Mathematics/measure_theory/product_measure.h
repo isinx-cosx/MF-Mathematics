@@ -3,13 +3,12 @@
 
 #include <string>
 
-#include "../mf_export.h"
 
 namespace mf::measure_theory {
 
 // 乘积测度 (μ×ν)([a,b]×[c,d]) = μ_factor·(b-a)·ν_factor·(d-c)。
 // "lebesgue" 测度因子为 1;数值因子直接相乘。
-MF_API double product_measure(double mu_factor, double nu_factor, double ax,
+double product_measure(double mu_factor, double nu_factor, double ax,
                               double bx, double ay, double by);
 
 // Fubini 定理验证:两种积分次序 ∫∫f dy dx 与 ∫∫f dx dy 应一致。
@@ -30,7 +29,7 @@ struct FubiniResult {
     // 定性说明:观测到什么、由此得出什么结论(含积分层给出的原始理由,可直接展示给用户)。
     std::string note;
 };
-MF_API FubiniResult fubini_theorem(const std::string& expr, double xa, double xb,
+FubiniResult fubini_theorem(const std::string& expr, double xa, double xb,
                                    double ya, double yb);
 
 }  // namespace mf::measure_theory

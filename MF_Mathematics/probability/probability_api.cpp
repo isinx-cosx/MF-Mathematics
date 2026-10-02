@@ -37,6 +37,8 @@ using mf::api::get_string;
 using mf::api::get_string_opt;
 using mf::api::get_bool_opt;
 using mf::api::get_double_array;
+using mf::api::get_int_bounded;
+using mf::api::get_int_opt_bounded;
 
 // 二维 double 数组(分组数据)。
 // 注意：这里**允许**各行长度不同（ANOVA / Kruskal-Wallis 的各组样本数本来就可以不等），
@@ -283,7 +285,7 @@ void register_all() {
         return dist_to_json(bernoulli(get_double(args, "p")));
     }));
     register_function("binomial", make_handler([](const Value& args) {
-        return dist_to_json(binomial(get_int(args, "n"), get_double(args, "p")));
+        return dist_to_json(binomial(get_int_bounded(args, "n", -9223372036854775807, 1000000, "试验次数"), get_double(args, "p")));
     }));
     register_function("poisson", make_handler([](const Value& args) {
         return dist_to_json(poisson(get_double(args, "lambda")));
@@ -354,7 +356,7 @@ void register_all() {
     register_function("law_of_large_numbers", make_handler([](const Value& args) {
         const LlnResult r = law_of_large_numbers(
             get_double(args, "sample_mean"), get_double(args, "true_mean"),
-            get_int(args, "n"));
+            get_int_bounded(args, "n", -9223372036854775807, 1000000, "样本数"));
         Value obj = Value::make_object();
         obj.set("deviation", Value(r.deviation));
         obj.set("threshold", Value(r.threshold));
@@ -364,7 +366,7 @@ void register_all() {
     register_function("central_limit_theorem", make_handler([](const Value& args) {
         const CltResult r = central_limit_theorem(
             get_double_array(args, "sample"), get_double(args, "mu"),
-            get_double(args, "sigma"), get_int(args, "n"));
+            get_double(args, "sigma"), get_int_bounded(args, "n", -9223372036854775807, 1000000, "样本数"));
         Value obj = Value::make_object();
         obj.set("sample_mean", Value(r.sample_mean));
         obj.set("Z", Value(r.Z));
@@ -378,7 +380,7 @@ void register_all() {
     register_function("z_test", make_handler([](const Value& args) {
         return hyp_to_json(z_test(
             get_double(args, "sample_mean"), get_double(args, "mu0"),
-            get_double(args, "sigma"), get_int(args, "n"),
+            get_double(args, "sigma"), get_int_bounded(args, "n", -9223372036854775807, 1000000, "样本数"),
             get_double_opt(args, "alpha", 0.05),
             get_string_opt(args, "alternative", "two-sided")));
     }));
@@ -514,7 +516,7 @@ void register_all() {
     // ── time_series ─────────────────────────────────────────────────────────
     register_function("moving_average", make_handler([](const Value& args) {
         const MovingAverageResult r = moving_average(
-            get_double_array(args, "data"), get_int_opt(args, "window", 3));
+            get_double_array(args, "data"), get_int_opt_bounded(args, "window", 3, -9223372036854775807, 1000000, "窗口"));
         Value obj = Value::make_object();
         obj.set("smoothed", to_darr(r.smoothed));
         obj.set("window", Value(r.window));
@@ -532,7 +534,7 @@ void register_all() {
     }));
     register_function("linear_trend", make_handler([](const Value& args) {
         const LinearTrendResult r = linear_trend(
-            get_double_array(args, "data"), get_int_opt(args, "forecast_steps", 3));
+            get_double_array(args, "data"), get_int_opt_bounded(args, "forecast_steps", 3, -9223372036854775807, 1000000, "预测步数"));
         Value obj = Value::make_object();
         obj.set("slope", Value(r.slope));
         obj.set("intercept", Value(r.intercept));

@@ -56,6 +56,29 @@ long long get_int_opt(const Value& args, const char* key, long long def) {
     return args[key].as_int();
 }
 
+// 带上界的整数参数：这些参数直接决定循环次数/分配大小（试除法 ~√n、筛法、BSGS），
+// 没有上限时一个大数就能让界面卡死。语义与 api_helpers.h 里的同名助手一致。
+long long get_int_bounded(const Value& args, const char* key, long long lo, long long hi,
+                          const char* what) {
+    const long long v = get_int(args, key);
+    if (v < lo || v > hi) {
+        const std::string name = (what && *what) ? what : key;
+        std::string msg = name + " 超出可计算范围 [" + std::to_string(lo) + ", " +
+                          std::to_string(hi) + "]：收到 " + std::to_string(v);
+        if (v > hi)
+            msg += "。上限是为了避免单次计算卡住界面——这类参数直接决定循环次数"
+                   "或分配大小，代价随它迅速增长；需要更大规模请分批做。";
+        throw std::invalid_argument(msg);
+    }
+    return v;
+}
+
+long long get_int_opt_bounded(const Value& args, const char* key, long long def,
+                              long long lo, long long hi, const char* what) {
+    if (!args.is_object() || !args.has(key)) return def;
+    return get_int_bounded(args, key, lo, hi, what);
+}
+
 double get_double(const Value& args, const char* key) {
     if (!args.is_object() || !args.has(key))
         throw std::invalid_argument(std::string("缺少参数 ") + key);
@@ -110,18 +133,20 @@ void register_all() {
 
     // ── arithmetic_functions ──────────────────────────────────────────────
     register_function("euler_phi", make_handler([](const Value& args) {
-        return Value(euler_phi(get_int(args, "n")));
+        return Value(euler_phi(get_int_bounded(args, "n", -9223372036854775807, 1000000000000000, "n")));
     }));
     register_function("divisor_count", make_handler([](const Value& args) {
-        return Value(divisor_count(get_int(args, "n")));
+        return Value(divisor_count(get_int_bounded(args, "n", -9223372036854775807, 1000000000000000, "n")));
     }));
     register_function("divisor_sum", make_handler([](const Value& args) {
-        return Value(divisor_sum(get_int(args, "n")));
+        return Value(divisor_sum(get_int_bounded(args, "n", -9223372036854775807, 1000000000000000, "n")));
     }));
     register_function("mobius", make_handler([](const Value& args) {
-        return Value(mobius(get_int(args, "n")));
+        return Value(mobius(get_int_bounded(args, "n", -9223372036854775807, 1000000000000000, "n")));
     }));
     register_function("mobius_prefix", make_handler([](const Value& args) {
+        // 核心自己就有 n ≤ 1e7 的守卫（算术函数里那条），文案也是它给的；
+        // 这里再加一层助手只会把文案换掉、并挡住套件里 2e7 那个用例的原始报错。
         return Value(mobius_prefix(get_int(args, "n")));
     }));
 
@@ -153,21 +178,29 @@ void register_all() {
         return Value(crt(residues, moduli));
     }));
     register_function("primitive_root", make_handler([](const Value& args) {
-        return Value(primitive_root(get_int(args, "p")));
+        return Value(primitive_root(get_int_bounded(args, "p", -9223372036854775807, 1000000000, "p")));
     }));
     register_function("discrete_log", make_handler([](const Value& args) {
         return Value(discrete_log(get_int(args, "g"),
                                   get_int(args, "h"),
-                                  get_int(args, "p")));
+                                  get_int_bounded(args, "p", -9223372036854775807, 1000000000000, "p")));
     }));
 
     // ── prime_sieves ───────────────────────────────────────────────────────
     register_function("eratosthenes", make_handler([](const Value& args) {
-        return to_int_array(eratosthenes(get_int(args, "n")));
+        return to_int_array(eratosthenes(get_int_bounded(args, "n", -9223372036854775807, 100000000, "n（筛法上限）")));
     }));
     register_function("segmented_sieve", make_handler([](const Value& args) {
-        const long long n = get_int(args, "n");
-        const long long seg = get_int_opt(args, "segment_size", 100000);
+        const long long n = get_int_bounded(args, "n", -9223372036854775807, 1000000000, "n");
+        // 段长本身可以是任意小值（套件就用 13 来验分段正确性），真正决定代价的是
+        // **段数**：每段都要用小素数筛一遍。所以这里限的是 n/seg，而不是把段长抬起来。
+        const long long seg = get_int_opt_bounded(args, "segment_size", 100000, 1, 10000000, "segment_size");
+        const long long segments = n / seg + 1;
+        if (segments > 2000000)
+            throw std::invalid_argument("分段筛的段数过多：" + std::to_string(segments) +
+                                        " 段（n=" + std::to_string(n) + " / segment_size=" +
+                                        std::to_string(seg) + "），上限 2000000。" +
+                                        "请增大 segment_size 或减小 n。");
         const auto primes = segmented_sieve(n, seg);
         if (primes.size() > 50000) {
             Value obj = Value::make_object();
@@ -189,7 +222,7 @@ void register_all() {
         return Value(is_prime(get_int(args, "n")));
     }));
     register_function("prime_factors", make_handler([](const Value& args) {
-        const auto factors = prime_factors(get_int(args, "n"));
+        const auto factors = prime_factors(get_int_bounded(args, "n", -9223372036854775807, 1000000000000000, "n"));
         Value arr = Value::make_array();
         for (const auto& [p, e] : factors) {
             Value pair = Value::make_array();
@@ -203,7 +236,7 @@ void register_all() {
     // ── continued_fractions ────────────────────────────────────────────────
     register_function("continued_fraction", make_handler([](const Value& args) {
         return to_int_array(continued_fraction(
-            get_double(args, "x"), get_int_opt(args, "n_terms", 20)));
+            get_double(args, "x"), get_int_opt_bounded(args, "n_terms", 20, -9223372036854775807, 100000, "连分数项数")));
     }));
     register_function("convergents", make_handler([](const Value& args) {
         const auto convs = convergents(get_int_array(args, "frac"));
@@ -220,7 +253,7 @@ void register_all() {
     register_function("best_rational_approximation",
                       make_handler([](const Value& args) {
         const auto r = best_rational_approximation(
-            get_double(args, "x"), get_int_opt(args, "max_denom", 1000000));
+            get_double(args, "x"), get_int_opt_bounded(args, "max_denom", 1000000, -9223372036854775807, 1000000000, "分母上限"));
         Value v = Value::make_array();
         v.push_back(Value(r.p));
         v.push_back(Value(r.q));
@@ -231,15 +264,15 @@ void register_all() {
     // ── zeta_interface ─────────────────────────────────────────────────────
     register_function("euler_product", make_handler([](const Value& args) {
         return Value(euler_product(
-            get_double(args, "s"), get_int_opt(args, "prime_limit", 100)));
+            get_double(args, "s"), get_int_opt_bounded(args, "prime_limit", 100, -9223372036854775807, 10000000, "素数上限")));
     }));
     register_function("zeta_dirichlet_series", make_handler([](const Value& args) {
         return Value(zeta_dirichlet_series(
-            get_double(args, "s"), get_int_opt(args, "n_terms", 10000)));
+            get_double(args, "s"), get_int_opt_bounded(args, "n_terms", 10000, -9223372036854775807, 1000000, "级数项数")));
     }));
     register_function("dirichlet_l_function", make_handler([](const Value& args) {
         const double s = get_double(args, "s");
-        const long long nt = get_int_opt(args, "n_terms", 1000);
+        const long long nt = get_int_opt_bounded(args, "n_terms", 1000, -9223372036854775807, 1000000, "级数项数");
         const long long cond = get_int_opt(args, "conductor", 4);
         std::vector<long long> chi;
         const std::vector<long long>* chi_ptr = nullptr;
@@ -250,10 +283,10 @@ void register_all() {
         return Value(dirichlet_l_function(s, chi_ptr, nt, cond));
     }));
     register_function("bernoulli_number", make_handler([](const Value& args) {
-        return rational_to_value(bernoulli_number(get_int(args, "n")));
+        return rational_to_value(bernoulli_number(get_int_bounded(args, "n", -9223372036854775807, 500, "伯努利数阶 n")));
     }));
     register_function("zeta_negative", make_handler([](const Value& args) {
-        return rational_to_value(zeta_negative(get_int(args, "n")));
+        return rational_to_value(zeta_negative(get_int_bounded(args, "n", -9223372036854775807, 500, "ζ 自变量的阶 n")));
     }));
 }
 

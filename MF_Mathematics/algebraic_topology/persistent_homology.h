@@ -3,7 +3,6 @@
 
 #include <vector>
 
-#include "../mf_export.h"
 
 namespace mf::algebraic_topology {
 
@@ -27,7 +26,7 @@ struct FiltrationResult {
     std::vector<BirthDeathPair> birth_death_0;
     std::vector<BirthDeathPair> birth_death_1;
 };
-MF_API FiltrationResult filtration(const std::vector<std::vector<double>>& points,
+FiltrationResult filtration(const std::vector<std::vector<double>>& points,
                                    double max_scale = 1.0,
                                    long long max_dim = 2);
 
@@ -45,7 +44,7 @@ struct PersistenceDiagramResult {
     // significance_ratio 为启发式阈值(默认 0.1,与 Python 对齐),可调用方覆盖。
     long long significant_pairs = 0;
 };
-MF_API PersistenceDiagramResult persistence_diagram(
+PersistenceDiagramResult persistence_diagram(
     const std::vector<std::vector<double>>& points, long long dim = 0,
     double max_scale = 1.0, double significance_ratio = 0.1);
 
@@ -63,7 +62,7 @@ struct BarcodeResult {
     long long num_bars = 0;
     std::vector<Barcode> barcodes;
 };
-MF_API BarcodeResult barcode_plot(const std::vector<std::vector<double>>& points,
+BarcodeResult barcode_plot(const std::vector<std::vector<double>>& points,
                                   long long dim = 0, double max_scale = 1.0);
 
 }  // namespace mf::algebraic_topology

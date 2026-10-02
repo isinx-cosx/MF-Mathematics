@@ -4,7 +4,6 @@
 #include <string>
 #include <vector>
 
-#include "../mf_export.h"
 
 namespace mf::probability {
 
@@ -21,7 +20,7 @@ struct NonparametricResult {
 };
 
 // Mann-Whitney U 检验(两独立样本)。
-MF_API NonparametricResult mann_whitney_u(const std::vector<double>& group1,
+NonparametricResult mann_whitney_u(const std::vector<double>& group1,
                                           const std::vector<double>& group2,
                                           const std::string& alternative,
                                           double alpha);
@@ -35,11 +34,11 @@ struct KruskalWallisResult {
     std::vector<double> group_medians;
     std::vector<double> mean_ranks;
 };
-MF_API KruskalWallisResult kruskal_wallis(
+KruskalWallisResult kruskal_wallis(
     const std::vector<std::vector<double>>& groups, double alpha);
 
 // Wilcoxon 符号秩检验(配对或单样本)。
-MF_API NonparametricResult wilcoxon_signed_rank(
+NonparametricResult wilcoxon_signed_rank(
     const std::vector<double>& group1, const std::vector<double>& group2,
     double mu, const std::string& alternative, double alpha);
 

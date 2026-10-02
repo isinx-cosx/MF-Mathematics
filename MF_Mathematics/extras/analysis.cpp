@@ -888,7 +888,7 @@ AsymptoteResult asymptotes(const std::string& expr, const std::string& var) {
         if (st == InfLimit::unknown) {   // 数值外推无法判定 → 退回引擎符号极限
             const double target = sign == 0 ? std::numeric_limits<double>::infinity()
                                             : -std::numeric_limits<double>::infinity();
-            try { L = limit(expr, var, target, ""); } catch (...) { L = kNaN; }
+            try { L = mf::calculus::limit(expr, var, target, ""); } catch (...) { L = kNaN; }
             if (std::isfinite(L)) {
                 r.horizontal.push_back(dir + "时 f → " + num(L) + "，水平渐近线 y = " + num(L));
                 continue;

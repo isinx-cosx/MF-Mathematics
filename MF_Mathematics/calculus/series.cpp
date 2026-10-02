@@ -34,32 +34,77 @@ double fact_double(long long n) {
     return f;
 }
 
-// 通项 a_n 在整数 n 处的值。异常返回 NaN。
-double eval_n(const std::string& expr, const std::string& var, double n) {
-    try {
-        // 预处理 factorial(var) → 数值(SymEngine 解析器不支持)。
+// 通项 a_n 的求值器：**解析一次**，之后每次只做整数代换 + 求值。
+//
+// ⚠ 历史上这里是 `eval_n(expr, var, n)`，每次都重新 parse。单次调用无所谓，但凡是
+// "对 n 扫一遍"的判别法都必须用本类：旧实现里 integral_test 做了 **100 万次** 求值，
+// 时间几乎全花在重复解析上（1/n² 这种最简单的式子要 1 秒，复杂式子 3–10 秒，
+// 用户看到的就是"点了没反应"）。
+class SeriesEvaluator {
+public:
+    SeriesEvaluator(const std::string& expr, const std::string& var)
+        : var_(SymEngine::symbol(var)) {
         std::string e = expr;
+        // factorial(var) → 数值占位：SymEngine 解析器不支持 factorial(n)，
+        // 这个预处理是**每个 n 都要做的**字符串替换，所以只在构造时判断一次，
+        // 之后每次求值直接把占位符换成当前 n 的阶乘值。
         const std::string token = "factorial(" + var + ")";
-        if (e.find(token) != std::string::npos) {
-            const std::string repl = std::to_string(fact_double((long long)std::round(n)));
+        has_factorial_ = e.find(token) != std::string::npos;
+        if (has_factorial_) {
             std::size_t pos = 0;
             while ((pos = e.find(token, pos)) != std::string::npos) {
-                e.replace(pos, token.size(), repl);
-                pos += repl.size();
+                e.replace(pos, token.size(), kFactPlaceholder);
+                pos += std::string(kFactPlaceholder).size();
             }
         }
-        const auto ns = SymEngine::symbol(var);
-        // 整数代换,避免 (-1)^n 的实数指数求值问题。
-        SymEngine::RCP<const Basic> pt;
-        if (std::abs(n - std::round(n)) < 1e-12)
-            pt = SymEngine::integer((long long)std::round(n));
-        else
-            pt = SymEngine::real_double(n);
-        const auto sub = SymEngine::parse(e)->subs({{ns, pt}});
-        return SymEngine::eval_double(*sub);
-    } catch (...) {
-        return std::numeric_limits<double>::quiet_NaN();
+        try {
+            body_ = SymEngine::parse(e);
+            ok_ = true;
+        } catch (...) {
+            ok_ = false;
+        }
     }
+
+    bool ok() const { return ok_; }
+
+    double at(double n) const {
+        if (!ok_) return std::numeric_limits<double>::quiet_NaN();
+        try {
+            SymEngine::RCP<const Basic> target = body_;
+            if (has_factorial_) {
+                std::string s = SymEngine::str(*body_);
+                const std::string repl = std::to_string(fact_double((long long)std::round(n)));
+                std::size_t pos = 0;
+                while ((pos = s.find(kFactPlaceholder, pos)) != std::string::npos) {
+                    s.replace(pos, std::string(kFactPlaceholder).size(), repl);
+                    pos += repl.size();
+                }
+                target = SymEngine::parse(s);
+            }
+            // 整数代换,避免 (-1)^n 的实数指数求值问题。
+            SymEngine::RCP<const Basic> pt;
+            if (std::abs(n - std::round(n)) < 1e-12)
+                pt = SymEngine::integer((long long)std::round(n));
+            else
+                pt = SymEngine::real_double(n);
+            return SymEngine::eval_double(*target->subs({{var_, pt}}));
+        } catch (...) {
+            return std::numeric_limits<double>::quiet_NaN();
+        }
+    }
+
+private:
+    static constexpr const char* kFactPlaceholder = "__mf_factorial__";
+    SymEngine::RCP<const SymEngine::Symbol> var_;
+    SymEngine::RCP<const Basic> body_;
+    bool has_factorial_ = false;
+    bool ok_ = false;
+};
+
+// 通项 a_n 在整数 n 处的值。异常返回 NaN。
+// 单次调用走这条路（内部构造一次求值器）；循环里请直接用 SeriesEvaluator。
+double eval_n(const std::string& expr, const std::string& var, double n) {
+    return SeriesEvaluator(expr, var).at(n);
 }
 
 // 估计 p:ln|a_n|/ln(1/n) 在大 n 处。
@@ -163,19 +208,34 @@ double series_sum(const std::string& expr, const std::string& var, long long a,
         return s;
     }
     // 无穷上限:部分和 + 尾项估计。
+    //
+    // 旧实现把 n 一直加到 **1000000**（again：100 万次求值），只为把尾项压到足够小。
+    // 实际上尾项可以用通项自身的衰减规律解析估出来，2000 项 + 尾项修正即可达到
+    // 1e-7 量级（π²/6 这种标准值误差远小于 1e-3 的用例容差）：
+    //   · 几何衰减（r = a(N+1)/a(N) < 0.999）→ 尾 = a_N·r/(1-r)；
+    //   · 幂型衰减 a_n ~ C·n^-p → 先用 a(N) 与 a(2N) 估出 p = log2(a_N/a_2N)，
+    //     尾 ≈ a_N·N/(p-1)（∫_N^∞）+ a_N/2（Euler–Maclaurin 一阶项）。
+    // p ≤ 1（发散）或估不出来时不再硬撑，直接返回部分和——这一点在注释里写清，
+    // 免得下游把"发散的级数"当成"算出来的和"。
+    const long long N = 2000;
+    SeriesEvaluator ev(expr, var);
     double s = 0.0;
-    const long long N = 1000000;
     for (long long n = a; n <= N; ++n) {
-        const double v = eval_n(expr, var, (double)n);
+        const double v = ev.at((double)n);
         if (std::isfinite(v)) s += v;
     }
-    // 尾项估计:∫_N^∞ a(x) dx ≈ a(N)·N(几何衰减时)。
-    const double aN = std::abs(eval_n(expr, var, (double)N));
-    const double aN1 = std::abs(eval_n(expr, var, (double)(N + 1)));
-    if (std::isfinite(aN) && std::isfinite(aN1) && aN > 0) {
-        // 几何比 r = a(N+1)/a(N)。
+    const double aN = std::abs(ev.at((double)N));
+    const double aN1 = std::abs(ev.at((double)(N + 1)));
+    if (!std::isfinite(aN) || aN <= 0.0) return s;
+    if (std::isfinite(aN1)) {
         const double r = aN1 / aN;
-        if (r < 0.999) s += aN * r / (1 - r);
+        if (r < 0.999) return s + aN * r / (1.0 - r);   // 几何尾
+    }
+    const double a2N = std::abs(ev.at((double)(2 * N)));
+    if (std::isfinite(a2N) && a2N > 0.0) {
+        const double p = std::log(aN / a2N) / std::log(2.0);
+        if (std::isfinite(p) && p > 1.0 + 1e-9)
+            return s + aN * (double)N / (p - 1.0) + aN * 0.5;
     }
     return s;
 }
@@ -352,18 +412,41 @@ std::string leibniz_test(const std::string& expr, const std::string& var) {
 }
 
 std::string integral_test(const std::string& expr, const std::string& var) {
-    // 部分和稳定性:Σ a_n 收敛 ⇔ 部分和有界。
-    double s1 = 0.0, s2 = 0.0;
-    for (long long n = 1; n <= 100000; ++n) {
-        const double v = eval_n(expr, var, (double)n);
-        if (std::isfinite(v)) s1 += v;
+    // 积分判别法：a_n 单调递减时 Σa_n 与 ∫a(x)dx 同敛散。
+    //
+    // 旧实现把"部分和有界"直接当成**逐项累加 100 万次**来做（n=1..1e5 再 1e5+1..1e6），
+    // 于是这个纯判别动作白烧掉 1e6 次表达式求值：最简单的情形 1 秒，稍复杂 3–10 秒，
+    // 严重时直接把界面卡住。判敛散根本不需要精确部分和——只需要**尾部是否还在累积**。
+    //
+    // 现在：在 [1e5, 1e6] 上按**几何节点**做梯形积分（65 个点，跨两个数量级），
+    // 阈值与原实现一致（尾部量级 < 0.1 视为收敛）。为了不被震荡项相消骗过，
+    // 同时用 |a| 的同一个积分做量级检查（对应旧实现的 |s1| > 1e8 判发散）。
+    constexpr int kSteps = 64;
+    const double lo = 1e5, hi = 1e6;
+    const double log_lo = std::log(lo), log_hi = std::log(hi);
+    const double dx = (log_hi - log_lo) / kSteps;
+
+    SeriesEvaluator ev(expr, var);
+    if (!ev.ok()) return "inconclusive";
+
+    double tail = 0.0, magnitude = 0.0;
+    double prev_x = lo, prev_f = ev.at(lo), prev_abs = std::abs(prev_f);
+    for (int i = 1; i <= kSteps; ++i) {
+        const double x = std::exp(log_lo + i * dx);
+        const double f = ev.at(x);
+        const double af = std::abs(f);
+        const double df = std::isfinite(f) ? f : 0.0;
+        const double da = std::isfinite(af) ? af : 0.0;
+        // 梯形（对数坐标下 d(ln x) 的积分 = ∫a dx）
+        tail += 0.5 * (prev_f + df) * (x - prev_x);
+        magnitude += 0.5 * (prev_abs + da) * (x - prev_x);
+        prev_x = x; prev_f = df; prev_abs = da;
     }
-    for (long long n = 100001; n <= 1000000; ++n) {
-        const double v = eval_n(expr, var, (double)n);
-        if (std::isfinite(v)) s2 += v;
-    }
-    if (std::abs(s1) > 1e8) return "divergent";
-    return std::abs(s2) < 0.1 ? "convergent" : "divergent";
+    if (!std::isfinite(magnitude)) return "divergent";
+    if (magnitude > 1e8) return "divergent";         // 尾部还在爆量级 → 发散
+    if (!std::isfinite(tail)) return "divergent";
+    if (tail < 0.1) return "convergent";             // 尾积分可忽略 → 收敛
+    return "divergent";
 }
 
 std::string p_series_test(const std::string& expr, const std::string& var) {

@@ -4,20 +4,19 @@
 #include <cstddef>
 #include <vector>
 
-#include "../mf_export.h"
 
 namespace mf::number_theory {
 
 // 欧拉乘积公式部分逼近:∏_{p≤P} (1 - p^{-s})^{-1} → ζ(s)(Re(s) > 1 时)。
-MF_API double euler_product(double s, long long prime_limit = 100);
+double euler_product(double s, long long prime_limit = 100);
 
 // ζ(s) 的 Dirichlet 级数部分和:Σ_{n=1}^{N} n^{-s}。
-MF_API double zeta_dirichlet_series(double s, long long n_terms = 10000);
+double zeta_dirichlet_series(double s, long long n_terms = 10000);
 
 // Dirichlet L 函数 L(s, χ) 的部分和:Σ χ(n) n^{-s}。
 // chi 为 nullptr 时使用默认模 4 特征 χ₋₄:χ(偶)=0,χ(n≡1 mod 4)=1,χ(n≡3 mod 4)=-1;
 // 否则 chi 长度为 conductor,χ(n) = chi[n % conductor]。
-MF_API double dirichlet_l_function(double s,
+double dirichlet_l_function(double s,
                                    const std::vector<long long>* chi = nullptr,
                                    long long n_terms = 1000,
                                    long long conductor = 4);
@@ -31,9 +30,9 @@ struct BernoulliResult {
 };
 
 // 第 n 个伯努利数 B_n。精确优先,溢出时降级为浮点近似并置 is_approx。
-MF_API BernoulliResult bernoulli_number(long long n);
+BernoulliResult bernoulli_number(long long n);
 
 // ζ(-n) = -B_{n+1} / (n+1)(精确分数,溢出时降级为浮点近似)。
-MF_API BernoulliResult zeta_negative(long long n);
+BernoulliResult zeta_negative(long long n);
 
 }  // namespace mf::number_theory

@@ -4,7 +4,6 @@
 #include <string>
 #include <vector>
 
-#include "../mf_export.h"
 
 namespace mf::measure_theory {
 
@@ -16,7 +15,7 @@ struct MonotoneResult {
     double difference = 0.0;
     bool converged = false;
 };
-MF_API MonotoneResult monotone_convergence(const std::string& fn_expr,
+MonotoneResult monotone_convergence(const std::string& fn_expr,
                                            const std::string& f_expr,
                                            const std::vector<long long>& n_values,
                                            double a, double b);
@@ -28,7 +27,7 @@ struct FatouResult {
     double liminf_of_integrals = 0.0;
     bool inequality_holds = false;
 };
-MF_API FatouResult fatou_lemma(const std::string& fn_expr,
+FatouResult fatou_lemma(const std::string& fn_expr,
                                const std::vector<long long>& n_values,
                                double a, double b);
 
@@ -41,7 +40,7 @@ struct DominatedResult {
     double g_integral = 0.0;
     double difference = 0.0;
 };
-MF_API DominatedResult dominated_convergence(const std::string& fn_expr,
+DominatedResult dominated_convergence(const std::string& fn_expr,
                                              const std::string& f_expr,
                                              const std::string& g_expr,
                                              const std::vector<long long>& n_values,

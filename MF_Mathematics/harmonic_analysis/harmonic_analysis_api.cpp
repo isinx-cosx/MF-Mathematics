@@ -32,6 +32,8 @@ using mf::api::get_double_array;
 using mf::api::get_string;
 using mf::api::get_string_opt;
 using mf::api::get_bool_opt;
+using mf::api::get_int_bounded;
+using mf::api::get_int_opt_bounded;
 
 // 一维数组参数。
 std::vector<double> get_sig(const Value& args, const char* key) {
@@ -87,7 +89,7 @@ void register_all() {
     // ── fourier_series ─────────────────────────────────────────────────────
     register_function("fourier_coeff", make_handler([](const Value& args) {
         const FourierCoeffResult r = fourier_coeff(
-            get_string(args, "f"), get_int(args, "n"),
+            get_string(args, "f"), get_int_bounded(args, "n", -9223372036854775807, 100000, "项数"),
             get_double_opt(args, "period", 2.0 * 3.141592653589793),
             get_string_opt(args, "coeff_type", "cos"));
         Value obj = Value::make_object();
@@ -97,7 +99,7 @@ void register_all() {
     }));
     register_function("fourier_series", make_handler([](const Value& args) {
         const FourierSeriesResult r = fourier_series(
-            get_string(args, "f"), get_int(args, "n_terms"),
+            get_string(args, "f"), get_int_bounded(args, "n_terms", -9223372036854775807, 200, "傅里叶级数项数"),
             get_double_opt(args, "period", 2.0 * 3.141592653589793));
         Value obj = Value::make_object();
         obj.set("expression", Value(r.expression));
@@ -113,7 +115,7 @@ void register_all() {
     }));
     register_function("complex_fourier_coeff", make_handler([](const Value& args) {
         const ComplexCoeffResult r = complex_fourier_coeff(
-            get_string(args, "f"), get_int(args, "n"),
+            get_string(args, "f"), get_int_bounded(args, "n", -9223372036854775807, 100000, "项数"),
             get_double_opt(args, "period", 2.0 * 3.141592653589793));
         Value obj = Value::make_object();
         Value val = Value::make_array();
@@ -239,8 +241,8 @@ void register_all() {
     }));
     register_function("stft", make_handler([](const Value& args) {
         const StftResult r = stft(
-            get_sig(args, "signal"), (int)get_int(args, "window_size"),
-            (int)get_int_opt(args, "hop_size", 0),
+            get_sig(args, "signal"), (int)get_int_bounded(args, "window_size", 2, 65536, "窗口长度"),
+            (int)get_int_opt_bounded(args, "hop_size", 0, 0, 65536, "步长"),
             get_double_opt(args, "sample_rate", 1.0));
         Value obj = Value::make_object();
         Value sp = Value::make_array();
@@ -273,7 +275,7 @@ void register_all() {
     register_function("poisson_summation", make_handler([](const Value& args) {
         const PoissonResult r = poisson_summation(
             get_string(args, "f"), get_double_opt(args, "a", 1.0),
-            (int)get_int_opt(args, "n_terms", 50));
+            (int)get_int_opt_bounded(args, "n_terms", 50, -9223372036854775807, 200, "泊松求和项数"));
         Value obj = Value::make_object();
         obj.set("left_sum", Value(r.left_sum));
         obj.set("right_sum", Value(r.right_sum));
@@ -287,7 +289,7 @@ void register_all() {
     }));
     register_function("theta_function", make_handler([](const Value& args) {
         const ThetaResult r = theta_function(
-            get_double(args, "t"), (int)get_int_opt(args, "n_terms", 100));
+            get_double(args, "t"), (int)get_int_opt_bounded(args, "n_terms", 100, -9223372036854775807, 200, "项数"));
         Value obj = Value::make_object();
         obj.set("theta_t", Value(r.theta_t));
         obj.set("theta_reciprocal", Value(r.theta_reciprocal));

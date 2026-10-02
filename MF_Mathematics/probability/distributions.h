@@ -4,7 +4,6 @@
 #include <string>
 #include <vector>
 
-#include "../mf_export.h"
 
 namespace mf::probability {
 
@@ -18,11 +17,11 @@ struct DistributionResult {
     std::vector<double> pmf_values;
 };
 
-MF_API DistributionResult bernoulli(double p);
-MF_API DistributionResult binomial(long long n, double p);
-MF_API DistributionResult poisson(double lam);
-MF_API DistributionResult uniform_dist(double a, double b);
-MF_API DistributionResult exponential_dist(double lam);
-MF_API DistributionResult normal_dist(double mu, double sigma);
+DistributionResult bernoulli(double p);
+DistributionResult binomial(long long n, double p);
+DistributionResult poisson(double lam);
+DistributionResult uniform_dist(double a, double b);
+DistributionResult exponential_dist(double lam);
+DistributionResult normal_dist(double mu, double sigma);
 
 }  // namespace mf::probability

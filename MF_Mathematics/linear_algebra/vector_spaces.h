@@ -3,7 +3,6 @@
 
 #include <vector>
 
-#include "../mf_export.h"
 #include "la_internal.h"
 
 namespace mf::linear_algebra {
@@ -15,15 +14,15 @@ struct VectorSpaceResult {
     bool closed_under_addition = false;
     bool closed_under_scalar_multiplication = false;
 };
-MF_API VectorSpaceResult is_vector_space(
+VectorSpaceResult is_vector_space(
     const std::vector<std::vector<double>>& vectors);
 
 // 线性组合 Σ cᵢ·vᵢ,返回列向量。
-MF_API Vector linear_combination(const std::vector<std::vector<double>>& vectors,
+Vector linear_combination(const std::vector<std::vector<double>>& vectors,
                                  const std::vector<double>& coeffs);
 
 // 秩 == 向量个数 → 线性无关。
-MF_API bool is_linear_independent(
+bool is_linear_independent(
     const std::vector<std::vector<double>>& vectors);
 
 // 一组基(极大线性无关组)。
@@ -31,16 +30,16 @@ struct BasisResult {
     std::vector<Vector> basis;
     long long dimension = 0;
 };
-MF_API BasisResult basis(const std::vector<std::vector<double>>& vectors);
+BasisResult basis(const std::vector<std::vector<double>>& vectors);
 
 // 张成子空间的维数 = 矩阵秩。
-MF_API long long dimension(const std::vector<std::vector<double>>& vectors);
+long long dimension(const std::vector<std::vector<double>>& vectors);
 
 // span(S) 的基与维数。
 struct SpanResult {
     std::vector<Vector> span_basis;
     long long dimension = 0;
 };
-MF_API SpanResult subspace_span(const std::vector<std::vector<double>>& vectors);
+SpanResult subspace_span(const std::vector<std::vector<double>>& vectors);
 
 }  // namespace mf::linear_algebra

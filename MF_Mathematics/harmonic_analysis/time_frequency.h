@@ -4,7 +4,6 @@
 #include <string>
 #include <vector>
 
-#include "../mf_export.h"
 
 namespace mf::harmonic_analysis {
 
@@ -16,7 +15,7 @@ struct UncertaintyResult {
     double lower_bound = 0.0;
     bool satisfied = false;
 };
-MF_API UncertaintyResult uncertainty_principle(const std::string& f, double x_lo,
+UncertaintyResult uncertainty_principle(const std::string& f, double x_lo,
                                                double x_hi, int n_points);
 
 // 短时傅里叶变换(STFT)时频谱图。
@@ -25,7 +24,7 @@ struct StftResult {
     std::vector<double> times;
     std::vector<double> frequencies;
 };
-MF_API StftResult stft(const std::vector<double>& signal, int window_size,
+StftResult stft(const std::vector<double>& signal, int window_size,
                        int hop_size, double sample_rate);
 
 // 连续小波变换(mexican_hat / morlet)。
@@ -33,7 +32,7 @@ struct WaveletResult {
     std::vector<std::vector<double>> coefficients;  // n_scales × n
     std::vector<double> scales;
 };
-MF_API WaveletResult wavelet_transform(const std::vector<double>& signal,
+WaveletResult wavelet_transform(const std::vector<double>& signal,
                                        const std::string& wavelet_type,
                                        const std::vector<double>& scales);
 

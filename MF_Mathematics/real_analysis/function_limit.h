@@ -3,7 +3,6 @@
 
 #include <string>
 
-#include "../mf_export.h"
 
 namespace mf::real_analysis {
 
@@ -12,17 +11,17 @@ struct EpsDeltaResult {
     double L = 0.0;
     double delta = 0.0;
 };
-MF_API EpsDeltaResult limit_epsilon_delta(const std::string& expr, double point,
+EpsDeltaResult limit_epsilon_delta(const std::string& expr, double point,
                                           double epsilon);
 
 // 在某点的连续性。
-MF_API bool real_is_continuous(const std::string& expr, double point);
+bool real_is_continuous(const std::string& expr, double point);
 
 // 区间上的一致连续性(无奇点即一致连续)。
-MF_API bool uniform_continuity(const std::string& expr, double a, double b);
+bool uniform_continuity(const std::string& expr, double a, double b);
 
 // 间断点分类:"连续（非间断点）"/"可去间断点"/"无穷间断点"/"跳跃间断点"/"振荡间断点"。
-MF_API std::string real_discontinuity_classify(const std::string& expr,
+std::string real_discontinuity_classify(const std::string& expr,
                                                double point);
 
 // 最值定理:闭区间上的最值(端点 + 驻点)。
@@ -32,10 +31,10 @@ struct ExtremeValueResult {
     double max_point = 0.0;
     double min_point = 0.0;
 };
-MF_API ExtremeValueResult extreme_value(const std::string& expr, double a, double b);
+ExtremeValueResult extreme_value(const std::string& expr, double a, double b);
 
 // 介值定理:∃ξ ∈ (a,b) 使 f(ξ)=c。不满足条件返回 NaN。
-MF_API double intermediate_value(const std::string& expr, double a, double b,
+double intermediate_value(const std::string& expr, double a, double b,
                                  double value);
 
 }  // namespace mf::real_analysis

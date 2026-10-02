@@ -28,6 +28,8 @@ using mf::api::get_string;
 using mf::api::get_string_opt;
 using mf::api::get_double_array;
 using mf::api::to_double_array;
+using mf::api::get_int_bounded;
+using mf::api::get_int_opt_bounded;
 
 // 二维数组参数 → vector<vector<double>>（空/非数值一律报错，不留给 Eigen 崩）
 std::vector<std::vector<double>> get_matrix(const Value& args, const char* key) {
@@ -134,7 +136,7 @@ void register_all() {
     register_function("product_sequence", make_handler([](const Value& args) {
         return Value(mf::calculus::product_sequence(
             get_string(args, "expr"), get_string_opt(args, "var", "n"),
-            get_int_opt(args, "a", 1), get_int_opt(args, "b", 10)));
+            get_int_opt(args, "a", 1), get_int_opt_bounded(args, "b", 10, -9223372036854775807, 1000000, "上界")));
     }));
 
     register_function("infinite_product", make_handler([](const Value& args) {

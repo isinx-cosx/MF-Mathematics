@@ -10,6 +10,7 @@
 #include <complex>
 #include <functional>
 #include <stdexcept>
+#include <string>
 #include <vector>
 
 #include <symengine/basic.h>
@@ -22,6 +23,30 @@
 namespace mf::harmonic_analysis::detail {
 
 inline constexpr double kPi = 3.14159265358979323846;
+
+/** FFT 采样点数的硬上限（2^20）。超过它的请求直接拒绝：
+ *  这些点每一个都要做一次符号求值，FFT 本身再快也救不回来。 */
+inline constexpr long long kMaxFftPoints = 1LL << 20;
+
+/**
+ * 取 >= n_points 的最小 2 的幂（radix-2 FFT 用）。
+ *
+ * ⚠ 必须用 long long 且显式挡上限。旧写法是
+ *     `int n = 1; while (n < n_points) n <<= 1;`
+ * 在 n_points > 2^30 时 `n` 左移**有符号溢出**成负数，继续左移变成 0，
+ * 而 `0 << 1` 恒为 0 —— 循环条件永远成立，线程 100% CPU **永不返回**，
+ * 宿主的超时/取消也救不回来（这不是慢，是死循环）。
+ */
+inline long long fft_grid_size(long long n_points, long long max_points = kMaxFftPoints) {
+    if (n_points <= 0) throw std::invalid_argument("采样点数必须为正");
+    if (n_points > max_points)
+        throw std::invalid_argument(
+            "采样点数过大（本动作上限 " + std::to_string(max_points) +
+            "）：每点都要做一次符号求值，再大算不完。请减小点数或缩窄区间。");
+    long long n = 1;
+    while (n < n_points) n <<= 1;          // n ≤ 2 * max_points，不会溢出
+    return n;
+}
 
 // 表达式在实数点 t 处的值(纯实数表达式)。
 inline double eval_double_expr(

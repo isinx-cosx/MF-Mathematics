@@ -4,7 +4,6 @@
 #include <string>
 #include <vector>
 
-#include "../mf_export.h"
 
 namespace mf::probability {
 
@@ -19,12 +18,12 @@ struct HypothesisResult {
 };
 
 // 单样本 Z 检验(总体方差已知)。
-MF_API HypothesisResult z_test(double sample_mean, double mu0, double sigma,
+HypothesisResult z_test(double sample_mean, double mu0, double sigma,
                                long long n, double alpha,
                                const std::string& alternative);
 
 // 单样本 t 检验(总体方差未知)。
-MF_API HypothesisResult t_test(const std::vector<double>& data, double mu0,
+HypothesisResult t_test(const std::vector<double>& data, double mu0,
                                double alpha,
                                const std::string& alternative);
 
@@ -36,11 +35,11 @@ struct ChiSquareResult {
     std::vector<double> contributions;
     bool reject_H0 = false;
 };
-MF_API ChiSquareResult chi_square_test(const std::vector<double>& observed,
+ChiSquareResult chi_square_test(const std::vector<double>& observed,
                                        const std::vector<double>& expected);
 
 // p 值计算:分布 "normal"/"t"/"chi2"。
-MF_API double p_value(double test_statistic, const std::string& dist, long long df,
+double p_value(double test_statistic, const std::string& dist, long long df,
                       const std::string& alternative);
 
 }  // namespace mf::probability

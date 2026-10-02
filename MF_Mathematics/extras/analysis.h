@@ -17,7 +17,6 @@
 #include <utility>
 #include <vector>
 
-#include "../mf_export.h"
 
 namespace mf::extras {
 
@@ -34,7 +33,7 @@ struct ConcavityResult {
     std::vector<std::string> segments;       // 每段："(a, b) 上 f''>0，曲线凹（下凸）"
     double a = 0.0, b = 0.0;
 };
-MF_API ConcavityResult concavity(const std::string& expr, const std::string& var,
+ConcavityResult concavity(const std::string& expr, const std::string& var,
                                  double a, double b);
 
 // 拐点：f'' 变号处（数值求根 + 变号确认），含函数值。
@@ -43,7 +42,7 @@ struct InflectionResult {
     double a = 0.0, b = 0.0;
     std::string note;
 };
-MF_API InflectionResult inflection_points(const std::string& expr,
+InflectionResult inflection_points(const std::string& expr,
                                           const std::string& var, double a, double b);
 
 // 渐近线：垂直（f→∞ 的点）、水平（x→±∞ 的极限）、斜渐近线 y=kx+b。
@@ -53,7 +52,7 @@ struct AsymptoteResult {
     std::vector<std::string> oblique;
     std::string note;
 };
-MF_API AsymptoteResult asymptotes(const std::string& expr, const std::string& var);
+AsymptoteResult asymptotes(const std::string& expr, const std::string& var);
 
 // 曲率 κ = |y''| / (1 + y'^2)^{3/2}；曲率半径 R = 1/κ（κ=0 时 R=∞）。
 struct CurvatureResult {
@@ -63,7 +62,7 @@ struct CurvatureResult {
     double radius = 0.0;         // 无穷大时 is_straight 置真
     bool is_straight = false;
 };
-MF_API CurvatureResult curvature(const std::string& expr, const std::string& var,
+CurvatureResult curvature(const std::string& expr, const std::string& var,
                                 double x0);
 
 // Cauchy 中值定理：在 (a,b) 内找 c 使 f'(c)(g(b)-g(a)) = g'(c)(f(b)-f(a))。
@@ -73,7 +72,7 @@ struct CauchyMvtResult {
     double lhs = 0.0, rhs = 0.0;    // 两侧的值（用于核对）
     std::string note;
 };
-MF_API CauchyMvtResult cauchy_mvt(const std::string& f, const std::string& g,
+CauchyMvtResult cauchy_mvt(const std::string& f, const std::string& g,
                                   const std::string& var, double a, double b);
 
 // ── 微分方程 ──
@@ -83,7 +82,7 @@ struct OdeResult {
     std::string solution;    // 通解（含积分常数 C）
     std::string note;        // 步骤或适用范围说明
 };
-MF_API OdeResult ode_first_order(const std::string& f, const std::string& xvar,
+OdeResult ode_first_order(const std::string& f, const std::string& xvar,
                                  const std::string& yvar);
 
 // 常系数线性齐次 ODE：a_n y^(n) + ... + a_1 y' + a_0 y = 0（n ≤ 4），
@@ -93,7 +92,7 @@ struct HigherOdeResult {
     std::vector<std::string> roots;
     std::string solution;
 };
-MF_API HigherOdeResult ode_constant_coefficients(const std::vector<double>& coeffs);
+HigherOdeResult ode_constant_coefficients(const std::vector<double>& coeffs);
 
 // 线性 ODE 组 y' = A y：由 A 的特征值/特征向量给出通解。
 struct OdeSystemResult {
@@ -101,7 +100,7 @@ struct OdeSystemResult {
     std::string solution;
     std::string note;
 };
-MF_API OdeSystemResult ode_linear_system(const std::vector<std::vector<double>>& A);
+OdeSystemResult ode_linear_system(const std::vector<std::vector<double>>& A);
 
 // 二阶 PDE 分类：A u_xx + 2B u_xy + C u_yy + ... ＝ 椭圆的/抛物的/双曲线型，
 // 并给出判别式与化简所用的特征变量。
@@ -111,7 +110,7 @@ struct PdeClassResult {
     std::string canonical;       // 特征变量（化简到标准形的变换）
     std::string note;
 };
-MF_API PdeClassResult classify_second_order_pde(double A, double B, double C);
+PdeClassResult classify_second_order_pde(double A, double B, double C);
 
 // 一阶线性 PDE：a u_x + b u_y = 0（常系数）→ 特征线 bx - ay = C，通解 u = F(bx - ay)。
 struct FirstOrderPdeResult {
@@ -119,7 +118,7 @@ struct FirstOrderPdeResult {
     std::string solution;
     std::string note;
 };
-MF_API FirstOrderPdeResult first_order_linear_pde(double a, double b, double c);
+FirstOrderPdeResult first_order_linear_pde(double a, double b, double c);
 
 // ── 复分析 ──
 struct ZeroPoleResult {
@@ -129,7 +128,7 @@ struct ZeroPoleResult {
 };
 // 在 |z - center| ≤ radius 内数值定位零点与极点：
 // 零点 = |f| 的局部极小（且接近 0），极点 = 1/|f| 的局部极小（且 |f| 很大）。
-MF_API ZeroPoleResult zeros_and_poles(const std::string& func,
+ZeroPoleResult zeros_and_poles(const std::string& func,
                                       std::complex<double> center, double radius);
 
 }  // namespace mf::extras

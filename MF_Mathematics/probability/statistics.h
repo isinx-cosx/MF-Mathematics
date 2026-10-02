@@ -4,14 +4,13 @@
 #include <string>
 #include <vector>
 
-#include "../mf_export.h"
 
 namespace mf::probability {
 
-MF_API double sample_mean(const std::vector<double>& data);
+double sample_mean(const std::vector<double>& data);
 
 // ddof=1 无偏,ddof=0 有偏。
-MF_API double sample_variance(const std::vector<double>& data, long long ddof = 1);
+double sample_variance(const std::vector<double>& data, long long ddof = 1);
 
 // 矩估计:分布 "normal"/"exponential"/"poisson"/"uniform"。
 struct MomentEstimateResult {
@@ -23,7 +22,7 @@ struct MomentEstimateResult {
     double a_hat = 0.0;       // uniform
     double b_hat = 0.0;       // uniform
 };
-MF_API MomentEstimateResult moment_estimate(const std::vector<double>& data,
+MomentEstimateResult moment_estimate(const std::vector<double>& data,
                                             const std::string& dist);
 
 // 最大似然估计(正态/指数/泊松)。
@@ -34,7 +33,7 @@ struct MleResult {
     double sigma_mle = 0.0;
     double lambda_mle = 0.0;
 };
-MF_API MleResult mle(const std::vector<double>& data, const std::string& dist);
+MleResult mle(const std::vector<double>& data, const std::string& dist);
 
 // 正态总体均值置信区间(σ 未知,t 分布)。
 struct ConfidenceIntervalResult {
@@ -45,7 +44,7 @@ struct ConfidenceIntervalResult {
     double confidence = 0.95;
     long long n = 0;
 };
-MF_API ConfidenceIntervalResult confidence_interval(const std::vector<double>& data,
+ConfidenceIntervalResult confidence_interval(const std::vector<double>& data,
                                                     double confidence);
 
 }  // namespace mf::probability

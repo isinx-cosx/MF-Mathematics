@@ -45,13 +45,18 @@ NonnegIntegralResult integral_nonnegative(const std::string& expr, double a,
         const double dy = fmax / n_steps;
         double mid_sum = 0.0;
         const int samples = 500;
+        // ⚠ 采样点只求值一次。旧写法把 `t = a + (b-a)*s/samples` 写在**内层**循环里，
+        //   而它根本不依赖外层层号 k —— 同一批 500 个点被重复求值 1000 次 = 50 万次
+        //   表达式求值（每次还重新 parse）。实测 base 情形 0.5 s、病态被积函数 3.9 s。
+        std::vector<double> vals(samples);
+        for (int s = 0; s < samples; ++s)
+            vals[s] = eval_double_str(expr, a + (b - a) * s / samples);
         for (int k = 0; k < n_steps; ++k) {
             const double y_low = k * dy;
             const double y_mid = (k + 0.5) * dy;
             int in_level = 0;
             for (int s = 0; s < samples; ++s) {
-                const double t = a + (b - a) * s / samples;
-                const double v = eval_double_str(expr, t);
+                const double v = vals[s];
                 if (std::isfinite(v) && v >= y_low && v < (k + 1) * dy)
                     ++in_level;
             }

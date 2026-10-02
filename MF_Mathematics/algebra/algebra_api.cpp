@@ -35,6 +35,8 @@ using mf::api::get_string_opt;
 using mf::api::get_keyword;
 using mf::api::get_string_or_number;
 using mf::api::get_int_array;
+using mf::api::get_int_bounded;
+using mf::api::get_int_opt_bounded;
 
 // 点参数:[x, y]
 Point get_point(const Value& args, const char* key) {
@@ -83,10 +85,10 @@ void register_all() {
         return Value(multiplication_principle(get_int_array(args, "steps")));
     }));
     register_function("permutation", make_handler([](const Value& args) {
-        return Value(permutation(get_int(args, "n"), get_int(args, "m")));
+        return Value(permutation(get_int_bounded(args, "n", -9223372036854775807, 1000000, "n"), get_int(args, "m")));
     }));
     register_function("combination", make_handler([](const Value& args) {
-        return Value(combination(get_int(args, "n"), get_int(args, "m")));
+        return Value(combination(get_int_bounded(args, "n", -9223372036854775807, 1000000, "n"), get_int(args, "m")));
     }));
     register_function("comb_identities", make_handler([](const Value&) {
         const std::vector<std::string> ids = comb_identities();
@@ -97,12 +99,12 @@ void register_all() {
     register_function("binomial_expand", make_handler([](const Value& args) {
         return Value(binomial_expand(get_string_or_number(args, "a"),
                                      get_string_or_number(args, "b"),
-                                     get_int(args, "n")));
+                                     get_int_bounded(args, "n", -9223372036854775807, 1000, "二项式指数 n")));
     }));
     register_function("binomial_term", make_handler([](const Value& args) {
         const BinomialTerm bt = binomial_term(
             get_string_or_number(args, "a"), get_string_or_number(args, "b"),
-            get_int(args, "n"), get_int(args, "k"));
+            get_int_bounded(args, "n", -9223372036854775807, 1000, "二项式指数 n"), get_int(args, "k"));
         Value obj = Value::make_object();
         obj.set("term", Value(bt.term));
         obj.set("coefficient", Value(bt.coefficient));
@@ -574,7 +576,7 @@ void register_all() {
     }));
     register_function("arithmetic_sequence", make_handler([](const Value& args) {
         const auto terms = arithmetic_sequence(
-            get_double(args, "a1"), get_double(args, "d"), get_int(args, "n"));
+            get_double(args, "a1"), get_double(args, "d"), get_int_bounded(args, "n", -9223372036854775807, 100000, "项数"));
         Value arr = Value::make_array();
         for (double t : terms) arr.push_back(Value(t));
         return arr;
@@ -588,14 +590,14 @@ void register_all() {
     }));
     register_function("geometric_sequence", make_handler([](const Value& args) {
         const auto terms = geometric_sequence(
-            get_double(args, "a1"), get_double(args, "q"), get_int(args, "n"));
+            get_double(args, "a1"), get_double(args, "q"), get_int_bounded(args, "n", -9223372036854775807, 100000, "项数"));
         Value arr = Value::make_array();
         for (double t : terms) arr.push_back(Value(t));
         return arr;
     }));
     register_function("geometric_sum", make_handler([](const Value& args) {
         return Value(geometric_sum(get_double(args, "a1"), get_double(args, "q"),
-                                   get_int(args, "n")));
+                                   get_int_bounded(args, "n", -9223372036854775807, 100000, "项数")));
     }));
     register_function("geometric_proof", make_handler([](const Value&) {
         return Value(geometric_proof());
@@ -609,7 +611,7 @@ void register_all() {
         // 会在 `a` 与 `[` 之间补乘号把它毁掉（a[-1] → a*[-1]）。归一化交给
         // recurrence_sequence 内部、在代入数值之后做。
         const auto terms = recurrence_sequence(
-            initial, get_keyword(args, "rule"), get_int(args, "n"));
+            initial, get_keyword(args, "rule"), get_int_bounded(args, "n", -9223372036854775807, 100000, "项数"));
         Value arr = Value::make_array();
         for (double t : terms) arr.push_back(Value(t));
         return arr;

@@ -129,6 +129,39 @@ inline long long get_int_opt(const Value& args, const char* key, long long def) 
                                       [&] { return args[key].as_int(); });
 }
 
+/**
+ * 带上界的整数参数。
+ *
+ * 为什么必须有这个：引擎里大量参数**直接决定分配尺寸或循环次数**
+ * （n / n_terms / order / max_iter / resolution / width / height / n_points …）。
+ * 这些参数没有上限时，用户填一个大数就等于让引擎去算一个跑不完的东西——
+ * 典型表现是界面卡死（不是"算错"，是"回不来"），极端情况还会爆内存。
+ * 逐处在业务代码里写 `if (x > K) throw` 很容易漏，所以统一从这里收口。
+ *
+ * @param what 面向用户的参数名（如"级数项数"）；为空则用 key
+ */
+inline long long get_int_bounded(const Value& args, const char* key, long long lo,
+                                 long long hi, const char* what = nullptr) {
+    const long long v = get_int(args, key);
+    if (v < lo || v > hi) {
+        const std::string name = what && *what ? what : key;
+        std::string msg = name + " 超出可计算范围 [" + std::to_string(lo) + ", " +
+                          std::to_string(hi) + "]：收到 " + std::to_string(v);
+        if (v > hi)
+            msg += "。上限是为了避免单次计算卡住界面——这类参数直接决定"
+                   "循环次数或分配大小，代价随它迅速增长；需要更大规模请分批做。";
+        throw arg_error(msg);
+    }
+    return v;
+}
+
+inline long long get_int_opt_bounded(const Value& args, const char* key, long long def,
+                                     long long lo, long long hi,
+                                     const char* what = nullptr) {
+    if (!args.is_object() || !args.has(key)) return def;
+    return get_int_bounded(args, key, lo, hi, what);
+}
+
 inline double get_double(const Value& args, const char* key) {
     return with_type_check<double>(args, key, "数字",
                                    [&] { return args[key].as_double(); });
@@ -307,6 +340,17 @@ mf::registry::Handler make_handler(Fn&& fn, const std::string& signature = "") {
             return result_err(msg).to_string();
         } catch (const std::exception& e) {
             return result_err(friendly_parse_error(e.what())).to_string();
+        } catch (...) {
+            // 非 std 异常（throw 42; / throw "..." 之类）。不拦的话它会穿过
+            // extern "C" 的 math_call 边界——那是未定义行为，表现为**整个宿主
+            // 进程被终止**，而不是一次可恢复的调用失败。
+            //
+            // 注意：catch(...) 抓不到访问违例 / 栈溢出这类 SEH（MSVC 默认
+            // /EHsc 下它们是结构化异常，不是 C++ 异常），所以 probe_bugs /
+            // probe_solve_safety 那套"崩溃点即证据"的探针语义不受影响。
+            return result_err(
+                "引擎内部错误：该调用的处理函数抛出了非标准异常。"
+                "输入已触发未预期路径，请把表达式反馈给开发者。").to_string();
         }
     };
 }

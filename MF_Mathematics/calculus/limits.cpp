@@ -1075,6 +1075,13 @@ double limit_solve(const RCP<const Basic>& e, const LimCtx& ctx, double point,
 
 }  // namespace
 
+// ── 公开 API ────────────────────────────────────────────────────────────────
+// 这一段的函数原先定义在**全局命名空间**（连 series_limit / direct_eval /
+// convert_* 这些内部助手也是）。现统一收进 mf::calculus，与 is_continuous_at /
+// classify_discontinuity 保持一致。调用方：calculus_api.cpp（有 using
+// namespace mf::calculus，无需改动）、extras/analysis.cpp、tests/test_limits.cpp。
+namespace mf::calculus {
+
 // 计算 f(x)/g(x)(f/g)在 point 处的极限。
 // 完整规则见本文件顶部「极限求解：形式判定 + 分层策略」的说明；
 // 长期回归见 tests/test_limits.cpp。
@@ -1298,8 +1305,6 @@ RCP<const Basic> expand_transcendental(const RCP<const Basic>& expr,
                                        double point, long long order) {
     return expand_trans(expr, x, point, order);
 }
-
-namespace mf::calculus {
 
 namespace {
 // 单侧极限(side: -1 左,+1 右);振荡/无法计算返回 NaN。

@@ -4,7 +4,6 @@
 #include <string>
 #include <vector>
 
-#include "../mf_export.h"
 
 namespace mf::numerical {
 
@@ -15,7 +14,7 @@ struct GradientDescentResult {
     long long iterations = 0;
     std::vector<double> path;  // 前 10 个迭代点
 };
-MF_API GradientDescentResult gradient_descent(
+GradientDescentResult gradient_descent(
     const std::string& f, double x0 = 1.0, double learning_rate = 0.1,
     long long max_iter = 1000, double tol = 1e-6);
 

@@ -143,18 +143,17 @@ FourierTransformResult inverse_fourier_transform(const std::string& F,
 
 PlancherelResult plancherel_theorem(const std::string& f, double x_lo, double x_hi,
                                     int n_points) {
-    // n_points 对齐到 2 的幂。
-    int n = 1;
-    while (n < n_points) n <<= 1;
-    const double dx = (x_hi - x_lo) / n;
+    // n_points 对齐到 2 的幂。旧写法是同款 int 左移循环，n_points 很大时会溢出成死循环。
+    const long long n = detail::fft_grid_size(n_points);
+    const double dx = (x_hi - x_lo) / (double)n;
     const auto x = SymEngine::symbol("x");
     const auto e = SymEngine::parse(f);
-    std::vector<std::complex<double>> samples(n);
+    std::vector<std::complex<double>> samples((std::size_t)n);
     double l2_time = 0.0;
-    for (int i = 0; i < n; ++i) {
-        const double t = x_lo + i * dx;
+    for (long long i = 0; i < n; ++i) {
+        const double t = x_lo + (double)i * dx;
         const double v = eval_double_expr(e, x, t);
-        samples[i] = v;
+        samples[(std::size_t)i] = v;
         l2_time += v * v * dx;  // |f|² 梯形和(矩形近似)
     }
     l2_time = std::sqrt(l2_time);
@@ -164,9 +163,9 @@ PlancherelResult plancherel_theorem(const std::string& f, double x_lo, double x_
     detail::fft(work, false);
     // 频率网格。
     double l2_freq = 0.0;
-    for (int j = 0; j < n; ++j) {
-        const double dxi = 2.0 * kPi / (n * dx);
-        l2_freq += std::norm(work[j]) * dx * dx * dxi / (2.0 * kPi);
+    for (long long j = 0; j < n; ++j) {
+        const double dxi = 2.0 * kPi / ((double)n * dx);
+        l2_freq += std::norm(work[(std::size_t)j]) * dx * dx * dxi / (2.0 * kPi);
     }
     l2_freq = std::sqrt(l2_freq);
 

@@ -33,6 +33,9 @@ using mf::api::get_string;
 using mf::api::get_string_opt;
 using mf::api::get_keyword_opt;
 using mf::api::get_bool_opt;
+using mf::api::get_int_bounded;
+using mf::api::get_int_opt_bounded;
+using mf::api::arg_error;
 
 // 区间 [lo,hi] 参数(缺省 (0,1))。
 void get_interval(const Value& args, double& lo, double& hi, double d_lo,
@@ -134,7 +137,14 @@ std::vector<long long> parse_omega(const Value& args, const char* key) {
             }
             if (s == "coin") return {1, 2};
             if (s.rfind("finite:", 0) == 0) {
+                // ⚠ "finite:n" 里的 n 会被直接展开成 n 个元素的样本空间，而下游
+                //   （幂集/σ-代数/概率测度）的规模随 n 指数或平方增长。
+                //   `{"Omega":"finite:1000000000"}` 原本会让引擎推 1e9 个元素。
                 const long long n = std::stoll(s.substr(7));
+                if (n < 0 || n > 2000)
+                    throw arg_error("\"finite:" + std::to_string(n) +
+                                    "\" 的样本空间过大（上限 2000）：后续要枚举子集/σ-代数，"
+                                    "规模随元素数迅速增长。请减小样本空间。");
                 std::vector<long long> out;
                 for (long long i = 1; i <= n; ++i) out.push_back(i);
                 return out;
@@ -248,7 +258,7 @@ void register_all() {
         double a, b;
         get_interval(args, a, b, 0.0, 1.0);
         const StepApproxResult r = step_function_approx(
-            get_string(args, "f"), get_int(args, "n"), a, b);
+            get_string(args, "f"), get_int_bounded(args, "n", -9223372036854775807, 100000, "阶梯数"), a, b);
         Value obj = Value::make_object();
         obj.set("values", to_double_array(r.values));
         obj.set("dx", Value(r.dx));

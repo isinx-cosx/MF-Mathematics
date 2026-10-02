@@ -30,6 +30,8 @@ using mf::api::get_string;
 using mf::api::get_double_array;
 using mf::api::get_string_opt;
 using mf::api::to_double_array;
+using mf::api::get_int_bounded;
+using mf::api::get_int_opt_bounded;
 
 // ── 矩阵/复数序列化与解析 ──────────────────────────────────────────────────
 
@@ -261,7 +263,7 @@ void register_all() {
         const std::vector<double> dom = get_double_array(args, "domain");
         if (dom.size() != 2) throw std::invalid_argument("domain 须为 [a, b]");
         return Value(inner_product(get_string(args, "f"), get_string(args, "g"),
-                                   dom[0], dom[1], get_int_opt(args, "n_points", 1000)));
+                                   dom[0], dom[1], get_int_opt_bounded(args, "n_points", 1000, -9223372036854775807, 1000000, "采样点数")));
     }));
     register_function("funct_is_orthogonal", make_handler([](const Value& args) {
         const std::vector<double> dom = get_double_array(args, "domain");

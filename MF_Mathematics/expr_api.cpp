@@ -29,6 +29,7 @@ using mf::api::get_string;
 using mf::api::get_double_opt;
 using mf::api::get_double_array;
 using mf::api::to_double_array;
+using mf::api::arg_error;
 
 /**
  * 读取**用户原始输入串**（一个字符都不做规范化）。
@@ -137,9 +138,17 @@ void register_all() {
     const std::vector<double> xs = get_double_array(args, "xs");
     const std::vector<double> ys = get_double_array(args, "ys");
     const std::map<std::string, double> vars = read_vars(args);
+    // ⚠ 网格点数是 xs×ys，每一点都要求值并**逐个序列化成 JSON**。
+    //   旧实现只 reserve(xs*ys) 而没有上限：两个 4000 长的数组就是 1.6e7 个点，
+    //   足以把内存和响应时间一起打爆（3D 曲面/向量场拖一次滑块即可触发）。
+    //   上限与 plot_api.cpp 的 complex_grid（400000）保持一致。
+    const long long cells = static_cast<long long>(xs.size()) * static_cast<long long>(ys.size());
+    if (cells > 400000LL)
+      throw arg_error("网格点数过多：" + std::to_string(xs.size()) + "×" + std::to_string(ys.size()) +
+                      " = " + std::to_string(cells) + "，上限 400000。请降低采样密度。");
     auto root = mf::expr::parse(expr);
     std::vector<double> zs;
-    zs.reserve(xs.size() * ys.size());
+    zs.reserve(static_cast<std::size_t>(cells));
     std::map<std::string, double> local = vars;
     for (double y : ys) {
       local["y"] = y;

@@ -28,6 +28,8 @@ using mf::api::get_double_opt;
 using mf::api::get_string;
 using mf::api::get_string_opt;
 using mf::api::get_double_array;
+using mf::api::get_int_bounded;
+using mf::api::get_int_opt_bounded;
 
 // 区间参数 [a, b],缺省 (0, 1)。
 void get_interval(const Value& args, double& a, double& b) {
@@ -58,13 +60,13 @@ void register_all() {
         return Value(taylor_polynomial(get_string(args, "expr"),
                                        get_string_opt(args, "var", "x"),
                                        get_double_opt(args, "point", 0.0),
-                                       get_int_opt(args, "n", 3)));
+                                       get_int_opt_bounded(args, "n", 3, -9223372036854775807, 100, "项数")));
     }));
     register_function("taylor_remainder", make_handler([](const Value& args) {
         const bool has_xi = args.is_object() && args.has("xi");
         const TaylorRemainderResult r = taylor_remainder(
             get_string(args, "expr"), get_string_opt(args, "var", "x"),
-            get_double_opt(args, "point", 0.0), get_int_opt(args, "n", 3),
+            get_double_opt(args, "point", 0.0), get_int_opt_bounded(args, "n", 3, -9223372036854775807, 100, "项数"),
             has_xi, get_double_opt(args, "xi", 0.0));
         if (!r.has_xi) return Value(r.formula);
         Value obj = Value::make_object();
@@ -110,7 +112,7 @@ void register_all() {
     register_function("cauchy_criterion", make_handler([](const Value& args) {
         return Value(cauchy_criterion(get_string(args, "seq"),
                                       get_double_opt(args, "epsilon", 0.001),
-                                      get_int_opt(args, "max_n", 1000),
+                                      get_int_opt_bounded(args, "max_n", 1000, -9223372036854775807, 100000, "最大项数"),
                                       get_string_opt(args, "var", "n")));
     }));
 
@@ -261,7 +263,7 @@ void register_all() {
         double a, b;
         get_interval(args, a, b);
         const TermwiseIntegralResult r = termwise_integration(
-            get_string(args, "seq_expr"), a, b, get_int_opt(args, "n_terms", 10));
+            get_string(args, "seq_expr"), a, b, get_int_opt_bounded(args, "n_terms", 10, -9223372036854775807, 200, "逐项积分项数"));
         Value obj = Value::make_object();
         obj.set("termwise_sum", Value(r.termwise_sum));
         obj.set("direct_integral", Value(r.direct_integral));
@@ -269,7 +271,7 @@ void register_all() {
     }));
     register_function("termwise_differentiation", make_handler([](const Value& args) {
         const TermwiseDiffResult r = termwise_differentiation(
-            get_string(args, "seq_expr"), get_int_opt(args, "n_terms", 5));
+            get_string(args, "seq_expr"), get_int_opt_bounded(args, "n_terms", 5, -9223372036854775807, 200, "逐项微分项数"));
         Value obj = Value::make_object();
         obj.set("derivative_series", Value(r.derivative_series));
         obj.set("verified", Value(r.verified));

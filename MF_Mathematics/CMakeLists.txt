@@ -19,9 +19,13 @@ set(MF_SYMENGINE_ROOT
     "C:/Users/fsafsafsa/vcpkg/installed/x64-windows"
     CACHE PATH "SymEngine 安装根目录")
 
-# ── mf_mathematics DLL ──────────────────────────────────────────────────────
-add_library(mf_mathematics SHARED
-    api.cpp
+# ── 引擎内核（静态库）───────────────────────────────────────────────────────
+#
+# 除 api.cpp 外的全部实现。**不定义 MF_BUILD_DLL**，且域内头文件已不再使用
+# MF_API —— 导出面只剩 api.h 的两个 C ABI 函数（见 mf_export.h）。
+# 这样 DLL 边界不再暴露 std::string / std::vector / SymEngine::RCP，
+# 内部函数签名也能自由重构而不牵动 ABI。
+add_library(mf_mathematics_core STATIC
     registry.cpp
     introspect_api.cpp
     expr_api.cpp
@@ -125,44 +129,82 @@ add_library(mf_mathematics SHARED
     complex_analysis/residue.cpp
     complex_analysis/complex_analysis_api.cpp
 )
-target_include_directories(mf_mathematics
+target_include_directories(mf_mathematics_core
     PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
+    PUBLIC ${MF_EIGEN_INCLUDE_DIR}
     PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/number_theory
-    PRIVATE ${MF_EIGEN_INCLUDE_DIR}
 )
-target_link_libraries(mf_mathematics PRIVATE
+# PUBLIC：DLL 与各测试都链 core，SymEngine/FLINT/GMP/MPFR 由这里统一传递，
+# 调用方不必再各自重复列一遍。
+target_link_libraries(mf_mathematics_core PUBLIC
     ${MF_SYMENGINE_ROOT}/lib/symengine.lib
     ${MF_SYMENGINE_ROOT}/lib/flint.lib
     ${MF_SYMENGINE_ROOT}/lib/gmp.lib
     ${MF_SYMENGINE_ROOT}/lib/mpfr.lib
 )
-target_compile_definitions(mf_mathematics PRIVATE MF_BUILD_DLL)
 
 if(MSVC)
     # SymEngine/GMP/FLINT 头文件标记为外部,抑制其内部警告(/W4 之外)
-    target_compile_options(mf_mathematics PRIVATE
+    target_compile_options(mf_mathematics_core PRIVATE
         /utf-8 /W4 /external:W0 /external:I "${MF_SYMENGINE_ROOT}/include")
 endif()
 
 # 拷贝 SymEngine 运行时 DLL 到输出目录,保证测试运行时能找到。
+# 挂在 core 上（而不是 DLL 上）：测试链的是 core，若挂在 DLL 上，
+# 单独构建某个测试目标就不会触发拷贝，该测试会因缺运行时 DLL 起不来。
 if(WIN32)
     foreach(_dll symengine-0.14.dll flint-24.dll gmp-10.dll mpfr-6.dll pthreadVC3.dll)
-        add_custom_command(TARGET mf_mathematics POST_BUILD
+        add_custom_command(TARGET mf_mathematics_core POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "${MF_SYMENGINE_ROOT}/bin/${_dll}" $<TARGET_FILE_DIR:mf_mathematics>)
+                "${MF_SYMENGINE_ROOT}/bin/${_dll}" $<TARGET_FILE_DIR:mf_mathematics_core>)
     endforeach()
 endif()
 
+# ── 对外 DLL：只含 C ABI 包装 ────────────────────────────────────────────────
+#
+# 这是**唯一**定义 MF_BUILD_DLL 的目标，也就是唯一会 dllexport 的目标；
+# 域内头文件早已不用 MF_API，所以导出面恰好是 api.h 里那两个函数。
+add_library(mf_mathematics SHARED api.cpp)
+target_link_libraries(mf_mathematics PRIVATE mf_mathematics_core)
+target_compile_definitions(mf_mathematics PRIVATE MF_BUILD_DLL)
+
 if(MSVC)
     target_compile_options(mf_mathematics PRIVATE /utf-8 /W4)
+    # ⚠ 必须强制全量纳入 core。
+    # 每个 *_api.cpp 靠一个**没有外部引用的全局对象**注册：
+    #     struct Registrar { Registrar() { register_all(); } };
+    #     const Registrar g_xxx_registrar;
+    # 链接静态库时，链接器只抽取"解决了未定义符号"的目标文件；这些注册器
+    # 不被任何符号引用 → 整个 *_api.cpp 被丢弃 → 注册表为空 → 424 个 action
+    # 集体消失。而这种失效是**静默的**：DLL 照常加载、function_exists 照常
+    # 能调，只是每个 action 都返回"未找到函数: xxx"。
+    # 守住它的是对 list_functions 的 count == 424 断言（见 tests/）。
+    target_link_options(mf_mathematics PRIVATE
+        "/WHOLEARCHIVE:$<TARGET_FILE:mf_mathematics_core>")
 endif()
+
+# ── 对外链接入口 ────────────────────────────────────────────────────────────
+#
+# 命名空间化别名，消费方（CI 上的准确性套件、其它工具）据此链接，
+# 不必依赖本工程内部的目标名：
+#
+#   MFMath::engine —— 全部数学实现（静态库）。要直接调 C++ 函数链它，
+#                     例如把 v1 的 2180 条准确性用例改写成 C++ runner。
+#   MFMath::cabi   —— 只有两个导出函数的薄 DLL。宿主 / JS 桥这类
+#                     跨语言消费者链它。
+#
+# ⚠ 自己另建导出 DLL 并链 MFMath::engine 时，**必须**加 /WHOLEARCHIVE：
+#   每个 *_api.cpp 靠"没有外部引用的全局注册器"注册，不加就会被链接器
+#   整个丢弃，注册表变空，而失效是静默的。
+add_library(MFMath::engine ALIAS mf_mathematics_core)
+add_library(MFMath::cabi   ALIAS mf_mathematics)
 
 # ── 测试 ────────────────────────────────────────────────────────────────────
 enable_testing()
 
 # 极限契约：确定形式必须给对；不定式要么给对、要么如实拒绝（不给假值）
 add_executable(test_limits tests/test_limits.cpp)
-target_link_libraries(test_limits PRIVATE mf_mathematics
+target_link_libraries(test_limits PRIVATE mf_mathematics mf_mathematics_core
     ${MF_SYMENGINE_ROOT}/lib/symengine.lib
     ${MF_SYMENGINE_ROOT}/lib/flint.lib
     ${MF_SYMENGINE_ROOT}/lib/gmp.lib
@@ -177,7 +219,7 @@ add_test(NAME limits COMMAND test_limits)
 # 索引布局、null/nan 语义、unsupported 与点数上限（写法与 test_limits 一致：
 # 库的链接是 PRIVATE，所以这里必须显式再链一次 symengine/flint/gmp/mpfr）
 add_executable(test_complex_grid tests/test_complex_grid.cpp)
-target_link_libraries(test_complex_grid PRIVATE mf_mathematics
+target_link_libraries(test_complex_grid PRIVATE mf_mathematics mf_mathematics_core
     ${MF_SYMENGINE_ROOT}/lib/symengine.lib
     ${MF_SYMENGINE_ROOT}/lib/flint.lib
     ${MF_SYMENGINE_ROOT}/lib/gmp.lib
@@ -189,7 +231,7 @@ endif()
 add_test(NAME complex_grid COMMAND test_complex_grid)
 
 add_executable(test_number_theory tests/test_number_theory.cpp)
-target_link_libraries(test_number_theory PRIVATE mf_mathematics)
+target_link_libraries(test_number_theory PRIVATE mf_mathematics mf_mathematics_core)
 target_include_directories(test_number_theory PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 if(MSVC)
     target_compile_options(test_number_theory PRIVATE /utf-8 /W4)
@@ -197,7 +239,7 @@ endif()
 add_test(NAME number_theory COMMAND test_number_theory)
 
 add_executable(test_algebraic_topology tests/test_algebraic_topology.cpp)
-target_link_libraries(test_algebraic_topology PRIVATE mf_mathematics)
+target_link_libraries(test_algebraic_topology PRIVATE mf_mathematics mf_mathematics_core)
 target_include_directories(test_algebraic_topology PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 if(MSVC)
     target_compile_options(test_algebraic_topology PRIVATE /utf-8 /W4)
@@ -205,7 +247,7 @@ endif()
 add_test(NAME algebraic_topology COMMAND test_algebraic_topology)
 
 add_executable(test_algebra tests/test_algebra.cpp)
-target_link_libraries(test_algebra PRIVATE mf_mathematics)
+target_link_libraries(test_algebra PRIVATE mf_mathematics mf_mathematics_core)
 target_include_directories(test_algebra PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 if(MSVC)
     target_compile_options(test_algebra PRIVATE /utf-8 /W4)
@@ -213,7 +255,7 @@ endif()
 add_test(NAME algebra COMMAND test_algebra)
 
 add_executable(test_numerical tests/test_numerical.cpp)
-target_link_libraries(test_numerical PRIVATE mf_mathematics)
+target_link_libraries(test_numerical PRIVATE mf_mathematics mf_mathematics_core)
 target_include_directories(test_numerical PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${MF_EIGEN_INCLUDE_DIR})
 if(MSVC)
     target_compile_options(test_numerical PRIVATE /utf-8 /W4)
@@ -221,7 +263,7 @@ endif()
 add_test(NAME numerical COMMAND test_numerical)
 
 add_executable(test_functional_analysis tests/test_functional_analysis.cpp)
-target_link_libraries(test_functional_analysis PRIVATE mf_mathematics)
+target_link_libraries(test_functional_analysis PRIVATE mf_mathematics mf_mathematics_core)
 target_include_directories(test_functional_analysis PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${MF_EIGEN_INCLUDE_DIR})
 if(MSVC)
     target_compile_options(test_functional_analysis PRIVATE /utf-8 /W4)
@@ -229,7 +271,7 @@ endif()
 add_test(NAME functional_analysis COMMAND test_functional_analysis)
 
 add_executable(test_calculus tests/test_calculus.cpp)
-target_link_libraries(test_calculus PRIVATE mf_mathematics)
+target_link_libraries(test_calculus PRIVATE mf_mathematics mf_mathematics_core)
 target_include_directories(test_calculus PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 if(MSVC)
     target_compile_options(test_calculus PRIVATE /utf-8 /W4)
@@ -237,7 +279,7 @@ endif()
 add_test(NAME calculus COMMAND test_calculus)
 
 add_executable(test_real_analysis tests/test_real_analysis.cpp)
-target_link_libraries(test_real_analysis PRIVATE mf_mathematics)
+target_link_libraries(test_real_analysis PRIVATE mf_mathematics mf_mathematics_core)
 target_include_directories(test_real_analysis PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 if(MSVC)
     target_compile_options(test_real_analysis PRIVATE /utf-8 /W4)
@@ -245,7 +287,7 @@ endif()
 add_test(NAME real_analysis COMMAND test_real_analysis)
 
 add_executable(test_linear_algebra tests/test_linear_algebra.cpp)
-target_link_libraries(test_linear_algebra PRIVATE mf_mathematics)
+target_link_libraries(test_linear_algebra PRIVATE mf_mathematics mf_mathematics_core)
 target_include_directories(test_linear_algebra PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${MF_EIGEN_INCLUDE_DIR})
 if(MSVC)
     target_compile_options(test_linear_algebra PRIVATE /utf-8 /W4 /external:W0 /external:I "${MF_EIGEN_INCLUDE_DIR}")
@@ -253,7 +295,7 @@ endif()
 add_test(NAME linear_algebra COMMAND test_linear_algebra)
 
 add_executable(test_harmonic_analysis tests/test_harmonic_analysis.cpp)
-target_link_libraries(test_harmonic_analysis PRIVATE mf_mathematics)
+target_link_libraries(test_harmonic_analysis PRIVATE mf_mathematics mf_mathematics_core)
 target_include_directories(test_harmonic_analysis PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 if(MSVC)
     target_compile_options(test_harmonic_analysis PRIVATE /utf-8 /W4)
@@ -261,7 +303,7 @@ endif()
 add_test(NAME harmonic_analysis COMMAND test_harmonic_analysis)
 
 add_executable(test_measure_theory tests/test_measure_theory.cpp)
-target_link_libraries(test_measure_theory PRIVATE mf_mathematics)
+target_link_libraries(test_measure_theory PRIVATE mf_mathematics mf_mathematics_core)
 target_include_directories(test_measure_theory PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 if(MSVC)
     target_compile_options(test_measure_theory PRIVATE /utf-8 /W4)
@@ -269,7 +311,7 @@ endif()
 add_test(NAME measure_theory COMMAND test_measure_theory)
 
 add_executable(test_probability tests/test_probability.cpp)
-target_link_libraries(test_probability PRIVATE mf_mathematics)
+target_link_libraries(test_probability PRIVATE mf_mathematics mf_mathematics_core)
 target_include_directories(test_probability PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 if(MSVC)
     target_compile_options(test_probability PRIVATE /utf-8 /W4)
@@ -277,7 +319,7 @@ endif()
 add_test(NAME probability COMMAND test_probability)
 
 add_executable(test_complex_analysis tests/test_complex_analysis.cpp)
-target_link_libraries(test_complex_analysis PRIVATE mf_mathematics)
+target_link_libraries(test_complex_analysis PRIVATE mf_mathematics mf_mathematics_core)
 target_include_directories(test_complex_analysis PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 if(MSVC)
     target_compile_options(test_complex_analysis PRIVATE /utf-8 /W4)
@@ -287,7 +329,7 @@ add_test(NAME complex_analysis COMMAND test_complex_analysis)
 # 符号 API 契约测试：钉住实际反馈过的缺陷（含参实根性、极值字段语义、
 # 化简择优、因式分解根式归约、机器记号外泄、参数错误信息）
 add_executable(test_symbolic_contract tests/test_symbolic_contract.cpp)
-target_link_libraries(test_symbolic_contract PRIVATE mf_mathematics
+target_link_libraries(test_symbolic_contract PRIVATE mf_mathematics mf_mathematics_core
     ${MF_SYMENGINE_ROOT}/lib/symengine.lib
     ${MF_SYMENGINE_ROOT}/lib/flint.lib
     ${MF_SYMENGINE_ROOT}/lib/gmp.lib
@@ -302,7 +344,7 @@ endif()
 add_test(NAME symbolic_contract COMMAND test_symbolic_contract)
 
 add_executable(probe_bugs tests/probe_bugs.cpp)
-target_link_libraries(probe_bugs PRIVATE mf_mathematics
+target_link_libraries(probe_bugs PRIVATE mf_mathematics_core
     ${MF_SYMENGINE_ROOT}/lib/symengine.lib
     ${MF_SYMENGINE_ROOT}/lib/flint.lib
     ${MF_SYMENGINE_ROOT}/lib/gmp.lib
@@ -318,7 +360,7 @@ add_test(NAME probe_bugs COMMAND probe_bugs)
 # SymEngine::solve 安全性实测探针：在独立进程里试探各类方程，
 # 用于确定 safe_solve 的超越函数黑名单能放宽到哪一步（崩溃点即证据）。
 add_executable(probe_solve_safety tests/probe_solve_safety.cpp)
-target_link_libraries(probe_solve_safety PRIVATE mf_mathematics
+target_link_libraries(probe_solve_safety PRIVATE mf_mathematics_core
     ${MF_SYMENGINE_ROOT}/lib/symengine.lib
     ${MF_SYMENGINE_ROOT}/lib/flint.lib
     ${MF_SYMENGINE_ROOT}/lib/gmp.lib
@@ -333,7 +375,7 @@ endif()
 # 通用调用探针：不必启动宿主就能直接观察引擎对某组输入的真实返回，
 # 用于核对字段语义、错误信息、记号外泄等「契约」层面的问题。
 add_executable(probe_call tests/probe_call.cpp)
-target_link_libraries(probe_call PRIVATE mf_mathematics)
+target_link_libraries(probe_call PRIVATE mf_mathematics mf_mathematics_core)
 target_include_directories(probe_call PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 if(MSVC)
     target_compile_options(probe_call PRIVATE /utf-8 /W4)
@@ -341,7 +383,7 @@ endif()
 
 # 数值扫描内部行为诊断探针（非回归）
 add_executable(probe_scan tests/probe_scan.cpp)
-target_link_libraries(probe_scan PRIVATE mf_mathematics
+target_link_libraries(probe_scan PRIVATE mf_mathematics_core
     ${MF_SYMENGINE_ROOT}/lib/symengine.lib
     ${MF_SYMENGINE_ROOT}/lib/flint.lib
     ${MF_SYMENGINE_ROOT}/lib/gmp.lib

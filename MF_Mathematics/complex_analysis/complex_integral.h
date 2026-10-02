@@ -4,12 +4,11 @@
 #include <complex>
 #include <string>
 
-#include "../mf_export.h"
 
 namespace mf::complex_analysis {
 
 // 复曲线积分 ∫_γ f(z) dz,γ(t) = center + r·e^{it},t ∈ [a,b]。
-MF_API std::complex<double> contour_integral_circle(
+std::complex<double> contour_integral_circle(
     const std::string& func, std::complex<double> center, double radius,
     double a, double b, long long n_points = 1000);
 
@@ -18,7 +17,7 @@ struct CauchyTheoremResult {
     std::complex<double> integral{0.0, 0.0};
     bool zero = false;
 };
-MF_API CauchyTheoremResult cauchy_theorem(const std::string& func,
+CauchyTheoremResult cauchy_theorem(const std::string& func,
                                           std::complex<double> center,
                                           double radius);
 
@@ -28,7 +27,7 @@ struct CauchyFormulaResult {
     std::complex<double> direct_f_a{0.0, 0.0};
     double error = 0.0;
 };
-MF_API CauchyFormulaResult cauchy_integral_formula(
+CauchyFormulaResult cauchy_integral_formula(
     const std::string& func, std::complex<double> a,
     std::complex<double> center, double radius, long long n_points = 1000);
 
@@ -37,7 +36,7 @@ struct DerivativeFormulaResult {
     std::complex<double> derivative{0.0, 0.0};
     std::complex<double> symbolic{0.0, 0.0};
 };
-MF_API DerivativeFormulaResult derivative_formula(
+DerivativeFormulaResult derivative_formula(
     const std::string& func, std::complex<double> a, long long n,
     std::complex<double> center, double radius, long long n_points = 1000);
 

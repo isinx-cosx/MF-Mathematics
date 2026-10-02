@@ -7,20 +7,19 @@
 
 #include <string>
 
-#include "../mf_export.h"
 
 namespace mf::real_analysis {
 
 // 导数定义:f'(x₀) = lim_{h→0}[f(x₀+h)-f(x₀)]/h,结果与符号求导一致。
-MF_API double derivative_definition(const std::string& expr,
+double derivative_definition(const std::string& expr,
                                     const std::string& var, double point);
 
 // 判断函数在某点是否可导(左右导数差商比较)。
-MF_API bool is_differentiable(const std::string& expr, const std::string& var,
+bool is_differentiable(const std::string& expr, const std::string& var,
                               double point);
 
 // 泰勒多项式 T_n(x) = Σ_{k=0}^{n} f^(k)(a)/k! · (x-a)^k,返回化简后的字符串。
-MF_API std::string taylor_polynomial(const std::string& expr,
+std::string taylor_polynomial(const std::string& expr,
                                      const std::string& var, double point,
                                      long long n);
 
@@ -30,7 +29,7 @@ struct TaylorRemainderResult {
     bool has_xi = false;         // 是否提供了 ξ
     double remainder_factor = 0.0;  // f^(n+1)(ξ)/(n+1)! 的数值
 };
-MF_API TaylorRemainderResult taylor_remainder(const std::string& expr,
+TaylorRemainderResult taylor_remainder(const std::string& expr,
                                               const std::string& var,
                                               double point, long long n,
                                               bool has_xi, double xi);
@@ -40,7 +39,7 @@ struct RolleResult {
     bool satisfies = false;  // f(a) = f(b) 是否成立
     double xi = 0.0;
 };
-MF_API RolleResult rolle_theorem(const std::string& expr,
+RolleResult rolle_theorem(const std::string& expr,
                                  const std::string& var, double a, double b);
 
 // 拉格朗日中值定理:返回 ξ 和割线斜率。
@@ -48,7 +47,7 @@ struct LagrangeResult {
     double xi = 0.0;
     double secant_slope = 0.0;
 };
-MF_API LagrangeResult lagrange_theorem(const std::string& expr,
+LagrangeResult lagrange_theorem(const std::string& expr,
                                        const std::string& var, double a,
                                        double b);
 

@@ -5,12 +5,11 @@
 #include <utility>
 #include <vector>
 
-#include "../mf_export.h"
 
 namespace mf::measure_theory {
 
 // 简单函数积分 ∫φ dλ = Σ c_i · μ(E_i),μ(E_i) = |b_i - a_i|。
-MF_API double integral_simple(
+double integral_simple(
     const std::vector<double>& coefficients,
     const std::vector<std::pair<double, double>>& sets);
 
@@ -19,7 +18,7 @@ struct NonnegIntegralResult {
     double integral = 0.0;
     double approximation = 0.0;  // 分层(simple function)逼近
 };
-MF_API NonnegIntegralResult integral_nonnegative(const std::string& expr,
+NonnegIntegralResult integral_nonnegative(const std::string& expr,
                                                  double a, double b);
 
 // 一般可测函数积分:正部减负部 ∫f = ∫f⁺ - ∫f⁻。
@@ -28,7 +27,7 @@ struct GeneralIntegralResult {
     double neg = 0.0;
     double integral = 0.0;
 };
-MF_API GeneralIntegralResult integral_general(const std::string& expr, double a,
+GeneralIntegralResult integral_general(const std::string& expr, double a,
                                               double b);
 
 // 零测集无关性:若 ∫f ≈ ∫g 则几乎处处相等函数积分一致;列出 f-g=0 的根。
@@ -36,7 +35,7 @@ struct ZeroSetResult {
     bool are_equal = false;
     std::vector<double> diff_points;
 };
-MF_API ZeroSetResult integral_zero_set_independent(const std::string& f,
+ZeroSetResult integral_zero_set_independent(const std::string& f,
                                                    const std::string& g,
                                                    double a, double b);
 

@@ -7,7 +7,6 @@
 
 #include <string>
 
-#include "../mf_export.h"
 
 namespace mf::algebra {
 
@@ -17,9 +16,9 @@ struct Point {
 };
 
 // 两点间欧氏距离(四舍五入到 10 位小数)。
-MF_API double distance(Point p1, Point p2);
+double distance(Point p1, Point p2);
 // 两点中点。
-MF_API Point midpoint(Point p1, Point p2);
+Point midpoint(Point p1, Point p2);
 
 // 两点式直线:斜率、各形式方程字符串。
 struct LineFromPoints {
@@ -29,7 +28,7 @@ struct LineFromPoints {
     std::string general;
     double slope = 0.0;  // 垂直时为 +inf
 };
-MF_API LineFromPoints line_from_points(Point p1, Point p2);
+LineFromPoints line_from_points(Point p1, Point p2);
 
 // 斜截式 y = kx + b。
 struct LineSlopeIntercept {
@@ -39,7 +38,7 @@ struct LineSlopeIntercept {
     double slope = 0.0;
     double y_intercept = 0.0;
 };
-MF_API LineSlopeIntercept line_from_slope_intercept(double k, double b);
+LineSlopeIntercept line_from_slope_intercept(double k, double b);
 
 // 点斜式 y - y₀ = k(x - x₀)。
 struct LinePointSlope {
@@ -49,7 +48,7 @@ struct LinePointSlope {
     double slope = 0.0;
     Point point;
 };
-MF_API LinePointSlope line_from_point_slope(Point p, double k);
+LinePointSlope line_from_point_slope(Point p, double k);
 
 // 截距式 x/a + y/b = 1。a 或 b 为零抛 std::invalid_argument。
 struct LineIntercepts {
@@ -60,7 +59,7 @@ struct LineIntercepts {
     double y_intercept = 0.0;
     double slope = 0.0;
 };
-MF_API LineIntercepts line_from_intercepts(double a, double b);
+LineIntercepts line_from_intercepts(double a, double b);
 
 // 一般式 Ax + By + C = 0。A、B 同时为零抛 std::invalid_argument。
 struct LineGeneral {
@@ -72,7 +71,7 @@ struct LineGeneral {
     bool has_y_intercept = false;
     double y_intercept = 0.0;
 };
-MF_API LineGeneral line_general(double A, double B, double C);
+LineGeneral line_general(double A, double B, double C);
 
 // 圆的标准方程 (x-h)² + (y-k)² = r²。r ≤ 0 抛 std::invalid_argument。
 struct CircleStandard {
@@ -84,7 +83,7 @@ struct CircleStandard {
     double circumference = 0.0;
     double area = 0.0;
 };
-MF_API CircleStandard circle_standard(Point center, double r);
+CircleStandard circle_standard(Point center, double r);
 
 // 圆的一般方程 x²+y²+Dx+Ey+F=0 → 圆心半径。r² < 0 时 is_imaginary 置真。
 struct CircleGeneral {
@@ -95,7 +94,7 @@ struct CircleGeneral {
     std::string standard;
     std::string general;
 };
-MF_API CircleGeneral circle_general(double D, double E, double F);
+CircleGeneral circle_general(double D, double E, double F);
 
 // ── 圆锥曲线（中心在原点，与圆的接口风格一致）─────────────────────────────
 // 椭圆 x²/a² + y²/b² = 1（a > 0, b > 0）。焦点在长轴那一侧。
@@ -115,7 +114,7 @@ struct EllipseInfo {
     std::string directrix;
     double area = 0.0;
 };
-MF_API EllipseInfo ellipse_standard(double a, double b);
+EllipseInfo ellipse_standard(double a, double b);
 
 // 双曲线 x²/a² - y²/b² = 1（a > 0, b > 0）。
 struct HyperbolaInfo {
@@ -132,7 +131,7 @@ struct HyperbolaInfo {
     std::string asymptote2;
     std::string directrix;
 };
-MF_API HyperbolaInfo hyperbola_standard(double a, double b);
+HyperbolaInfo hyperbola_standard(double a, double b);
 
 // 抛物线：顶点在原点，p 为焦准距（焦点到准线的距离），p ≠ 0。
 // axis: "x"（y² = 2px，开口向右/左）或 "y"（x² = 2py，开口向上/下）。
@@ -146,6 +145,6 @@ struct ParabolaInfo {
     std::string opening;        // 右 / 左 / 上 / 下
     double latus_rectum = 0.0;  // 通径长度 = |2p|
 };
-MF_API ParabolaInfo parabola_standard(double p, const std::string& axis);
+ParabolaInfo parabola_standard(double p, const std::string& axis);
 
 }  // namespace mf::algebra

@@ -60,6 +60,25 @@ std::vector<std::vector<double>> get_matrix(const Value& args,
     return out;
 }
 
+/**
+ * 符号类矩阵动作的规模上限。
+ *
+ * 特征多项式 / 特征值 / 对角化走的是**符号**路线（SymEngine 行列式 + simplify），
+ * 代价随阶数迅速增长：20×20 整数矩阵实测 >10 s 不返回（界面就是卡住），
+ * 而 12 阶特征多项式已经是 12 次、系数巨大，人工也用不上。
+ * 数值类动作（矩阵乘法、高斯消元、数值行列式）不走这里，不受此限。
+ */
+std::vector<std::vector<double>> get_matrix_symbolic(const Value& args, const char* key) {
+    auto m = get_matrix(args, key);
+    const std::size_t rows = m.size();
+    const std::size_t cols = rows ? m[0].size() : 0;
+    if (rows > 12 || cols > 12)
+        throw std::invalid_argument(
+            std::string("矩阵过大：") + std::to_string(rows) + "×" + std::to_string(cols) +
+            "。本动作是符号计算（行列式/化简），上限 12×12；阶数更高请改用数值特征值。");
+    return m;
+}
+
 // 向量参数:一维数组。
 std::vector<double> get_vec(const Value& args, const char* key) {
     if (!args.is_object() || !args.has(key))
@@ -331,7 +350,7 @@ void register_all() {
 
     // ── eigen ──────────────────────────────────────────────────────────────
     register_function("eigenvalues", make_handler([](const Value& args) {
-        const EigenvaluesResult r = eigenvalues(get_matrix(args, "matrix"));
+        const EigenvaluesResult r = eigenvalues(get_matrix_symbolic(args, "matrix"));
         Value obj = Value::make_object();
         Value evs = Value::make_array();
         for (const auto& v : r.values) evs.push_back(complex_to_value(v));
@@ -351,7 +370,7 @@ void register_all() {
         return obj;
     }));
     register_function("eigenvectors", make_handler([](const Value& args) {
-        const EigenvectorsResult r = eigenvectors(get_matrix(args, "matrix"));
+        const EigenvectorsResult r = eigenvectors(get_matrix_symbolic(args, "matrix"));
         Value obj = Value::make_object();
         Value eps = Value::make_array();
         for (const auto& p : r.eigenpairs) {
@@ -369,13 +388,13 @@ void register_all() {
     }));
     register_function("characteristic_polynomial",
                       make_handler([](const Value& args) {
-        return Value(characteristic_polynomial(get_matrix(args, "matrix")));
+        return Value(characteristic_polynomial(get_matrix_symbolic(args, "matrix")));
     }));
     register_function("is_diagonalizable", make_handler([](const Value& args) {
-        return Value(is_diagonalizable(get_matrix(args, "matrix")));
+        return Value(is_diagonalizable(get_matrix_symbolic(args, "matrix")));
     }));
     register_function("diagonalize", make_handler([](const Value& args) {
-        const DiagonalizeResult r = diagonalize(get_matrix(args, "matrix"));
+        const DiagonalizeResult r = diagonalize(get_matrix_symbolic(args, "matrix"));
         Value obj = Value::make_object();
         obj.set("diagonalizable", Value(r.diagonalizable));
         if (r.diagonalizable) {

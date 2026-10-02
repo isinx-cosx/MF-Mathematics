@@ -3,7 +3,6 @@
 
 #include <string>
 
-#include "../mf_export.h"
 
 namespace mf::harmonic_analysis {
 
@@ -25,7 +24,7 @@ struct PoissonResult {
     int numeric_terms = 0;
     bool right_sum_reliable = true;
 };
-MF_API PoissonResult poisson_summation(const std::string& f, double a, int n_terms);
+PoissonResult poisson_summation(const std::string& f, double a, int n_terms);
 
 // 雅可比 θ 函数 θ(t) = Σ e^{-πn²t} + 模变换验证。
 struct ThetaResult {
@@ -33,7 +32,7 @@ struct ThetaResult {
     double theta_reciprocal = 0.0;
     double modular_check = 0.0;
 };
-MF_API ThetaResult theta_function(double t, int n_terms);
+ThetaResult theta_function(double t, int n_terms);
 
 // ζ 函数方程:π^{-s/2}Γ(s/2)ζ(s) = π^{-(1-s)/2}Γ((1-s)/2)ζ(1-s)。
 struct FunctionalEquationResult {
@@ -43,6 +42,6 @@ struct FunctionalEquationResult {
     double right_side = 0.0;
     double relative_difference = 0.0;
 };
-MF_API FunctionalEquationResult functional_equation_demo(double s);
+FunctionalEquationResult functional_equation_demo(double s);
 
 }  // namespace mf::harmonic_analysis

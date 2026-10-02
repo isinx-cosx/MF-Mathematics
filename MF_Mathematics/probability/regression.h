@@ -4,7 +4,6 @@
 #include <string>
 #include <vector>
 
-#include "../mf_export.h"
 
 namespace mf::probability {
 
@@ -14,14 +13,14 @@ struct RegressionResult {
     double r_squared = 0.0;
     long long n = 0;
 };
-MF_API RegressionResult linear_regression(const std::vector<double>& x,
+RegressionResult linear_regression(const std::vector<double>& x,
                                           const std::vector<double>& y);
 
 // 线性预测 ŷ = β₀ + β₁·x。
-MF_API double predict_linear(double slope, double intercept, double x);
+double predict_linear(double slope, double intercept, double x);
 
 // 批量预测。
-MF_API std::vector<double> predict_linear_many(double slope, double intercept,
+std::vector<double> predict_linear_many(double slope, double intercept,
                                                const std::vector<double>& x);
 
 // 残差分析。
@@ -31,7 +30,7 @@ struct ResidualResult {
     double MSE = 0.0;
     long long n = 0;
 };
-MF_API ResidualResult residuals_linear(double slope, double intercept,
+ResidualResult residuals_linear(double slope, double intercept,
                                        const std::vector<double>& x,
                                        const std::vector<double>& y);
 

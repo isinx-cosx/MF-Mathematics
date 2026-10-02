@@ -5,7 +5,6 @@
 #include <utility>
 #include <vector>
 
-#include "../mf_export.h"
 
 namespace mf::measure_theory {
 
@@ -14,11 +13,11 @@ struct MeasurableResult {
     bool is_measurable = true;
     std::vector<double> singularities;
 };
-MF_API MeasurableResult is_measurable(const std::string& expr, double a,
+MeasurableResult is_measurable(const std::string& expr, double a,
                                       double b);
 
 // 简单函数 φ(x) = Σ c_i · 1_[a_i,b_i](x) 在点 x 处的值。
-MF_API double simple_function_eval(
+double simple_function_eval(
     const std::vector<double>& coefficients,
     const std::vector<std::pair<double, double>>& sets, double x);
 
@@ -29,7 +28,7 @@ struct StepApproxResult {
     double dx = 0.0;
     double integral = 0.0;  // Σ value_i · dx
 };
-MF_API StepApproxResult step_function_approx(const std::string& expr,
+StepApproxResult step_function_approx(const std::string& expr,
                                              long long n, double a, double b);
 
 }  // namespace mf::measure_theory

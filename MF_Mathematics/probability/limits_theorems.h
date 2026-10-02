@@ -3,7 +3,6 @@
 
 #include <vector>
 
-#include "../mf_export.h"
 
 namespace mf::probability {
 
@@ -13,7 +12,7 @@ struct LlnResult {
     double threshold = 0.0;
     bool converged = false;
 };
-MF_API LlnResult law_of_large_numbers(double sample_mean, double true_mean,
+LlnResult law_of_large_numbers(double sample_mean, double true_mean,
                                       long long n);
 
 // 中心极限定理:标准化样本均值近似 N(0,1)。
@@ -24,7 +23,7 @@ struct CltResult {
     double standard_error = 0.0;
     bool approx_normal = false;
 };
-MF_API CltResult central_limit_theorem(const std::vector<double>& sample,
+CltResult central_limit_theorem(const std::vector<double>& sample,
                                        double mu, double sigma, long long n);
 
 }  // namespace mf::probability

@@ -6,7 +6,6 @@
 
 #include <Eigen/Dense>
 
-#include "../mf_export.h"
 
 namespace mf::functional_analysis {
 
@@ -16,14 +15,14 @@ struct SpectrumResult {
     std::vector<std::complex<double>> complex_evals; // 虚部非零
     double spectral_radius = 0.0;
 };
-MF_API SpectrumResult spectrum_approx(const Eigen::MatrixXd& A);
+SpectrumResult spectrum_approx(const Eigen::MatrixXd& A);
 
 // 谱分类:有限维矩阵的谱 = 点谱(特征值)。is_self_adjoint 判断自伴性。
 struct SpectrumClassifyResult {
     std::vector<std::complex<double>> point_spectrum;
     bool is_self_adjoint = false;
 };
-MF_API SpectrumClassifyResult spectrum_classify(const Eigen::MatrixXd& A,
+SpectrumClassifyResult spectrum_classify(const Eigen::MatrixXd& A,
                                                 double tol = 1e-6);
 
 // 谱定理验证(实对称矩阵 A = QΛQᵀ;非对称给特征分解与重构误差)。
@@ -39,6 +38,6 @@ struct SpectralTheoremResult {
     bool has_complex = false;  // 存在非实特征值（此时不是自伴算子的谱定理场景）
     double reconstruction_error = 0.0;
 };
-MF_API SpectralTheoremResult spectral_theorem(const Eigen::MatrixXd& A);
+SpectralTheoremResult spectral_theorem(const Eigen::MatrixXd& A);
 
 }  // namespace mf::functional_analysis

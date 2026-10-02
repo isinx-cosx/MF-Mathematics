@@ -4,7 +4,6 @@
 #include <complex>
 #include <string>
 
-#include "../mf_export.h"
 
 namespace mf::harmonic_analysis {
 
@@ -24,11 +23,11 @@ struct FourierTransformResult {
     int tail_terms = 0;
     std::string warning;
 };
-MF_API FourierTransformResult fourier_transform(const std::string& f, bool numeric_xi,
+FourierTransformResult fourier_transform(const std::string& f, bool numeric_xi,
                                                 double xi, bool use_angular);
 
 // 逆傅里叶变换。
-MF_API FourierTransformResult inverse_fourier_transform(const std::string& F,
+FourierTransformResult inverse_fourier_transform(const std::string& F,
                                                         bool numeric_x, double x,
                                                         bool use_angular);
 
@@ -39,10 +38,10 @@ struct PlancherelResult {
     double relative_difference = 0.0;
     bool consistent = false;
 };
-MF_API PlancherelResult plancherel_theorem(const std::string& f, double x_lo,
+PlancherelResult plancherel_theorem(const std::string& f, double x_lo,
                                            double x_hi, int n_points);
 
 // 高斯 e^{-ax²} 的傅里叶变换公式 √(π/a)·e^{-ξ²/(4a)}。
-MF_API std::string ft_of_gaussian(double a);
+std::string ft_of_gaussian(double a);
 
 }  // namespace mf::harmonic_analysis

@@ -5,12 +5,11 @@
 
 #include <Eigen/Dense>
 
-#include "../mf_export.h"
 
 namespace mf::functional_analysis {
 
 // 哈恩-巴拿赫延拓:最小范数延拓(补零到全空间)。
-MF_API std::vector<double> hahn_banach_extension(
+std::vector<double> hahn_banach_extension(
     const std::vector<double>& a, long long subspace_dim, long long ambient_dim = -1);
 
 // 一致有界原理数值演示。
@@ -20,14 +19,14 @@ struct UniformBoundednessResult {
     double sup_operator_norm = 0.0;
     std::vector<double> operator_norms;
 };
-MF_API UniformBoundednessResult uniform_boundedness(
+UniformBoundednessResult uniform_boundedness(
     const std::vector<Eigen::MatrixXd>& operators,
     const std::vector<Eigen::VectorXd>* test_points = nullptr);
 
 // 开映射:满射(行满秩)⇔ 开映射。
-MF_API bool open_mapping(const Eigen::MatrixXd& A);
+bool open_mapping(const Eigen::MatrixXd& A);
 
 // 闭图像:有界(谱范数 < 1e10)⇔ 闭图像。
-MF_API bool closed_graph(const Eigen::MatrixXd& A);
+bool closed_graph(const Eigen::MatrixXd& A);
 
 }  // namespace mf::functional_analysis

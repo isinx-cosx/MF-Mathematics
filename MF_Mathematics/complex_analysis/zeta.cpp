@@ -21,6 +21,14 @@ std::complex<double> analytic_continuation_zeta(const std::complex<double>& s) {
         if (std::abs(sr - std::round(sr)) < 1e-12 && std::round(sr) <= 0) {
             const long long n = (long long)(-std::round(sr));  // s = -n
             if (n == 0) return {-0.5, 0.0};
+            // ⚠ n 由用户给的 s 直接决定，下面的递推是 O(n²) 且先按 n 分配：
+            //   s = -1e9 时既申请巨大数组、又要跑 1e18 次乘加（实测卡死）。
+            //   上限与 bernoulli_number 保持一致（500），超过明确报错。
+            if (n > 500)
+                throw std::invalid_argument(
+                    "ζ 解析延拓：s = -" + std::to_string(n) +
+                    " 超出可算范围（负整数点要求 |Re s| ≤ 500）。该点的值由伯努利数 B_{n+1} "
+                    "给出，计算量随 |s| 平方增长，再大算不完。");
             // 伯努利数 B_0..B_{n+1}(B_1 = -1/2)。
             std::vector<double> B(n + 2, 0.0);
             B[0] = 1.0;

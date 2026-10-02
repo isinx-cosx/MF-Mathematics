@@ -8,44 +8,43 @@
 #include <complex>
 #include <string>
 
-#include "../mf_export.h"
 
 namespace mf::calculus {
 
 // 不定积分:返回 "原函数 + C"。无法符号积分时返回 "未实现"。
-MF_API std::string integrate_indefinite(const std::string& expr,
+std::string integrate_indefinite(const std::string& expr,
                                         const std::string& var);
 
 // 定积分:优先符号原函数 F(b)-F(a)(精确),失败回退数值辛普森。
 // a/b 可为数字或 "pi"/"π"。无穷边界抛异常,请用 improper_integral。
-MF_API double integrate_definite(const std::string& expr, const std::string& var,
+double integrate_definite(const std::string& expr, const std::string& var,
                                  const std::string& a, const std::string& b);
 
 // 数值积分(辛普森,1000 子区间)。a/b 须为数字。
-MF_API double integrate_numeric(const std::string& expr, const std::string& var,
+double integrate_numeric(const std::string& expr, const std::string& var,
                                 double a, double b);
 
 // 反常积分(数值):无穷端按数量级分段(每 10 倍一段)求和并判断收敛。
 // 发散抛 std::invalid_argument。
-MF_API double improper_integral(const std::string& expr, const std::string& var,
+double improper_integral(const std::string& expr, const std::string& var,
                                 const std::string& a, const std::string& b);
 
 // 二重积分 ∫∫ f(x,y) dy dx,区域 [xa,xb]×[ya,yb]。
 // 边界可为数字或含外层变量的表达式(如 "2*x")。符号积分器失败回退数值。
-MF_API double integrate_double(const std::string& expr, const std::string& x,
+double integrate_double(const std::string& expr, const std::string& x,
                                const std::string& y, const std::string& xa,
                                const std::string& xb, const std::string& ya,
                                const std::string& yb);
 
 // 三重积分 ∫∫∫ f(x,y,z) dz dy dx,区域 [xa,xb]×[ya,yb]×[za,zb]。
-MF_API double integrate_triple(const std::string& expr, const std::string& x,
+double integrate_triple(const std::string& expr, const std::string& x,
                                const std::string& y, const std::string& z,
                                const std::string& xa, const std::string& xb,
                                const std::string& ya, const std::string& yb,
                                const std::string& za, const std::string& zb);
 
 // 复定积分 ∫_a^b f(x) dx(符号原函数),返回复数。适用于 e^{iωx} 等(如 Fourier)。
-MF_API std::complex<double> integrate_complex(const std::string& expr,
+std::complex<double> integrate_complex(const std::string& expr,
                                               const std::string& var,
                                               const std::string& a,
                                               const std::string& b);

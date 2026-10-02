@@ -45,18 +45,19 @@ std::vector<double> conv_same_d(const std::vector<double>& a,
 
 UncertaintyResult uncertainty_principle(const std::string& f, double x_lo,
                                         double x_hi, int n_points) {
-    int n = 1;
-    while (n < n_points) n <<= 1;
-    const double dx = (x_hi - x_lo) / n;
+    // 旧写法 `int n = 1; while (n < n_points) n <<= 1;` 在 n_points 很大时会
+    // 有符号溢出 → 死循环（详见 ha_internal.h 的 fft_grid_size）。
+    const long long n = detail::fft_grid_size(n_points);
+    const double dx = (x_hi - x_lo) / (double)n;
     const auto x = SymEngine::symbol("x");
     const auto e = SymEngine::parse(f);
 
-    std::vector<double> psi(n);
+    std::vector<double> psi((std::size_t)n);
     double norm2 = 0.0;
-    for (int i = 0; i < n; ++i) {
-        const double t = x_lo + i * dx;
+    for (long long i = 0; i < n; ++i) {
+        const double t = x_lo + (double)i * dx;
         const double v = std::abs(eval_double_expr(e, x, t));
-        psi[i] = v;
+        psi[(std::size_t)i] = v;
         norm2 += v * v * dx;
     }
     if (norm2 < 1e-15) throw std::runtime_error("函数范数过小,无法归一化");
@@ -64,13 +65,13 @@ UncertaintyResult uncertainty_principle(const std::string& f, double x_lo,
 
     // Δx。
     double x_mean = 0.0, dx2 = 0.0;
-    for (int i = 0; i < n; ++i) {
-        const double t = x_lo + i * dx;
-        x_mean += t * psi[i] * psi[i] * dx;
+    for (long long i = 0; i < n; ++i) {
+        const double t = x_lo + (double)i * dx;
+        x_mean += t * psi[(std::size_t)i] * psi[(std::size_t)i] * dx;
     }
-    for (int i = 0; i < n; ++i) {
-        const double t = x_lo + i * dx;
-        dx2 += (t - x_mean) * (t - x_mean) * psi[i] * psi[i] * dx;
+    for (long long i = 0; i < n; ++i) {
+        const double t = x_lo + (double)i * dx;
+        dx2 += (t - x_mean) * (t - x_mean) * psi[(std::size_t)i] * psi[(std::size_t)i] * dx;
     }
     const double delta_x = std::sqrt(std::max(dx2, 0.0));
 
@@ -113,7 +114,15 @@ UncertaintyResult uncertainty_principle(const std::string& f, double x_lo,
 StftResult stft(const std::vector<double>& signal, int window_size, int hop_size,
                 double sample_rate) {
     const int n = static_cast<int>(signal.size());
+    // ⚠ window_size = 1 时必须先挡掉：汉宁窗要除以 (window_size-1)，
+    //   而且 hop_size 缺省取 window_size/2 = 0，随后 `(n - window_size) / hop_size`
+    //   是**整数除零** —— x86 会抛 #DE，MSVC 的 catch(...) 抓不到结构化异常，
+    //   表现是整个宿主进程直接死掉（不是一次可恢复的调用失败）。
+    if (window_size < 2)
+        throw std::invalid_argument(
+            "窗口长度至少为 2：汉宁窗需要 window_size-1 作分母，且缺省步长是 window_size/2。");
     if (hop_size <= 0) hop_size = window_size / 2;
+    if (hop_size < 1) hop_size = 1;                 // 防御：任何路径都不允许步长为 0
     if (window_size > n)
         throw std::invalid_argument("信号太短:长度小于窗口");
     // 汉宁窗。
@@ -122,17 +131,19 @@ StftResult stft(const std::vector<double>& signal, int window_size, int hop_size
         window[i] = 0.5 * (1.0 - std::cos(2.0 * kPi * i / (window_size - 1)));
 
     // FFT 为 radix-2:窗口零填充对齐到 2 的幂。
-    int fft_size = window_size;
+    long long fft_size = window_size;
     while ((fft_size & (fft_size - 1)) != 0) ++fft_size;
+    if (fft_size > detail::kMaxFftPoints)
+        throw std::invalid_argument("窗口长度过大：零填充到 2 的幂后超过上限。请减小窗口。");
 
     const int n_frames = 1 + (n - window_size) / hop_size;
-    const int n_freq = fft_size / 2 + 1;
+    const int n_freq = static_cast<int>(fft_size) / 2 + 1;
 
     StftResult r;
     r.spectrogram_magnitude.assign(n_freq, std::vector<double>(n_frames, 0.0));
     for (int fr = 0; fr < n_frames; ++fr) {
         const int start = fr * hop_size;
-        std::vector<std::complex<double>> seg(fft_size, {0.0, 0.0});
+        std::vector<std::complex<double>> seg((std::size_t)fft_size, {0.0, 0.0});
         for (int i = 0; i < window_size; ++i)
             seg[i] = signal[start + i] * window[i];
         detail::fft(seg, false);
@@ -142,7 +153,7 @@ StftResult stft(const std::vector<double>& signal, int window_size, int hop_size
     for (int fr = 0; fr < n_frames; ++fr)
         r.times.push_back(fr * hop_size / sample_rate);
     for (int k = 0; k < n_freq; ++k)
-        r.frequencies.push_back(k * sample_rate / fft_size);
+        r.frequencies.push_back(k * sample_rate / (double)fft_size);
     return r;
 }
 

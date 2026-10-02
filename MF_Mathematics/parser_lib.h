@@ -1,7 +1,10 @@
 // parser_lib.h — 数学表达式解析器 + 求值 + 符号微分(仅头文件)。
 //
-// 从 parser.cpp 提取并头文件化,供数值计算内核求值 f(x) / f(t,y)。
-// 支持:+ - * / **、括号、单变量/多变量、函数 sin cos tan sqrt log exp。
+// 本文件由一个早期的独立程序 parser.cpp 提取并头文件化而来,供数值计算内核
+// 求值 f(x) / f(t,y)。那份独立实现(自带 main、只认 ** 不认 ^、只覆盖 6 个函数、
+// 且把 ExprNode 放在全局命名空间)已被删除,以免与这里的实现混淆——它在 git 历史里,
+// 需要时可取回。
+// 支持:+ - * / ** 与 ^、括号、单变量/多变量、函数 sin cos tan sqrt log exp。
 //
 // 用法:
 //   auto root = mf::expr::parse("x**2 + 1");
@@ -169,6 +172,26 @@ private:
     std::size_t pos_ = 0;
     int abs_open_ = 0;  // |...| 的嵌套深度，用于区分竖线的开与闭
 
+    /**
+     * 递归深度。**必须有**：解析器是递归下降（parse_expr → term → factor → unary →
+     * power → postfix → primary → parse_expr），嵌套括号每深一层就多占一层 C 栈。
+     * 五万层括号的输入（几 KB 的字符串）就能把栈打穿——那是**访问违例**（SEH），
+     * MSVC 的 catch(...) 抓不到，表现是整个宿主进程直接消失（实测确认）。
+     * 深度上限按"正常表达式用不到、C 栈一定吃得下"来取：512 层。
+     */
+    static constexpr int kMaxDepth = 512;
+    int depth_ = 0;
+
+    struct DepthGuard {
+        Parser& p;
+        explicit DepthGuard(Parser& parser) : p(parser) {
+            if (++p.depth_ > kMaxDepth)
+                p.throw_err("表达式嵌套过深（超过 " + std::to_string(kMaxDepth) +
+                            " 层括号/函数）——请拆成几步计算");
+        }
+        ~DepthGuard() { --p.depth_; }
+    };
+
     [[noreturn]] void throw_err(const std::string& msg) const {
         throw std::runtime_error(msg + " (位置 " + std::to_string(pos_) + ")");
     }
@@ -184,6 +207,9 @@ private:
     }
 
     std::unique_ptr<ExprNode> parse_expr() {
+        // 每进入一层表达式就计一次深度：嵌套括号/函数调用都必经这里，
+        // 这样一处就能挡住"深嵌套把栈打穿"（见 kMaxDepth 的说明）。
+        DepthGuard guard(*this);
         auto left = parse_term();
         for (;;) {
             char c = peek();
@@ -377,6 +403,25 @@ private:
             auto n = make_number(cv);
             n->name = (name == "PI") ? std::string("pi") : name;
             return n;
+        }
+
+        // ④ 归一层认得、但本求值器没有实现的函数名。
+        //
+        //    math_input.h 的 is_function_name 列了 gamma / zeta / erf / beta /
+        //    lambertw / min / max 等一批名字，所以归一化阶段**不会**在函数名与
+        //    括号之间插隐式乘号；但 canonical_function 没有它们的实现，标识符
+        //    于是退化成变量，紧跟其后的 (…) 又被隐式乘法吃掉，最终报出
+        //    「变量未提供」这类**与真实原因无关**的错——用户看不出是"函数不支持"。
+        //
+        //    这里只在**后随括号**时拦下：那种写法只可能是函数调用；裸用
+        //    （例如把 beta 当参数名写 beta*x）仍按变量处理，不误伤既有用例。
+        if (::mf::input::is_function_name(name)) {
+            std::size_t look = pos_;
+            while (look < s_.size() && is_space(s_[look])) ++look;
+            if (look < s_.size() && s_[look] == '(')
+                throw_err("不支持该函数：" + name +
+                          "（该名称在输入归一化阶段被识别为函数，但引擎的表达式"
+                          "求值器目前只实现了基础初等函数）");
         }
 
         return make_variable(name);

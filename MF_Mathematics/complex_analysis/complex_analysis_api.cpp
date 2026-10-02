@@ -34,6 +34,8 @@ using mf::api::get_double;
 using mf::api::get_double_opt;
 using mf::api::get_string;
 using mf::api::get_string_opt;
+using mf::api::get_int_bounded;
+using mf::api::get_int_opt_bounded;
 
 // 复数 [re, im]。
 Value c2v(std::complex<double> c) {
@@ -133,7 +135,7 @@ void register_all() {
             b = 6.283185307179586;
         }
         return c2v(contour_integral_circle(get_string(args, "func"), center, radius,
-                                           a, b, get_int_opt(args, "n_points", 1000)));
+                                           a, b, get_int_opt_bounded(args, "n_points", 1000, -9223372036854775807, 10000, "围道点数")));
     }));
 
     register_function("cauchy_theorem", make_handler([](const Value& args) {
@@ -153,7 +155,7 @@ void register_all() {
         parse_circle(get_string(args, "contour"), center, radius);
         const CauchyFormulaResult r = cauchy_integral_formula(
             get_string(args, "func"), parse_complex(args["a"]), center, radius,
-            get_int_opt(args, "n_points", 1000));
+            get_int_opt_bounded(args, "n_points", 1000, -9223372036854775807, 10000, "围道点数"));
         Value obj = Value::make_object();
         obj.set("cauchy_formula", c2v(r.cauchy_formula));
         obj.set("direct_f_a", c2v(r.direct_f_a));
@@ -167,8 +169,8 @@ void register_all() {
         parse_circle(get_string(args, "contour"), center, radius);
         const DerivativeFormulaResult r = derivative_formula(
             get_string(args, "func"), parse_complex(args["a"]),
-            get_int(args, "n"), center, radius,
-            get_int_opt(args, "n_points", 1000));
+            get_int_bounded(args, "n", -9223372036854775807, 100, "阶数"), center, radius,
+            get_int_opt_bounded(args, "n_points", 1000, -9223372036854775807, 10000, "围道点数"));
         Value obj = Value::make_object();
         obj.set("derivative", c2v(r.derivative));
         obj.set("symbolic", c2v(r.symbolic));
@@ -279,13 +281,13 @@ void register_all() {
     register_function("taylor_series", make_handler([](const Value& args) {
         return Value(taylor_series(get_string(args, "func"),
                                    parse_complex(args["z0"]),
-                                   get_int_opt(args, "n", 6)));
+                                   get_int_opt_bounded(args, "n", 6, -9223372036854775807, 200, "级数项数")));
     }));
 
     register_function("laurent_series", make_handler([](const Value& args) {
         return Value(laurent_series(get_string(args, "func"),
                                     parse_complex(args["z0"]),
-                                    get_int_opt(args, "n", 5)));
+                                    get_int_opt_bounded(args, "n", 5, -9223372036854775807, 200, "级数项数")));
     }));
 
     register_function("singularity_classify", make_handler([](const Value& args) {
@@ -321,7 +323,7 @@ void register_all() {
     // ── zeta ────────────────────────────────────────────────────────────────
     register_function("zeta_series", make_handler([](const Value& args) {
         return c2v(zeta_series(parse_complex(args["s"]),
-                               get_int_opt(args, "n_terms", 1000)));
+                               get_int_opt_bounded(args, "n_terms", 1000, -9223372036854775807, 1000000, "级数项数")));
     }));
     register_function("analytic_continuation_zeta", make_handler([](const Value& args) {
         return c2v(analytic_continuation_zeta(parse_complex(args["s"])));

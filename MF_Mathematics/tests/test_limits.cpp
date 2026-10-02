@@ -40,7 +40,7 @@ const double kInf = std::numeric_limits<double>::infinity();
 static double lim(const std::string& expr, double point, const std::string& dir,
                   std::string* why = nullptr) {
     try {
-        return limit(expr, "x", point, dir);
+        return calc::limit(expr, "x", point, dir);
     } catch (const std::exception& e) {
         if (why) *why = e.what();
         return std::numeric_limits<double>::quiet_NaN();
