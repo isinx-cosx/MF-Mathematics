@@ -17,7 +17,7 @@ import MathLatex from "../math/MathLatex.vue";
 import {
   aiConfig, aiState, aiMessages, aiTestState, aiHosted,
   initAi, refreshAiConfig, aiTest, clearChat, contextBudget,
-  currentContext, estimateMessagesTokens,
+  currentContext, estimateMessagesTokens, splitMath,
   buildMessages, sendTurn, stopTurn,
 } from "../../lib/ai/bridge.js";
 
@@ -39,23 +39,9 @@ onMounted(() => {
 
 watch(() => props.open, (v) => { if (v) { refreshAiConfig(); scrollToEnd(); } });
 
-/* ── 公式切分：只认 $...$ 与 $$...$$ ─────────────────────────────────── */
-const segments = (text) => {
-  const out = [];
-  const src = String(text || "");
-  const re = /\$\$([\s\S]+?)\$\$|\$([^$\n]+?)\$/g;
-  let last = 0, m;
-  while ((m = re.exec(src)) !== null) {
-    if (m.index > last) out.push({ kind: "text", value: src.slice(last, m.index) });
-    out.push({ kind: "math", value: (m[1] ?? m[2] ?? "").trim(), display: m[1] !== undefined });
-    last = m.index + m[0].length;
-  }
-  if (last < src.length) out.push({ kind: "text", value: src.slice(last) });
-  return out.length ? out : [{ kind: "text", value: src }];
-};
-
-const asstSegments = computed(() => segments(aiState.value.stream));
-const msgSegments = (m) => segments(m.content);
+/* ── 公式切分：实现放在 bridge.js（唯一一份，且可离线断言）────────────── */
+const asstSegments = computed(() => splitMath(aiState.value.stream));
+const msgSegments = (m) => splitMath(m.content);
 
 /* ── 发送 ─────────────────────────────────────────────────────────── */
 function send() {
@@ -157,6 +143,12 @@ function openSettings() {
       <template v-for="(m, i) in aiMessages" :key="i">
         <div v-if="m.role === 'user'" class="ai-user">{{ m.content }}</div>
         <div v-else class="ai-asst" :data-ai="'msg-' + i">
+          <!-- 思考过程跟着**这条消息**走（不是挂在面板底部）：它是这条回答的一部分，
+               而且这样收尾时把它从实时缓冲搬进来，就不会出现"回答显示两次" -->
+          <details v-if="m.reasoning" class="ai-reason" :data-ai="'reason-' + i">
+            <summary>思考过程（{{ m.reasoning.length }} 字）</summary>
+            <div class="ai-reason-body">{{ m.reasoning }}</div>
+          </details>
           <template v-for="(s, j) in msgSegments(m)" :key="j">
             <MathLatex v-if="s.kind === 'math'" :latex="s.value" :display="s.display" :fallback="s.value" />
             <span v-else class="ai-text">{{ s.value }}</span>
@@ -164,18 +156,19 @@ function openSettings() {
         </div>
       </template>
 
-      <!-- 思维链：可折叠，默认收起（它是过程，不是结论） -->
-      <details v-if="aiState.reasoning" class="ai-reason" data-ai="reasoning" @toggle="onReasoningToggle">
+      <!-- 正在输出的这一轮：只在 running 时显示。
+           收尾时内容会被并入上面的消息，这里随即消失 —— 不会和消息重复。 -->
+      <details v-if="aiState.running && aiState.reasoning" class="ai-reason" data-ai="reasoning">
         <summary>思考过程（{{ aiState.reasoning.length }} 字）</summary>
         <div class="ai-reason-body">{{ aiState.reasoning }}</div>
       </details>
 
-      <div v-if="aiState.stream" class="ai-asst ai-streaming" data-ai="stream">
+      <div v-if="aiState.running && aiState.stream" class="ai-asst ai-streaming" data-ai="stream">
         <template v-for="(s, j) in asstSegments" :key="j">
           <MathLatex v-if="s.kind === 'math'" :latex="s.value" :display="s.display" :fallback="s.value" />
           <span v-else class="ai-text">{{ s.value }}</span>
         </template>
-        <span v-if="aiState.running" class="ai-caret">▌</span>
+        <span class="ai-caret">▌</span>
       </div>
 
       <p v-if="aiState.running && !aiState.stream && !aiState.reasoning" class="ai-waiting">正在连接模型…</p>

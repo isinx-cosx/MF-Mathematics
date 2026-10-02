@@ -152,10 +152,13 @@ export const aiState = ref({
 /** 会话消息（只存最终结果：user / assistant 文本） */
 export const aiMessages = ref([]);
 
+/* ── 会话落盘：只落最终消息，不落增量 ────────────────────────────────── */
+
 const CHAT_STORE = "ai-chat";
 const MAX_MESSAGES = 40;
+/** 思考过程跟着消息一起存，但要有上限：它是过程，不是结论，别把日志撑爆 */
+const MAX_REASONING = 8000;
 
-/** 会话落盘：只落最终消息，不落增量。刷新后能接着聊，且日志不会被 token 撑爆。 */
 function persistChat() {
   const c = (() => { try { return window.chrome?.webview?.hostObjects?.sync?.sys ?? null; } catch { return null; } })();
   if (!c || typeof c.StoreWrite !== "function") return;
@@ -178,6 +181,9 @@ function loadChat() {
     if (obj && Array.isArray(obj.messages)) {
       aiMessages.value = obj.messages
         .filter((m) => m && (m.role === "user" || m.role === "assistant") && typeof m.content === "string")
+        .map((m) => (typeof m.reasoning === "string" && m.reasoning
+          ? { role: m.role, content: m.content, reasoning: m.reasoning }
+          : { role: m.role, content: m.content }))
         .slice(-MAX_MESSAGES);
     }
   } catch { /* 坏文件不静默覆盖，只是这次读不到 */ }
@@ -323,6 +329,39 @@ export function contextBudget(cfg = aiConfig.value) {
   };
 }
 
+/* ── 正文切分：把 $...$ / $$...$$ 摘出来交给 MathLatex 渲染 ────────────── */
+
+/**
+ * 把一段模型正文切成 [{kind:"text"|"math", value, display}]。
+ *
+ * 两条刻意的克制：
+ *   ① **只认 `$...$` 与 `$$...$$`**，不做 markdown、不拼 HTML。模型输出是不可信输入，
+ *      多一个渲染器就多一片注入面；面板里正文走插值，公式只交给 KaTeX。
+ *   ② **内容不像公式就不当公式**：模型有时会把 `$...$` 当**占位符**写出来
+ *      （"行内 $...$，独立成行 $$...$$"），照字面渲染成空公式会让用户看到
+ *      "行内 ... 或独立成行 ..." —— 实测踩过。所以要求公式里至少有一个
+ *      字母/数字/反斜杠/运算符，否则原样当文本。
+ */
+export function splitMath(text) {
+  const src = String(text || "");
+  const out = [];
+  const re = /\$\$([\s\S]+?)\$\$|\$([^$\n]+?)\$/g;
+  const MATHISH = /[A-Za-z0-9\\^_=+\-*/<>()[\]]/;
+  let last = 0;
+  let m;
+  while ((m = re.exec(src)) !== null) {
+    const raw = m[1] !== undefined ? m[1] : m[2];
+    const display = m[1] !== undefined;
+    const value = String(raw || "").trim();
+    if (!value || !MATHISH.test(value)) continue;   // 占位符/空白：留在文本里
+    if (m.index > last) out.push({ kind: "text", value: src.slice(last, m.index) });
+    out.push({ kind: "math", value, display });
+    last = m.index + m[0].length;
+  }
+  if (last < src.length) out.push({ kind: "text", value: src.slice(last) });
+  return out.length ? out : [{ kind: "text", value: src }];
+}
+
 /* ── 发送 / 停止（走 TS 客户端；宿主只负责带密钥发请求与转发字节）───────── */
 
 let controller = null;   // 当前这一轮的 AbortController
@@ -386,10 +425,18 @@ export function sendTurn(userText, { route = "", history = aiMessages.value, con
       }
     },
   }).then((out) => {
-    // 收尾：把最终文本并入会话（只落最终结果，不落增量）
-    aiState.value = { ...aiState.value, running: false, doneReason: out.finishReason };
-    if (out.text.trim()) {
-      aiMessages.value = [...aiMessages.value, { role: "assistant", content: out.text }].slice(-MAX_MESSAGES);
+    // 收尾：把这一轮的正文与思考过程**并入会话**，然后清掉实时缓冲。
+    //
+    // ⚠ 这里必须清 stream / reasoning —— 上一版没清，于是同一段回答被渲染两次：
+    // 一次来自消息列表（最终文本），一次来自还留在 aiState 里的"流式块"。
+    // 症状很显眼但根因很蠢：running 只是"还在跑"的标志，它不是"这段文本属于谁"的归属。
+    const text = out.text;
+    const reasoning = (out.reasoning || "").slice(0, MAX_REASONING);
+    aiState.value = { ...aiState.value, running: false, doneReason: out.finishReason, stream: "", reasoning: "" };
+    if (text.trim() || reasoning.trim()) {
+      const msg = { role: "assistant", content: text };
+      if (reasoning) msg.reasoning = reasoning;
+      aiMessages.value = [...aiMessages.value, msg].slice(-MAX_MESSAGES);
       persistChat();
     }
   }).catch((e) => {
@@ -433,6 +480,7 @@ export function initAiHook() {
       stop: stopTurn,
       clear: clearChat,
       build: (opts) => buildMessages(opts || {}),
+      splitMath,
       tokens: estimateTokens,
       budget: contextBudget,
       context: currentContext,

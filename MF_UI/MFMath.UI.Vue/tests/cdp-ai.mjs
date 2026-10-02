@@ -192,7 +192,9 @@ check("顶栏 AI 按钮能打开面板", await waitTrue(`!!document.querySelecto
 const sent = await evalJs(`JSON.stringify(window.__mfAi.send("你好"))`);
 check("发送被受理", /"ok":true/.test(String(sent)), String(sent).slice(0, 90));
 check("这一轮真的开始了（running=true）", await waitRunning());
-check("流式增量渲染到面板", await waitTrue(`window.__mfAi.state().stream.length > 0`, 8000));
+// 注意：**不在这里断言 state().stream 非空** —— 假端点毫秒级就把整段吐完，
+// 轮询常常落在"已经收尾、缓冲已清空"之后（这正是修掉的那个重复渲染 bug 的副作用）。
+// 真·流式的证据放在 ③ 的慢速场景里（300ms 一个字，长度必然在增长）。
 check("本轮结束后 running=false", await waitIdle());
 const st1 = await evalJs(`JSON.stringify(window.__mfAi.state())`);
 check("usage 收到（假端点给了尾包）", /"inputTokens":42/.test(String(st1)), String(st1).slice(0, 120));
@@ -203,11 +205,60 @@ const pushTopics = String(await evalJs(`JSON.stringify([...new Set(window.__mfPu
 check("走的是中继话题（ai.http + ai.raw*）", /"ai\.http"/.test(pushTopics) && /"ai\.raw"/.test(pushTopics), pushTopics.slice(0, 140));
 check("宿主侧不再推 ai.delta（协议层只有一份 TS 实现）", !/"ai\.delta"/.test(pushTopics), pushTopics.slice(0, 140));
 
+// 回归：一轮结束后**不能有残留的实时缓冲**，否则同一段回答会被渲染两次
+// （实测踩过：running 置假了但 aiState.stream 没清，面板里回答出现两遍）
+const afterDone = String(await evalJs(`JSON.stringify({
+  stream: window.__mfAi.state().stream,
+  reasoning: window.__mfAi.state().reasoning,
+  streamBlock: !!document.querySelector('[data-ai=stream]')
+})`));
+check("收尾后实时缓冲已清空（不会和消息重复）",
+  /"stream":""/.test(afterDone) && /"reasoning":""/.test(afterDone) && /"streamBlock":false/.test(afterDone),
+  afterDone.slice(0, 120));
+const dupCount = await evalJs(`(() => {
+  const panel = document.querySelector('[data-ai=panel]');
+  const text = (panel ? panel.textContent : "").replace(/\\s+/g, " ");
+  const needle = "收到";
+  let n = 0, i = 0;
+  while ((i = text.indexOf(needle, i)) !== -1) { n++; i += needle.length; }
+  return n;
+})()`);
+check("面板里同一段回答只出现一次（重复渲染回归）", dupCount === 1, `出现 ${dupCount} 次`);
+
+// 思考过程归属：收尾后跟着消息走，不再挂在面板底部
+await resetTurn();
+await evalJs(`window.__mfAi.send("思考 一下")`);
+await waitIdle(20000);
+const reasonState = String(await evalJs(`JSON.stringify({
+  live: window.__mfAi.state().reasoning,
+  last: (window.__mfAi.messages().slice(-1)[0] || {}).reasoning || ""
+})`));
+check("思考过程挂在消息上（收尾后实时块清空）",
+  /"live":""/.test(reasonState) && /"last":"[^"]+"/.test(reasonState), reasonState.slice(0, 160));
+check("面板里「思考过程」只出现一次", await evalJs(`(() => {
+  const t = (document.querySelector('[data-ai=panel]').textContent || "");
+  return (t.match(/思考过程/g) || []).length;
+})()`) === 1);
+
+// 公式切分的占位符回归：模型把 $...$ 当占位符写出来时，不该被当成空公式吃掉
+const splitCase = String(await evalJs(`JSON.stringify({
+  placeholder: window.__mfAi.splitMath("行内 $...$ 与 $$...$$"),
+  real: window.__mfAi.splitMath("取 $x^2+1$ 的导数")
+})`));
+check("$...$ 占位符原样保留（不当空公式）",
+  /行内 \$\.\.\.\$ 与 \$\$\.\.\.\$\$/.test(splitCase), splitCase.slice(0, 120));
+check("真公式仍然被摘出来交给 KaTeX", /"kind":"math"/.test(splitCase) && /x\^2\+1/.test(splitCase), splitCase.slice(0, 160));
+
 console.log("=== ③ 停止（流式进行时按下）===");
 await resetTurn();
 const sendSlow = String(await evalJs(`JSON.stringify(window.__mfAi.send("慢速"))`));
 check("慢速请求被受理", /"ok":true/.test(sendSlow), sendSlow.slice(0, 80));
 check("慢速流已开始", await waitRunning() && await waitTrue(`window.__mfAi.state().stream.length > 0`, 8000));
+// 真·流式：长度必须在增长（不是一次性把整段贴上去）
+const len1 = Number(await evalJs(`window.__mfAi.state().stream.length`));
+await sleep(900);
+const len2 = Number(await evalJs(`window.__mfAi.state().stream.length`));
+check("流式是**逐字增长**的（不是一次性渲染）", len2 > len1, `${len1} → ${len2}`);
 const stopRes = await evalJs(`JSON.stringify(window.__mfAi.stop())`);
 check("停止被受理", /"ok":true/.test(String(stopRes)), String(stopRes).slice(0, 80));
 check("停止后 running=false", await waitIdle(8000));
@@ -266,12 +317,13 @@ await evalJs(`window.__mfAi.configure({ baseUrl: ${JSON.stringify(BASE)}, timeou
   check("挂起 → 超时收尾（done=timeout，且与手动取消区分开）", r.ok, r.reason);
 }
 
-// 异常之后还能正常聊：证明状态没被搞坏
+// 异常之后还能正常聊：证明状态没被搞坏（读**消息**，因为收尾后实时缓冲会被清空）
 await evalJs(`window.__mfAi.configure({ baseUrl: ${JSON.stringify(BASE)}, timeoutSec: 20 })`);
 await resetFake();
 {
-  const r = await runTurn("恢复正常", /"stream":"[^"]*收到/);
-  check("异常之后仍能正常对话", r.ok, r.reason);
+  const r = await runTurn("恢复正常", /"doneReason":"stop"/);
+  const lastMsg = String(await evalJs(`(window.__mfAi.messages().slice(-1)[0] || {}).content || ""`));
+  check("异常之后仍能正常对话", r.ok && lastMsg.includes("收到"), r.ok ? lastMsg.slice(0, 60) : r.reason);
 }
 
 console.log("=== ⑤ 隐私：关掉的开关真的没发出去 ===");
@@ -332,7 +384,8 @@ await resetTurn();
 await evalJs(`window.__mfAi.configure({ sendHistory: false })`);
 await evalJs(`window.__mfAi.send("1+1 等于几")`);
 await waitIdle();
-const aiText = String(await evalJs(`window.__mfAi.state().stream`));
+// 读**消息**：收尾后实时缓冲会被清空（stream 只在输出过程中有内容）
+const aiText = String(await evalJs(`(window.__mfAi.messages().slice(-1)[0] || {}).content || ""`));
 check("AI 回复里确实出现了那个错的等式（否则这条断言没有意义）", aiText.includes("1+1=3"), aiText.slice(0, 60));
 const afterVal = String(await evalJs(`((document.querySelector('.lcd .lcd-result') || {}).textContent || '').trim()`));
 check("AI 回复**没有**改写结果区（结果仍是引擎的值 2）", afterVal === engineVal && afterVal === "2",
