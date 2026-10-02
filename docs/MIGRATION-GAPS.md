@@ -185,20 +185,28 @@
 - **验证**：`tests/cdp-console-sci.mjs` **8 / 0** —— 真实宿主控制台里 `import sympy, numpy, scipy, mpmath`、`sp.diff`、`np.linalg.det`、`scipy.integrate.quad` 全部算对，且门面 `mfmath.call` 仍能调 C++ 引擎。
 - **还差一步（站点）**：把新包上传到 `https://mf-vis-science.cn/download/component/python`，然后更新 `ConsoleBridge.cs` 的 `PythonPayloadSha256` 与 `PythonPayloadBytes`（脚本会把两个值打印出来）。**换包之前不要改这两个常量**，否则新用户下到旧包会校验失败。当前本机靠 `.sha256` 旁文件生效，别人拿不到。
 
-### 3.2 快捷键
+### 3.2 快捷键 —— 已完成
 
 - **v1**：F1 帮助（`main_window.py:398`）、Ctrl+Z 撤销、Ctrl+Y 重做（编辑菜单）。
-- **v2.0**：只有局部快捷键——对话框 Esc/Enter、编辑器 Ctrl+Enter 运行、引导 ←/→（全仓无全局 F1、无 Ctrl+Z/Y）。
-- **怎么补**：`App.vue` 挂全局 `keydown`：F1 → `/tutorial`，Ctrl+Z/Y → 计算页撤销栈（需要给 `CalcView` 加 blocks 历史栈）。顺手把"快捷键一览"放进帮助文档。
+- **v2.0 之前**：只有局部快捷键——对话框 Esc/Enter、编辑器 Ctrl+Enter 运行、引导 ←/→。
+- **v2.0 实现（已完成）**：`src/lib/keyboard/shortcuts.js` + `App.vue` 安装，三条约束：
+  1. **不弹任何窗口**（用户明确要求）：F1 只 `router.push("/tutorial")`，撤销/重做就地改状态，全程没有 alert/confirm/模态；
+  2. **不抢输入框里的键**：焦点在 `<input>/<textarea>/<select>/[contenteditable]/<math-field>/.cm-editor` 里时 Ctrl+Z 交给它们自己的撤销栈（MathLive 与 CodeMirror 都有）；F1 例外，任何地方都生效；
+  3. **谁有"上一步"谁注册**：页面调 `registerUndoable({undo,redo,canUndo,canRedo})`，最后注册的（当前页）优先，卸载即注销；没有注册者时按键**不做任何事**（不提示、不弹窗）。
+- **计算页撤销栈**：只记表达式与模式（结果/错误/屏蔽原因不进历史），上限 50 步；**换页清空**（同一组件被不同计算页复用，否则在新页撤销会把上一页的块搬过来）；基线在挂载时定下来（否则"只改了一处"时栈是空的，Ctrl+Z 什么都不会发生）。
+- **可发现性**：计算页底部加了「↶ 撤销 / ↷ 重做」按钮，禁用状态跟着栈走，`title` 里写明快捷键。
+- **进坑记录**：第一版把两个栈写成普通数组 + `computed(() => undoStack.length > 0)` —— 普通数组的 `.length` **不产生响应式依赖**，computed 求值一次就永远缓存 `false`，于是按钮一直禁用、`active()` 也永远拿不到可撤销对象，快捷键全哑。改成 `ref([])` 才通。
+- **验证**：`tests/cdp-shortcuts-prefs.mjs` 21 / 0（F1 跳转且无弹窗、Ctrl+Z/Y 真的撤销重做、输入框里不抢键、按钮禁用状态与 title、全程零弹窗）。
 
-### 3.3 两个设置项缺失
+### 3.3 两个设置项缺失 —— 已完成
 
-| v1 设置项 | v2.0 |
+| v1 设置项 | v2.0 实现 |
 | --- | --- |
-| **数值精度**（"位有效数字"，`settings_dialog.py:162-167`） | 无此项；数字格式化固定 12 位（`lib/engine/resultFormat.js:34` 的 `toFixed(12)`） |
-| **绘图默认值**（X/Y 轴范围，`settings_dialog.py:112-136`） | 无此项 |
+| **数值精度**（`settings_dialog.py:162-167`） | 「设置 → 计算与绘图 → 数值精度」：**小数位数 0–15，默认 12**（与 v1 的 `:.12f` 一致，改默认值会影响所有既有截图与用例）。`lib/engine/resultFormat.js` 的 `fmtNum()` 实时读取；整数与科学计数法分支不受影响。行内当场显示 `1÷3`、`√2` 的示例 |
+| **绘图默认值**（X/Y 轴范围，`settings_dialog.py:112-136`） | 「设置 → 计算与绘图 → 绘图默认范围」：四个数字框，**四项都填才生效**，留空 = 按画布宽高比自动（旧行为）。由 `lib/plot/view.js` 的 `defaultView()` 读取，只影响**新打开**的绘图页，已经拖动过的视野不会被改写 |
 
-- **怎么补**：`catalog.js` 加 `precision.digits`、`plot.defaultRange` 两项（外观/引擎组旁边新开"计算与绘图"分组更合适）；写入设置文件后由 `resultFormat.js` / `PlotView` 默认区间读取。
+- **存放与生效**：`lib/settings/prefs.js` → 宿主键值存储 `prefs.json`（原子写）；**改了就生效**（与外观组一致，没有保存按钮、不弹窗）；非法范围（最大 ≤ 最小 / 只填了一部分）在**行内**说明并退回自动。
+- **验证**：`tests/cdp-shortcuts-prefs.mjs` 覆盖：精度 12 → 按真实键盘算 `1÷3` 得 `0.333333333333`，改成 4 位后同一操作得 `0.3333`，整数 `7×6` 仍是 `42`；范围设成非法时行内说明，设成 `x∈[-5,5]、y∈[-1,1]` 后新开的绘图页视野正是该范围，「恢复默认」退回自动。
 
 ### 3.4 历史不跨会话 —— 已并入 §2.5 并完成
 
@@ -223,8 +231,8 @@
 | **历史记录**（§2.5） | `sys.Store*` 落盘 + 统一记录入口 + 历史面板 + 接顶栏 | 无 | **已完成** |
 | **工作区保存/加载**（§2.6） | 各页自报载荷 + `sys.StoreWrite` + 另存为（宿主文件对话框） | 无 | **已完成**（`cdp-workspace` 25/0） |
 | **导出图片**（§2.8） | 画布 2x 重绘 + 不透明底 + 宿主 `SaveBinaryFile` | 无 | **已完成**（`cdp-export-image` 45/0，六个绘图页都有入口） |
-| **快捷键**（§3.2） | 全局 F1 / Ctrl+Z / Ctrl+Y | 无 | 未开始 |
-| **两个设置项**（§3.3） | 精度 + 绘图默认范围 | 无 | 未开始 |
+| **快捷键**（§3.2） | 全局 F1 / Ctrl+Z / Ctrl+Y + 计算页撤销栈 | 无 | **已完成**（`cdp-shortcuts-prefs` 21/0，零弹窗） |
+| **两个设置项**（§3.3） | 数值精度 + 绘图默认范围（新分组「计算与绘图」） | 无 | **已完成**（同上用例） |
 | **数学守卫**（§2.9） | 前端规则版先上，阈值进设置 | 无 | 未开始 |
 | **无理数逼近**（§2.10） | 引擎 5 个 action + 数值分析页模式 | 无 | 未开始 |
 | **站点换组件包**（§3.1） | 上传新 zip + 改 `PythonPayloadSha256` / `PythonPayloadBytes` | 站点写入权限 | 未开始（本机已生效） |
@@ -289,6 +297,7 @@ node "$V2\MF_UI\MFMath.UI.Vue\tests\cdp-console-sci.mjs"        #  8 项（组�
 node "$V2\MF_UI\MFMath.UI.Vue\tests\cdp-push.mjs"               # 19 项（推送通道：往返/运行/安装/自检）
 node "$V2\MF_UI\MFMath.UI.Vue\tests\cdp-workspace.mjs"          # 25 项（工作区：采集/落盘/刷新后还原/坏输入）
 node "$V2\MF_UI\MFMath.UI.Vue\tests\cdp-export-image.mjs"       # 45 项（六个绘图页导出 PNG）
+node "$V2\MF_UI\MFMath.UI.Vue\tests\cdp-shortcuts-prefs.mjs"    # 21 项（F1 / Ctrl+Z/Y / 精度 / 绘图范围，全程不弹窗）
 node "$V2\MF_UI\MFMath.UI.Vue\tests\cdp-basic-calc.mjs"         # 41 项
 # 或一次跑完：powershell -ExecutionPolicy Bypass -File "$V2\MF_UI\MFMath.UI.Vue\tests\run-all.ps1"
 #   ⚠ 目前 `cdp-plot-p5` 在跑到"极坐标网格/网格开关"时会**挂住页面**（已确认与本轮改动无关：

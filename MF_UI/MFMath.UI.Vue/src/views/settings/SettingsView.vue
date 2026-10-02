@@ -18,6 +18,7 @@ import { computed, nextTick, onMounted, ref, watch } from "vue";
 import { useRoute } from "vue-router";
 import { GROUPS, itemsOf, searchItems, groupById } from "../../lib/settings/catalog.js";
 import AppearanceGroup from "../../components/settings/AppearanceGroup.vue";
+import CalcPlotGroup from "../../components/settings/CalcPlotGroup.vue";
 import EngineGroup from "../../components/settings/EngineGroup.vue";
 import ComponentsGroup from "../../components/settings/ComponentsGroup.vue";
 import StorageGroup from "../../components/settings/StorageGroup.vue";
@@ -110,6 +111,7 @@ function jump(item) {
 
       <div :class="{ flash: highlightId === 'appearance' }">
         <AppearanceGroup v-if="active === 'appearance'" />
+        <CalcPlotGroup v-else-if="active === 'calc'" />
         <EngineGroup v-else-if="active === 'engine'" />
         <ComponentsGroup v-else-if="active === 'components'" />
         <StorageGroup v-else-if="active === 'storage'" />

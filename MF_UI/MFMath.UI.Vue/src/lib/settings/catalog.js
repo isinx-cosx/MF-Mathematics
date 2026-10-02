@@ -16,6 +16,7 @@
  */
 export const GROUPS = [
   { id: "appearance", label: "外观", status: "ready", note: "改了就生效，没有保存按钮" },
+  { id: "calc", label: "计算与绘图", status: "ready", note: "改了就生效；非法范围会退回自动并在行内说明" },
   { id: "engine", label: "引擎", status: "ready", note: "出问题时用来自助排查" },
   { id: "components", label: "组件", status: "ready", note: "可选下载的运行时" },
   { id: "ai", label: "AI", status: "pending", depends: "方案 P3（AI 助手 + 推送通道）" },
@@ -36,6 +37,10 @@ export const ITEMS = [
   { id: "appearance.density", group: "appearance", label: "疏密", keywords: "紧凑 舒适 留白 density spacing", status: "ready" },
   { id: "appearance.font", group: "appearance", label: "界面字体", keywords: "字体 衬线 等宽 sans serif mono font", status: "ready" },
   { id: "appearance.reset", group: "appearance", label: "恢复默认外观", keywords: "重置 恢复默认 reset default", status: "ready" },
+
+  // ── 计算与绘图（v1 的"数值精度"与"绘图默认值"，本轮补上）──
+  { id: "calc.precision", group: "calc", label: "数值精度", keywords: "精度 小数 位数 有效数字 precision decimals 显示", status: "ready" },
+  { id: "calc.plotRange", group: "calc", label: "绘图默认范围", keywords: "绘图 范围 视野 x轴 y轴 默认 range view default", status: "ready" },
 
   // ── 引擎（现在就能做：只读展示 + 自检）──
   { id: "engine.version", group: "engine", label: "引擎版本", keywords: "版本 version 桥 bridge", status: "ready" },

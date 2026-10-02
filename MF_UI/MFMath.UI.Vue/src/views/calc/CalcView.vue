@@ -6,7 +6,7 @@
  *  · 多参数模式（19 项 VAR_SPECS）先弹出参数输入框，用户可自定义 a/b/n 等
  *  · 未映射的模式明确提示"引擎未提供该模式的接口"（不静默）
  */
-import { ref, computed, watch, onMounted } from "vue";
+import { ref, computed, watch, onMounted, onBeforeUnmount } from "vue";
 import MathField from "../../components/math/MathField.vue";
 import { useRoute } from "vue-router";
 import MultiVarDialog from "../../components/calc/MultiVarDialog.vue";
@@ -17,6 +17,7 @@ import { buildEngineArgs, buildEngineArgsFromValues, toEngineExpr, hasEngineMode
 import { engineCall, isHosted, bridgeVersion } from "../../lib/bridge.js";
 import { takePending, pickMode } from "../../lib/workspace/pendingInput.js";
 import { getPage, setPage } from "../../lib/workspace/store.js";
+import { registerUndoable } from "../../lib/keyboard/shortcuts.js";
 import { briefValue } from "../../lib/engine/resultModel.js";
 import { record } from "../../lib/history/store.js";
 
@@ -80,12 +81,106 @@ function capturePage() {
 
 // 挂载完成前不回写 store：那期间 blocks 还是默认值，写回会把刚还原的内容盖掉
 let syncWorkspace = false;
+
+/* ── 撤销 / 重做（Ctrl+Z / Ctrl+Y，v1 编辑菜单里那两个）──
+ *
+ * 只记"用户写的东西"：表达式与模式。结果、错误、屏蔽原因都不进历史 ——
+ * 撤销一次却把错误信息翻出来，比不撤销更让人困惑。
+ * 上限 50 步，够用且不会把内存吃满。
+ *
+ * ⚠ 两个栈必须是**响应式**的（ref，不是普通数组）：
+ * 第一版写成 `const undoStack = []` + `computed(() => undoStack.length > 0)`，
+ * 而普通数组的 .length 不产生依赖 → computed 求值一次就永远缓存 false，
+ * 于是按钮一直禁用、Ctrl+Z 也拿不到"可撤销对象"（`active()` 看的就是 canUndo）。
+ * 实测症状：改了两处、栈里其实有东西，但 canUndo 一直是 false，快捷键和按钮全哑。
+ */
+const HISTORY_MAX = 50;
+const undoStack = ref([]);
+const redoStack = ref([]);
+const canUndo = computed(() => undoStack.value.length > 0);
+const canRedo = computed(() => redoStack.value.length > 0);
+let applyingHistory = false;
+
+function historySnapshot() {
+  return blocks.value.map((b) => ({ expr: b.expr || "", mode: b.mode || "" }));
+}
+function sameAsCurrent(snap) {
+  const cur = historySnapshot();
+  return snap.length === cur.length
+    && snap.every((s, i) => s.expr === cur[i].expr && s.mode === cur[i].mode);
+}
+function pushHistory(prev) {
+  if (sameAsCurrent(prev)) return;
+  undoStack.value.push(prev);
+  if (undoStack.value.length > HISTORY_MAX) undoStack.value.shift();
+  redoStack.value = [];
+}
+function applyHistory(snap) {
+  applyingHistory = true;
+  blocks.value = snap.map((s) => {
+    const blank = makeBlock();
+    return {
+      ...blank,
+      expr: s.expr,
+      mode: modes.value.includes(s.mode) ? s.mode : (modes.value[0] || ""),
+      blocked: "",
+      error: "",
+    };
+  });
+  // 下一个 tick 再解锁：watch(blocks) 是异步触发的，早解锁会把这次改动记成"用户操作"
+  Promise.resolve().then(() => { applyingHistory = false; });
+}
+function undo() {
+  if (!undoStack.value.length) return false;
+  const prev = undoStack.value.pop();
+  redoStack.value.push(historySnapshot());
+  applyHistory(prev);
+  statusText.value = `已撤销（可再撤销 ${undoStack.value.length} 步）`;
+  return true;
+}
+function redo() {
+  if (!redoStack.value.length) return false;
+  const next = redoStack.value.pop();
+  undoStack.value.push(historySnapshot());
+  applyHistory(next);
+  statusText.value = `已重做（可再撤销 ${undoStack.value.length} 步）`;
+  return true;
+}
+
 onMounted(() => {
   syncWorkspace = true;
+  // 基线在挂载时就定下来，而不是等"第一次改动"再顺手记：
+  // 否则用户进来只改了一处时栈里空空如也，Ctrl+Z 什么都不会发生（第一版就是这样，
+  // 因为 lastSnap 只在下一次回调里才有值）。
+  lastSnap = historySnapshot();
 });
+let lastSnap = null;
 watch(blocks, () => {
   if (syncWorkspace) setPage(route.path, capturePage());
+  const cur = historySnapshot();
+  if (!applyingHistory && lastSnap) pushHistory(lastSnap);
+  lastSnap = cur;
 }, { deep: true });
+
+// 换页（同一个组件被不同计算页复用）＝换工作台：历史必须清空，
+// 否则在新页面上撤销会把**上一页**的计算块搬过来。
+watch(config, () => {
+  undoStack.value = [];
+  redoStack.value = [];
+  lastSnap = historySnapshot();
+});
+
+// 注册给全局快捷键：本页在栈顶期间 Ctrl+Z/Ctrl+Y 作用在这里
+let unregisterUndo = null;
+onMounted(() => {
+  unregisterUndo = registerUndoable({
+    name: "计算页",
+    undo, redo,
+    canUndo: () => canUndo.value,
+    canRedo: () => canRedo.value,
+  });
+});
+onBeforeUnmount(() => { if (unregisterUndo) unregisterUndo(); });
 
 /** 把送来的表达式与操作填进第一个计算块 */
 function applyPending(p) {
@@ -289,7 +384,11 @@ const varDialogCount = computed(() => modes.value.filter((m) => needsVarDialog(m
             </div>
           </div>
         </div>
-        <button v-if="!single" class="btn-add" @click="addBlock">＋ 添加计算</button>
+        <div class="cb-tools">
+          <button v-if="!single" class="btn-add" @click="addBlock">＋ 添加计算</button>
+          <button class="btn-add cb-undo" title="撤销（Ctrl+Z）" :disabled="!canUndo" @click="undo">↶ 撤销</button>
+          <button class="btn-add cb-redo" title="重做（Ctrl+Y）" :disabled="!canRedo" @click="redo">↷ 重做</button>
+        </div>
       </div>
 
       <div class="ws-foot">
@@ -339,4 +438,19 @@ const varDialogCount = computed(() => modes.value.filter((m) => needsVarDialog(m
 }
 .ws-stat { white-space: nowrap; }
 .cb-ok { font-size: 11.5px; color: var(--success); margin-top: 4px; }
+
+/* 底部一行按钮：添加计算（宽的）+ 撤销/重做（窄的）。
+ * .btn-add 本身是"整条虚线栏"（width:100%、height:46px），放进 flex 行里要压高度，
+ * 否则三个按钮会各占一整行。 */
+.cb-tools { display: flex; gap: 8px; align-items: stretch; }
+.cb-tools .btn-add { margin-top: 8px; height: 38px; }
+.cb-tools .btn-add:first-child { flex: 1; }
+.cb-tools .cb-undo,
+.cb-tools .cb-redo { flex: none; width: auto; padding: 0 14px; }
+.cb-tools .cb-undo:disabled,
+.cb-tools .cb-redo:disabled { opacity: .45; cursor: default; }
+.cb-tools .cb-undo:disabled:hover,
+.cb-tools .cb-redo:disabled:hover {
+  color: var(--text-subtle); border-color: var(--border-strong, var(--border)); background: transparent;
+}
 </style>

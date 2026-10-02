@@ -43,6 +43,9 @@ $tests = @(
   # 本轮新增：导出图片（六个绘图页都有入口、写出真 PNG、2 倍分辨率、背景不透明、
   # 写不进去时给失败原因）。走 window.__mfExportTo 钩子跳过模态保存对话框。
   "cdp-export-image",
+  # 本轮新增：全局快捷键（F1 / Ctrl+Z / Ctrl+Y）+ 两个设置项（数值精度、绘图默认范围）。
+  # 这条用例会断言"全程没有弹过任何窗口"。
+  "cdp-shortcuts-prefs",
   "audit-modes"
 )
 

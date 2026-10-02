@@ -6,13 +6,21 @@
  */
 "use strict";
 
+import { currentPlotRange } from "../settings/prefs.js";
+
 export const DEFAULT_X_MIN = -10;
 export const DEFAULT_X_MAX = 10;
 export const ZOOM_MIN = 1e-6;     // 最小可视跨度
 export const ZOOM_MAX = 2000;     // 最大可视跨度
 
-/** 默认视图（等比：y 跨度按画布宽高比计算） */
+/**
+ * 默认视图。
+ * 优先用「设置 → 计算与绘图 → 绘图默认范围」里配置的固定范围（v1 的"绘图默认值"）；
+ * 没配就用等比自动：x∈[-10,10]，y 跨度按画布宽高比推出（网格为正方形）。
+ */
 export function defaultView(w = 1, h = 1) {
+  const fixed = currentPlotRange();
+  if (fixed) return { ...fixed };
   const x0 = DEFAULT_X_MIN, x1 = DEFAULT_X_MAX;
   const halfY = ((x1 - x0) / 2) * (h / Math.max(w, 1));
   return { x0, x1, y0: -halfY, y1: halfY };

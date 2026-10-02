@@ -20,18 +20,24 @@ export function escapeHtml(s) {
  * 与原版（calculator.py 的 _fmt_result）对齐的三点：
  *   ① 默认保留 **12** 位小数并去掉尾随零（原版是 f"{v:.12f}"；这里曾是 10 位，
  *      于是 1/3 显示 0.3333333333 而原版是 0.333333333333）。
+ *      这 12 位现在可以在「设置 → 计算与绘图 → 数值精度」里改（小数位数，0–15）；
+ *      **默认值不动**，所以不改设置时行为与以前完全一致。
  *   ② 阈值与原版一致：|v| ≥ 1e12 或 0 < |v| < 1e-10 才走科学计数法（都是 .6e）。
  *   ③ **整数原样输出**。原版对 int 直接 str()，所以 20! 显示完整的
  *      2432902008176640000；这里若按 1e12 阈值转成 2.432902e+18，
  *      用户会以为"数字没算准"（阶乘、组合数场景下尤其明显）。
  *      所以：数值本身是整数（或 ≥1e12 但在 double 精度内能精确表示的整数）时给完整十进制。
  */
+import { currentDecimals } from "../settings/prefs.js";
+
 export function fmtNum(v) {
   if (typeof v !== "number" || !isFinite(v)) return "错误";
   // 整数原样输出（含超过 1e12 的大整数，如阶乘结果）
   if (Number.isInteger(v)) return String(v);
   if (Math.abs(v) >= 1e12 || (Math.abs(v) < 1e-10 && v !== 0)) return v.toExponential(6);
-  const s = v.toFixed(12).replace(/\.?0+$/, "");
+  // 读取时机放在函数里：设置一改，下一次渲染就用新精度（不用刷新页面）
+  const digits = currentDecimals();
+  const s = v.toFixed(digits).replace(/\.?0+$/, "");
   return s === "" ? "0" : s;
 }
 

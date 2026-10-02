@@ -15,6 +15,8 @@ import { initTutorials, isFirstLaunch, markLaunched } from "./lib/tutorial/store
 import { start as startTour } from "./lib/tutorial/tour.js";
 import { initPush } from "./lib/push.js";
 import { initWorkspace } from "./lib/workspace/store.js";
+import { installShortcuts } from "./lib/keyboard/shortcuts.js";
+import { initPrefs } from "./lib/settings/prefs.js";
 import {
   THEME_LIST, SHAPE_LIST, DENSITY_LIST, FONT_LIST,
   themeLabel, currentAppearance, applyAppearance, watchSystemTheme,
@@ -100,8 +102,10 @@ watch(showAppearance, (open) => {
 
 // 跟随系统：系统深浅色一变就换到同一风格的深浅版本
 const unwatchSystem = watchSystemTheme();
+let uninstallShortcuts = null;   // onMounted 里安装的全局快捷键，卸载时收尾
 onBeforeUnmount(() => {
   unwatchSystem?.();
+  uninstallShortcuts?.();
   document.removeEventListener("pointerdown", onDocPointerDown, true);
   document.removeEventListener("keydown", onDocKey);
 });
@@ -158,6 +162,11 @@ onMounted(() => {
   initPush();
   // 工作区：挂上 window.__mfWorkspace 诊断钩子（保存/载入/另存为都从这里可见）
   initWorkspace();
+  // 计算与绘图偏好：载入并挂 window.__mfPrefs 钩子（精度与绘图范围）
+  initPrefs();
+  // 全局快捷键：F1 帮助、Ctrl+Z/Y 撤销重做（谁有"上一步"谁注册，见 lib/keyboard/shortcuts.js）
+  // 卸载放在 onBeforeUnmount 里由 uninstallShortcuts 收尾
+  uninstallShortcuts = installShortcuts(router);
 
   // 窗口外壳：桌面壳里才有窗口控制；并把窗口底色同步成当前主题色
   canControlWindow.value = windowControlsAvailable();
