@@ -768,9 +768,9 @@ function onMouseLeave() {
   scheduleDraw();
 }
 
-/* 对外暴露：供父组件做 Zoom Fit / 重置 */
+/* 对外暴露：供父组件做 Zoom Fit / 重置；canvasEl 供"导出图片"重绘到离屏画布 */
 function canvasSize() { return { w: cssW, h: cssH }; }
-defineExpose({ canvasSize, scheduleDraw, redraw: draw });
+defineExpose({ canvasSize, scheduleDraw, redraw: draw, canvasEl: () => canvas.value });
 
 let ro = null;
 // 外观（配色深浅）变化时重绘：画布不认 CSS 变量，只能靠这个广播刷新网格与坐标轴配色。

@@ -5,7 +5,22 @@
  * 坐标系与 2D 绘图一致（复用 cartesian.js）
  */
 import { ref, computed } from "vue";
+import { useRoute } from "vue-router";
 import GeometryCanvas from "../../components/plot/GeometryCanvas.vue";
+import { exportCanvas } from "../../lib/plot/exportImage.js";
+
+const route = useRoute();
+
+/**
+ * 导出当前几何画布为 PNG（2x、不透明底）。
+ * canvasRef 在下面才声明：函数体是用户点按钮时才执行的，那时 setup 早已跑完，不存在 TDZ。
+ */
+function exportImage() {
+  const r = exportCanvas(canvasRef.value?.canvasEl?.(), { routePath: route.path, note: "自由几何" });
+  statusText.value = r.ok
+    ? `已导出图片：${r.path}（${r.width}×${r.height}）`
+    : (r.canceled ? "已取消导出" : `导出失败：${r.error}`);
+}
 
 const TOOLS = [
   { id: "select", label: "选择", hint: "点击图形选中，拖拽移动" },
@@ -215,6 +230,7 @@ function shapeSummary(s) {
       />
       <div class="view-controls">
         <button class="vc-btn" title="重置视图" @click="resetView">⟲</button>
+        <button class="vc-btn" title="导出图片（PNG，2 倍分辨率）" @click="exportImage">⤓</button>
       </div>
     </div>
   </div>

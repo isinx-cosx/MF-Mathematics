@@ -10,10 +10,21 @@ import ParamSlider from "../../components/plot/ParamSlider.vue";
 import { toEngineExpr, validate } from "../../lib/plot/plotMath.js";
 import { linspace } from "../../lib/plot/sampling.js";
 import { engineCall, isHosted } from "../../lib/bridge.js";
+import { useRoute } from "vue-router";
+import { exportCanvas } from "../../lib/plot/exportImage.js";
 
 const hosted = isHosted();
+const route = useRoute();
 const canvasRef = ref(null);
 const statusText = ref("就绪");
+
+/** 导出当前画布为 PNG（2x、不透明底），结果写进状态栏 */
+function exportImage() {
+  const r = exportCanvas(canvasRef.value?.canvasEl?.(), { routePath: route.path, note: "向量场" });
+  statusText.value = r.ok
+    ? `已导出图片：${r.path}（${r.width}×${r.height}）`
+    : (r.canceled ? "已取消导出" : `导出失败：${r.error}`);
+}
 
 /* ── 两个分量表达式 ── */
 const dxInput = ref("-y");
@@ -213,6 +224,7 @@ onMounted(() => requestAnimationFrame(() => sampleField()));
       />
       <div class="view-controls">
         <button class="vc-btn" title="重置视图" @click="resetView">⟲</button>
+        <button class="vc-btn" title="导出图片（PNG，2 倍分辨率）" @click="exportImage">⤓</button>
       </div>
     </div>
   </div>

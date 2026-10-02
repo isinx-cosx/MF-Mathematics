@@ -6,7 +6,7 @@
  *  · 多参数模式（19 项 VAR_SPECS）先弹出参数输入框，用户可自定义 a/b/n 等
  *  · 未映射的模式明确提示"引擎未提供该模式的接口"（不静默）
  */
-import { ref, computed, watch } from "vue";
+import { ref, computed, watch, onMounted } from "vue";
 import MathField from "../../components/math/MathField.vue";
 import { useRoute } from "vue-router";
 import MultiVarDialog from "../../components/calc/MultiVarDialog.vue";
@@ -16,6 +16,7 @@ import { ENGINE_MAP, ENGINE_VAR_SPECS } from "../../lib/engine/engineMap.js";
 import { buildEngineArgs, buildEngineArgsFromValues, toEngineExpr, hasEngineMode, needsVarDialog } from "../../lib/engine/calcArgs.js";
 import { engineCall, isHosted, bridgeVersion } from "../../lib/bridge.js";
 import { takePending, pickMode } from "../../lib/workspace/pendingInput.js";
+import { getPage, setPage } from "../../lib/workspace/store.js";
 import { briefValue } from "../../lib/engine/resultModel.js";
 import { record } from "../../lib/history/store.js";
 
@@ -46,8 +47,45 @@ watch(config, () => {
   // 示例库 / 教程正文送来的表达式（跨路由携带）。取一次即清空，避免下次进来被
   // 旧示例反复覆盖。v1 在这里只做 setText 且 mode 匹配不到就静默忽略，这里明说。
   const pending = takePending();
-  if (pending) applyPending(pending);
+  if (pending) { applyPending(pending); return; }
+  // 工作区：没有示例要加载时，用保存过的这一页内容还原（示例优先——它是用户
+  // 刚刚主动点的动作，不该被上次保存的旧内容顶掉）
+  restoreFromWorkspace();
 }, { immediate: true });
+
+/** 用工作区里保存的这一页内容还原计算块（没有就用默认的一个空块） */
+function restoreFromWorkspace() {
+  const saved = getPage(route.path);
+  if (!saved || saved.kind !== "calc" || !Array.isArray(saved.blocks) || !saved.blocks.length) return;
+  blocks.value = saved.blocks.map((b) => {
+    const blank = makeBlock();
+    return {
+      ...blank,
+      expr: String(b.expr || ""),
+      mode: modes.value.includes(b.mode) ? b.mode : (modes.value[0] || ""),
+      blocked: "",
+      error: "",
+    };
+  });
+  statusText.value = `${config.value.title}：已从工作区还原 ${blocks.value.length} 个计算块`;
+}
+
+/** 采集本页要存进工作区的内容（只存"用户写的东西"，不存结果与临时错误） */
+function capturePage() {
+  return {
+    kind: "calc",
+    blocks: blocks.value.map((b) => ({ expr: b.expr || "", mode: b.mode || "" })),
+  };
+}
+
+// 挂载完成前不回写 store：那期间 blocks 还是默认值，写回会把刚还原的内容盖掉
+let syncWorkspace = false;
+onMounted(() => {
+  syncWorkspace = true;
+});
+watch(blocks, () => {
+  if (syncWorkspace) setPage(route.path, capturePage());
+}, { deep: true });
 
 /** 把送来的表达式与操作填进第一个计算块 */
 function applyPending(p) {

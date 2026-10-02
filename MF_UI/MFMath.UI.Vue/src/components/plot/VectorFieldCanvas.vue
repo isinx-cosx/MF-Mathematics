@@ -274,7 +274,7 @@ function onWheel(e) {
 function onMouseLeave() { hover = null; onMouseUp(); scheduleDraw(); }
 
 function canvasSize() { return { w: cssW, h: cssH }; }
-defineExpose({ canvasSize, scheduleDraw });
+defineExpose({ canvasSize, scheduleDraw, canvasEl: () => canvas.value });
 
 let ro = null;
 // 配色深浅变化时重绘（画布不认 CSS 变量，见 bridge.js 的说明）

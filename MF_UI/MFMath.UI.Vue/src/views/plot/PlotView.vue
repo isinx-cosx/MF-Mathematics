@@ -17,19 +17,44 @@ import { parseExpr, validate } from "../../lib/plot/plotMath.js";
 import { defaultView, fitBounds, viewW, viewH, mapX, mapY } from "../../lib/plot/view.js";
 import { adaptiveSample } from "../../lib/plot/sampling.js";
 import { engineCall, isHosted } from "../../lib/bridge.js";
+import { getPage, setPage } from "../../lib/workspace/store.js";
+import { exportCanvas } from "../../lib/plot/exportImage.js";
 
 /* ── 状态 ── */
 let nextId = 1;
-const expressions = ref([{ id: nextId++, text: "y=x^2", color: colorAt(0), visible: true, error: null }]);
+/**
+ * 工作区还原：绘图页要存的是"你在画什么"——表达式（含颜色/可见性）、视图范围、
+ * 网格与极坐标开关、参数滑块的值。求出来的曲线/交点不存（那是结果，能重算）。
+ * 还原发生在**初始化时**，之后由 watch 回写；挂载前不回写，否则默认值会盖掉还原内容。
+ *
+ * 注意 route 必须在**用到它之前**声明：之前把 useRoute() 留在下面几十行，
+ * 这里先用 route.path 会命中 TDZ（`Cannot access 'route' before initialization`），
+ * 整个 PlotView 直接挂不起来——一个空白的绘图页，而且只在控制台里留一行报错。
+ */
+const route = useRoute();
+const savedPage = getPage(route.path);
+const restoredPlot = savedPage && savedPage.kind === "plot" ? savedPage : null;
+const expressions = ref(
+  restoredPlot?.expressions?.length
+    ? restoredPlot.expressions.map((e, i) => ({
+        id: (nextId = i + 1),
+        text: String(e.text ?? ""),
+        color: e.color || colorAt(i),
+        visible: e.visible !== false,
+        error: null,
+      }))
+    : [{ id: nextId++, text: "y=x^2", color: colorAt(0), visible: true, error: null }]
+);
 const activeId = ref(expressions.value[0].id);
-const view = ref(defaultView(1, 1));
-const params = ref({});
+const view = ref(restoredPlot?.view || defaultView(1, 1));
+const params = ref(restoredPlot?.params && typeof restoredPlot.params === "object" ? { ...restoredPlot.params } : {});
 const samples = ref({});
 const gridsRef = ref({});        // 二元网格（隐式方程 / 区域）
-const statusText = ref("就绪");
+const statusText = ref(restoredPlot ? "已从工作区还原" : "就绪");
 const hosted = isHosted();
 const canvasRef = ref(null);
-let colorIdx = 1;
+let colorIdx = expressions.value.length;
+let syncWorkspace = false;
 
 /* ── 可拖动点（Desmos：点击曲线创建，可沿曲线拖动）── */
 const points = ref([]);          // [{id, curveId, x, y, color}]
@@ -43,10 +68,10 @@ const intersectionNotice = ref("");
 // 光有初值还不够——/plot/2d 与 /plot/polar 用的是**同一个组件**，vue-router 会复用
 // 实例（setup 不会再跑），所以必须再 watch 一次 meta，否则从 2D 切到极坐标时
 // 网格模式还留在 rect（实测就是这么发现的：两条路由的按钮标题一模一样）。
-const route = useRoute();
-const gridMode = ref(route.meta?.grid === "polar" ? "polar" : "rect");   // rect | polar
+// 网格模式可还原：保存过就用保存的，否则按路由 meta 的初值
+const gridMode = ref(restoredPlot?.gridMode === "polar" ? "polar" : (route.meta?.grid === "polar" ? "polar" : "rect"));   // rect | polar
 watch(() => route.meta?.grid, (g) => { gridMode.value = g === "polar" ? "polar" : "rect"; });
-const showGrid = ref(true);
+const showGrid = ref(restoredPlot?.showGrid !== false);
 
 /* 采样由 lib/plot/sampling.js 的自适应算法负责（高曲率处自动加密） */
 
@@ -600,17 +625,46 @@ function resetView() {
   sampleAll();
 }
 
+/**
+ * 导出图片：把画布按 2x 重绘（不透明底）后交给宿主写文件。
+ * 结果写进状态栏——"点了没反应"和"导出了但不知道存哪"都要避免。
+ */
+function exportImage() {
+  const el = canvasRef.value?.canvasEl?.();
+  const r = exportCanvas(el, { routePath: route.path, note: "2D 函数绘图" });
+  statusText.value = r.ok
+    ? `已导出图片：${r.path}（${r.width}×${r.height}，${(r.bytes / 1024).toFixed(0)} KB）`
+    : (r.canceled ? "已取消导出" : `导出失败：${r.error}`);
+}
+
+/** 采集本页要存进工作区的内容：在画什么 + 视野 + 参数值（结果一律不存，能重算） */function capturePlot() {
+  return {
+    kind: "plot",
+    expressions: expressions.value.map((e) => ({ text: e.text, color: e.color, visible: e.visible })),
+    view: { ...view.value },
+    gridMode: gridMode.value,
+    showGrid: showGrid.value,
+    params: { ...params.value },
+  };
+}
+
 onMounted(() => {
   // 等首次布局完成后再按画布宽高比初始化视图
   requestAnimationFrame(() => {
     const { w, h } = canvasRef.value?.canvasSize() ?? { w: 0, h: 0 };
-    if (w > 0 && h > 0) view.value = defaultView(w, h);
+    // **还原过视野就不要再按画布比例重置**，否则用户存下来的范围会被冲掉
+    if (w > 0 && h > 0 && !restoredPlot?.view) view.value = defaultView(w, h);
     sampleAll();
     computeIntersections();
     computeExtrema();
     computeSymbolicExtrema();
   });
+  syncWorkspace = true;   // 挂载完成，之后的变化才写回工作区
 });
+
+watch([expressions, view, gridMode, showGrid, params], () => {
+  if (syncWorkspace) setPage(route.path, capturePlot());
+}, { deep: true });
 </script>
 
 <template>
@@ -735,6 +789,7 @@ onMounted(() => {
         <button class="vc-btn" title="缩小" @click="zoomBy(1.4)">－</button>
         <button class="vc-btn" title="缩放到适应" @click="zoomFit">⤢</button>
         <button class="vc-btn" title="重置视图" @click="resetView">⟲</button>
+        <button class="vc-btn" data-tour="plot.export_button" title="导出图片（PNG，2 倍分辨率）" @click="exportImage">⤓</button>
         <button
           class="vc-btn"
           :class="{ on: gridMode === 'polar' }"

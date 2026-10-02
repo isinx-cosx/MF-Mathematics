@@ -88,7 +88,7 @@ export const ITEMS = [
   { id: "storage.settings", group: "storage", label: "设置文件", keywords: "设置 文件 列表 大小 settings json", status: "ready" },
   { id: "storage.diagnostics", group: "storage", label: "导出诊断包", keywords: "诊断 导出 日志 diagnostics support", status: "ready" },
   { id: "storage.history", group: "storage", label: "历史记录", keywords: "历史 记录 清空 条数 history", status: "ready" },
-  { id: "storage.workspace", group: "storage", label: "工作区", keywords: "工作区 workspace 清空", status: "pending" },
+  { id: "storage.workspace", group: "storage", label: "工作区", keywords: "工作区 workspace 保存 载入 另存为 打开 清空", status: "ready" },
   { id: "storage.io", group: "storage", label: "导入 / 导出设置", keywords: "导入 导出 备份 迁移 import export", status: "pending" },
 ];
 

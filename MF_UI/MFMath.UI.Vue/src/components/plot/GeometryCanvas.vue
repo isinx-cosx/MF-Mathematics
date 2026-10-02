@@ -640,7 +640,7 @@ function resetView() {
 function getState() {
   return { state: state.value, tempPts: tempPts.value.length, view: { ...view.value }, cssW, cssH };
 }
-defineExpose({ cancelConstruction, resetView, getState, scheduleDraw });
+defineExpose({ cancelConstruction, resetView, getState, scheduleDraw, canvasEl: () => canvas.value });
 
 let ro = null;
 // 配色深浅变化时重绘网格与坐标轴（画布不认 CSS 变量，见 bridge.js 的说明）

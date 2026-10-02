@@ -25,6 +25,7 @@
 | 控制台缺 sympy / numpy / scipy | **本地已解决**，站点尚未换包 | `MFMath.Host/tools/build-python-component.ps1` 重建组件包（10.5 MB → 64 MB 下载 / 191 MB 安装）；实测控制台里 import 与真实计算全部通过；详见 §3.1 |
 | 基础运算页"最近计算"不落盘 | 已完成（与全局历史统一） | `BasicCalcView.vue` 的列表改为读全局历史（不再刷新即失）；设置 → 存储与数据里可看条数与清空 |
 | **C#→JS 推送通道**（AI 与更新进度的共同前置） | 已完成 | 宿主 `PushHub.cs`（`PostWebMessageAsJson` + UI 线程编组 + 信封 `{topic,seq,ts,payload}`）+ JS `src/lib/push.js`；真实生产者：组件安装进度 `component.install`、控制台运行 `console.run`；设置 → 引擎里有自检行；端到端 `cdp-push.mjs` **19 / 0** |
+| **工作区保存 / 载入** | 已完成 | `src/lib/workspace/store.js`（各页自报载荷 + 版本校验 + 坏输入不静默）、`SettingsView` 存储组的保存/载入/另存为/从文件打开/清空；采集计算块、绘图表达式与视野、控制台代码；宿主新增 `win.SaveTextFile/OpenTextFile`（文件对话框）；端到端 `cdp-workspace.mjs` **25 / 0**（含刷新后还原与四类坏输入） |
 
 ---
 
@@ -106,13 +107,18 @@
 - **验证**：`tests/cdp-history-search.mjs` **20 / 0**（含"真的落盘：`sys.StoreList()` 里能看到 history 文件"）。
 - **未做**：导出历史为文件（需要宿主文件对话框，见 §3.5）；绘图页的操作没记入历史（v1 也只记计算）。
 
-### 2.6 工作区保存 / 加载
+### 2.6 工作区保存 / 加载 —— 已完成
 
-- **v1**：文件菜单"保存工作区 / 加载工作区" → `workspace_save.json` + `calc/base_workspace.py`(4.9 KB)。
-- **v2.0**：无；`catalog.js` 里 `storage.workspace`、`storage.io`（导入/导出设置）仍是 pending。**历史的落盘通路（`sys.Store*`）已经跑通，工作区可以直接复用它**。
-- **怎么补**：定义工作区 schema（`{version, appearance, calc: {blocks}, plot: {expressions, ranges, view}, console: {tabs}}`）→ 用 `sys.StoreWrite("workspace", json)` 存"最近工作区"，另用文件对话框支持"另存为 .mfws.json"（**需要新宿主方法**，见 §7.3）；加载时校验 `version` 并给出迁移提示。
-- **注意**：v1 的坑是"写在安装目录 + 恢复时谎报成功"，v2.0 必须写到 `%LOCALAPPDATA%` 并在失败时明确报错。
-- **粗估**：2-3 人日（含文件对话框）。
+- **v1**：文件菜单"保存工作区 / 加载工作区" → `workspace_save.json` + `calc/base_workspace.py`(4.9 KB)；坑是写在安装目录、只存 3 个字段、恢复失败还谎报成功。
+- **v2.0 实现（已完成）**：
+  1. `src/lib/workspace/store.js` —— 唯一存放处。**每个页面自报载荷**（`{kind:"calc", blocks:[…]}` / `{kind:"plot", expressions, view, gridMode, showGrid, params}` / `{kind:"console", lang, code, stdin}`），store 不解释内容，加新页面不用改它；
+  2. 「保存 / 载入」走 `sys.StoreWrite/StoreRead` → `%LOCALAPPDATA%\MFMath\settings\workspace.json`（宿主原子写）；「另存为文件 / 从文件打开」走**宿主新增的文件对话框** `win.SaveTextFile / OpenTextFile`（页面无法读写任意路径）；
+  3. 载入时校验 `version` 与 `pages`，**坏输入一律给出可读原因**：版本比程序新 → 提示先更新；不是 JSON → 说清是哪一步；缺 `pages` → 直接拒绝；空工作区 → "还没有保存过"；
+  4. 采集时机：`CalcView` 的 blocks、`PlotView` 的表达式/视野/参数、`ConsoleView` 的语言+代码；**挂载完成前不回写**（否则默认值会盖掉刚还原的内容）；
+  5. 示例库/教程送来的表达式优先于工作区还原（用户刚点的动作不该被旧内容顶掉）；
+  6. 入口在 设置 → 存储与数据 → 工作区（显示页面数、计算块数、曲线数、上次保存时间、是否有未保存改动），`catalog.js` 的 `storage.workspace` 由 pending 改 ready。
+- **验证**：`tests/cdp-workspace.mjs` **25 / 0** —— 三页采集 → 落盘 → **刷新页面后**内存清空 → 点「载入」→ 跳回原路由并还原计算块/模式/曲线/代码；另存为文件与从文件载入（跳过对话框的自动化路径）；四类坏输入全部有明确报错。测试跑完会把用户原有的 `workspace.json` 还原回去。
+- **未做**：外观（配色/字体）不在工作区里——它是全局偏好，不进工作区；跨机器迁移整套设置仍是 `storage.io` 的事（pending）。
 
 ### 2.7 中英双语（i18n）
 
@@ -122,12 +128,17 @@
 - **工作量依据**：v2 前端源码里**非注释的中文行约 1695 行**，这就是需要抽键的文案量级。
 - **粗估**：壳层 2 人日；全量 6-8 人日。
 
-### 2.8 导出图片
+### 2.8 导出图片 —— 已完成
 
-- **v1**：i18n 键 `menu.export = "导出图片"`；`plot/*/workspace.py:289` 导出 PNG（dpi=200）；`calc/math_display.py:288` 也有 `fig.savefig`。
-- **v2.0**：没有（全仓 `toDataURL` / `saveImage` 零命中）。绘图结果只能看，不能存。
-- **怎么补**：`PlotCanvas` 等本来就是 `<canvas>` → `canvas.toDataURL("image/png")`（按 `devicePixelRatio` 出 2x 图）+ 宿主新增 `SaveFileDialog` 方法落盘；同时提供"复制到剪贴板"。
-- **粗估**：1 人日。
+- **v1**：i18n 键 `menu.export = "导出图片"`；绘图工作区里导出 PNG（dpi=200）；`calc/math_display.py:288` 也有 `fig.savefig`。
+- **v2.0 实现（已完成）**：
+  1. `src/lib/plot/exportImage.js` —— 把画布**重绘到离屏画布**再导出：按 `max(2, devicePixelRatio)` 放大（高分屏/论文里不糊），先铺一层**不透明底色**（取画布自身背景色，取不到用白），再 `toDataURL("image/png")`；
+  2. 宿主新增 `win.SaveBinaryFile(title, defaultName, filter, base64, path)`（base64 → 文件，允许直接传 `data:` URL，先剥前缀；上限 64 MB）；文件名默认「页面名-时间戳.png」；
+  3. **六个绘图页都有入口**：2D / 极坐标、3D 曲面、向量场、自由几何、分形在自己那排视图按钮里加了 ⤓；复平面在左栏「重绘」旁边加了「导出图片」。导出结果写进各自的**状态行**（含路径与像素尺寸）——不让用户猜存到哪了；
+  4. 四个画布组件（`PlotCanvas`/`SurfaceCanvas`/`VectorFieldCanvas`/`GeometryCanvas`）各自 `defineExpose({ canvasEl })` 把真实 `<canvas>` 交出来；
+  5. 自动化钩子 `window.__mfExportTo`：非空则跳过保存对话框直接写该路径（与 `SaveTextFile` 的 `path` 参数同一约定）。
+- **验证**：`tests/cdp-export-image.mjs` **45 / 0** —— 六页逐页导出：写出真 PNG（魔数 + IHDR）、尺寸是屏幕画布的 **2 倍**、**左上角像素 alpha = 255**（背景不透明）、状态行说明路径；另验路径写不进去时给出失败原因且不留半个文件。测试结束会清掉自动化钩子。
+- **未做**：复制到剪贴板（v1 也没有）；导出为 SVG/PDF 不在范围内。
 
 ### 2.9 数学边界守卫
 
@@ -210,8 +221,8 @@
 | 项 | 动作 | 前置 | 状态 |
 | --- | --- | --- | --- |
 | **历史记录**（§2.5） | `sys.Store*` 落盘 + 统一记录入口 + 历史面板 + 接顶栏 | 无 | **已完成** |
-| **导出图片**（§2.8） | canvas → PNG + 新增宿主 `SaveFileDialog` | 需新增宿主方法 | 未开始 |
-| **工作区保存/加载**（§2.6） | schema + `sys.StoreWrite` + 另存为 | 同上 | 未开始（落盘通路已由历史验证） |
+| **工作区保存/加载**（§2.6） | 各页自报载荷 + `sys.StoreWrite` + 另存为（宿主文件对话框） | 无 | **已完成**（`cdp-workspace` 25/0） |
+| **导出图片**（§2.8） | 画布 2x 重绘 + 不透明底 + 宿主 `SaveBinaryFile` | 无 | **已完成**（`cdp-export-image` 45/0，六个绘图页都有入口） |
 | **快捷键**（§3.2） | 全局 F1 / Ctrl+Z / Ctrl+Y | 无 | 未开始 |
 | **两个设置项**（§3.3） | 精度 + 绘图默认范围 | 无 | 未开始 |
 | **数学守卫**（§2.9） | 前端规则版先上，阈值进设置 | 无 | 未开始 |
@@ -276,8 +287,13 @@ node "$V2\MF_UI\MFMath.UI.Vue\tests\cdp-engine-solve.mjs"       # 13 项
 node "$V2\MF_UI\MFMath.UI.Vue\tests\cdp-history-search.mjs"     # 20 项（历史 + 搜索占位）
 node "$V2\MF_UI\MFMath.UI.Vue\tests\cdp-console-sci.mjs"        #  8 项（组件未装时 SKIP）
 node "$V2\MF_UI\MFMath.UI.Vue\tests\cdp-push.mjs"               # 19 项（推送通道：往返/运行/安装/自检）
+node "$V2\MF_UI\MFMath.UI.Vue\tests\cdp-workspace.mjs"          # 25 项（工作区：采集/落盘/刷新后还原/坏输入）
+node "$V2\MF_UI\MFMath.UI.Vue\tests\cdp-export-image.mjs"       # 45 项（六个绘图页导出 PNG）
 node "$V2\MF_UI\MFMath.UI.Vue\tests\cdp-basic-calc.mjs"         # 41 项
 # 或一次跑完：powershell -ExecutionPolicy Bypass -File "$V2\MF_UI\MFMath.UI.Vue\tests\run-all.ps1"
+#   ⚠ 目前 `cdp-plot-p5` 在跑到"极坐标网格/网格开关"时会**挂住页面**（已确认与本轮改动无关：
+#     用 HEAD 版 PlotView 复现同样的 2/10），页面一挂，同一宿主会话里后面的用例会全部
+#     "无 RESULT 行"。修好它之前，成套跑请把它排除，或每个用例换一个宿主进程。
 
 # 4) 控制台组件包（带 sympy / numpy / scipy）
 powershell -ExecutionPolicy Bypass -File "$V2\MFMath.Host\tools\build-python-component.ps1" -Install
@@ -296,8 +312,8 @@ powershell -ExecutionPolicy Bypass -File "$V2\MFMath.Host\tools\build-python-com
    - v1"数值精度"设置对结果格式化的实际作用范围（我只看到设置项与固定 12 位两个端点，没逐处核对）；
    - 站点 `/api/version` 现有字段与自动更新的接口约定（§2.11）。
 3. **宿主能力清单（写补法时的前提，已核对）**：
-   - 已有：`mf.Dispatch/Version/FunctionExists/*Symbolic`、`win.{Minimize,ToggleMaximize,Restore,IsMaximized,Close,StartDrag,SetChromeBackground}`、`con.{Start,Poll,Stop,Install,Uninstall,Components,SetDownloadBase,InstallStatus,CancelInstall}`、`sys.{Info,EngineReport,StoreList,StoreRead,StoreWrite,StoreDelete,OpenPath,ExportDiagnostics}`、`push.{Info,Emit,Ready}`；
+   - 已有：`mf.Dispatch/Version/FunctionExists/*Symbolic`、`win.{Minimize,ToggleMaximize,Restore,IsMaximized,Close,StartDrag,SetChromeBackground,SaveTextFile,OpenTextFile,SaveBinaryFile}`、`con.{Start,Poll,Stop,Install,Uninstall,Components,SetDownloadBase,InstallStatus,CancelInstall}`、`sys.{Info,EngineReport,StoreList,StoreRead,StoreWrite,StoreDelete,OpenPath,ExportDiagnostics}`、`push.{Info,Emit,Ready}`；
    - **推送通道（已完成）**：宿主侧 `PushHub.Send(topic, payloadJson)`（任意线程可调，内部编组回 UI 线程；失败只记 `Failed`/`LastError`，不抛）。已用的主题：`component.install`（安装进度）、`console.run`（阶段/结束）、`settings.test`（自检）。新增主题只需在宿主处 `Send`，页面 `onPush("主题", fn)` 订阅。
-   - 缺：**文件对话框**（导出图片/工作区另存为需要新增）；
+   - **文件对话框（已完成）**：文本 `win.SaveTextFile/OpenTextFile`、二进制（base64）`win.SaveBinaryFile`，返回 `{ok,path,bytes}` / `{ok,path,content}` / `{canceled:true}` / `{ok:false,error}`；`path` 非空时跳过对话框（自动化钩子）。工作区另存为与导出图片都在用；
    - 存储位置：`%LOCALAPPDATA%\MFMath`（设置与键值文件在 `settings\` 子目录，原子写 + 损坏备份已实现）。
 4. **组件包的两个只在宿主编译时才校准的常量**：`PythonPayloadSha256` / `PythonPayloadBytes` 是给"从站点下载"用的；自建包靠同名 `.sha256` 旁文件生效。**站点换包前不要改这两个常量**。

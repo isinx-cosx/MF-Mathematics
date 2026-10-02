@@ -362,4 +362,44 @@ export function winSetChromeBackground(color) {
   callWin("SetChromeBackground", color);
 }
 
+/* ── 文件对话框（宿主侧 Microsoft.Win32，页面无法读写任意路径） ──────────────
+ *
+ * 工作区"另存为 / 从文件打开"用它们；将来导出图片也走同一对方法。
+ * 返回统一是 {ok:true,…} | {canceled:true} | {ok:false,error}，**不抛异常**：
+ * 用户点取消是正常操作，不该让调用处去 try/catch。
+ * path 参数是自动化钩子（非空则跳过对话框直接读写），正常调用不传。
+ */
+function callWinJson(method, ...args) {
+  const b = winBridge();
+  if (!b) return { ok: false, error: "无宿主：文件对话框只在 MFMath.exe 里可用" };
+  try {
+    const raw = b[method](...args);
+    if (raw == null) return { ok: false, error: "宿主没有返回结果" };
+    return typeof raw === "object" ? raw : JSON.parse(String(raw));
+  } catch (e) {
+    return { ok: false, error: String(e && e.message ? e.message : e) };
+  }
+}
+
+/**
+ * 保存文本到文件（无 path 时弹"另存为"对话框）。
+ * @param {{title?:string, defaultName?:string, filter?:string, content:string, path?:string}} o
+ */
+export function saveTextFile({ title = "保存", defaultName = "", filter = "", content = "", path = "" } = {}) {
+  return callWinJson("SaveTextFile", title, defaultName, filter, content, path);
+}
+
+/** 从文件读文本（无 path 时弹"打开"对话框） */
+export function openTextFile({ title = "打开", filter = "", path = "" } = {}) {
+  return callWinJson("OpenTextFile", title, filter, path);
+}
+
+/**
+ * 保存二进制（base64）到文件 —— 导出图片用。
+ * 可以直接传完整的 `data:image/png;base64,…`，宿主会自己剥前缀。
+ */
+export function saveBinaryFile({ title = "保存", defaultName = "", filter = "", base64 = "", path = "" } = {}) {
+  return callWinJson("SaveBinaryFile", title, defaultName, filter, base64, path);
+}
+
 export { THEMES, THEME_LABELS, THEME_LIST, SHAPE_LIST, DENSITY_LIST, FONT_LIST };

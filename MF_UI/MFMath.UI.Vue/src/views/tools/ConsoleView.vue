@@ -11,7 +11,8 @@
     2. **C++ 默认隐藏**：组件没装好之前，语言下拉里不出现 C++，装上后自动出现。
 -->
 <script setup>
-import { computed, onMounted, onBeforeUnmount, ref } from "vue";
+import { computed, onMounted, onBeforeUnmount, ref, watch } from "vue";
+import { useRoute } from "vue-router";
 import {
   isConsoleHosted, components, installComponent, installStatus, cancelInstall, setDownloadBase,
   consoleStart, consolePoll, consoleStop,
@@ -19,9 +20,11 @@ import {
 // 取引擎函数表（list_functions）作为补全候选
 import { engineCall } from "../../lib/bridge.js";
 import { initPush, onPush, isPushHosted } from "../../lib/push.js";
+import { getPage, setPage } from "../../lib/workspace/store.js";
 import CodeEditor from "../../components/console/CodeEditor.vue";
 
 const hosted = isConsoleHosted();
+const route = useRoute();
 const comps = ref(null);
 const lang = ref("python");
 const code = ref("");
@@ -308,7 +311,17 @@ function stop() {
 
 onMounted(async () => {
   await refreshComponents();
-  loadSample(0);
+  // 工作区还原优先：存过的代码/语言就用它，否则才回到示例
+  const saved = getPage(route.path);
+  if (saved && saved.kind === "console" && typeof saved.code === "string" && saved.code.trim()) {
+    lang.value = ["python", "cpp"].includes(saved.lang) ? saved.lang : "python";
+    code.value = saved.code;
+    if (typeof saved.stdin === "string") stdin.value = saved.stdin;
+    status.value = "已从工作区还原";
+  } else {
+    loadSample(0);
+  }
+  syncWorkspace = true;
   // 推送：宿主在编译/运行阶段切换与结束时主动通知，收到就立刻 tick 一次
   initPush();
   offPush = onPush("console.run", (env) => {
@@ -330,6 +343,12 @@ onBeforeUnmount(() => {
   stopPolling();
   if (offPush) offPush();
 });
+
+/* 工作区：控制台存的是"语言 + 代码 + 标准输入"，不存运行结果 */
+let syncWorkspace = false;
+watch([lang, code, stdin], () => {
+  if (syncWorkspace) setPage(route.path, { kind: "console", lang: lang.value, code: code.value, stdin: stdin.value });
+}, { deep: true });
 </script>
 
 <template>

@@ -247,7 +247,8 @@ function resetView() {
   emit("update:view", { yaw: -0.6, pitch: 0.4363, zoom: 1 });
   scheduleDraw();
 }
-defineExpose({ resetView, scheduleDraw });
+/* canvasEl 供"导出图片"重绘到离屏画布（见 lib/plot/exportImage.js） */
+defineExpose({ resetView, scheduleDraw, canvasEl: () => canvas.value });
 
 let ro = null;
 // 配色深浅变化时重绘（画布不认 CSS 变量，见 bridge.js 的说明）

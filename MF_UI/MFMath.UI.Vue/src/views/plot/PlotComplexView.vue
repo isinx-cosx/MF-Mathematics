@@ -26,11 +26,22 @@
 import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from "vue";
 import { engineCall, isHosted, plotMode, onAppearanceChange } from "../../lib/bridge.js";
 import { gridFor } from "../../lib/plot/colors.js";
+import { useRoute } from "vue-router";
+import { exportCanvas } from "../../lib/plot/exportImage.js";
 
 const hosted = isHosted();
+const route = useRoute();
 const canvas = ref(null);
 const theme = ref(plotMode());
 const statusText = ref("等待输入函数");
+
+/** 导出当前复平面图为 PNG（2x、不透明底）；结果写进面板里的状态行 */
+function exportImage() {
+  const r = exportCanvas(canvas.value, { routePath: route.path, note: "复平面" });
+  statusText.value = r.ok
+    ? `已导出图片：${r.path}（${r.width}×${r.height}）`
+    : (r.canceled ? "已取消导出" : `导出失败：${r.error}`);
+}
 
 /* ── 参数（默认值与原版一致）── */
 const funcExpr = ref("");
@@ -523,6 +534,7 @@ watch([xMin, xMax, yMin, yMax, resolution], () => { if (hasResult.value) schedul
         <p v-if="resWarn" class="warn">分辨率超过 600，计算可能需要十几秒。</p>
 
         <button class="btn" :disabled="busy || !hosted" @click="apply()">重绘</button>
+        <button class="btn" :disabled="busy" title="把当前复平面图导出成 PNG（2 倍分辨率）" @click="exportImage">导出图片</button>
         <p class="status">{{ statusText }}</p>
       </aside>
 

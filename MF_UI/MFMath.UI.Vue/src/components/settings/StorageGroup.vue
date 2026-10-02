@@ -10,19 +10,63 @@
  * 这三项在界面上以"待实现"列出，不隐藏（让用户知道功能存在但还没做）。
  */
 import { computed, onMounted, ref } from "vue";
+import { useRoute, useRouter } from "vue-router";
 import { info, storeList, openPath, exportDiagnostics, isSettingsHosted } from "../../lib/settings/bridge.js";
 import { progress, resetAllProgress, storageError } from "../../lib/tutorial/store.js";
 import { useHistory } from "../../lib/history/store.js";
+import { useWorkspace } from "../../lib/workspace/store.js";
 
 const hostInfo = ref(info());
 const files = ref([]);
 const msg = ref("");
 const confirmingReset = ref(false);
 const confirmingHistory = ref(false);
+const confirmingWs = ref(false);
 const diagPath = ref("");
 
 /* 历史记录：条数与清空放这儿，用户不必跑到顶栏去清 */
 const { entries: historyEntries, clearAll: clearHistoryAll, reload: reloadHistory } = useHistory();
+
+/* 工作区：保存 / 载入 / 另存为 / 从文件打开 / 清空 */
+const route = useRoute();
+const router = useRouter();
+const wsApi = useWorkspace();
+const ws = computed(() => wsApi.summary());
+function wsSaveApp() {
+  const r = wsApi.saveToApp(route.path);
+  msg.value = r.ok
+    ? `工作区已保存（${ws.value.pages} 个页面：${ws.value.routes.join("、") || "—"}）`
+    : `保存失败：${r.error}`;
+  refreshFiles();
+}
+function wsLoadApp() {
+  const r = wsApi.loadFromApp();
+  if (!r.ok) { msg.value = `载入失败：${r.error}`; return; }
+  msg.value = `已载入 ${r.pages} 个页面${r.route ? "，正在跳回 " + r.route : ""}；页面内容会在切换到该页时还原`;
+  if (r.route) router.push(r.route);
+}
+function wsSaveFile() {
+  const r = wsApi.saveToFile(route.path);
+  if (r.canceled) { msg.value = "已取消另存为"; return; }
+  msg.value = r.ok ? `已另存为：${r.path}` : `另存为失败：${r.error}`;
+}
+function wsLoadFile() {
+  const r = wsApi.loadFromFile();
+  if (r.canceled) { msg.value = "已取消打开"; return; }
+  if (!r.ok) { msg.value = `打开失败：${r.error}`; return; }
+  msg.value = `已从文件载入 ${r.pages} 个页面${r.route ? "，正在跳回 " + r.route : ""}`;
+  if (r.route) router.push(r.route);
+}
+function wsClear() {
+  wsApi.clearAll();
+  confirmingWs.value = false;
+  msg.value = "工作区已清空（下次保存会覆盖磁盘上的那份）";
+}
+function fmtTime(ts) {
+  const d = new Date(ts);
+  const p = (n) => String(n).padStart(2, "0");
+  return `${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
 
 function doClearHistory() {
   clearHistoryAll();
@@ -153,8 +197,30 @@ function refreshFiles() {
       </div>
     </div>
     <div class="s-row" data-setting="storage.workspace">
-      <div class="s-label"><label>工作区</label><p class="s-hint">保存 / 恢复 / 清空</p></div>
-      <div class="s-ctl"><span class="pending-tag">待实现 · 依赖 P1（同上，v1 的实现在安装目录里且字段残缺）</span></div>
+      <div class="s-label">
+        <label>工作区</label>
+        <p class="s-hint">
+          计算块 / 绘图表达式与视野 / 控制台代码，全部可存可还原。
+          当前 <b>{{ ws.pages }}</b> 个页面（{{ ws.blocks }} 个计算块、{{ ws.curves }} 条曲线）<template
+            v-if="ws.savedAt">，上次保存 {{ fmtTime(ws.savedAt) }}</template><template
+            v-if="ws.dirty"> · <b>有未保存的改动</b></template>
+        </p>
+        <p v-if="ws.savedPath" class="s-hint">上次另存为：<code>{{ ws.savedPath }}</code></p>
+      </div>
+      <div class="s-ctl wrap">
+        <button class="s-btn primary" @click="wsSaveApp">保存</button>
+        <button class="s-btn" @click="wsLoadApp">载入</button>
+        <button class="s-btn" :disabled="!isSettingsHosted()" @click="wsSaveFile">另存为文件…</button>
+        <button class="s-btn" :disabled="!isSettingsHosted()" @click="wsLoadFile">从文件打开…</button>
+        <template v-if="!confirmingWs">
+          <button class="s-btn danger" :disabled="!ws.pages" @click="confirmingWs = true">清空</button>
+        </template>
+        <template v-else>
+          <span class="s-hint">确定清空？</span>
+          <button class="s-btn danger" @click="wsClear">确定</button>
+          <button class="s-btn" @click="confirmingWs = false">取消</button>
+        </template>
+      </div>
     </div>
     <div class="s-row" data-setting="storage.io">
       <div class="s-label"><label>导入 / 导出设置</label><p class="s-hint">换机迁移用</p></div>

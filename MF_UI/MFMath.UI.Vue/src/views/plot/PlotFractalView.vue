@@ -7,8 +7,11 @@
  */
 import { ref, computed, watch, onMounted, onBeforeUnmount } from "vue";
 import { engineCall, isHosted } from "../../lib/bridge.js";
+import { useRoute } from "vue-router";
+import { exportCanvas } from "../../lib/plot/exportImage.js";
 
 const hosted = isHosted();
+const route = useRoute();
 const canvas = ref(null);
 let ctx = null;
 let cssW = 0, cssH = 0, raf = 0;
@@ -24,6 +27,14 @@ const scheme = ref("classic");
 const smooth = ref(true);
 const statusText = ref("就绪");
 const lastMs = ref(0);
+
+/** 导出当前分形图为 PNG（2x、不透明底）；结果写进状态行 */
+function exportImage() {
+  const r = exportCanvas(canvas.value, { routePath: route.path, note: "分形" });
+  statusText.value = r.ok
+    ? `已导出图片：${r.path}（${r.width}×${r.height}）`
+    : (r.canceled ? "已取消导出" : `导出失败：${r.error}`);
+}
 /** 渲染分辨率上限（保证交互流畅；越大越清晰） */
 const maxSide = ref(560);
 
@@ -354,6 +365,7 @@ watch(() => [view.value.xmin, view.value.xmax, view.value.ymin, view.value.ymax]
       />
       <div class="view-controls">
         <button class="vc-btn" title="重置视图" @click="resetView">⟲</button>
+        <button class="vc-btn" title="导出图片（PNG，2 倍分辨率）" @click="exportImage">⤓</button>
       </div>
     </div>
   </div>

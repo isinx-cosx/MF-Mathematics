@@ -133,11 +133,19 @@ await sleep(700);
 const diagMsg = await ev(`(document.querySelector('.s-warn') || {}).textContent || ''`);
 check("导出诊断包成功", /诊断包已导出/.test(diagMsg), String(diagMsg).trim());
 const pendingTags = await ev(`document.querySelectorAll('[data-setting^="storage."] .pending-tag').length`);
-// 存储组里仍是"待实现"的只有：工作区、导入/导出设置。历史记录本轮做完了（真实控件），
-// 所以这条断言的阈值从 3 调到 2，并补一条"历史已变真实控件"的正向断言。
-check("未实现项以「待实现」显式列出（不隐藏不留空）", pendingTags >= 2, `实际 ${pendingTags} 项`);
+// 存储组里"待实现"的只剩导入/导出设置（依赖文件对话框的批量迁移）：
+// 历史记录、工作区都已经是真实控件，所以阈值一路从 3 调到 1，
+// 并补上"它们确实变成了真实控件"的正向断言（否则这条只剩个空壳）。
+check("未实现项以「待实现」显式列出（不隐藏不留空）", pendingTags >= 1, `实际 ${pendingTags} 项`);
 const histReady = await ev(`!!document.querySelector('[data-setting="storage.history"] .s-btn')`);
 check("历史记录已从「待实现」变成真实控件（清空按钮）", histReady === true);
+const wsReady = await ev(`(() => {
+  const row = document.querySelector('[data-setting="storage.workspace"]');
+  if (!row) return false;
+  const labels = [...row.querySelectorAll('button')].map((b) => (b.textContent || '').trim());
+  return labels.includes('保存') && labels.includes('载入') && labels.includes('另存为文件…');
+})()`);
+check("工作区已从「待实现」变成真实控件（保存/载入/另存为）", wsReady === true);
 
 console.log("=== 占位分组与搜索 ===");
 await clickText('.set-groups li', "AI");
