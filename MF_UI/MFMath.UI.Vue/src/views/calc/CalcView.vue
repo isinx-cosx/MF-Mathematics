@@ -16,6 +16,8 @@ import { ENGINE_MAP, ENGINE_VAR_SPECS } from "../../lib/engine/engineMap.js";
 import { buildEngineArgs, buildEngineArgsFromValues, toEngineExpr, hasEngineMode, needsVarDialog } from "../../lib/engine/calcArgs.js";
 import { engineCall, isHosted, bridgeVersion } from "../../lib/bridge.js";
 import { takePending, pickMode } from "../../lib/workspace/pendingInput.js";
+import { briefValue } from "../../lib/engine/resultModel.js";
+import { record } from "../../lib/history/store.js";
 
 const route = useRoute();
 const hosted = isHosted();
@@ -166,6 +168,15 @@ function finish(block, mode, expr, result) {
   statusText.value = result.isError
     ? `${mode}：计算失败`
     : `${mode}：计算完成（${specFnName(mode)}）`;
+  // 记历史：成功与失败都记（"上次那条报错的是什么"同样是要回看的信息）。
+  // 摘要用 briefValue，历史面板里认的是结果而不是表达式本身。
+  record({
+    route: route.path,
+    mode,
+    expr,
+    summary: result.isError ? String(result.value ?? "") : briefValue(result.value),
+    ok: !result.isError,
+  });
 }
 
 function specFnName(mode) {

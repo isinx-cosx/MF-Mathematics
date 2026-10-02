@@ -18,6 +18,7 @@ import {
 } from "../../lib/console/bridge.js";
 // 取引擎函数表（list_functions）作为补全候选
 import { engineCall } from "../../lib/bridge.js";
+import { initPush, onPush, isPushHosted } from "../../lib/push.js";
 import CodeEditor from "../../components/console/CodeEditor.vue";
 
 const hosted = isConsoleHosted();
@@ -46,6 +47,7 @@ const installMsg = ref("");
 
 let runId = null;
 let pollTimer = null;
+let offPush = null;
 
 /** 语言选项：C++ 只在组件**装好且可用**之后出现（默认隐藏）。
  *  用 ready 而不是 installed：工具链解压到一半、或缺导入库/门面头文件时，
@@ -251,29 +253,34 @@ async function run() {
   running.value = true;
   status.value = "运行中…";
   stopPolling();
-  pollTimer = setInterval(() => {
-    const s = consolePoll(runId);
-    if (!s) return;
-    out.value = s.stdout || "";
-    err.value = s.stderr || "";
-    elapsedMs.value = s.elapsedMs || 0;
-    truncated.value = !!s.truncated;
-    stage.value = s.stage || "";
-    // C++ 的编译耗时单独显示：总耗时里混着编译会让人以为程序跑得慢
-    if (typeof s.compileMs === "number") compileMs.value = s.compileMs;
-    if (!s.running) {
-      stopPolling();
-      running.value = false;
-      exitCode.value = s.exitCode;
-      status.value = s.timedOut
-        ? "超时已终止"
-        : (s.exitCode === 0 ? "运行结束" : (stage.value === "compiling" || compileMs.value !== null ? "编译失败" : "运行结束（有错误）"));
-    } else if (s.stage === "compiling") {
-      status.value = "正在编译…";
-    } else if (s.stage === "running") {
-      status.value = "运行中…";
-    }
-  }, 200);
+  // 推送负责"及时"：宿主在阶段变化（编译/运行）与结束时会主动推 console.run，
+  // 收到就立刻拉一次权威状态。轮询退成 500ms 兜底 —— 推送丢一条也不会卡住界面。
+  pollTimer = setInterval(tick, isPushHosted() ? 500 : 200);
+}
+
+/** 拉一次权威状态（Poll）。推送只是"叫你去看"，数据永远来自这里。 */
+function tick() {
+  const s = consolePoll(runId);
+  if (!s) return;
+  out.value = s.stdout || "";
+  err.value = s.stderr || "";
+  elapsedMs.value = s.elapsedMs || 0;
+  truncated.value = !!s.truncated;
+  stage.value = s.stage || "";
+  // C++ 的编译耗时单独显示：总耗时里混着编译会让人以为程序跑得慢
+  if (typeof s.compileMs === "number") compileMs.value = s.compileMs;
+  if (!s.running) {
+    stopPolling();
+    running.value = false;
+    exitCode.value = s.exitCode;
+    status.value = s.timedOut
+      ? "超时已终止"
+      : (s.exitCode === 0 ? "运行结束" : (stage.value === "compiling" || compileMs.value !== null ? "编译失败" : "运行结束（有错误）"));
+  } else if (s.stage === "compiling") {
+    status.value = "正在编译…";
+  } else if (s.stage === "running") {
+    status.value = "运行中…";
+  }
 }
 
 function clearOutput() {
@@ -302,6 +309,15 @@ function stop() {
 onMounted(async () => {
   await refreshComponents();
   loadSample(0);
+  // 推送：宿主在编译/运行阶段切换与结束时主动通知，收到就立刻 tick 一次
+  initPush();
+  offPush = onPush("console.run", (env) => {
+    const p = env?.payload;
+    if (!p || p.runId !== runId) return;      // 只关心本次运行
+    if (p.stage === "compiling") status.value = "正在编译…";
+    else if (p.stage === "running") status.value = "运行中…";
+    tick();
+  });
   // 函数表只在进页面时取一次（引擎函数是固定的）
   if (hosted) {
     const r = engineCall("list_functions", {});
@@ -310,7 +326,10 @@ onMounted(async () => {
     fnNames.value = list.map((s) => String(s));
   }
 });
-onBeforeUnmount(stopPolling);
+onBeforeUnmount(() => {
+  stopPolling();
+  if (offPush) offPush();
+});
 </script>
 
 <template>

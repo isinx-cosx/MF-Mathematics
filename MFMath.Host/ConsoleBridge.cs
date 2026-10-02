@@ -69,6 +69,7 @@ public class ConsoleBridge
     private sealed class Run
     {
         public Process? Proc;
+        public string Id = "";      // 运行 id（推送 console.run 时要用，Poll 的 key 也是它）
         public readonly StringBuilder Out = new();
         public readonly StringBuilder Err = new();
         // queued → running → done：Poll 必须能区分"还没起来"和"已结束"，
@@ -321,11 +322,82 @@ public class ConsoleBridge
             {
                 _jobCancels.TryRemove(id, out _);
                 cts.Dispose();
+                // 失败/取消时清掉解压用的暂存目录：留着它既占空间，也会让
+                // "校验失败时没有留下半装状态" 这条不变量失效（自动化测试正是这么抓到的）。
+                CleanStaging(kind);
             }
         })
         { IsBackground = true, Name = "console-install-" + kind };
         th.Start();
+
+        // 进度推送（推送通道）：安装过程有 25 处 job.Message / job.Percent 赋值，
+        // 逐个加推送既啰嗦又容易漏；这里用一个**观察线程**每 200ms 采样一次，
+        // 只在"百分比或文案或状态变了"时推一条，结束时推最后一条再退出。
+        // 界面因此不必再 400ms 轮询（轮询作为无推送时的兜底保留）。
+        var watch = new Thread(() =>
+        {
+            PushJob(kind, id, job);
+            int lastPct = int.MinValue;
+            string lastMsg = "";
+            string lastState = "";
+            while (true)
+            {
+                Thread.Sleep(200);
+                if (job.Percent != lastPct || job.Message != lastMsg || job.State != lastState)
+                {
+                    lastPct = job.Percent;
+                    lastMsg = job.Message;
+                    lastState = job.State;
+                    PushJob(kind, id, job);
+                }
+                if (job.State == "done" || job.State == "error") break;
+            }
+        })
+        { IsBackground = true, Name = "push-job-" + kind };
+        watch.Start();
+
         return id;
+    }
+
+    /// <summary>
+    /// 删掉安装过程的暂存目录（`<组件目录>.staging`）。
+    /// 只在失败/取消时有意义：成功路径是 `Directory.Move(staging → 正式目录)`，暂存目录已经不存在。
+    /// 下载缓存里的 `.part` **不动** —— 那是断点续传的凭据，与暂存目录是两回事。
+    /// </summary>
+    private static void CleanStaging(string kind)
+    {
+        try
+        {
+            string? staging = kind == "python" ? PythonDir + ".staging"
+                            : kind == "cpp" ? CppDir + ".staging"
+                            : null;
+            if (staging != null && Directory.Exists(staging)) Directory.Delete(staging, true);
+        }
+        catch { /* 清理失败不应掩盖真正的错误 */ }
+    }
+
+    /// <summary>把一次安装作业的状态推给界面（topic = component.install）</summary>
+    private static void PushJob(string kind, string jobId, Job job)    {
+        string payload = "{\"kind\":" + PushHub.Str(kind) +
+                         ",\"jobId\":" + PushHub.Str(jobId) +
+                         ",\"state\":" + PushHub.Str(job.State) +
+                         ",\"percent\":" + job.Percent +
+                         ",\"message\":" + PushHub.Str(job.Message) + "}";
+        PushHub.Send("component.install", payload);
+    }
+
+    /// <summary>把一次控制台运行的状态推给界面（topic = console.run）</summary>
+    private static void PushRun(string id, Run run, string evt)
+    {
+        string payload = "{\"runId\":" + PushHub.Str(id) +
+                         ",\"language\":" + PushHub.Str(run.Language) +
+                         ",\"event\":" + PushHub.Str(evt) +
+                         ",\"stage\":" + PushHub.Str(run.Stage) +
+                         ",\"state\":" + PushHub.Str(run.State) +
+                         ",\"exitCode\":" + (run.ExitCode == int.MinValue ? "null" : run.ExitCode.ToString()) +
+                         ",\"elapsedMs\":" + (run.StartedMs > 0 ? Environment.TickCount64 - run.StartedMs : 0) +
+                         ",\"timedOut\":" + (run.TimedOut ? "true" : "false") + "}";
+        PushHub.Send("console.run", payload);
     }
 
     /// <summary>
@@ -537,7 +609,7 @@ public class ConsoleBridge
     public string Start(string language, string code, string stdin)
     {
         string id = "run" + Interlocked.Increment(ref _seq);
-        var run = new Run { Language = language ?? "python", StartedMs = Environment.TickCount64 };
+        var run = new Run { Id = id, Language = language ?? "python", StartedMs = Environment.TickCount64 };
         _runs[id] = run;
 
         var th = new Thread(() => RunThread(id, run, code ?? "", stdin ?? ""))
@@ -569,6 +641,7 @@ public class ConsoleBridge
         {
             run.State = "done";
             run.Stage = "done";
+            PushRun(id, run, "done");   // 结束即推：界面不用再靠自己轮询才知道跑完了
         }
     }
 
@@ -616,6 +689,7 @@ public class ConsoleBridge
             ["PYTHONPATH"] = PythonDir + Path.PathSeparator + AppDir,
         };
         run.Stage = "running";
+        PushRun(run.Id, run, "stage");
         run.ExitCode = Exec(run, py, "-X utf8 \"" + runner + "\"", work, stdin, env, DefaultTimeoutSec);
     }
 
@@ -660,6 +734,7 @@ public class ConsoleBridge
             "main.cpp -L\"" + libDir + "\" -lmf_mathematics -o main.exe";
 
         run.Stage = "compiling";
+        PushRun(run.Id, run, "stage");   // C++ 多一个「编译」阶段：界面靠这条立刻把"编译中…"显示出来
         long t0 = Environment.TickCount64;
         int cc = Exec(run, gpp, args, work, "", null, CompileTimeoutSec);
         run.CompileMs = Environment.TickCount64 - t0;
@@ -681,6 +756,7 @@ public class ConsoleBridge
         }
 
         run.Stage = "running";
+        PushRun(run.Id, run, "stage");
         // 引擎 DLL 和它的依赖都在应用目录，放进 PATH 让 main.exe 找得到
         string path = Environment.GetEnvironmentVariable("PATH") ?? "";
         var env = new Dictionary<string, string> { ["PATH"] = AppDir + ";" + path };

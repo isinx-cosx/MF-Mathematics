@@ -15,6 +15,8 @@ import { ref, computed, onMounted, onBeforeUnmount, nextTick } from "vue";
 import { prepareExpr } from "../../lib/plot/prepare.js";
 import { engineCall, isHosted } from "../../lib/bridge.js";
 import { fmtNum } from "../../lib/engine/resultFormat.js";
+import { takePending } from "../../lib/workspace/pendingInput.js";
+import { record, clearRoute, listByRoute } from "../../lib/history/store.js";
 
 /* ── 键盘布局（沿用旧版 30 键、5 列，值用课本写法）── */
 const KEYS = [
@@ -44,7 +46,16 @@ const evaluated = ref(false);  // 求值后表达式行追加 " ="（原版 :235
 let operandFresh = true;
 const result = ref("0");      // 结果（数字，或错误信息）
 const error = ref("");        // 引擎报错
-const history = ref([]);      // 最近计算
+/**
+ * 最近计算：**改读全局历史**（lib/history/store.js），不再是自己一份内存列表。
+ *
+ * 为什么换：原来这里是 `ref([])` 只留 8 条，刷新即失、也不进顶栏的历史面板 ——
+ * 用户在同一台机器上"刚才算过的"却有两条互不相干的历史，说不通。
+ * 现在这一页只是"全局历史按路由过滤出来的最近 8 条"，清空也只清本页那部分。
+ */
+const pageHistory = computed(() =>
+  listByRoute("/calc/basic", 8).map((e) => ({ id: e.id, display: e.expr, expr: e.expr, value: e.summary }))
+);
 
 const hosted = isHosted();
 const preview = computed(() => (display.value.trim() ? prepareExpr(display.value) : null));
@@ -124,11 +135,25 @@ function evaluate() {
   if (!raw) return;
   if (raw !== display.value.trim()) display.value = raw;   // 补上的括号也要看得见
   const p = prepareExpr(raw);
-  if (!p.ok) { error.value = p.error || "表达式无法解析"; result.value = "—"; current.value = "0"; return; }
+  if (!p.ok) {
+    error.value = p.error || "表达式无法解析";
+    result.value = "—"; current.value = "0";
+    record({ route: "/calc/basic", mode: "基础运算", expr: raw, summary: error.value, ok: false });
+    return;
+  }
   const expr = p.normalized;
   const r = engineCall("expr_eval", { expr, x: 0 });
-  if (r === null) { error.value = "未连接引擎（请在 MFMath.exe 中运行）"; result.value = "—"; current.value = "0"; return; }
-  if (r.isError) { error.value = String(r.value); result.value = "—"; current.value = "0"; return; }
+  if (r === null) {
+    error.value = "未连接引擎（请在 MFMath.exe 中运行）";
+    result.value = "—"; current.value = "0";
+    return;
+  }
+  if (r.isError) {
+    error.value = String(r.value);
+    result.value = "—"; current.value = "0";
+    record({ route: "/calc/basic", mode: "基础运算", expr, summary: error.value, ok: false });
+    return;
+  }
   const v = r.value;
   const text = typeof v === "number" ? fmtNum(v) : String(v);
   result.value = text;
@@ -136,7 +161,7 @@ function evaluate() {
   operandFresh = true;
   evaluated.value = true;        // 表达式行追加 " ="
   error.value = "";
-  history.value = [{ display: raw, expr, value: text }, ...history.value].slice(0, 8);
+  record({ route: "/calc/basic", mode: "基础运算", expr, summary: text, ok: true });
 }
 
 /** 键盘输入 */
@@ -153,12 +178,18 @@ function onKeydown(e) {
   if (k === "Delete" || k === "Escape") { press("C"); e.preventDefault(); return; }
 }
 
-onMounted(() => window.addEventListener("keydown", onKeydown));
+onMounted(() => {
+  window.addEventListener("keydown", onKeydown);
+  // 历史面板里点一条基础运算记录 → 回到这页并填入表达式（与示例库同一条通路）
+  const p = takePending();
+  if (p?.expr) { display.value = String(p.expr); result.value = "0"; current.value = "0"; evaluated.value = false; error.value = ""; }
+});
 onBeforeUnmount(() => window.removeEventListener("keydown", onKeydown));
 
 function reuse(h) { display.value = h.display; result.value = h.value; current.value = h.value; evaluated.value = false; error.value = ""; }
 const lcdRef = ref(null);
-async function clearHistory() { history.value = []; await nextTick(); lcdRef.value?.focus?.(); }
+/** 清空：只清本页那些记录（全局历史面板里其它页的记录不动） */
+async function clearHistory() { clearRoute("/calc/basic"); await nextTick(); lcdRef.value?.focus?.(); }
 </script>
 
 <template>
@@ -201,14 +232,14 @@ async function clearHistory() { history.value = []; await nextTick(); lcdRef.val
           >{{ k.t }}</button>
         </div>
 
-        <div v-if="history.length" class="calc-history">
+        <div v-if="pageHistory.length" class="calc-history">
           <div class="calc-history-head">
             <span>最近计算</span>
             <button class="link-btn" @click="clearHistory">清空</button>
           </div>
           <button
-            v-for="(h, i) in history"
-            :key="i"
+            v-for="h in pageHistory"
+            :key="h.id"
             class="calc-history-row"
             :title="`点击重新输入：${h.expr}`"
             @click="reuse(h)"

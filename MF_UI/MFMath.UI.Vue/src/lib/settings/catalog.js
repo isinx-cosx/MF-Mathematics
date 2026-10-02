@@ -42,6 +42,7 @@ export const ITEMS = [
   { id: "engine.path", group: "engine", label: "引擎目录", keywords: "路径 目录 path dir 打开 open", status: "ready" },
   { id: "engine.deps", group: "engine", label: "依赖 DLL 状态", keywords: "依赖 dll flint symengine gmp mpfr pthread 完整性", status: "ready" },
   { id: "engine.functions", group: "engine", label: "已注册函数数量", keywords: "函数 数量 action 424 list_functions", status: "ready" },
+  { id: "engine.push", group: "engine", label: "推送通道（宿主 → 界面）", keywords: "推送 push 通道 实时 通知 流式 postmessage", status: "ready" },
   { id: "engine.selftest", group: "engine", label: "引擎自检", keywords: "自检 冒烟 测试 selftest smoke 检查", status: "ready" },
 
   // ── 组件（现在就能做：复用 ConsoleBridge 已有的下载能力）──
@@ -86,7 +87,7 @@ export const ITEMS = [
   { id: "storage.tutorial", group: "storage", label: "教程进度", keywords: "教程 进度 重置 tutorial progress", status: "ready" },
   { id: "storage.settings", group: "storage", label: "设置文件", keywords: "设置 文件 列表 大小 settings json", status: "ready" },
   { id: "storage.diagnostics", group: "storage", label: "导出诊断包", keywords: "诊断 导出 日志 diagnostics support", status: "ready" },
-  { id: "storage.history", group: "storage", label: "历史记录", keywords: "历史 记录 清空 导出 history", status: "pending" },
+  { id: "storage.history", group: "storage", label: "历史记录", keywords: "历史 记录 清空 条数 history", status: "ready" },
   { id: "storage.workspace", group: "storage", label: "工作区", keywords: "工作区 workspace 清空", status: "pending" },
   { id: "storage.io", group: "storage", label: "导入 / 导出设置", keywords: "导入 导出 备份 迁移 import export", status: "pending" },
 ];

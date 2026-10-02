@@ -28,8 +28,8 @@ export const PENDING = {
   "calc_block.ai_accel_button": "AI 加速按钮尚未实现（方案 P3）",
   "main_window.ai_settings": "AI 设置入口尚未实现（方案 P3）",
   "step_viewer.content": "分步显示尚未实现（本轮明确不做的步骤系统）",
-  "search_panel.input": "在线搜索面板尚未实现（方案 P1）",
-  "search_panel.results": "在线搜索面板尚未实现（方案 P1）",
+  "search_panel.input": "在线搜索面板尚未实现（顶栏「搜索」现在打开的是说明面板，见 docs/MIGRATION-GAPS.md §2.3）",
+  "search_panel.results": "在线搜索面板尚未实现（同上）",
 };
 
 /**
@@ -55,8 +55,8 @@ export const TARGET_HINTS = {
   "ai_dialog.context_label": { note: "AI 助手尚未实现（方案 P3）" },
   "calc_block.ai_accel_button": { note: "AI 加速尚未实现（方案 P3）" },
   "main_window.ai_settings": { note: "AI 设置尚未实现（方案 P3）" },
-  "search_panel.input": { note: "在线搜索面板尚未实现（方案 P1）" },
-  "search_panel.results": { note: "在线搜索面板尚未实现（方案 P1）" },
+  "search_panel.input": { note: "在线搜索面板尚未实现；顶栏「搜索」现在打开的是说明面板（讲清将来是什么）" },
+  "search_panel.results": { note: "在线搜索面板尚未实现；顶栏「搜索」现在打开的是说明面板" },
   "toolbar.ai_button": { note: "AI 助手尚未实现（方案 P3）" },
 };
 
@@ -74,6 +74,7 @@ export const REGISTERED = [
   "toolbar.calc_button",
   "toolbar.plot_button",
   "toolbar.search_button",
+  "toolbar.history_button",
   "toolbar.settings_button",
   "settings_dialog.appearance_tab",
   "settings_dialog.ai_tab",

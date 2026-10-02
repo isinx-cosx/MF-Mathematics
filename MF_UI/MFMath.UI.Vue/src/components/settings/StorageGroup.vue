@@ -12,15 +12,28 @@
 import { computed, onMounted, ref } from "vue";
 import { info, storeList, openPath, exportDiagnostics, isSettingsHosted } from "../../lib/settings/bridge.js";
 import { progress, resetAllProgress, storageError } from "../../lib/tutorial/store.js";
+import { useHistory } from "../../lib/history/store.js";
 
 const hostInfo = ref(info());
 const files = ref([]);
 const msg = ref("");
 const confirmingReset = ref(false);
+const confirmingHistory = ref(false);
 const diagPath = ref("");
+
+/* 历史记录：条数与清空放这儿，用户不必跑到顶栏去清 */
+const { entries: historyEntries, clearAll: clearHistoryAll, reload: reloadHistory } = useHistory();
+
+function doClearHistory() {
+  clearHistoryAll();
+  confirmingHistory.value = false;
+  refreshFiles();
+  msg.value = "历史记录已清空";
+}
 
 onMounted(() => {
   files.value = storeList();
+  reloadHistory();
 });
 
 const bytes = computed(() => files.value.reduce((n, f) => n + (f.bytes || 0), 0));
@@ -121,8 +134,23 @@ function refreshFiles() {
     </div>
 
     <div class="s-row" data-setting="storage.history">
-      <div class="s-label"><label>历史记录</label><p class="s-hint">条数 / 清空 / 导出</p></div>
-      <div class="s-ctl"><span class="pending-tag">待实现 · 依赖 P1（历史与设置存储桥）</span></div>
+      <div class="s-label">
+        <label>历史记录</label>
+        <p class="s-hint">
+          当前 {{ historyEntries.length }} 条（最多保留 200 条），存在数据目录的
+          <code>settings\history.json</code>，顶层「历史」按钮里可以逐条回看与回填
+        </p>
+      </div>
+      <div class="s-ctl">
+        <template v-if="!confirmingHistory">
+          <button class="s-btn danger" :disabled="!historyEntries.length" @click="confirmingHistory = true">清空</button>
+        </template>
+        <template v-else>
+          <span class="s-hint">确定清空 {{ historyEntries.length }} 条？</span>
+          <button class="s-btn danger" @click="doClearHistory">确定</button>
+          <button class="s-btn" @click="confirmingHistory = false">取消</button>
+        </template>
+      </div>
     </div>
     <div class="s-row" data-setting="storage.workspace">
       <div class="s-label"><label>工作区</label><p class="s-hint">保存 / 恢复 / 清空</p></div>

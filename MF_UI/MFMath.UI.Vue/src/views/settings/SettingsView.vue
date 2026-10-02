@@ -14,7 +14,8 @@
  * 顶部搜索做的是**跳到具体某一项**（不是筛掉其它分组）：命中后切到该分组、
  * 滚到该行并短暂高亮。设置项一多，"按名字找"比"按分组翻"快得多。
  */
-import { computed, nextTick, ref } from "vue";
+import { computed, nextTick, onMounted, ref, watch } from "vue";
+import { useRoute } from "vue-router";
 import { GROUPS, itemsOf, searchItems, groupById } from "../../lib/settings/catalog.js";
 import AppearanceGroup from "../../components/settings/AppearanceGroup.vue";
 import EngineGroup from "../../components/settings/EngineGroup.vue";
@@ -26,6 +27,21 @@ const active = ref("appearance");
 const query = ref("");
 const highlightId = ref("");
 const contentEl = ref(null);
+
+const route = useRoute();
+// 支持 /settings?group=search 这种深链：搜索占位面板的「看设置里的搜索项」要用它，
+// 否则用户点进来落在"外观"，还得自己找一遍。
+//
+// 必须**同时**监听 query 变化，而不是只在 onMounted 里读一次：
+// 用户已经停在设置页时再点一次深链（或从别的分组跳过来）不会重新挂载组件，
+// 只读 onMounted 就会出现"点了没反应"。自动化测试正是这么抓到的。
+function applyGroupFromQuery(g) {
+  const id = String(g || "");
+  if (id && groupById(id)) active.value = id;
+}
+applyGroupFromQuery(route.query.group);
+onMounted(() => applyGroupFromQuery(route.query.group));
+watch(() => route.query.group, applyGroupFromQuery);
 
 const group = computed(() => groupById(active.value));
 const pendingGroups = new Set(GROUPS.filter((g) => g.status === "pending").map((g) => g.id));

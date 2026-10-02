@@ -6,7 +6,8 @@
 //   · 引擎报错要走 stderr + 非零退出码，而不是被吞掉
 //   · 语言下拉里 C++ 只在组件安装后出现（默认隐藏）
 // 用法: node cdp-console.mjs   （宿主需带 --remote-debugging-port=9222 启动）
-import { existsSync, writeFileSync, rmSync } from "node:fs";
+import { existsSync, writeFileSync, rmSync, readFileSync } from "node:fs";
+import { createHash } from "node:crypto";
 import { join } from "node:path";
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -466,6 +467,13 @@ const waitJob = async (jobId, timeoutMs = 120000) => {
 if (!existsSync(pyZip)) {
   check("Python 组件包在位（校验用例需要它）", false, pyZip);
 } else {
+  // 期望摘要取"这个包**真实**的摘要"，而不是"删掉旁文件让它落到代码里写死的摘要"：
+  // 本机自建的组件包（带 sympy/numpy/scipy，见 MFMath.Host/tools/build-python-component.ps1）
+  // 与内置摘要本来就不同，删旁文件等于**故意**造一次校验失败，测不出"摘要对时能装成功"。
+  const realHash = createHash("sha256").update(readFileSync(pyZip)).digest("hex").toUpperCase();
+  const hadSidecar = existsSync(pySide);
+  const origSidecar = hadSidecar ? readFileSync(pySide, "utf8") : null;
+
   writeFileSync(pySide, "0".repeat(64) + "\n", "utf8");
   sidecarWritten = true;
   const badJob = await hostInstall("python");
@@ -478,13 +486,31 @@ if (!existsSync(pyZip)) {
   // 报错必须点名是哪个文件，否则用户不知道该重下什么
   check("报错里带上出问题的文件名", /python-3\.13\.15-embed-amd64\.zip/.test(badRes?.message || ""), "");
 
-  // 删掉旁文件 → 回到内置摘要 → 同一个包必须能装成功
-  rmSync(pySide, { force: true });
-  sidecarWritten = false;
+  // 写回真实摘要 → 同一个包必须能装成功（证明不是恒报错）
+  writeFileSync(pySide, realHash + "\n", "utf8");
   const goodJob = await hostInstall("python");
   const goodRes = await waitJob(goodJob);
   console.log("   正确摘要结果:", JSON.stringify(goodRes).slice(0, 160));
   check("摘要正确时同一个包装得成功（证明不是恒报错）", goodRes?.state === "done", goodRes?.state);
+
+  // 还原：把旁文件写成"与当前缓存包一致"的状态。
+  //
+  // 为什么不是"本来没有就删掉"：本机缓存里的包可能是**自建包**（带 sympy/numpy/scipy，
+  // 见 MFMath.Host/tools/build-python-component.ps1），它与代码里写死的官方摘要**不同**。
+  // 把旁文件删掉，等于让宿主退回到内置摘要 → 之后每次安装都会"校验失败"，
+  // 而这正是本测试后面那两条续传用例失败的原因（实测踩过）。
+  // 所以这里保留/写入真实摘要：对官方包它等于内置摘要（无害），对自建包它是**必需**的。
+  const officialZip = pyZip + ".official";
+  const isOfficial = existsSync(officialZip)
+    ? createHash("sha256").update(readFileSync(officialZip)).digest("hex").toUpperCase() === realHash
+    : false;
+  if (hadSidecar || !isOfficial) {
+    writeFileSync(pySide, realHash + "\n", "utf8");
+    if (!hadSidecar) console.log("   注：缓存里是自建组件包，已保留 .sha256 旁文件（否则安装会因摘要不符失败）");
+  } else {
+    rmSync(pySide, { force: true });
+  }
+  sidecarWritten = false;
 }
 
 /* ══════════ 组件下载：断点续传必须真的续，而不是从头下 ══════════

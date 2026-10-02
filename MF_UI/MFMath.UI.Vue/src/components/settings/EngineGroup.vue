@@ -12,6 +12,7 @@
 import { onMounted, ref } from "vue";
 import { bridgeReady, bridgeVersion, isHosted, engineCall, functionExists } from "../../lib/bridge.js";
 import { info, engineReport, openPath, isSettingsHosted } from "../../lib/settings/bridge.js";
+import { initPush, isPushHosted, pushState, pushInfo, emit as pushEmit } from "../../lib/push.js";
 
 const hostInfo = ref(info());
 const report = ref(engineReport());
@@ -21,12 +22,31 @@ const testing = ref(false);
 const results = ref([]);
 const openMsg = ref("");
 
+/* ── 推送通道自检（宿主 → 页面）──
+ * 这条通道是"宿主主动说话"的唯一路径（AI 流式输出、安装进度都靠它），
+ * 而它出问题时的现象是"界面一直不更新"，最难判断是宿主没发还是页面没收到。
+ * 所以这里两边计数都摆出来，并且提供一个"发一条测试消息"的按钮：
+ * 点一下，宿主 Sent+1、页面上方 received+1，链路立刻可见。 */
+const pushMsg = ref("");
+const pushHost = ref(null);
+
+function refreshPush() {
+  pushHost.value = pushInfo().host;
+  if (isPushHosted()) initPush();
+}
+function sendTestPush() {
+  const r = pushEmit("settings.test", { from: "EngineGroup", at: Date.now() });
+  pushMsg.value = r?.ok ? "已发出，页面收到后上面的计数会加 1" : ("发送失败：" + (r?.error || "未知原因"));
+  refreshPush();
+}
+
 function totalBytes(files) {
   return files.reduce((n, f) => n + (f.bytes || 0), 0);
 }
 const depsOk = () => (report.value.files || []).every((f) => f.present);
 
 onMounted(() => {
+  refreshPush();
   if (!isHosted()) return;
   // 已注册函数数量：走引擎的 list_functions（这也是"引擎真的被调到了"的证据）
   const r = engineCall("list_functions", {});
@@ -152,6 +172,29 @@ function openDataDir() {
       <div class="s-ctl">
         <b v-if="fnCount !== null" class="mono">{{ fnCount }}</b>
         <span v-else class="s-hint">{{ fnError || "读取中…" }}</span>
+      </div>
+    </div>
+
+    <div class="s-row" data-setting="engine.push">
+      <div class="s-label">
+        <label>推送通道（宿主 → 界面）</label>
+        <p class="s-hint">
+          宿主主动通知界面用的通道（组件安装进度、控制台运行结束；将来的 AI 流式输出与更新进度也走它）。
+          两边计数一比即可判断卡在哪一段
+        </p>
+      </div>
+      <div class="s-ctl wrap">
+        <span class="tag" :class="{ ok: isPushHosted() }">{{ isPushHosted() ? "已连接" : "无宿主" }}</span>
+        <span class="s-hint">
+          宿主发出 {{ pushHost?.sent ?? "—" }} 条（失败 {{ pushHost?.failed ?? 0 }}） ·
+          本页收到 {{ pushState.received }} 条<template v-if="pushState.gaps"> · 丢消息 {{ pushState.gaps }} 次</template>
+        </span>
+        <button class="s-btn" :disabled="!isPushHosted()" @click="sendTestPush">发一条测试消息</button>
+        <button class="s-btn" @click="refreshPush">刷新</button>
+        <p v-if="pushMsg" class="s-hint">{{ pushMsg }}</p>
+        <p v-if="!pushState.available" class="s-hint">
+          尚未收到任何推送（刚打开应用时正常：安装组件或跑一次控制台就会看到计数变化）
+        </p>
       </div>
     </div>
 

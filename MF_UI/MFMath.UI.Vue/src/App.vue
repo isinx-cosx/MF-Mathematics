@@ -9,8 +9,11 @@ import { NAV_GROUPS, findNav } from "./router/registry.js";
 import TourOverlay from "./components/tutorial/TourOverlay.vue";
 import WelcomeDialog from "./components/tutorial/WelcomeDialog.vue";
 import MathKeypad from "./components/math/MathKeypad.vue";
+import HistoryDialog from "./components/history/HistoryDialog.vue";
+import SearchPlaceholder from "./components/tools/SearchPlaceholder.vue";
 import { initTutorials, isFirstLaunch, markLaunched } from "./lib/tutorial/store.js";
 import { start as startTour } from "./lib/tutorial/tour.js";
+import { initPush } from "./lib/push.js";
 import {
   THEME_LIST, SHAPE_LIST, DENSITY_LIST, FONT_LIST,
   themeLabel, currentAppearance, applyAppearance, watchSystemTheme,
@@ -149,6 +152,9 @@ const hosted = ref(false);
 
 onMounted(() => {
   hosted.value = isHosted();
+  // 推送通道（宿主 → 页面）：挂一次监听，之后组件面板/控制台/将来的 AI 流式输出
+  // 都能被动收到宿主主动发的消息，不必再靠轮询。无宿主时是 no-op。
+  initPush();
 
   // 窗口外壳：桌面壳里才有窗口控制；并把窗口底色同步成当前主题色
   canControlWindow.value = windowControlsAvailable();
@@ -184,6 +190,17 @@ function about() { alert("MF-Mathematics\nMF-Vis-Science · Open Studio"); }
 /* 设置自本轮起是真实页面（之前是 alert("设置（待实现）")）。
    侧栏底部的「外观」快捷入口保留：一个改外观，一个进完整设置，两者不冲突。 */
 function settings() { router.replace("/settings"); }
+
+/* ── 顶栏「历史」与「搜索」──
+ * 这两个按钮此前**都点了没反应**（没有 @click）：历史功能只在基础运算页里有个
+ * 8 条的内存列表，在线搜索则完全没有。现在：
+ *   · 历史 → 打开真实的历史面板（lib/history/store.js，跨会话落 %LOCALAPPDATA%）；
+ *   · 搜索 → 打开占位说明面板，讲清它将来是什么、依赖什么（比一个死按钮诚实，
+ *            也比摆一个搜不出东西的假搜索框好）。 */
+const showHistory = ref(false);
+const showSearch = ref(false);
+function openHistory() { showHistory.value = true; }
+function openSearch() { showSearch.value = true; }
 </script>
 
 <template>
@@ -300,8 +317,8 @@ function settings() { router.replace("/settings"); }
           <span id="modeDesc">{{ modeDesc }}</span>
         </div>
         <div class="topbar-actions">
-          <button class="btn btn-ghost" data-tour="toolbar.search_button">搜索</button>
-          <button class="btn btn-ghost">历史</button>
+          <button class="btn btn-ghost" data-tour="toolbar.search_button" @click="openSearch">搜索</button>
+          <button class="btn btn-ghost" data-tour="toolbar.history_button" @click="openHistory">历史</button>
           <button class="btn btn-ghost" data-tour="main_window.keyboard_button"
                   :title="keypadVisible ? '收起数学键盘' : '打开数学键盘'"
                   @click="toggleKeypad">{{ keypadVisible ? "▼ 收起" : "⌨ 键盘" }}</button>
@@ -337,6 +354,10 @@ function settings() { router.replace("/settings"); }
     <!-- 首次启动欢迎窗 + 引导遮罩 -->
     <WelcomeDialog v-if="showWelcome" @close="showWelcome = false" @start-tour="onStartTour" />
     <TourOverlay />
+
+    <!-- 顶栏「历史」/「搜索」弹窗 -->
+    <HistoryDialog v-if="showHistory" @close="showHistory = false" />
+    <SearchPlaceholder v-if="showSearch" @close="showSearch = false" />
   </div>
 </template>
 

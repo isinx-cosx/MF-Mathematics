@@ -324,18 +324,23 @@ const searchHits = await evalJs(`document.querySelectorAll('.kp-grid .kp-key').l
 check("符号搜索可用（搜「积分」有结果）", searchHits > 0, `命中 ${searchHits} 个`);
 
 // 无聚焦输入框时必须明确提示（v1 是静默忽略：只有焦点在 QLineEdit 时才插入）
-// 注意不能假定"切到别的页面就没有焦点"——绘图页的第一行输入框可能处于聚焦态，
-// 那时提示本就不该出现。所以这里显式把焦点交出去。
+//
+// 这里刻意先切到一个**没有数学输入框的页面**（首页）再断言，而不是"在计算页上 blur 一下"：
+// MathField 失焦时并不会注销"最后聚焦的输入框"句柄，所以在计算页上判断这件事本身就不稳定
+// ——整套跑时偶发假失败（上一个用例刚在这页操作过输入框），单独跑却是好的。
+// 离开计算页会让 MathField 卸载并注销句柄，此时"没有可插入目标"是确定性的。
+await evalJs(`location.hash = "/"; true`);
+await sleep(600);
 await evalJs(`(() => {
   const s = document.querySelector('.kp-search');
   if (s) { s.value = ''; s.dispatchEvent(new Event('input', { bubbles: true })); }
   if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
   return true;
 })()`);
-await sleep(400);
+const hintShown = await waitTrue(`((document.querySelector('.kp-hint')||{}).textContent||'').includes('未选中输入框')`, 5000, 150);
 const hintText = await evalJs(`(document.querySelector('.kp-hint')||{}).textContent || ''`);
 check("无聚焦输入框时给出明确提示（v1 静默忽略）",
-  String(hintText).includes("未选中输入框"), String(hintText).trim().slice(0, 40));
+  hintShown === true || String(hintText).includes("未选中输入框"), String(hintText).trim().slice(0, 40));
 
 // 还原环境
 await evalJs(`(() => {

@@ -6,8 +6,10 @@
  * 断点续传 + SHA-256 校验 + 解压 + 进度回调都已经在那边实现好了，这里只是把
  * 状态与按钮搬进设置面板（v1 里这些只在控制台内部可见，用户在设置里找不到）。
  *
- * 进度获取：宿主目前只有"开始 + 轮询"（`Install` 返回 jobId，再 `InstallStatus` 轮询）。
- * 方案里的推送通道做完后，这里可以改成推式，届时只是替换获取方式，界面不变。
+ * 进度获取：**优先用推送通道**（宿主 topic=component.install，见 lib/push.js），
+ * 没有推送才退回 400ms 轮询。推送只负责"及时"，权威数据仍以 `InstallStatus()` 为准——
+ * 这条分工很重要：推送可能因为页面正在导航等原因丢一条，而安装是几十 MB 的事，
+ * 不能用"没收到消息"判断"没在装"。
  */
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import {
@@ -15,17 +17,22 @@ import {
   uninstallComponent, isConsoleHosted,
 } from "../../lib/console/bridge.js";
 import { openPath } from "../../lib/settings/bridge.js";
+import { initPush, onPush, pushState, isPushHosted } from "../../lib/push.js";
 
 const state = ref(null);
 const job = ref(null);        // { id, name, pct, message, state }
 const baseInput = ref("");
 const msg = ref("");
 let timer = 0;
+let offPush = null;
 
 const KINDS = [
   { id: "python", label: "CPython 组件", desc: "控制台里跑 Python 代码的运行时（引擎调用经 mfmath.py → 同一个 C++ DLL）" },
   { id: "cpp", label: "MinGW 组件", desc: "控制台里编译运行 C++ 的编译器（g++）" },
 ];
+
+/** 推送是否真的在用（宿主有 push 桥 + 已收到过消息；没收到过就仍按轮询走） */
+const pushLive = computed(() => isPushHosted() && pushState.value.available);
 
 function refresh() {
   const c = components();
@@ -61,9 +68,34 @@ function poll() {
 
 onMounted(() => {
   refresh();
-  timer = setInterval(poll, 400);
+  // 推送优先：收到 component.install 就更新进度；权威状态仍回查一次 InstallStatus，
+  // 推送丢一条不会把界面卡在错误进度上。
+  initPush();
+  offPush = onPush("component.install", (env) => {
+    const p = env?.payload;
+    if (!p || typeof p !== "object") return;
+    if (!job.value || job.value.id !== p.jobId) return;   // 别的作业（例如另一个组件）不管
+    const st = installStatus(job.value.id);
+    job.value = {
+      ...job.value,
+      pct: st ? pctOf(st) : (typeof p.percent === "number" ? p.percent : job.value.pct),
+      message: (st && st.message) || p.message || "",
+      state: (st && st.state) || p.state || "",
+    };
+    if (["done", "error"].includes(job.value.state)) {
+      const finished = job.value;
+      job.value = null;
+      refresh();
+      msg.value = finished.state === "done" ? `「${finished.name}」安装完成` : `「${finished.name}」安装失败：${finished.message}`;
+    }
+  });
+  // 兜底轮询：无 push 桥时按 400ms 轮；有 push 时放宽到 2s（只防"推送丢了一条"）
+  timer = setInterval(poll, isPushHosted() ? 2000 : 400);
 });
-onBeforeUnmount(() => clearInterval(timer));
+onBeforeUnmount(() => {
+  clearInterval(timer);
+  if (offPush) offPush();
+});
 
 function install(kind) {
   const id = installComponent(kind.id);
@@ -112,6 +144,10 @@ function cleanup() {
 <template>
   <section>
     <p v-if="!isConsoleHosted()" class="s-warn">浏览器预览：组件状态读不到（需要宿主）。</p>
+    <p class="s-hint" data-push-source>
+      安装进度来源：{{ isPushHosted() ? "推送通道（宿主主动通知，本页已收 " + pushState.received + " 条）" : "轮询（每 400ms，无 push 桥）" }}
+      <template v-if="isPushHosted()"> · 权威状态仍以 InstallStatus 为准</template>
+    </p>
 
     <div v-for="k in KINDS" :key="k.id" class="s-row" :data-setting="'components.' + k.id">
       <div class="s-label">

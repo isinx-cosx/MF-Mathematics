@@ -221,3 +221,55 @@ export function toResultNodes(value, key = "") {
 export function textLatex(text, key = "") {
   return isMathText(text, key) ? latexFor(String(text)) : "";
 }
+
+/**
+ * 一句话结果摘要 —— 给历史记录、日志这类"只需要认得出是哪次计算"的地方用。
+ *
+ * 与 ResultDialog 的复制文本不同：那里要完整可粘，这里只求**一眼能认**，
+ * 所以对象最多取几个字段、整体截断到 maxLen。字段名照 `labelOf` 翻成中文，
+ * 免得历史里出现 `generalSolution=…` 这种引擎键名。
+ *
+ * 取字段的顺序有讲究：**先取"答案类"字段**（解集/根/取值…），再取其它非元信息字段。
+ * 实测教训：`solve_sym` 的返回按 delta、deltaSign、exact、params、realness… 排在前，
+ * 直接取前四个的话，摘要会变成"判别式 Δ=1；判别式符号=positive；精确形式=true；参数=[]"
+ * —— 一条历史里最该看到的**解集**反而被挤掉了。
+ */
+const BRIEF_FIRST = [
+  "solutions", "solution", "roots", "generalSolution", "factored", "value", "values",
+  "result", "answer", "expr", "note",
+];
+/** 元信息：能塞下也不优先显示，塞不下就直接丢 */
+const BRIEF_SKIP = new Set([
+  "exact", "params", "realness", "realnessReason", "delta", "deltaSign", "signDefinite",
+  "solveMethod", "method", "vars", "exists", "uniform", "kind", "nature", "steps",
+]);
+
+export function briefValue(value, maxLen = 160) {
+  let text = "";
+  if (value === null || value === undefined) text = "";
+  else if (typeof value === "string") text = value;
+  else if (typeof value === "number") text = fmtNum(value);
+  else if (typeof value === "boolean") text = value ? "真" : "假";
+  else if (Array.isArray(value)) {
+    text = value
+      .map((x) => (x && typeof x === "object" ? JSON.stringify(x) : String(x)))
+      .join(", ");
+  } else {
+    const one = (v) => (v === null || v === undefined
+      ? ""
+      : (typeof v === "object" ? JSON.stringify(v) : String(v)));
+    const keys = Object.keys(value);
+    const ordered = [
+      ...BRIEF_FIRST.filter((k) => keys.includes(k)),
+      ...keys.filter((k) => !BRIEF_FIRST.includes(k) && !BRIEF_SKIP.has(k)),
+    ];
+    const parts = [];
+    for (const k of ordered) {
+      if (parts.length >= 4) { parts.push("…"); break; }
+      parts.push(`${labelOf(k)}=${one(value[k])}`);
+    }
+    text = parts.join("；");
+  }
+  text = text.replace(/\s+/g, " ").trim();
+  return text.length > maxLen ? text.slice(0, maxLen - 1) + "…" : text;
+}

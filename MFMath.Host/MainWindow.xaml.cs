@@ -94,8 +94,17 @@ public partial class MainWindow : Window
         // 设置面板：报路径、查依赖 DLL 在不在、读写设置 JSON、打开目录、导出诊断包。
         // 放独立桥是因为它只做"文件与系统信息"，不含数学/窗口/进程，加设置项也不会撑大另外三个。
         Browser.CoreWebView2.AddHostObjectToScript("sys", new SettingsBridge());
-        // 关窗时把控制台里还活着的子进程带走，不留孤儿
-        Closed += (_, _) => { try { console.StopAll(); } catch { } };
+        // 推送通道（宿主 → 页面）：挂上 CoreWebView2 后，任何线程都能
+        // PushHub.Send(topic, payload) 主动给界面发消息（组件安装进度、控制台运行结束…）。
+        // 暴露给 JS 的 `push` 桥只用于诊断与自测，业务消息不经过它。
+        PushHub.Attach(Browser.CoreWebView2);
+        Browser.CoreWebView2.AddHostObjectToScript("push", new PushBridge());
+        // 关窗时把控制台里还活着的子进程带走，不留孤儿；推送通道同时下线
+        Closed += (_, _) =>
+        {
+            try { console.StopAll(); } catch { }
+            PushHub.Detach();
+        };
 
 #if !DEBUG
         // 发布模式：wwwroot = Vue 构建产物拷贝
