@@ -534,7 +534,7 @@ watch([xMin, xMax, yMin, yMax, resolution], () => { if (hasResult.value) schedul
         <p v-if="resWarn" class="warn">分辨率超过 600，计算可能需要十几秒。</p>
 
         <button class="btn" :disabled="busy || !hosted" @click="apply()">重绘</button>
-        <button class="btn" :disabled="busy" title="把当前复平面图导出成 PNG（2 倍分辨率）" @click="exportImage">导出图片</button>
+        <button class="btn" :disabled="busy" title="把当前复平面图导出成 PNG（2 倍像素）" @click="exportImage">导出图片</button>
         <p class="status">{{ statusText }}</p>
       </aside>
 

@@ -198,7 +198,7 @@ onMounted(() => {
       />
       <div class="view-controls">
         <button class="vc-btn" title="重置视角" @click="resetView">⟲</button>
-        <button class="vc-btn" title="导出图片（PNG，2 倍分辨率）" @click="exportImage">⤓</button>
+        <button class="vc-btn" title="导出图片（PNG，2 倍像素）" @click="exportImage">⤓</button>
       </div>
     </div>
   </div>

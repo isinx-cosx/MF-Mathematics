@@ -78,7 +78,7 @@ export const EXTRA_MAP = {
   "Fourier系数": { fn: "fourier_coeff", module: "harmonic_analysis", args: [{ key: "f", type: "string", opt: false }, { key: "n", type: "int", opt: true }, { key: "period", type: "double", opt: true }, { key: "coeff_type", type: "string", opt: true }] },
   "复Fourier系数": { fn: "complex_fourier_coeff", module: "harmonic_analysis", args: [{ key: "f", type: "string", opt: false }, { key: "n", type: "int", opt: true }, { key: "period", type: "double", opt: true }] },
   "Fourier变换": { fn: "fourier_transform", module: "harmonic_analysis", args: [{ key: "f", type: "string", opt: false }] },
-  "逆Fourier变换": { fn: "inverse_fourier_transform", module: "harmonic_analysis", args: [{ key: "F", type: "string", opt: false }] },
+  
 
   /* ════════ 复分析 ════════ */
   // complex_eval 只接受**已带具体复数**的表达式（z^2 这种含自由符号的会报错），
@@ -145,7 +145,7 @@ export const EXTRA_MAP = {
   "ODE系统": { fn: "ode_linear_system", module: "calculus", args: [{ key: "A", type: "matrix", opt: true }] },
   "一阶PDE": { fn: "first_order_linear_pde", module: "calculus", args: [{ key: "a", type: "double", opt: false }, { key: "b", type: "double", opt: false }, { key: "c", type: "double", opt: true }] },
   "二阶PDE": { fn: "classify_second_order_pde", module: "calculus", args: [{ key: "A", type: "double", opt: false }, { key: "B", type: "double", opt: false }, { key: "C", type: "double", opt: false }] },
-  "零点与极点": { fn: "zeros_and_poles", module: "complex_analysis", args: [EXPR, { key: "center", type: "point", opt: true }, { key: "radius", type: "double", opt: true }] },
+  
 
   /* ════════ 线性代数 ════════ */
   "求解方程组": { fn: "lin_solve_linear_system", module: "linear_algebra", args: [{ key: "A", type: "matrix", opt: false }, { key: "b", type: "vec", opt: true }] },
@@ -160,7 +160,7 @@ export const EXTRA_MAP = {
   "勒贝格测度": { fn: "lebesgue_measure", module: "measure_theory", args: [{ key: "E", type: "vec", opt: true }] },
   "外测度": { fn: "outer_measure", module: "measure_theory", args: [{ key: "E", type: "vec", opt: true }, { key: "epsilon", type: "double", opt: true }] },
   "Caratheodory可测": { fn: "caratheodory_measurable", module: "measure_theory", args: [{ key: "E", type: "vec", opt: true }] },
-  "乘积测度": { fn: "product_measure", module: "measure_theory", args: [{ key: "A", type: "vec", opt: true }, { key: "B", type: "vec", opt: true }] },
+  
   "期望(测度论)": { fn: "meas_expectation", module: "measure_theory", args: [{ key: "X", type: "string", opt: true }, { key: "P", type: "string", opt: true }] },
 
   /* ════════ 概率 ════════ */
@@ -368,7 +368,7 @@ export const EXTRA_VAR_SPECS = {
   "Fourier级数": [["函数（输入框）", ""], ["项数", "5"], ["周期", "6.283185307179586"]],
   "Fourier系数": [["函数（输入框）", ""], ["项号 n", "1"], ["周期", "6.283185307179586"], ["系数类型（a/b）", "a"]],
   "复Fourier系数": [["函数（输入框）", ""], ["项号 n", "1"], ["周期", "6.283185307179586"]],
-  "Laurent级数": [["函数（输入框）", ""], ["展开项数", "4"]],
+  
   // 高斯消元：旧字段把「未知数个数」塞给了 b（引擎的 b 是右端向量），会算出不同的问题
   "高斯消元": [["增广矩阵（输入框）", "[[1,2,5],[3,4,11]]"]],
 };

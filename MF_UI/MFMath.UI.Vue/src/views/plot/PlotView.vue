@@ -789,7 +789,7 @@ watch([expressions, view, gridMode, showGrid, params], () => {
         <button class="vc-btn" title="缩小" @click="zoomBy(1.4)">－</button>
         <button class="vc-btn" title="缩放到适应" @click="zoomFit">⤢</button>
         <button class="vc-btn" title="重置视图" @click="resetView">⟲</button>
-        <button class="vc-btn" data-tour="plot.export_button" title="导出图片（PNG，2 倍分辨率）" @click="exportImage">⤓</button>
+        <button class="vc-btn" data-tour="plot.export_button" title="导出图片（PNG，2 倍像素）" @click="exportImage">⤓</button>
         <button
           class="vc-btn"
           :class="{ on: gridMode === 'polar' }"

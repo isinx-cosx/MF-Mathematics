@@ -219,23 +219,50 @@ async function refreshComponents() {
   else status.value = "组件就绪";
 }
 
+/**
+ * 安装进度轮询。
+ *
+ * ⚠ 计时器必须存在**组件作用域**（下面这个 installTimer），不能在 doInstall 里用
+ * 局部 const：局部变量在 onBeforeUnmount 里够不着，用户点完「安装」（几十 MB、可能
+ * 几分钟）切走页面后，定时器会继续每 400ms 过桥查状态、改写已销毁组件的 ref。
+ * 另外「状态查不到」也要有退出条件：旧写法把 clearInterval 放在 `if (s)` 里面，
+ * installStatus 一旦持续返回空就**永远不会清**（无限轮询）。
+ */
+let installTimer = null;
+let installMisses = 0;          // 连续查不到状态的次数
+const INSTALL_MAX_MISSES = 150;  // ≈60 秒（400ms 一次）之后放弃，并把原因说出来
+
+function stopInstallPolling() {
+  if (installTimer) { clearInterval(installTimer); installTimer = null; }
+  installMisses = 0;
+}
+
 async function doInstall(which) {
   if (!hosted) return;
+  stopInstallPolling();                 // 连点两次也不会叠出两个轮询
   installJob.value = installComponent(which);
   installMsg.value = "开始安装…";
   installPct.value = 0;
-  const tick = setInterval(async () => {
+  installTimer = setInterval(async () => {
     const s = installStatus(installJob.value);
-    if (s) {
-      installPct.value = s.percent || 0;
-      installMsg.value = s.message || "";
-      if (s.state !== "running") {
-        clearInterval(tick);
+    if (!s) {
+      // 查不到状态（作业丢了/桥一时不可用）：计数够了就停，别无限轮询
+      if (++installMisses >= INSTALL_MAX_MISSES) {
+        stopInstallPolling();
         installJob.value = null;
-        await refreshComponents();
-        if (s.state === "error") status.value = "安装失败：" + (s.message || "");
-        else { status.value = s.message || "安装完成"; if (!languages.value.some((l) => l.value === lang.value)) lang.value = "python"; }
+        status.value = "安装状态查询超时：请到「设置 → 组件」查看是否已装好";
       }
+      return;
+    }
+    installMisses = 0;
+    installPct.value = s.percent || 0;
+    installMsg.value = s.message || "";
+    if (s.state !== "running") {
+      stopInstallPolling();
+      installJob.value = null;
+      await refreshComponents();
+      if (s.state === "error") status.value = "安装失败：" + (s.message || "");
+      else { status.value = s.message || "安装完成"; if (!languages.value.some((l) => l.value === lang.value)) lang.value = "python"; }
     }
   }, 400);
 }
@@ -341,6 +368,7 @@ onMounted(async () => {
 });
 onBeforeUnmount(() => {
   stopPolling();
+  stopInstallPolling();      // 安装进度轮询也要随组件一起停（否则会写已销毁组件的 ref）
   if (offPush) offPush();
 });
 

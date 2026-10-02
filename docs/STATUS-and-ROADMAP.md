@@ -61,7 +61,7 @@
 | `MF_Mathematics/` | 数学库源码，**仅 C++**（`.cpp/.h/.hpp` + `CMakeLists.txt` + C++ 测试） | 251 个源文件 / 1.68 MB |
 | `MF_Mathematics/build/bin/Release/` | **编译结果**：`mf_mathematics.dll` 3.23 MB + 5 个运行时依赖 DLL | 6 个文件 / 21.8 MB |
 | `MFMath.Host/` | C# 桌面宿主（WPF + WebView2） | 源码 10 文件 / 1,193 行 |
-| `MF_UI/MFMath.UI.Vue/` | Vue 3 + TS 前端源码 | `src` 56 文件 / **13,248 行** |
+| `MF_UI/MFMath.UI.Vue/` | Vue 3（**无 TS**：`src` 里 `.ts` 文件 0 个） | `src` **73 文件 / ≈16,141 行**（39 `.vue` + 32 `.js` + 1 `.css` + 1 `.json`） |
 | `docs/` | 方案与留档（含 18 篇教程 YAML 原件 `tutorials-src/`） | 19 文件 |
 | `tools/`（前端内） | 教程转换、构建期自检 | 2 个脚本 |
 | **合计（源码，git 跟踪）** | | **396 文件 / 2.9 MB** |
@@ -76,7 +76,7 @@
 - 编译产物经**准确性套件复验：2180 通过 / 0 失败 / 0 跳过，action 覆盖 424/424**（35.4 秒）。
 - 依赖 Eigen 与 SymEngine（vcpkg），运行时依赖 flint/symengine/gmp/mpfr/pthread 五个 DLL。
 
-### 2.3 前端（Vue 3 + TS）
+### 2.3 前端（Vue 3，无 TS）
 
 - **22 个模式视图全部已迁移**：`REAL_VIEWS` 9 项 + `CalcView` 13 项 = 导航全部 22 项，**没有路由还在用占位页**。
 - 外观系统：10 套配色 + 形状/疏密/字体四维 + 跟随系统 + 实时预览卡（**超出 v1**：v1 只有 4 套且靠按钮循环）。
@@ -114,7 +114,10 @@
 | **端到端（推送通道）** | 同上 → `node tests/cdp-push.mjs` | **20 项断言全通过**（信封形状、控制台运行结束、组件安装进度、设置里的通道自检行） |
 | **端到端（工作区）** | 同上 → `node tests/cdp-workspace.mjs` | **25 项断言全通过**（三页采集 / 落盘 / 刷新后还原 / 另存为与从文件打开 / 四类坏输入） |
 | **端到端（导出图片）** | 同上 → `node tests/cdp-export-image.mjs` | **45 项断言全通过**（六个绘图页逐页导出：真 PNG、2 倍分辨率、背景不透明、失败有原因） |
-| **端到端（快捷键 + 两个设置项）** | 同上 → `node tests/cdp-shortcuts-prefs.mjs` | **21 项断言全通过**（F1 跳转、Ctrl+Z/Y 真撤销重做、输入框内不抢键、精度 12→4 影响真实结果、绘图范围影响新开页面；**全程零弹窗**） |
+| **端到端（快捷键 + 两个设置项）** | 同上 → `node tests/cdp-shortcuts-prefs.mjs` | **23 项断言全通过**（F1 跳转、Ctrl+Z/Y 真撤销重做、输入框内不抢键、精度 12→4→**0** 影响真实结果、绘图范围影响新开页面；**全程零弹窗**） |
+| **端到端（表达式归一化语义）** | 同上 → `node tests/cdp-expr-normalize.mjs` | **26 项断言全通过**（界面归一化不许改字面；归一化前后交给引擎必须同值；`1/2x`@4=0.125、`πx`@2=2π） |
+| **端到端（教程富文本清洗）** | 同上 → `cdp-tutorials-keypad.mjs` 的注入防护段 | **6 类注入载荷全部被清掉**（`onerror`/`onclick`/`script`/`img`/`javascript:`/`iframe`），白名单标签与属性剥离正常 |
+| **前端审查结论核实** | 见 `docs/FRONTEND-FIXES.md` | 八条**全部复核成立**，修 6 条、留 2 条（接线类）；另修 4 处同类问题；新暴露的 20 处既有缺陷登记为带原因的已知失败基线 |
 | **端到端（绘图，9 个套件）** | `cdp-plot-verify` … `cdp-canvas-theme` | 全部通过（9/7/9/11/10/7/15/23/9/5 项）；**`cdp-plot-p5` 例外，见风险台账** |
 | 结果模型单测 | `node tests/unit-result-model.mjs` | 30 / 0 |
 

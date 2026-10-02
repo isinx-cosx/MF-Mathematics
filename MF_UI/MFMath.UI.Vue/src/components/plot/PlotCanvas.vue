@@ -765,6 +765,17 @@ function onMouseUp(e) {
 function onMouseLeave() {
   hoverPick = null;
   hoverCurvePoint = null;
+  // ⚠ 拖拽状态也必须在离开画布时清掉：mouseup 只会落在画布上，
+  // 用户"按下 → 移出画布 → 松开"时 onMouseUp 根本不会触发，
+  // drag / draggingPoint 于是永久残留 —— 之后**不按键**移动鼠标也会继续平移视图
+  // （或继续拖动曲线点），光标还卡在 grabbing。这里只做清理，不补发点击事件，
+  // 免得"移出画布松手"被当成一次点击而多创建一个点。
+  if (draggingPoint !== null) {
+    emit("drop-point", { id: draggingPoint });
+    draggingPoint = null;
+  }
+  drag = null;
+  if (canvas.value) canvas.value.style.cursor = "";
   scheduleDraw();
 }
 

@@ -37,8 +37,16 @@ export function fmtNum(v) {
   if (Math.abs(v) >= 1e12 || (Math.abs(v) < 1e-10 && v !== 0)) return v.toExponential(6);
   // 读取时机放在函数里：设置一改，下一次渲染就用新精度（不用刷新页面）
   const digits = currentDecimals();
-  const s = v.toFixed(digits).replace(/\.?0+$/, "");
-  return s === "" ? "0" : s;
+  let s = v.toFixed(digits);
+  // ⚠ 去尾零**只在小数点存在时**才做。
+  // digits=0 时 toFixed 不产生小数点，若照旧 `/\.?0+$/` 剥尾部零，会把整数位的零也吃掉：
+  //   10.4 → "10" → "1"；100.2 → "1"；-0.4 → "-"（只剩一个负号）。
+  // 这是设置里把小数位数调到 0 就能触发的**显示错值**（实测），所以两道都补上：
+  //   ① 只有含 "." 才剥尾零，并顺带去掉孤立的小数点；
+  //   ② "-0" 归一成 "0"（digits=0 且 |v|<0.5 时会出现负零）。
+  if (s.includes(".")) s = s.replace(/(\.\d*?)0+$/, "$1").replace(/\.$/, "");
+  if (s === "" || s === "-0" || s === "-") s = "0";
+  return s;
 }
 
 /** 结果摘要（用于列表/状态栏的单行文本） */

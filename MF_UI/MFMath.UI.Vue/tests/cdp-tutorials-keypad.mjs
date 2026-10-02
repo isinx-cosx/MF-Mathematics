@@ -358,6 +358,31 @@ if (exceptions.length) {
   console.log(`  [WARN] 页面异常 ${exceptions.length} 条，首条：${exceptions[0].slice(0, 160)}`);
 }
 
+/* ── 教程富文本清洗：安全边界，必须有端到端断言 ──
+ * 旧实现是"遍历快照 + 拆壳 + continue"：被提升到父级的节点既不会被剥属性、也不会被递归，
+ * 于是 `<p><img onerror=…></p>` 能把 onerror 原样带到 v-html（我实测确认过）。
+ * 这里通过 App 启动时挂的 window.__mfSanitize 直接断言清洗结果。 */
+console.log("=== 富文本清洗（注入防护）===");
+const sanitize = (html) => evalJs(`(window.__mfSanitize ? window.__mfSanitize(${JSON.stringify(html)}) : "[无钩子]")`);
+check("清洗钩子可用", (await evalJs(`typeof window.__mfSanitize === "function"`)) === true);
+const injectCases = [
+  ["拆壳绕过 <p><img onerror>", '<p><img src=x onerror=alert(1)></p>', "onerror"],
+  ["深层拆壳 <div><p><span onclick>", '<div><p><span onclick="x">hi</span></p></div>', "onclick"],
+  ["script 标签", '<p><script>alert(1)</script></p>', "<script"],
+  ["裸 img", '<img src=x onerror=alert(1)>', "<img"],
+  ["a + javascript: 协议", '<a href="javascript:alert(1)">点我</a>', "javascript:"],
+  ["iframe", '<iframe src="javascript:alert(1)"></iframe>', "<iframe"],
+];
+for (const [label, payload, forbidden] of injectCases) {
+  const out = String(await sanitize(payload));
+  check(`${label} 不再留 ${forbidden}`, !out.includes(forbidden), out.slice(0, 90));
+}
+const allowedOut = String(await sanitize('<b>粗</b><br><code>x</code><span class="x">文</span>'));
+check("白名单标签保留、属性剥掉", allowedOut.includes("<b>粗</b>") && allowedOut.includes("<br>") && !allowedOut.includes("class="),
+  allowedOut.slice(0, 90));
+const commentOut = String(await sanitize("<!-- 注释 -->正文"));
+check("注释被删掉、正文保留", !commentOut.includes("<!--") && commentOut.includes("正文"), commentOut.slice(0, 60));
+
 console.log(`RESULT|cdp-tutorials-keypad|${pass}|${fail}`);
 ws.close();
 process.exit(fail === 0 ? 0 : 1);

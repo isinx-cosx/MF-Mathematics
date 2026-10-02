@@ -37,12 +37,16 @@ export function toEngineExpr(s) {
 /**
  * 跳过不映射到引擎参数的字段（变量/表达式类，用输入框或默认值提供）。
  * 「（输入框）」是显式约定：该字段就是输入框的占位，值已经在弹窗第一个格子里预填。
+ *
+ * ⚠ 这里**不能**用宽松的 `includes("函数")`：字段表里还有「第二个函数」「未知函数」
+ * 这类**真的要喂给引擎**的字段（内积空间的 g、一阶 ODE 的 yvar），一并跳过会让它们
+ * 静默取默认值——用户填了也不生效。判断只认显式约定与明确属于"主表达式"的措辞。
  */
 export function isSkippedField(label) {
   const s = String(label ?? "");
   return s.includes("（输入框）") || s.includes("(输入框)")
       || s === "变量" || s.includes("表达式") || s.includes("被积")
-      || s.includes("通项") || s.includes("函数");
+      || s.includes("通项");
 }
 
 /** 结构化参数类型：必须真解析成数组/点，不能当字符串 */

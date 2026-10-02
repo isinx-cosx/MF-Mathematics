@@ -137,25 +137,47 @@ export function describeTarget(name) {
  * 只放行安全标签的 HTML 清洗。
  * v1 是 QLabel.setText 直接吃 YAML 里的富文本——在桌面 Qt 里尚可，
  * 但教程 YAML 是**外部可编辑文件**，搬到 WebView 里就是真实注入面，必须过一遍。
+ *
+ * ⚠ 递归写法，不能写成"遍历快照"：
+ * 旧实现是 `for (const child of Array.from(node.childNodes))`，遇到非白名单标签就
+ * `child.replaceWith(...child.childNodes)` 把子节点**提升**到父级再 `continue`。
+ * 但快照里没有这些被提升的节点，它们于是**既不会被剥属性、也不会被递归**——
+ * `<p><img src=x onerror=...></p>` 里的 P 被拆壳后，IMG 带着 onerror 原样留下，
+ * 而它最终经 `v-html` 渲染（TourOverlay / HelpArticleView）。实测确认过这条绕过。
+ * 现在改成对每个节点自身处理，并在拆壳后**对提升上来的节点继续清洗**；标签白名单
+ * 里没有 P/DIV/A/IMG，所以外壳一律拆掉、属性一律剥掉、子树一律清到干净。
  */
 const ALLOWED_TAGS = new Set(["B", "I", "EM", "STRONG", "BR", "CODE", "SPAN", "U", "SMALL", "SUP", "SUB"]);
+
+function cleanNode(node) {
+  if (node.nodeType === 8) { node.remove(); return; }          // 注释
+  if (node.nodeType !== 1) return;                             // 文本节点保留
+  if (!ALLOWED_TAGS.has(node.tagName)) {                       // 不允许的标签：拆掉外壳留内容
+    const promoted = Array.from(node.childNodes);
+    node.replaceWith(...promoted);
+    for (const p of promoted) cleanNode(p);                    // ← 关键：提升上来的也要清
+    return;
+  }
+  for (const attr of Array.from(node.attributes)) node.removeAttribute(attr.name);
+  for (const child of Array.from(node.childNodes)) cleanNode(child);
+}
 
 export function sanitizeTourHtml(html) {
   if (typeof document === "undefined") return String(html ?? "");
   const tpl = document.createElement("template");
   tpl.innerHTML = String(html ?? "");
-  const walk = (node) => {
-    for (const child of Array.from(node.childNodes)) {
-      if (child.nodeType === 8) { child.remove(); continue; }       // 注释
-      if (child.nodeType !== 1) continue;                            // 文本节点保留
-      if (!ALLOWED_TAGS.has(child.tagName)) {                        // 不允许的标签：拆掉外壳留内容
-        child.replaceWith(...child.childNodes);
-        continue;
-      }
-      for (const attr of Array.from(child.attributes)) child.removeAttribute(attr.name);
-      walk(child);
-    }
-  };
-  walk(tpl.content);
+  for (const child of Array.from(tpl.content.childNodes)) cleanNode(child);
   return tpl.innerHTML;
+}
+
+/**
+ * 测试/排障钩子 `window.__mfSanitize`。
+ * 清洗是**安全边界**，最需要能被端到端断言（CDP 里够不到模块作用域），
+ * 所以在这里显式暴露；App 启动时调用一次。
+ */
+export function initTourSanitizerHook() {
+  try {
+    window.__mfSanitize = sanitizeTourHtml;
+    window.__mfTourHtmlAllowedTags = Array.from(ALLOWED_TAGS);
+  } catch { /* 忽略 */ }
 }

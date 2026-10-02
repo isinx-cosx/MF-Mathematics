@@ -17,6 +17,8 @@ import { initPush } from "./lib/push.js";
 import { initWorkspace } from "./lib/workspace/store.js";
 import { installShortcuts } from "./lib/keyboard/shortcuts.js";
 import { initPrefs } from "./lib/settings/prefs.js";
+import { initTourSanitizerHook } from "./lib/tutorial/targets.js";
+import { initPlotMathHook } from "./lib/plot/plotMath.js";
 import {
   THEME_LIST, SHAPE_LIST, DENSITY_LIST, FONT_LIST,
   themeLabel, currentAppearance, applyAppearance, watchSystemTheme,
@@ -164,6 +166,10 @@ onMounted(() => {
   initWorkspace();
   // 计算与绘图偏好：载入并挂 window.__mfPrefs 钩子（精度与绘图范围）
   initPrefs();
+  // 教程富文本清洗是安全边界：挂 window.__mfSanitize 供端到端断言清洗确实生效
+  initTourSanitizerHook();
+  // 绘图表达式归一化：挂 window.__mfToEngineExpr，便于断言"界面不改算符语义"
+  initPlotMathHook();
   // 全局快捷键：F1 帮助、Ctrl+Z/Y 撤销重做（谁有"上一步"谁注册，见 lib/keyboard/shortcuts.js）
   // 卸载放在 onBeforeUnmount 里由 uninstallShortcuts 收尾
   uninstallShortcuts = installShortcuts(router);

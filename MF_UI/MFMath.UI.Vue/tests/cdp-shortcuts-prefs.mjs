@@ -198,6 +198,19 @@ check("改成 4 位后**真实计算结果**跟着变短", oneThird4 === "0.3333
 const intResult = await pressKeys(["7", "×", "6", "="]);
 check("整数不受精度影响", intResult === "42", intResult);
 
+console.log("=== ④b 精度 = 0 不能吃掉整数位的零（回归）===");
+await goto("/settings?group=calc");
+await waitTrue(`!!document.querySelector('[data-setting="calc.precision"]')`);
+await setDecimals(0);
+await sleep(300);
+await goto("/calc/basic");
+await waitTrue(`!!document.querySelector('.keypad .key')`);
+// 10.4 若按"无条件剥尾零"的老写法会显示成 1；-0.4 会显示成一个孤零零的负号
+const tenPointFour = await pressKeys(["1", "0", ".", "4", "="]);
+check("精度 0 时 10.4 显示 10（不是 1）", tenPointFour === "10", tenPointFour);
+const negFraction = await pressKeys(["0", ".", "4", "±", "="]);
+check("精度 0 时 -0.4 不会显示成一个负号", negFraction !== "-" && /^-?0$/.test(negFraction), negFraction);
+
 // 还原成 12
 await goto("/settings?group=calc");
 await waitTrue(`!!document.querySelector('[data-setting="calc.precision"]')`);

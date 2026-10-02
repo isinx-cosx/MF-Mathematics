@@ -6,12 +6,13 @@
  * 于是教程 05 与 11 每一步都失效、点一下遮罩就消失，**却仍被标记成"已完成"**。
  * 这类错误在运行时几乎不可察觉，必须在构建期拦下来。
  *
- * 四项断言：
+ * 五项断言：
  *   1. 每个教程步骤的 target 要么在源码里真有 data-tour，要么在 PENDING 里写明理由；
  *   2. PENDING 里不留过时条目（教程已不引用它了，说明该删）；
  *   3. 键盘键数 = 126（与 v1 一致），且插入的 LaTeX 里没有残留的 ▢ 占位符、
  *      `\begin{...}` 环境都配了 `\end{...}`（v1 的 `\begin{pmatrix}` 就是缺后半截）；
- *   4. 教程数据的字段合法性（actionType 取值、步骤/示例/FAQ 完整性）。
+ *   4. 教程数据的字段合法性（actionType 取值、步骤/示例/FAQ 完整性）；
+ *   5. 引擎映射表里没有重复键（JS 后者胜，前面的会变成"改了没反应"的死条目）。
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -117,6 +118,55 @@ for (const t of tutorials) {
     if (!["top", "bottom", "left", "right"].includes(s.placement)) problems.push(`${t.id} 步骤 ${s.index}: placement 非法`);
   }
 }
+
+/* ── 5. 引擎映射表：不许有重复键（JS 后者胜，前面的会变成"改了没反应"的死条目）──
+ * 实测教训：`engineMapExtra.js` 里 `Laurent级数` 的 VAR_SPECS 重复了一次，
+ * 后面那条丢了 `展开中心 z0` 字段且**生效**，于是"展开项数"的值被当成展开中心
+ * 喂给引擎（z0=[4]），用户改字段也看不出问题。这类重复必须在构建期拦下来。 */
+function checkDuplicateKeys(file) {
+  const text = fs.readFileSync(file, "utf8");
+  for (const name of ["RAW_MAP", "RAW_VAR_SPECS", "EXTRA_MAP", "EXTRA_VAR_SPECS"]) {
+    const at = text.indexOf(`const ${name} = `);
+    if (at < 0) continue;
+    const brace = text.indexOf("{", at);
+    let i = brace, depth = 0, end = -1;
+    for (; i < text.length; i++) {
+      const c = text[i];
+      if (c === '"') {
+        i++;
+        while (i < text.length && text[i] !== '"') { if (text[i] === "\\") i++; i++; }
+        continue;
+      }
+      if (c === "{" || c === "[") depth++;
+      else if (c === "}" || c === "]") { depth--; if (depth === 0) { end = i; break; } }
+    }
+    const body = text.slice(brace + 1, end);
+    const keys = [];
+    let d = 0;
+    for (let k = 0; k < body.length; k++) {
+      const c = body[k];
+      if (c === '"') {
+        let j = k + 1, name2 = "";
+        while (j < body.length && body[j] !== '"') {
+          if (body[j] === "\\") { name2 += body[j + 1]; j += 2; continue; }
+          name2 += body[j]; j++;
+        }
+        if (d === 0 && /^\s*:/.test(body.slice(j + 1))) keys.push(name2);
+        k = j;
+        continue;
+      }
+      if (c === "{" || c === "[") d++;
+      else if (c === "}" || c === "]") d--;
+    }
+    const seen = new Map();
+    for (const k of keys) seen.set(k, (seen.get(k) || 0) + 1);
+    for (const [k, n] of seen) {
+      if (n > 1) problems.push(`${path.basename(file)} 的 ${name} 里「${k}」重复 ${n} 次（后者胜，前面的是死条目）`);
+    }
+  }
+}
+checkDuplicateKeys(path.join(SRC, "lib", "engine", "engineMap.js"));
+checkDuplicateKeys(path.join(SRC, "lib", "engine", "engineMapExtra.js"));
 
 /* ── 输出 ──────────────────────────────────────────────────────────────── */
 console.log("=".repeat(78));

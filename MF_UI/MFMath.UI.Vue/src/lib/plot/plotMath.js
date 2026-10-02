@@ -12,13 +12,6 @@
  */
 "use strict";
 
-/** 引擎不认识的自然写法 → 引擎语法 */
-const CONST_MAP = {
-  "π": "pi",
-  "θ": "theta",
-  "∞": "inf",
-};
-
 /** 已知常量与函数名（不视作参数） */
 const KNOWN = new Set([
   "pi", "e", "tau", "inf", "nan", "true", "false",
@@ -33,23 +26,28 @@ const KNOWN = new Set([
 ]);
 
 /**
- * 归一化为引擎可解析的表达式：全角符号 → 半角，π/θ → 名称。
+ * 归一化为引擎可解析的表达式：**只做纯字面的字符替换**（全角 → 半角、×÷− → * / -）。
  *
- * 幂**不再**做 `^` → `**` 的替换：2026-09 起统一使用 `^`，`**` 由引擎的归一化
- * （math_input.h）自己合并成 `^`。算符改写只发生在引擎一处，界面不参与。
+ * ⚠ 这里刻意不做任何"算符/常量改写"，因为那些改写会改数学语义。两笔历史教训：
+ *   ① 插隐式乘号（`2x` → `2*x`、`)x` → `)*x`）：引擎把隐式乘法绑得比除号更紧，
+ *      `1/2x` = 1/(2x) = 0.125、`1/2(x+1)` = 1/(2(x+1)) = 0.125、`1/(x+1)(x-1)` 同理；
+ *      本地插了 `*` 就变成 `1/2*x` = 2（x=4 时差 16 倍）。三个页面（2D/3D/向量场）
+ *      都走这条本地路径，于是"同一个输入在不同页面画出不同函数"。
+ *   ② 替换希腊字母（`π` → `pi`）：`πx` 会被粘成标识符 `pix` 而解析失败。
+ * 实测引擎自己就认这些课本写法：`π`=3.14159、`πx`=2π（x=2）、`2π`、`x²`、`1/2π`、
+ * `θ` → 变量 theta。所以**算符与常量的语义只在引擎一处定义**，界面不参与。
  */
 export function toEngineExpr(text) {
   let s = String(text || "").trim();
   // 全角 → 半角
   s = s.replace(/[\uFF01-\uFF5E]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0));
   s = s.replace(/×/g, "*").replace(/÷/g, "/").replace(/−/g, "-");
-  for (const [k, v] of Object.entries(CONST_MAP)) s = s.split(k).join(v);
-  // 隐式乘法的常见写法（2x → 2*x, 3sin(x) → 3*sin(x), x y → x*y）
-  s = s.replace(/(\d)\s*([a-zA-Z(])/g, "$1*$2");
-  s = s.replace(/\)\s*([a-zA-Z(])/g, ")*$1");
-  s = s.replace(/([a-zA-Z_])\s*\(/g, (m, p1) =>
-    KNOWN.has(p1) || p1.length > 1 ? m : m); // 函数调用不动
   return s;
+}
+
+/** 供测试/排障：把本地归一化的结果拿出来看（CDP 里够不到模块作用域） */
+export function initPlotMathHook() {
+  try { window.__mfToEngineExpr = toEngineExpr; } catch { /* 忽略 */ }
 }
 
 /** 提取标识符（区分"函数名"与"变量"） */
