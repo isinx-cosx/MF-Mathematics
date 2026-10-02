@@ -21,6 +21,7 @@ import AppearanceGroup from "../../components/settings/AppearanceGroup.vue";
 import CalcPlotGroup from "../../components/settings/CalcPlotGroup.vue";
 import EngineGroup from "../../components/settings/EngineGroup.vue";
 import ComponentsGroup from "../../components/settings/ComponentsGroup.vue";
+import AiGroup from "../../components/settings/AiGroup.vue";
 import StorageGroup from "../../components/settings/StorageGroup.vue";
 import PlaceholderGroup from "../../components/settings/PlaceholderGroup.vue";
 
@@ -114,6 +115,7 @@ function jump(item) {
         <CalcPlotGroup v-else-if="active === 'calc'" />
         <EngineGroup v-else-if="active === 'engine'" />
         <ComponentsGroup v-else-if="active === 'components'" />
+        <AiGroup v-else-if="active === 'ai'" />
         <StorageGroup v-else-if="active === 'storage'" />
         <PlaceholderGroup v-else :group="group" :items="itemsOf(active)" />
       </div>

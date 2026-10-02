@@ -148,18 +148,36 @@ const wsReady = await ev(`(() => {
 })()`);
 check("工作区已从「待实现」变成真实控件（保存/载入/另存为）", wsReady === true);
 
-console.log("=== 占位分组与搜索 ===");
+console.log("=== AI 组（已从占位变成真实设置）+ 仍占位的搜索组 ===");
 await clickText('.set-groups li', "AI");
-await sleep(250);
-const phText = await ev(`(document.querySelector('.set-view, section') || {}).textContent || document.querySelector('.set-content').textContent`);
-check("AI 分组显示占位与依赖说明（不是空白）", /该功能将在后续版本提供/.test(phText) && /P3/.test(phText), "");
-const aiPending = await ev(`document.querySelectorAll('.set-content .pending-tag').length`);
-check("AI 分组的每个设置项都标为待实现", aiPending >= 8, `实际 ${aiPending} 项`);
+await sleep(300);
+// AI 现在是**真实**设置组：不再是"将在后续版本提供"的占位。
+// 这里保留"占位必须说清依赖"这条覆盖，但把它挪到**仍然**是占位的搜索组上
+// （占位断言的价值在于"不许留空白或死控件"，不在于指定哪一个分组）。
+const aiReady = await ev(`!!document.querySelector('[data-setting="ai.enabled"] input[type=checkbox]')`);
+check("AI 分组已是真实设置（有可用的启用开关）", aiReady === true);
+const aiPendingTags = await ev(`document.querySelectorAll('[data-setting^="ai."] .pending-tag').length`);
+check("AI 分组不再有待实现标记", aiPendingTags === 0, `实际 ${aiPendingTags} 项`);
+const aiPrivacy = await ev(`document.querySelectorAll('[data-setting="ai.privacy"] input[type=checkbox]').length`);
+check("AI 分组列出了「会发送什么」的逐项开关", aiPrivacy >= 4, `实际 ${aiPrivacy} 项`);
+// 密钥那一栏必须说清"在不在"与"是不是明文"，而不是只给一个打码串
+const keyStateText = await ev(`(document.querySelector('[data-ai=key-state]') || {}).textContent || ''`);
+check("密钥状态说清了来源（未配置 / DPAPI 密文 / 仅内存）",
+  /未配置|DPAPI|内存/.test(keyStateText), keyStateText.slice(0, 60));
 
+await clickText('.set-groups li', "搜索");
+await sleep(250);
+const phText = await ev(`document.querySelector('.set-content').textContent`);
+const searchPending = await ev(`document.querySelectorAll('[data-setting^="search."] .pending-tag').length`);
+check("搜索分组仍显示占位与依赖说明（不是空白）",
+  /该功能将在后续版本提供/.test(phText) && searchPending >= 1, `待实现 ${searchPending} 项`);
+
+await clickText('.set-groups li', "AI");
+await sleep(200);
 await ev(`(() => { const s = document.querySelector('.set-search'); s.value = '密钥'; s.dispatchEvent(new Event('input', { bubbles: true })); return true; })()`);
 await sleep(300);
 const hits = await ev(`document.querySelectorAll('.set-results li').length`);
-check("搜索「密钥」能搜到未实现分组里的项", hits > 0, `命中 ${hits} 项`);
+check("搜索「密钥」能搜到 AI 组里的项", hits > 0, `命中 ${hits} 项`);
 await ev(`(() => { const li = document.querySelector('.set-results li'); if (li) li.click(); return true; })()`);
 await sleep(400);
 const inAi = await ev(`(document.querySelector('.set-groups li.on .g-label') || {}).textContent || ''`);

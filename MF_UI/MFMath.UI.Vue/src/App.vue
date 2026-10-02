@@ -11,6 +11,7 @@ import WelcomeDialog from "./components/tutorial/WelcomeDialog.vue";
 import MathKeypad from "./components/math/MathKeypad.vue";
 import HistoryDialog from "./components/history/HistoryDialog.vue";
 import SearchPlaceholder from "./components/tools/SearchPlaceholder.vue";
+import AiPanel from "./components/ai/AiPanel.vue";
 import { initTutorials, isFirstLaunch, markLaunched } from "./lib/tutorial/store.js";
 import { start as startTour } from "./lib/tutorial/tour.js";
 import { initPush } from "./lib/push.js";
@@ -19,6 +20,7 @@ import { installShortcuts } from "./lib/keyboard/shortcuts.js";
 import { initPrefs } from "./lib/settings/prefs.js";
 import { initTourSanitizerHook } from "./lib/tutorial/targets.js";
 import { initPlotMathHook } from "./lib/plot/plotMath.js";
+import { initAi, initAiHook } from "./lib/ai/bridge.js";
 import {
   THEME_LIST, SHAPE_LIST, DENSITY_LIST, FONT_LIST,
   themeLabel, currentAppearance, applyAppearance, watchSystemTheme,
@@ -170,6 +172,10 @@ onMounted(() => {
   initTourSanitizerHook();
   // 绘图表达式归一化：挂 window.__mfToEngineExpr，便于断言"界面不改算符语义"
   initPlotMathHook();
+  // AI 助手：订阅 ai.* 推送话题（流式增量、usage、notice、done/error）并读回脱敏配置。
+  // 必须在 initPush 之后：推送监听是它唯一的输入来源。
+  initAi();
+  initAiHook();
   // 全局快捷键：F1 帮助、Ctrl+Z/Y 撤销重做（谁有"上一步"谁注册，见 lib/keyboard/shortcuts.js）
   // 卸载放在 onBeforeUnmount 里由 uninstallShortcuts 收尾
   uninstallShortcuts = installShortcuts(router);
@@ -219,6 +225,13 @@ const showHistory = ref(false);
 const showSearch = ref(false);
 function openHistory() { showHistory.value = true; }
 function openSearch() { showSearch.value = true; }
+
+/* ── 顶栏「AI」──
+ * 非模态右侧抽屉（不是模态对话框：用户常要一边看结果一边问）。
+ * 不可用时也**照旧能打开** —— 面板里会说清"为什么不能用、去哪里开"，
+ * 比给一个点不动的按钮诚实（沿用搜索占位面板的那条判断）。 */
+const showAi = ref(false);
+function openAi() { showAi.value = true; }
 </script>
 
 <template>
@@ -335,6 +348,8 @@ function openSearch() { showSearch.value = true; }
           <span id="modeDesc">{{ modeDesc }}</span>
         </div>
         <div class="topbar-actions">
+          <button class="btn btn-ghost" data-tour="toolbar.ai_button" data-ai="open"
+                  title="AI 助手（解释与思路；计算仍由引擎完成）" @click="openAi">AI</button>
           <button class="btn btn-ghost" data-tour="toolbar.search_button" @click="openSearch">搜索</button>
           <button class="btn btn-ghost" data-tour="toolbar.history_button" @click="openHistory">历史</button>
           <button class="btn btn-ghost" data-tour="main_window.keyboard_button"
@@ -373,9 +388,10 @@ function openSearch() { showSearch.value = true; }
     <WelcomeDialog v-if="showWelcome" @close="showWelcome = false" @start-tour="onStartTour" />
     <TourOverlay />
 
-    <!-- 顶栏「历史」/「搜索」弹窗 -->
+    <!-- 顶栏「历史」/「搜索」弹窗 + AI 抽屉 -->
     <HistoryDialog v-if="showHistory" @close="showHistory = false" />
     <SearchPlaceholder v-if="showSearch" @close="showSearch = false" />
+    <AiPanel :open="showAi" @close="showAi = false" />
   </div>
 </template>
 

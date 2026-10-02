@@ -55,14 +55,19 @@
 ### 2.1 AI 助手
 
 - **v1**：`MF_AI/`（8 文件：`agent.py`/`client.py`/`config.py`(17 KB)/`models.py`/`strategy.py`）+ `MF_UI/dialogs/ai_dialog.py`(14.8 KB) + `dialogs/ai_config_prompt.py` + 缓存 `ai_cache.json`。
-- **v2.0**：完全没有，连顶栏按钮都不存在。`lib/settings/catalog.js` 里 AI 组 12 个设置项全是 `pending`（字段名已按 v1 的 `config.yaml` 对齐）。
-- **怎么补**：
-  1. 宿主新增 `AiBridge.cs`：`HttpClient` 打 SSE 流式接口；密钥用 DPAPI 加密后存 `%LOCALAPPDATA%\MFMath\settings\ai.json`（复用 `sys.StoreWrite`）。
-  2. ~~先补推送通道~~ —— **本轮已完成**：宿主 `PushHub.Send(topic, payload)` + JS `lib/push.js` 的 `onPush(topic, handler)`，信封 `{topic,seq,ts,payload}`，跨线程安全、失败只记计数不抛。AI 剩下要做的只是在 `AiBridge` 里边收边 `PushHub.Send("ai.delta", …)`。
-  3. 前端 `views/ai/AiDialog.vue`（对话 + 上下文 + 流式渲染，订阅 `ai.delta`/`ai.done`；数学片段交给现有 `MathLatex.vue`）。
-  4. 把 `catalog.js` 的 AI 组从 `pending` 改成 `ready` 并接上真实读写。
-- **依赖**：§0.4 第 4 条决策（AI 步骤语义）；`PLAN-feature-completion.md` P3。
-- **粗估**：4-6 人日（推送通道已完成，不再计入）。
+- **v2.0（本轮已完成，阶段 1：对话 + 解释 + 上下文 + 流式）**：
+  - 宿主四个新文件：`AiDpapi.cs`（DPAPI P/Invoke，无新依赖）、`AiSse.cs`（SSE 分帧，纯函数）、`AiClient.cs`（OpenAI 兼容流式 + 六类错误分类）、`AiBridge.cs`（`hostObjects.sync.ai` 桥面 + 增量合并 + 自检）。
+  - 前端：`lib/ai/bridge.js`（消息组装 / 隐私开关 / token 估算 / 会话落盘）、`components/ai/AiPanel.vue`（**非模态右侧抽屉**）、`components/settings/AiGroup.vue`（AI 组 12 项 → **10 项**，全部接上真实读写）。
+  - 顶栏新增「AI」按钮；事件走推送通道（`ai.started/delta/reasoning/toolcall/usage/notice/done/error`）。
+  - **密钥不进渲染进程**：配置由宿主读写 `ai.json`，页面只见 `hasKey/keySource/keyPersisted`；DPAPI 不可用时只留内存、绝不写明文。
+  - 端到端 `cdp-ai.mjs` **52 / 0**（自带本地假端点，覆盖七类异常、隐私开关改变请求体、"AI 不得当计算源"）。
+  - 详见 `docs/AI-ASSISTANT.md`。
+- **仍未做（阶段 2/3，都不在本轮范围）**：分步显示（§2.2）；工具调用（事件已留位，页面忽略）；
+  上下文估算自校准（用 `usage.prompt_tokens` 反推系数）；首字节超时与重试退避。
+- **依赖**：§0.4 第 4 条决策只影响**分步**（阶段 2），不阻塞本阶段的对话/解释。
+- **粗估**：阶段 1 已完成（约 3 人日）；阶段 2 分步 2-3 人日；阶段 3 工具调用 2 人日。
+- **与 v1 的差异**：不做 provider 注册表、不做 `model_map` 角色名、不做 `agent.py` 那套
+  "正则抠 JSON + Python eval()"的工具循环；不做登录门禁与配额（BYO Key）。
 
 ### 2.2 分步显示
 
@@ -242,7 +247,7 @@
 | 项 | 动作 | 前置 | 状态 |
 | --- | --- | --- | --- |
 | **C#→JS 推送通道** | `PushHub` + `PostWebMessageAsJson` + `lib/push.js` 的 `onPush` | 无 | **已完成**（`cdp-push` 19/0；组件安装进度与控制台运行结束已在用） |
-| **AI 助手**（§2.1） | `AiBridge.cs` + AI 对话窗 + 设置组落地 | §0.4 第 4 条决策（推送通道已就绪） | 未开始 |
+| **AI 助手**（§2.1） | **阶段 1 已完成**：`AiBridge.cs` + `AiSse.cs` + `AiClient.cs` + `AiDpapi.cs`；前端 `lib/ai/bridge.js` + 非模态抽屉 `AiPanel.vue` + 设置组 `AiGroup.vue` | 无（阶段 2 分步才依赖 §0.4 第 4 条） | **已完成**（端到端 52 / 0，见 `docs/AI-ASSISTANT.md`） |
 | **分步显示**（§2.2） | 按选定路线实现，接 `CalcView.vue:178` 已有的 `onSteps` | 同上的决策 | 未开始 |
 | **自动更新**（§2.11） | 站点补 sha256 + `UpdateBridge.cs` + 设置组（进度条可直接用推送） | 站点改动 | 未开始 |
 

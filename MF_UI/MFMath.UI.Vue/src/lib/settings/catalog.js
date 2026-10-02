@@ -19,7 +19,7 @@ export const GROUPS = [
   { id: "calc", label: "计算与绘图", status: "ready", note: "改了就生效；非法范围会退回自动并在行内说明" },
   { id: "engine", label: "引擎", status: "ready", note: "出问题时用来自助排查" },
   { id: "components", label: "组件", status: "ready", note: "可选下载的运行时" },
-  { id: "ai", label: "AI", status: "pending", depends: "方案 P3（AI 助手 + 推送通道）" },
+  { id: "ai", label: "AI", status: "ready", note: "密钥只存宿主（DPAPI）；流式输出走推送通道；默认只发表达式与结果" },
   { id: "search", label: "搜索", status: "pending", depends: "方案 P1（在线搜索面板）" },
   { id: "update", label: "更新", status: "pending", depends: "方案 P5（站点 /api/version 需先补 sha256）" },
   { id: "storage", label: "存储与数据", status: "partial", depends: "历史/工作区管理依赖 P1" },
@@ -57,19 +57,21 @@ export const ITEMS = [
   { id: "components.source", group: "components", label: "下载源", keywords: "下载源 镜像 地址 url base mirror", status: "ready" },
   { id: "components.cleanup", group: "components", label: "清理未使用组件", keywords: "清理 删除 未使用 cache cleanup", status: "ready" },
 
-  // ── AI（占位：字段名已按 v1 的 MF_AI/config.yaml 对齐，等 P3 填）──
-  { id: "ai.enabled", group: "ai", label: "启用 AI", keywords: "启用 开关 禁用 enable disable", status: "pending" },
-  { id: "ai.provider", group: "ai", label: "Provider", keywords: "provider 提供商 deepseek openai ollama", status: "pending" },
-  { id: "ai.baseUrl", group: "ai", label: "API Base", keywords: "base url 端点 endpoint 地址", status: "pending" },
-  { id: "ai.apiKey", group: "ai", label: "API Key", keywords: "密钥 key token dpapi 加密", status: "pending" },
-  { id: "ai.model", group: "ai", label: "默认模型", keywords: "模型 model deepseek-chat reasoner v4-pro", status: "pending" },
-  { id: "ai.modelMap", group: "ai", label: "角色映射", keywords: "角色 model_map chat sonnet opus haiku fable mythos reasoner", status: "pending" },
-  { id: "ai.modelParams", group: "ai", label: "模型参数", keywords: "max_tokens temperature 参数 覆盖", status: "pending" },
-  { id: "ai.context", group: "ai", label: "上下文长度", keywords: "上下文 context length 长度", status: "pending" },
-  { id: "ai.localModel", group: "ai", label: "本地模型", keywords: "本地 local ollama 路径 auto_detect", status: "pending" },
-  { id: "ai.test", group: "ai", label: "测试连接", keywords: "测试 连接 test connection 连通性", status: "pending" },
-  { id: "ai.cache", group: "ai", label: "缓存管理", keywords: "缓存 cache 条数 清空 ai_cache", status: "pending" },
-  { id: "ai.privacy", group: "ai", label: "隐私说明", keywords: "隐私 说明 privacy 发送", status: "pending" },
+  // ── AI（已落地：宿主 AiBridge + 右侧抽屉面板 + 流式；工具调用只留契约位置）──
+  // 与 v1 的 12 项相比收敛成 10 项，每一项都真的接上了读写：
+  //   · provider 不做注册表 → 就是 ai.baseUrl 行里的三个预设按钮；
+  //   · modelMap（"Sonnet"→真实模型名）是 v1 的内部间接层，用户不需要知道 → 去掉；
+  //   · localModel 由 Ollama 预设覆盖；cache → ai.chat（会话记录，对话缓存会让回答过期）。
+  { id: "ai.enabled", group: "ai", label: "启用 AI", keywords: "启用 开关 禁用 enable disable", status: "ready" },
+  { id: "ai.baseUrl", group: "ai", label: "API Base", keywords: "base url 端点 endpoint 地址 deepseek openai ollama vllm 预设", status: "ready" },
+  { id: "ai.model", group: "ai", label: "默认模型", keywords: "模型 model deepseek-chat reasoner", status: "ready" },
+  { id: "ai.modelParams", group: "ai", label: "模型参数", keywords: "max_tokens temperature 温度 超时 timeout usage 参数", status: "ready" },
+  { id: "ai.apiKey", group: "ai", label: "API Key", keywords: "密钥 key token dpapi 加密 明文 只写不读", status: "ready" },
+  { id: "ai.context", group: "ai", label: "上下文与历史", keywords: "上下文 context length 窗口 历史 轮数 history", status: "ready" },
+  { id: "ai.privacy", group: "ai", label: "会发送什么", keywords: "隐私 说明 privacy 发送 表达式 结果 历史 代码", status: "ready" },
+  { id: "ai.test", group: "ai", label: "测试连接", keywords: "测试 连接 test connection 连通性", status: "ready" },
+  { id: "ai.selftest", group: "ai", label: "AI 自检", keywords: "自检 selftest dpapi sse 分帧 密钥", status: "ready" },
+  { id: "ai.chat", group: "ai", label: "会话记录", keywords: "会话 记录 对话 清空 chat ai-chat 缓存", status: "ready" },
 
   // ── 搜索（占位：依赖 P1）──
   { id: "search.engine", group: "search", label: "搜索引擎", keywords: "引擎 duckduckgo wolfram custom searxng", status: "pending" },

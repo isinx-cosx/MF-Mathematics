@@ -99,10 +99,16 @@ public partial class MainWindow : Window
         // 暴露给 JS 的 `push` 桥只用于诊断与自测，业务消息不经过它。
         PushHub.Attach(Browser.CoreWebView2);
         Browser.CoreWebView2.AddHostObjectToScript("push", new PushBridge());
-        // 关窗时把控制台里还活着的子进程带走，不留孤儿；推送通道同时下线
+        // AI 助手：密钥只留在宿主（DPAPI 密文），流式经推送通道回页面。
+        // 放独立桥是因为它只做"传输 + 密钥"：页面负责组装消息与渲染，宿主不猜内容。
+        AiBridge ai = new AiBridge();
+        Browser.CoreWebView2.AddHostObjectToScript("ai", ai);
+        // 关窗时把控制台里还活着的子进程带走，不留孤儿；在跑的 AI 请求也一并取消
+        // （否则后台 Task 会拽着一个 HTTP 连接，窗口关了但进程不退出）
         Closed += (_, _) =>
         {
             try { console.StopAll(); } catch { }
+            try { ai.CancelAll(); } catch { }
             PushHub.Detach();
         };
 
