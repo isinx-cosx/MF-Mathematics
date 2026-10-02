@@ -56,11 +56,22 @@
 
 - **v1**：`MF_AI/`（8 文件：`agent.py`/`client.py`/`config.py`(17 KB)/`models.py`/`strategy.py`）+ `MF_UI/dialogs/ai_dialog.py`(14.8 KB) + `dialogs/ai_config_prompt.py` + 缓存 `ai_cache.json`。
 - **v2.0（本轮已完成，阶段 1：对话 + 解释 + 上下文 + 流式）**：
-  - 宿主四个新文件：`AiDpapi.cs`（DPAPI P/Invoke，无新依赖）、`AiSse.cs`（SSE 分帧，纯函数）、`AiClient.cs`（OpenAI 兼容流式 + 六类错误分类）、`AiBridge.cs`（`hostObjects.sync.ai` 桥面 + 增量合并 + 自检）。
-  - 前端：`lib/ai/bridge.js`（消息组装 / 隐私开关 / token 估算 / 会话落盘）、`components/ai/AiPanel.vue`（**非模态右侧抽屉**）、`components/settings/AiGroup.vue`（AI 组 12 项 → **10 项**，全部接上真实读写）。
-  - 顶栏新增「AI」按钮；事件走推送通道（`ai.started/delta/reasoning/toolcall/usage/notice/done/error`）。
-  - **密钥不进渲染进程**：配置由宿主读写 `ai.json`，页面只见 `hasKey/keySource/keyPersisted`；DPAPI 不可用时只留内存、绝不写明文。
-  - 端到端 `cdp-ai.mjs` **52 / 0**（自带本地假端点，覆盖七类异常、隐私开关改变请求体、"AI 不得当计算源"）。
+  - **协议层放在 TS**（`src/lib/ai/{types,sse,client,collect}.ts`，**移植自 MVS Agent 的 `src/model/`**）：
+    SSE 分帧、OpenAI 分片语义、`Notice` 降级、错误分类、事件契约。语言相同所以是逐个文件搬；
+    好处是这类纯逻辑**只有一份实现**，而且能脱离宿主做离线单测（`tests/unit-sse.mjs`：四份录制样本
+    在 1/2/3/5/17/64/333 字节切分下结果一致）。
+  - 宿主只剩**凭据 + 网络**：`AiDpapi.cs`（DPAPI P/Invoke，无新依赖）、`AiRelay.cs`
+    （带密钥发请求、把响应原始字节 base64 转回页面、取消/超时/错误分类）、`AiBridge.cs`
+    （`hostObjects.sync.ai` 桥面 + 配置 + 自检）、`AiConfig.cs`。原先那套 C# SSE 客户端已删除。
+  - 前端：`lib/ai/relay.ts`（中继的页面侧，还原始始字节）、`lib/ai/bridge.js`（消息组装 / 隐私开关 /
+    token 估算 / 会话落盘）、`components/ai/AiPanel.vue`（**非模态右侧抽屉**）、
+    `components/settings/AiGroup.vue`（AI 组 12 项 → **10 项**，全部接上真实读写）。
+  - 顶栏新增「AI」按钮；对话经 `ai.http` / `ai.raw*` 中继话题，宿主**不再**推 `ai.delta` 之类的事件。
+  - **密钥不进渲染进程**：配置由宿主读写 `ai.json`，页面只见 `hasKey/keySource/keyPersisted`；
+    DPAPI 不可用时只留内存、绝不写明文。中继**只接受相对路径**（绝对地址 / `//host` / `..` 一律拒绝），
+    否则它就变成"把密钥发到任意地址"的原语 —— 端到端用例有三条断言守着。
+  - 端到端 `cdp-ai.mjs` **58 / 0**（自带本地假端点；七类异常、隐私开关改变请求体、
+    中继闸门、"AI 不得当计算源"）。全套回归 **464 / 0**。
   - 详见 `docs/AI-ASSISTANT.md`。
 - **仍未做（阶段 2/3，都不在本轮范围）**：分步显示（§2.2）；工具调用（事件已留位，页面忽略）；
   上下文估算自校准（用 `usage.prompt_tokens` 反推系数）；首字节超时与重试退避。
@@ -247,7 +258,7 @@
 | 项 | 动作 | 前置 | 状态 |
 | --- | --- | --- | --- |
 | **C#→JS 推送通道** | `PushHub` + `PostWebMessageAsJson` + `lib/push.js` 的 `onPush` | 无 | **已完成**（`cdp-push` 19/0；组件安装进度与控制台运行结束已在用） |
-| **AI 助手**（§2.1） | **阶段 1 已完成**：`AiBridge.cs` + `AiSse.cs` + `AiClient.cs` + `AiDpapi.cs`；前端 `lib/ai/bridge.js` + 非模态抽屉 `AiPanel.vue` + 设置组 `AiGroup.vue` | 无（阶段 2 分步才依赖 §0.4 第 4 条） | **已完成**（端到端 52 / 0，见 `docs/AI-ASSISTANT.md`） |
+| **AI 助手**（§2.1） | **阶段 1 已完成**：协议层用 TS（`src/lib/ai/*.ts`，移植自 MVS Agent）+ 宿主只做凭据与网络（`AiRelay.cs`/`AiBridge.cs`/`AiDpapi.cs`/`AiConfig.cs`）+ 非模态抽屉 `AiPanel.vue` + 设置组 `AiGroup.vue` | 无（阶段 2 分步才依赖 §0.4 第 4 条） | **已完成**（端到端 58 / 0、离线单测 13 / 0、全套 464 / 0，见 `docs/AI-ASSISTANT.md`） |
 | **分步显示**（§2.2） | 按选定路线实现，接 `CalcView.vue:178` 已有的 `onSteps` | 同上的决策 | 未开始 |
 | **自动更新**（§2.11） | 站点补 sha256 + `UpdateBridge.cs` + 设置组（进度条可直接用推送） | 站点改动 | 未开始 |
 

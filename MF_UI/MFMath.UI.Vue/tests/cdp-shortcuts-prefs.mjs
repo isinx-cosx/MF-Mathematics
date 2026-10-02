@@ -242,6 +242,15 @@ const okText = await evalJs(`(() => { const row = document.querySelector('[data-
 check("合法时明确写出当前范围", /固定 x∈\[-5, 5\]/.test(String(okText)), String(okText).slice(0, 110));
 
 // 新开的绘图页应该用这个范围（从别的页面进，确保是"新打开"）
+//
+// ⚠ 先清掉工作区里可能已有的该页载荷。
+// 「工作区还原」的优先级**高于**"新页面的默认范围"（这是产品设计：用户存过的东西优先），
+// 所以只要同一宿主会话里前面有任何一个用例访问过 /plot/2d，它就会把视野写进工作区，
+// 于是这条断言会因为还原而失败 —— 那是用例的顺序脆弱性，不是功能坏了
+// （实测：干净宿主上单独跑连过三次；把绘图用例排到它前面就会失败）。
+// 清一次，让这条断言只依赖它自己要测的东西。
+await evalJs(`(() => { window.__mfWorkspace.clearAll(); return true; })()`);
+await sleep(250);
 await goto("/");
 await sleep(400);
 await goto("/plot/2d");

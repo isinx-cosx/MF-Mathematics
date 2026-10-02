@@ -13,6 +13,9 @@ $hostExe = (Resolve-Path (Join-Path $PSScriptRoot "..\..\MFMath.Host\bin\Release
 if (-not $hostExe) { $hostExe = "C:\Users\fsafsafsa\Desktop\MVS知识库\Multifunctional系列\Multifunctional-Mathematics-v2.0\MFMath.Host\bin\Release\net10.0-windows\MFMath.exe" }
 $tests = @(
   "unit-result-model",
+  # 协议层的离线单测：SSE 分帧（含"任意字节切分一致"），不需要宿主。TS 层搬过来之后
+  # 这类纯逻辑第一次可以脱离窗口测 —— 这也是把协议放进 TS 的直接收益。
+  "unit-sse",
   "cdp-bridge-verify", "cdp-window-shell", "cdp-appearance", "cdp-input-notation", "cdp-font-load", "cdp-plot-verify", "cdp-plot-p3", "cdp-plot-p4",
   "cdp-plot-region", "cdp-plot-p5", "cdp-plot-final", "cdp-plot-asymptote",
   "cdp-plot-extrema", "cdp-plot-extrema-domain", "cdp-plot-3d", "cdp-plot-vector", "cdp-plot-fractal",

@@ -21,6 +21,9 @@
 import { computed, ref } from "vue";
 import { onPush } from "../push.js";
 import { getPage } from "../workspace/store.js";
+import { HostRelayClient } from "./client.ts";
+import { collect } from "./collect.ts";
+import { isRelayHosted, relayCancelAll } from "./relay.ts";
 
 /* ── 宿主桥 ──────────────────────────────────────────────────────────── */
 
@@ -195,83 +198,22 @@ export function initAi() {
   if (inited) return;
   inited = true;
   loadChat();
+  initTestWatch();
+}
 
+/**
+ * 只订阅连通性自检结果。
+ *
+ * ⚠ 对话本身**不再走推送话题**：SSE 分帧、OpenAI 分片语义、错误分类都搬到了
+ * TS 那一层（`client.ts` 直接消费宿主转回来的原始字节），所以增量是把
+ * `client.stream()` 的事件喂进 `collect({ onEvent })` 得来的 —— 一份实现。
+ * 之前那套 `ai.started/delta/reasoning/usage/notice/done/error` 话题连同
+ * 宿主侧的 C# 流式客户端一起删掉了（宿主现在只转发字节）。
+ */
+function initTestWatch() {
   onPush((env) => {
-    const p = env?.payload || {};
-    const topic = String(env?.topic || "");
-    if (!topic.startsWith("ai.")) return;
-
-    if (topic === "ai.test") {
-      aiTestState.value = { testing: false, result: p };
-      return;
-    }
-
-    // ⚠ ai.started 必须**先于**"旧请求过滤"处理。
-    // 过滤的作用是防止上一轮的迟到增量污染新回复，而 started 本身就是"新一轮开始"，
-    // 拿它去和旧 requestId 比会被自己挡掉——实测症状很隐蔽：
-    // JS 侧 requestId 永远停在上上轮，stop() 停了个不存在的 id，
-    // 宿主那一轮还在跑，于是下一次发送被宿主的单飞检查拒绝（"已有一轮在输出"）。
-    if (topic === "ai.started") {
-      aiState.value = {
-        running: true,
-        requestId: String(p.requestId || ""),
-        model: String(p.model || ""),
-        stream: "",
-        reasoning: "",
-        notices: [],
-        usage: null,
-        error: null,
-        doneReason: "",
-        startedAt: typeof p.startedAt === "number" ? p.startedAt : Date.now(),
-      };
-      return;
-    }
-
-    // 其余话题只认当前这一轮
-    if (p.requestId && aiState.value.requestId && p.requestId !== aiState.value.requestId) return;
-
-    switch (topic) {
-      case "ai.delta":
-        aiState.value = { ...aiState.value, stream: aiState.value.stream + String(p.text || "") };
-        break;
-
-      case "ai.reasoning":
-        aiState.value = { ...aiState.value, reasoning: aiState.value.reasoning + String(p.text || "") };
-        break;
-
-      case "ai.usage":
-        aiState.value = { ...aiState.value, usage: { inputTokens: p.inputTokens || 0, outputTokens: p.outputTokens || 0 } };
-        break;
-
-      case "ai.notice":
-        aiState.value = {
-          ...aiState.value,
-          notices: [...aiState.value.notices, { code: String(p.code || ""), message: String(p.message || "") }],
-        };
-        break;
-
-      case "ai.error":
-        aiState.value = {
-          ...aiState.value,
-          running: false,
-          error: { kind: String(p.kind || ""), status: Number(p.status || 0), message: String(p.message || "") },
-        };
-        break;
-
-      case "ai.done": {
-        const text = aiState.value.stream;
-        const reason = String(p.reason || "");
-        aiState.value = { ...aiState.value, running: false, doneReason: reason };
-        if (text.trim()) {
-          aiMessages.value = [...aiMessages.value, { role: "assistant", content: text }].slice(-MAX_MESSAGES);
-          persistChat();
-        }
-        break;
-      }
-
-      default:
-        break;   // ai.toolcall：第一版不执行工具，契约留位
-    }
+    if (String(env?.topic || "") !== "ai.test") return;
+    aiTestState.value = { testing: false, result: env.payload || {} };
   });
 }
 
@@ -381,9 +323,14 @@ export function contextBudget(cfg = aiConfig.value) {
   };
 }
 
-/* ── 发送 / 停止 ─────────────────────────────────────────────────────── */
+/* ── 发送 / 停止（走 TS 客户端；宿主只负责带密钥发请求与转发字节）───────── */
 
-/** @returns {{ok:boolean, error?:string, requestId?:string}} */
+let controller = null;   // 当前这一轮的 AbortController
+
+/**
+ * 发一轮。**立即返回**（不等回复），流式增量由 onEvent 写进 aiState。
+ * @returns {{ok:boolean, error?:string}}
+ */
 export function sendTurn(userText, { route = "", history = aiMessages.value, context = null } = {}) {
   const text = String(userText || "").trim();
   if (!text) return { ok: false, error: "先说点什么" };
@@ -391,6 +338,8 @@ export function sendTurn(userText, { route = "", history = aiMessages.value, con
   const cfg = aiConfig.value;
   if (!cfg.enabled) return { ok: false, error: "AI 未启用：去「设置 → AI」打开开关" };
   if (!cfg.hasKey) return { ok: false, error: "还没有 API Key：去「设置 → AI」填一个" };
+  if (aiState.value.running) return { ok: false, error: "已有一轮在输出，先停止它" };
+  if (!isRelayHosted()) return { ok: false, error: "无宿主：AI 只在 MFMath.exe 里可用" };
 
   const ctx = context ?? currentContext(route);
   const messages = buildMessages({ userText: text, history, context: ctx, cfg });
@@ -398,20 +347,71 @@ export function sendTurn(userText, { route = "", history = aiMessages.value, con
   // 先落到会话里（用户那条），这样即使请求失败也能看到自己说过什么
   aiMessages.value = [...aiMessages.value, { role: "user", content: text }].slice(-MAX_MESSAGES);
 
-  const res = call("Start", JSON.stringify({ messages }));
-  if (!res || res.ok === false) {
-    const err = res?.error || "无宿主：AI 只在 MFMath.exe 里可用";
-    aiState.value = { ...aiState.value, running: false, error: { kind: "config", status: 0, message: err } };
-    return { ok: false, error: err };
-  }
-  persistChat();
-  return res;
+  aiState.value = {
+    running: true, requestId: "", model: cfg.model, stream: "", reasoning: "",
+    notices: [], usage: null, error: null, doneReason: "", startedAt: Date.now(),
+  };
+
+  controller = new AbortController();
+  const client = new HostRelayClient({ includeUsage: cfg.includeUsage !== false });
+
+  // 不 await：调用方（面板）要立刻恢复响应，增量靠回调推进
+  collect(client.stream({
+    model: cfg.model,
+    messages,
+    temperature: Number(cfg.temperature),
+    maxTokens: Number(cfg.maxTokens),
+    signal: controller.signal,
+  }), {
+    onEvent: (ev) => {
+      const s = aiState.value;
+      switch (ev.type) {
+        case "text_delta":
+          aiState.value = { ...s, stream: s.stream + ev.text };
+          break;
+        case "reasoning_delta":
+          aiState.value = { ...s, reasoning: s.reasoning + ev.text };
+          break;
+        case "usage":
+          aiState.value = { ...s, usage: ev.usage };
+          break;
+        case "notice":
+          aiState.value = { ...s, notices: [...s.notices, ev.notice] };
+          break;
+        case "error":
+          aiState.value = { ...s, error: ev.error };
+          break;
+        default:
+          break;   // tool_call_delta：契约留位，本版不执行工具
+      }
+    },
+  }).then((out) => {
+    // 收尾：把最终文本并入会话（只落最终结果，不落增量）
+    aiState.value = { ...aiState.value, running: false, doneReason: out.finishReason };
+    if (out.text.trim()) {
+      aiMessages.value = [...aiMessages.value, { role: "assistant", content: out.text }].slice(-MAX_MESSAGES);
+      persistChat();
+    }
+  }).catch((e) => {
+    aiState.value = {
+      ...aiState.value,
+      running: false,
+      error: { kind: "unknown", status: 0, message: String(e?.message || e) },
+    };
+  }).finally(() => {
+    controller = null;
+  });
+
+  return { ok: true };
 }
 
+/** 停止当前这一轮：先取消宿主侧连接，再 abort 本地迭代 */
 export function stopTurn() {
-  const id = aiState.value.requestId;
-  if (!id) return { ok: false, error: "当前没有在输出的请求" };
-  return call("Cancel", id) || { ok: false, error: "无宿主" };
+  if (!aiState.value.running) return { ok: false, error: "当前没有在输出的请求" };
+  try { controller?.abort(); } catch { /* 忽略 */ }
+  relayCancelAll();
+  aiState.value = { ...aiState.value, running: false, doneReason: "aborted" };
+  return { ok: true };
 }
 
 export const aiBusy = computed(() => aiState.value.running);

@@ -101,12 +101,18 @@ const waitRunning = (ms = 8000) => waitTrue(`window.__mfAi.state().running === t
 
 /**
  * 清掉可能残留的上一轮状态，并把配置指到假端点。
- * 用宿主自己的 CancelAll（而不是 JS 里那个按 requestId 停的 stop）：后者在
- * requestId 不同步时停不到真正在跑的那一轮，会让下一轮被宿主的单飞检查拒绝。
+ * 两件事都要做：宿主侧取消连接（CancelAll）+ 页面侧复位 running 状态。
+ * 只做前者时 JS 里可能还停在 running=true，下一次发送会被自己的单飞检查拒绝。
  */
 async function resetTurn() {
-  await evalJs(`(() => { window.chrome.webview.hostObjects.sync.ai.CancelAll(); return true; })()`);
-  await sleep(350);
+  await evalJs(`(() => {
+    const ai = window.chrome.webview.hostObjects.sync.ai;
+    ai.CancelAll();
+    try { window.__mfAi.stop(); } catch (e) { /* 没在跑就算了 */ }
+    return true;
+  })()`);
+  await waitTrue(`window.__mfAi.state().running === false`, 5000);
+  await sleep(200);
 }
 
 console.log("=== ① 配置与密钥（密钥不进渲染进程）===");
@@ -159,6 +165,24 @@ const raw = String(await evalJs(`(() => {
 check("落盘的 ai.json 里没有密钥明文", raw.length > 0 && !raw.includes(KEY), raw.length > 0 ? "" : "读不到文件");
 check("落盘的 ai.json 用的是密文（apiKeyProtected）", /apiKeyProtected/.test(raw));
 
+// 中继的闸门：页面**不能**让宿主把密钥发到任意地址（这是中继最危险的一面）
+const evilAbsolute = String(await evalJs(`(() => {
+  const ai = window.chrome.webview.hostObjects.sync.ai;
+  return ai.Begin(JSON.stringify({ path: "https://evil.example/v1/chat/completions", body: {} }));
+})()`));
+check("中继拒绝绝对地址（密钥不会被发到任意地址）", /"ok":false/.test(evilAbsolute) && /"kind":"config"/.test(evilAbsolute),
+  evilAbsolute.slice(0, 120));
+const evilProtoRelative = String(await evalJs(`(() => {
+  const ai = window.chrome.webview.hostObjects.sync.ai;
+  return ai.Begin(JSON.stringify({ path: "//evil.example/v1", body: {} }));
+})()`));
+check("中继拒绝协议相对地址（//host）", /"ok":false/.test(evilProtoRelative), evilProtoRelative.slice(0, 90));
+const evilDotDot = String(await evalJs(`(() => {
+  const ai = window.chrome.webview.hostObjects.sync.ai;
+  return ai.Begin(JSON.stringify({ path: "/../../x", body: {} }));
+})()`));
+check("中继拒绝 .. 穿越", /"ok":false/.test(evilDotDot), evilDotDot.slice(0, 90));
+
 console.log("=== ② 正常流式 ===");
 await resetTurn();
 await resetFake();
@@ -174,6 +198,10 @@ const st1 = await evalJs(`JSON.stringify(window.__mfAi.state())`);
 check("usage 收到（假端点给了尾包）", /"inputTokens":42/.test(String(st1)), String(st1).slice(0, 120));
 check("回复进入会话记录", await evalJs(`window.__mfAi.messages().some(m => m.role === "assistant")`) === true);
 check("面板 DOM 里能看到正文", await waitTrue(`(document.querySelector('[data-ai=stream]')?.textContent || '').includes('收到') || document.querySelector('[data-ai=msgs]').textContent.includes('收到')`));
+// 架构断言：字节是宿主经中继话题转过来的，解析在 TS 侧（不是宿主推"事件"）
+const pushTopics = String(await evalJs(`JSON.stringify([...new Set(window.__mfPush.log().map(e => e.topic))])`));
+check("走的是中继话题（ai.http + ai.raw*）", /"ai\.http"/.test(pushTopics) && /"ai\.raw"/.test(pushTopics), pushTopics.slice(0, 140));
+check("宿主侧不再推 ai.delta（协议层只有一份 TS 实现）", !/"ai\.delta"/.test(pushTopics), pushTopics.slice(0, 140));
 
 console.log("=== ③ 停止（流式进行时按下）===");
 await resetTurn();
@@ -187,61 +215,64 @@ const st2 = await evalJs(`JSON.stringify(window.__mfAi.state())`);
 check("结束原因是 aborted（不是 error）", /"doneReason":"aborted"/.test(String(st2)) || /"doneReason":"stop"/.test(String(st2)), String(st2).slice(0, 160));
 
 console.log("=== ④ 七类异常：不崩、有原因、还能继续 ===");
-async function scenario(prompt, expectKind, label, extra = () => true) {
+
+/**
+ * 发一轮并等它收尾，然后断言状态符合预期。
+ *
+ * 两个坑都在这里堵住：
+ *   ① **不能用"先看到 running 再等 idle"当必要条件** —— 有的场景（无 usage）
+ *      毫秒级就结束了，第一次轮询时它已经收尾，"没看到 running"会被误判成失败；
+ *   ② 反过来也不能只看"当前是 idle"：上一轮的陈旧状态会让断言假装通过。
+ * 所以用 `startedAt` 是否变新来确认"这份状态属于刚发出去的这一轮"。
+ */
+async function runTurn(prompt, expect) {
   await resetTurn();
+  const before = await evalJs(`window.__mfAi.state().startedAt`);
   const res = String(await evalJs(`JSON.stringify(window.__mfAi.send(${JSON.stringify(prompt)}))`));
-  if (!/"ok":true/.test(res)) {
-    check(label, false, "发送被拒：" + res.slice(0, 120));
-    return res;
-  }
-  // 必须先看到"真的开始了"，否则"等它结束"会在陈旧状态上秒过
-  if (!await waitRunning(8000)) {
-    check(label, false, "这一轮没有进入 running 状态");
-    return "";
-  }
+  if (!/"ok":true/.test(res)) return { ok: false, reason: "发送被拒：" + res.slice(0, 120), state: "" };
+
+  await waitRunning(6000);                 // 尽力观察，不作为必要条件
   const idle = await waitIdle(30000);
-  const st = await evalJs(`JSON.stringify(window.__mfAi.state())`);
-  const ok = idle && expectKind.test(String(st)) && extra(String(st));
-  check(label, ok, String(st).slice(0, 180));
-  return String(st);
+  const st = String(await evalJs(`JSON.stringify(window.__mfAi.state())`));
+  const fresh = JSON.parse(st).startedAt !== before;
+  return { ok: idle && fresh && expect.test(st), reason: fresh ? st.slice(0, 180) : "状态仍是上一轮的（startedAt 未变）", state: st };
 }
 
-await scenario("这轮会 401", /"kind":"http"[^}]*"status":401|"status":401/, "密钥错（401）→ http/401");
-await scenario("这轮会 500", /"kind":"http"[^}]*"status":500|"status":500/, "服务端 500 → http/500");
-await scenario("给我坏JSON", /"code":"bad_sse_data"/, "坏 SSE data → bad_sse_data 降级（不算失败）");
-await scenario("无usage 的回复", /"code":"missing_usage"/, "无 usage 尾包 → missing_usage 降级");
-await scenario("无DONE 的流", /"code":"truncated_stream"/, "无 [DONE]/finish_reason → truncated_stream 降级");
-await scenario("断开 吧", /"kind":"network"/, "流被掐断 → network 错误（与「没开始」区分开）");
+for (const [prompt, expect, label] of [
+  ["这轮会 401", /"kind":"http"[^}]*"status":401|"status":401/, "密钥错（401）→ http/401"],
+  ["这轮会 500", /"kind":"http"[^}]*"status":500|"status":500/, "服务端 500 → http/500"],
+  ["给我坏JSON", /"code":"bad_sse_data"/, "坏 SSE data → bad_sse_data 降级（不算失败）"],
+  ["无usage 的回复", /"code":"missing_usage"/, "无 usage 尾包 → missing_usage 降级"],
+  ["无DONE 的流", /"code":"truncated_stream"/, "无 [DONE]/finish_reason → truncated_stream 降级"],
+  ["断开 吧", /"kind":"network"/, "流被掐断 → network 错误（与「没开始」区分开）"],
+]) {
+  const r = await runTurn(prompt, expect);
+  check(label, r.ok, r.reason);
+}
 
 // 连接失败：把端点指到一个没人监听的端口
 await resetTurn();
 await evalJs(`window.__mfAi.configure({ baseUrl: "http://127.0.0.1:9/v1" })`);
-const connRes = String(await evalJs(`JSON.stringify(window.__mfAi.send("连不上"))`));
-const startedNet = /"ok":true/.test(connRes) ? await waitRunning(8000) : false;
-const idleNet = startedNet ? await waitIdle(30000) : false;
-const stNet = String(await evalJs(`JSON.stringify(window.__mfAi.state())`));
-check("端点连不上 → network 错误且不崩", idleNet && /"kind":"network"/.test(stNet),
-  startedNet ? stNet.slice(0, 160) : "发送被拒：" + connRes.slice(0, 100));
+{
+  const r = await runTurn("连不上", /"kind":"network"/);
+  check("端点连不上 → network 错误且不崩", r.ok, r.reason);
+}
 
-// 超时：挂起场景 + 5 秒超时
+// 超时：挂起场景 + 5 秒超时（这一轮确实会跑满 5 秒，所以 running 是能观察到的）
 await resetTurn();
 await evalJs(`window.__mfAi.configure({ baseUrl: ${JSON.stringify(BASE)}, timeoutSec: 5 })`);
-const hangRes = String(await evalJs(`JSON.stringify(window.__mfAi.send("挂起 吧"))`));
-const startedHang = /"ok":true/.test(hangRes) ? await waitRunning(8000) : false;
-const idleTimeout = startedHang ? await waitIdle(25000) : false;
-const stTimeout = String(await evalJs(`JSON.stringify(window.__mfAi.state())`));
-check("挂起 → 超时收尾（done=timeout/aborted，不是一直挂着）",
-  idleTimeout && /"doneReason":"(timeout|aborted)"/.test(stTimeout),
-  startedHang ? stTimeout.slice(0, 160) : "发送被拒：" + hangRes.slice(0, 100));
+{
+  const r = await runTurn("挂起 吧", /"doneReason":"timeout"/);
+  check("挂起 → 超时收尾（done=timeout，且与手动取消区分开）", r.ok, r.reason);
+}
 
 // 异常之后还能正常聊：证明状态没被搞坏
-await resetTurn();
 await evalJs(`window.__mfAi.configure({ baseUrl: ${JSON.stringify(BASE)}, timeoutSec: 20 })`);
 await resetFake();
-const recRes = String(await evalJs(`JSON.stringify(window.__mfAi.send("恢复正常"))`));
-const startedRec = /"ok":true/.test(recRes) ? await waitRunning(8000) : false;
-check("异常之后仍能正常对话", startedRec && await waitIdle() && await evalJs(`window.__mfAi.state().stream.includes("收到")`) === true,
-  startedRec ? "" : "发送被拒：" + recRes.slice(0, 100));
+{
+  const r = await runTurn("恢复正常", /"stream":"[^"]*收到/);
+  check("异常之后仍能正常对话", r.ok, r.reason);
+}
 
 console.log("=== ⑤ 隐私：关掉的开关真的没发出去 ===");
 // 前端组装逻辑（不必真发）：sendCode 关掉时，控制台代码不进消息数组
@@ -255,9 +286,9 @@ await resetTurn();
 await evalJs(`window.__mfAi.configure({ sendHistory: false })`);
 await resetFake();
 await evalJs(`window.__mfAi.send("第一轮")`);
-await waitRunning(); await waitIdle();
+await waitIdle();
 await evalJs(`window.__mfAi.send("第二轮")`);
-await waitRunning(); await waitIdle();
+await waitIdle();
 let reqs = await fakeRequests();
 const last = reqs[reqs.length - 1];
 check("关掉历史：第二个请求没有把整段对话带上", !!last && last.messageCount <= 3,
@@ -270,9 +301,9 @@ await resetTurn();
 await evalJs(`window.__mfAi.configure({ sendHistory: true, historyTurns: 6 })`);
 await resetFake();
 await evalJs(`window.__mfAi.send("第一轮")`);
-await waitRunning(); await waitIdle();
+await waitIdle();
 await evalJs(`window.__mfAi.send("第二轮")`);
-await waitRunning(); await waitIdle();
+await waitIdle();
 reqs = await fakeRequests();
 const last2 = reqs[reqs.length - 1];
 check("打开历史：第二个请求带上了历史（消息数变多）", !!last2 && last2.messageCount > (last?.messageCount ?? 0),
@@ -300,7 +331,7 @@ check("引擎算出 1+1=2（作为对照基准）", engineVal === "2", engineVal
 await resetTurn();
 await evalJs(`window.__mfAi.configure({ sendHistory: false })`);
 await evalJs(`window.__mfAi.send("1+1 等于几")`);
-await waitRunning(); await waitIdle();
+await waitIdle();
 const aiText = String(await evalJs(`window.__mfAi.state().stream`));
 check("AI 回复里确实出现了那个错的等式（否则这条断言没有意义）", aiText.includes("1+1=3"), aiText.slice(0, 60));
 const afterVal = String(await evalJs(`((document.querySelector('.lcd .lcd-result') || {}).textContent || '').trim()`));
@@ -310,7 +341,8 @@ check("AI 回复**没有**改写结果区（结果仍是引擎的值 2）", afte
 console.log("=== ⑦ 自检与设置页 ===");
 const sc = String(await evalJs(`JSON.stringify(window.__mfAi.selfCheck())`));
 check("自检有密钥保护一项", sc.includes("密钥保护"), sc.slice(0, 120));
-check("自检的 SSE 分帧（任意切分一致）通过", /"name":"SSE 分帧（任意切分一致）","ok":true/.test(sc), sc.slice(0, 220));
+check("自检的中继路径闸门通过（拒绝绝对地址）", /"name":"中继路径闸门（拒绝绝对地址）","ok":true/.test(sc), sc.slice(0, 260));
+check("自检的字节转手无损（base64）通过", /"name":"响应字节转手无损（base64）","ok":true/.test(sc));
 check("自检的配置目录可写通过", /"name":"配置目录可写","ok":true/.test(sc));
 
 await evalJs(`location.hash = "#/settings?group=ai"`);
