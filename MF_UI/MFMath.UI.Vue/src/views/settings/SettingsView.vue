@@ -23,6 +23,7 @@ import EngineGroup from "../../components/settings/EngineGroup.vue";
 import ComponentsGroup from "../../components/settings/ComponentsGroup.vue";
 import AiGroup from "../../components/settings/AiGroup.vue";
 import SearchGroup from "../../components/settings/SearchGroup.vue";
+import AccountGroup from "../../components/settings/AccountGroup.vue";
 import StorageGroup from "../../components/settings/StorageGroup.vue";
 import PlaceholderGroup from "../../components/settings/PlaceholderGroup.vue";
 
@@ -118,6 +119,7 @@ function jump(item) {
         <ComponentsGroup v-else-if="active === 'components'" />
         <AiGroup v-else-if="active === 'ai'" />
         <SearchGroup v-else-if="active === 'search'" />
+        <AccountGroup v-else-if="active === 'account'" />
         <StorageGroup v-else-if="active === 'storage'" />
         <PlaceholderGroup v-else :group="group" :items="itemsOf(active)" />
       </div>

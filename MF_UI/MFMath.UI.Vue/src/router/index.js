@@ -26,6 +26,9 @@ const REAL_VIEWS = {
   // 联网搜索：抓取与解析在宿主（C#），凭据不进渲染进程；这里是一个页面
   // （搜索结果是内容，值得有路由：教程示例「联网搜索」直接落到 /tools/search?q=…）
   "/tools/search": () => import("../views/tools/SearchView.vue"),
+  // 账号：与站点（mf-vis-science.cn）的账号接口对接。token 只存宿主，页面读不到。
+  // 未登录/断网都不影响任何计算功能（见 docs/ACCOUNT.md）。
+  "/account": () => import("../views/account/AccountView.vue"),
   // 教程系统（v1 只有帮助浏览器一个入口，这里教程目录与示例库都在导航里）
   "/tutorial": () => import("../views/tutorial/TutorialCatalogView.vue"),
   "/examples": () => import("../components/tutorial/ExampleLibrary.vue"),
@@ -78,6 +81,16 @@ routes.push({
   name: "settings",
   component: () => import("../views/settings/SettingsView.vue"),
   meta: { title: "设置", desc: "外观 · 引擎 · 组件 · 数据" },
+});
+
+// 账号：入口是顶栏的用户名/登录按钮（不占侧栏一项），所以同样必须显式注册。
+// 这条注释不是礼节 —— 我在这一轮里又把同一个坑踩了一次：只加进 REAL_VIEWS 而没加路由，
+// 结果 /account 点进去内容区空白。凡是不在 NAV_GROUPS 里的页面，都要在这里补一行。
+routes.push({
+  path: "/account",
+  name: "account",
+  component: () => import("../views/account/AccountView.vue"),
+  meta: { title: "账号", desc: "登录 · 额度 · 会话" },
 });
 
 const router = createRouter({

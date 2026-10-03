@@ -72,10 +72,10 @@ await clickText('[data-tour="toolbar.settings_button"]', "设置");
 check("顶栏「设置」打开真实页面（不再是 alert）", await waitTrue(`!!document.querySelector('.set-groups')`));
 // 没有弹窗阻塞：若还是 alert，页面会因为模态而卡住，后面的断言都会超时
 const groups = await ev(`[...document.querySelectorAll('.set-groups li .g-label')].map(x => x.textContent.trim()).join(',')`);
-// 「计算与绘图」是本轮新增的（v1 的数值精度 + 绘图默认值），所以从 7 组变 8 组
-check("分组齐全（含本轮新增的「计算与绘图」）", groups === "外观,计算与绘图,引擎,组件,AI,搜索,更新,存储与数据", groups);
+// 分组清单是"按设计"的固定断言：新增一组就要同步改这里（本轮加了「账号」→ 9 组）
+check("分组齐全（含本轮新增的「账号」）", groups === "外观,计算与绘图,引擎,组件,AI,搜索,账号,更新,存储与数据", groups);
 const counts = await ev(`document.querySelectorAll('.set-groups li .g-count').length`);
-check("每个分组显示完成度 x/y", counts === 8, `实际 ${counts}`);
+check("每个分组显示完成度 x/y", counts === 9, `实际 ${counts}`);
 
 console.log("=== 外观（现在就能做，改了就生效）===");
 await clickText('.set-groups li', "外观");

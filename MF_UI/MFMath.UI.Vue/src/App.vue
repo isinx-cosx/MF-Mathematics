@@ -21,6 +21,7 @@ import { initPrefs } from "./lib/settings/prefs.js";
 import { initTourSanitizerHook } from "./lib/tutorial/targets.js";
 import { initPlotMathHook } from "./lib/plot/plotMath.js";
 import { initAi, initAiHook } from "./lib/ai/bridge.js";
+import { accountInfo, initAccount, initAccountHook } from "./lib/account/bridge.js";
 import {
   THEME_LIST, SHAPE_LIST, DENSITY_LIST, FONT_LIST,
   themeLabel, currentAppearance, applyAppearance, watchSystemTheme,
@@ -179,6 +180,9 @@ onMounted(() => {
   // 联网搜索：订阅 search.done / search.error，并挂 __mfSearch 钩子（同样要在 initPush 之后）
   initSearch();
   initSearchHook();
+  // 账号：订阅 account.changed，挂 __mfAccount 钩子（同样在 initPush 之后）
+  initAccount();
+  initAccountHook();
   // 全局快捷键：F1 帮助、Ctrl+Z/Y 撤销重做（谁有"上一步"谁注册，见 lib/keyboard/shortcuts.js）
   // 卸载放在 onBeforeUnmount 里由 uninstallShortcuts 收尾
   uninstallShortcuts = installShortcuts(router);
@@ -236,6 +240,21 @@ function openSearch() { router.push("/tools/search"); }
  * 比给一个点不动的按钮诚实（沿用搜索占位面板的那条判断）。 */
 const showAi = ref(false);
 function openAi() { showAi.value = true; }
+
+/* ── 账号（顶栏登录态）───────────────────────────────────────────────────
+ * 这里只放"这个名字 + 一个入口"，不做拦截：未登录、断网、站点挂了，
+ * 顶栏只是少显示一个用户名，任何计算功能都不受影响（见 docs/ACCOUNT.md 的离线承诺）。 */
+const accountLabel = computed(() => {
+  if (accountInfo.value.loggedIn && accountInfo.value.username) return accountInfo.value.username;
+  return "登录";
+});
+const accountTitle = computed(() => {
+  const i = accountInfo.value;
+  if (!i.loggedIn) return "登录 / 注册（可选，不影响任何计算功能）";
+  const extra = i.offline ? " · 当前离线，显示的是缓存资料" : "";
+  return `${i.username} · 额度 ${i.balance}${extra}`;
+});
+function openAccount() { router.push("/account"); }
 </script>
 
 <template>
@@ -352,6 +371,10 @@ function openAi() { showAi.value = true; }
           <span id="modeDesc">{{ modeDesc }}</span>
         </div>
         <div class="topbar-actions">
+          <!-- 账号：未登录时显示「登录」，登录后显示用户名。**它不挡住任何功能** ——
+               未登录、断网都只是这里少一个名字，计算全部在本地引擎里。 -->
+          <button class="btn btn-ghost" data-account="open" :title="accountTitle"
+                  @click="openAccount">{{ accountLabel }}</button>
           <button class="btn btn-ghost" data-tour="toolbar.ai_button" data-ai="open"
                   title="AI 助手（解释与思路；计算仍由引擎完成）" @click="openAi">AI</button>
           <button class="btn btn-ghost" data-tour="toolbar.search_button" @click="openSearch">搜索</button>

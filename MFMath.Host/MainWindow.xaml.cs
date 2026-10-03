@@ -107,6 +107,10 @@ public partial class MainWindow : Window
         // 与 AI 同源的理由：页面直连会撞 CORS，而 App ID 不该进渲染进程。
         SearchBridge search = new SearchBridge();
         Browser.CoreWebView2.AddHostObjectToScript("search", search);
+        // 用户系统：与站点（https://mf-vis-science.cn）的账号接口对接。
+        // token 只存宿主（DPAPI 密文）；**未登录/断网都不影响任何计算功能**（计算全在本地引擎）。
+        AccountBridge account = new AccountBridge();
+        Browser.CoreWebView2.AddHostObjectToScript("account", account);
         // 关窗时把控制台里还活着的子进程带走，不留孤儿；在跑的 AI / 搜索请求也一并取消
         // （否则后台 Task 会拽着一个 HTTP 连接，窗口关了但进程不退出）
         Closed += (_, _) =>
@@ -114,6 +118,7 @@ public partial class MainWindow : Window
             try { console.StopAll(); } catch { }
             try { ai.CancelAll(); } catch { }
             try { search.CancelAll(); } catch { }
+            try { account.CancelAll(); } catch { }
             PushHub.Detach();
         };
 

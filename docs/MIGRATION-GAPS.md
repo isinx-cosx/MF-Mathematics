@@ -113,10 +113,24 @@
 ### 2.4 用户系统
 
 - **v1**：`MF_User/`（`login_dialog.py` **34 KB**、`auth_service.py`、`auth_worker.py`、`api_client.py` 10.9 KB）+ `users.json`；站点侧接口现成。
-- **v2.0**：无，顶栏也没有登录入口。
-- **怎么补**：宿主 `AccountBridge.cs`（登录/注册/邮箱验证码 + token 存 DPAPI）；前端 `views/account/AccountDialog.vue` + 顶栏登录态（登录后显示用户名）；离线可用性必须保住——**未登录不得影响任何计算功能**。
-- **依赖**：站点后端接口（已存在）。
-- **粗估**：3-4 人日。
+- **v2.0（本轮已完成）**：
+  - **服务器侧：不需要新造端口** —— 站点早有面向客户端的 Bearer token API（`/api/login` OAuth2 form、
+    `/api/me`、`/api/register`、`/api/send-code|verify-code|resend-code`、`/api/change-password`、
+    `/api/login-history`、`/api/logout`、`/api/version`），失败体是 `{detail}`（站点注释写明"桌面端依赖 detail"）。
+    生产实测：`/api/me` 无 token → `401 {"detail":"未认证"}`；v1 用的老路径 `/login` 已 404。
+  - **补上的缺口（本轮新增，网站行为不变）**：`POST /api/token/refresh`（用有效 token 换新的；
+    登出后的 token 续期也会被拒）+ 登录/续期的可选 `remember`（30 天长会话）。
+    没有它，桌面端每 30 分钟被踢一次。策略集中在站点 `src/lib/session.ts`。
+  - **软件侧**：宿主 `AccountApi.cs` / `AccountConfig.cs` / `AccountBridge.cs`（token 为 DPAPI 密文）；
+    页面 `views/account/AccountView.vue`（路由 `/account`）+ 设置组 `AccountGroup.vue` + 顶栏登录态。
+  - 端到端 `cdp-account.mjs` **52 / 0**（自带按站点契约实现的假账号服务器）；站点契约本机验证 **16 / 0**。
+  - 详见 `docs/ACCOUNT.md`。
+- **离线可用性（硬要求，已断言）**：**未登录、不登录、断网、站点挂了都不影响任何计算功能**。
+  端到端用例会真的杀掉假服务器，然后在计算页按 7+8= 得到 15；断网时账号页显示缓存的资料并标「未校验」。
+- **仍未做**：改密码立刻作废既有 token（站点现状如此，属会话策略变更，需单独决策）；
+  让桌面端 AI 走站点额度（产品决策）；云同步/云历史（本轮没有引入任何"数据上服务器"的行为）。
+- **依赖**：站点后端接口（已存在）+ 本轮新增的续期端点。
+- **粗估**：已完成（约 2.5 人日，含站点侧改动与两侧验证）。
 
 ### 2.5 历史记录 —— 本轮已完成
 

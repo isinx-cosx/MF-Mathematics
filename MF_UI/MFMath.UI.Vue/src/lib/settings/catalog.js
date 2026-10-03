@@ -21,6 +21,7 @@ export const GROUPS = [
   { id: "components", label: "组件", status: "ready", note: "可选下载的运行时" },
   { id: "ai", label: "AI", status: "ready", note: "密钥只存宿主（DPAPI）；流式输出走推送通道；默认只发表达式与结果" },
   { id: "search", label: "搜索", status: "ready", note: "抓取与解析在宿主（C#）；App ID 只存宿主；缓存键含引擎" },
+  { id: "account", label: "账号", status: "ready", note: "token 只存宿主（DPAPI）；未登录/断网都不影响任何计算功能" },
   { id: "update", label: "更新", status: "pending", depends: "方案 P5（站点 /api/version 需先补 sha256）" },
   { id: "storage", label: "存储与数据", status: "partial", depends: "历史/工作区管理依赖 P1" },
 ];
@@ -82,6 +83,13 @@ export const ITEMS = [
   { id: "search.cache", group: "search", label: "本地缓存", keywords: "缓存 cache ttl 清空 引擎", status: "ready" },
   { id: "search.privacy", group: "search", label: "隐私说明", keywords: "隐私 说明 privacy 查询 发往", status: "ready" },
   { id: "search.selftest", group: "search", label: "搜索自检", keywords: "自检 selftest 解析器 缓存键 协议闸门", status: "ready" },
+
+  // ── 账号（已落地：宿主 AccountBridge + /account 页面 + 站点 /api/* 契约）──
+  { id: "account.baseUrl", group: "account", label: "站点地址", keywords: "服务器 站点 地址 baseurl 域名 mf-vis-science", status: "ready" },
+  { id: "account.session", group: "account", label: "登录会话", keywords: "会话 记住我 remember 续期 refresh token 30 天", status: "ready" },
+  { id: "account.credentials", group: "account", label: "本机凭据", keywords: "凭据 token 清除 退出 dpapi 加密 保存位置", status: "ready" },
+  { id: "account.offline", group: "account", label: "离线承诺", keywords: "离线 断网 未登录 不影响 计算 offline", status: "ready" },
+  { id: "account.selftest", group: "account", label: "连接自检", keywords: "自检 selftest 地址闸门 错误体 jwt 脱敏", status: "ready" },
 
   // ── 更新（占位：依赖 P5）──
   { id: "update.version", group: "update", label: "当前版本", keywords: "版本 version 当前", status: "pending" },
