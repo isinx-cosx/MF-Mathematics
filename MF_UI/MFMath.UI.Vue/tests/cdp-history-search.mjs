@@ -200,28 +200,22 @@ const storedOk = (() => {
 })();
 check("history 文件里有条目（跨会话保留的依据）", storedOk === true);
 
-console.log("=== 顶栏「搜索」是说明面板，不是死按钮 ===");
+console.log("=== 顶栏「搜索」现在打开的是**真实搜索页** ===");
 check("顶栏「搜索」按钮可点", (await clickTop("搜索")) === true);
-check("打开了搜索占位面板", await waitTrue(`!!document.querySelector('.sp-dialog')`));
-const spText = await evalJs(`(() => { const d = document.querySelector('.sp-dialog'); return d ? d.textContent.replace(/\\s+/g, ' ') : ''; })()`);
-check("面板明确说明「尚未接入」（不装作有搜索）",
-  /尚未接入/.test(String(spText)) && /DuckDuckGo|Wolfram/.test(String(spText)), String(spText).slice(0, 80));
-check("面板里没有假装能用的搜索框", (await evalJs(`document.querySelectorAll('.sp-dialog input').length`)) === 0);
-
-await evalJs(`(() => {
-  for (const b of document.querySelectorAll('.sp-dialog .dialog-footer button')) {
-    if ((b.textContent || '').includes('看设置里的搜索项')) { b.click(); return true; }
-  }
-  return false;
-})()`);
 await sleep(700);
-const setHash = String(await evalJs(`location.hash`));
-check("能跳到设置里的搜索分组", setHash.includes("/settings") && setHash.includes("group=search"), setHash);
-const activeGroup = await evalJs(`(() => {
-  const el = document.querySelector('.set-nav li.on');
-  return el ? el.textContent.replace(/\\s+/g, ' ').trim() : '';
-})()`);
-check("设置页停在「搜索」分组上", /搜索/.test(String(activeGroup)), String(activeGroup).slice(0, 40));
+const searchHash = String(await evalJs(`location.hash`));
+check("跳到了 /tools/search（真实页面，不再是占位浮层）", searchHash.includes("/tools/search"), searchHash);
+check("页面上有可用的搜索框", await waitTrue(`!!document.querySelector('[data-search=input]')`, 8000));
+check("引擎选择器在", await evalJs(`!!document.querySelector('[data-search=engine]')`) === true);
+const privLine = await evalJs(`(() => { const el = document.querySelector('[data-search=endpoint]'); return el ? el.textContent.replace(/\\s+/g, ' ').trim() : ''; })()`);
+// 隐私说明不是装饰：必须写明查询会发往哪个站点
+check("明说查询会发往哪个站点", /查询会发往：/.test(String(privLine)) && /duckduckgo|wolfram|http/i.test(String(privLine)),
+  String(privLine).slice(0, 100));
+check("占位浮层已经不存在了（功能落地后不留旧壳）",
+  (await evalJs(`document.querySelectorAll('.sp-dialog').length`)) === 0);
+check("侧栏「工具」里有搜索入口", await evalJs(`(() => {
+  return [...document.querySelectorAll('#nav .mode-list li')].some(li => (li.textContent || '').includes('搜索'));
+})()`) === true);
 
 console.log(`RESULT|cdp-history-search|${pass}|${fail}`);
 ws.close();

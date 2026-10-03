@@ -21,7 +21,7 @@
 | 项 | 状态 | 证据 |
 | --- | --- | --- |
 | 顶栏「历史」死按钮 → **真实历史功能** | 已完成 | `src/lib/history/store.js` + `src/components/history/HistoryDialog.vue`；落 `%LOCALAPPDATA%\MFMath\settings\history.json`（走宿主原子写）；端到端 `cdp-history-search.mjs` **20 / 0** |
-| 顶栏「搜索」死按钮 → **占位说明面板** | 已完成（真实搜索仍未做） | `src/components/tools/SearchPlaceholder.vue`：明说"尚未接入 + 将来是什么 + 依赖什么"，可直接跳到设置里的搜索分组；详见 §2.3 |
+| 顶栏「搜索」死按钮 → **真实联网搜索** | **已完成** | 宿主 `SearchBridge.cs`/`SearchBackend.cs`/`SearchCache.cs`/`SearchConfig.cs`（C# 抓取与解析，凭据不进渲染进程）+ 路由页面 `views/tools/SearchView.vue` + 设置组 `SearchGroup.vue`；端到端 `cdp-search.mjs` **53 / 0**；详见 §2.3 与 `docs/ONLINE-SEARCH.md` |
 | 控制台缺 sympy / numpy / scipy | **本地已解决**，站点尚未换包 | `MFMath.Host/tools/build-python-component.ps1` 重建组件包（10.5 MB → 64 MB 下载 / 191 MB 安装）；实测控制台里 import 与真实计算全部通过；详见 §3.1 |
 | 基础运算页"最近计算"不落盘 | 已完成（与全局历史统一） | `BasicCalcView.vue` 的列表改为读全局历史（不再刷新即失）；设置 → 存储与数据里可看条数与清空 |
 | **C#→JS 推送通道**（AI 与更新进度的共同前置） | 已完成 | 宿主 `PushHub.cs`（`PostWebMessageAsJson` + UI 线程编组 + 信封 `{topic,seq,ts,payload}`）+ JS `src/lib/push.js`；真实生产者：组件安装进度 `component.install`、控制台运行 `console.run`；设置 → 引擎里有自检行；端到端 `cdp-push.mjs` **19 / 0** |
@@ -97,11 +97,18 @@
 ### 2.3 在线搜索
 
 - **v1**：`MF_Online/`（`search.py` 5.7 KB、`cache.py`、`config.py`）+ `dialogs/search_panel.py`(7.4 KB)，支持 DuckDuckGo / Wolfram Alpha / 自定义端点。
-- **v2.0（本轮后）**：顶栏「搜索」不再是死按钮 —— 点开 `components/tools/SearchPlaceholder.vue`，写明"尚未接入 + 将来支持什么 + 依赖什么"，并可一键跳到设置里的搜索分组（`/settings?group=search`）。**真实的搜索面板仍未实现。**
-- **怎么补（真实面板）**：宿主新增 `SearchBridge.cs`（`HttpClient` + 超时 + 结果解析 + 本地缓存到 `%LOCALAPPDATA%\MFMath\search_cache.json`）；前端把占位面板换成 `components/tools/SearchPanel.vue`（非模态、结果里的表达式可一键送进计算页，复用 `lib/workspace/pendingInput.js`）；`catalog.js` 的 search 组 6 项落地。
-- **注意**：占位面板里**故意不放搜索框** —— 摆一个搜不出东西的输入框比明说"还没接入"更糟。这条约束在 `cdp-history-search.mjs` 里有断言守着。
-- **依赖**：Wolfram 需要 App ID（用户自带）。
-- **粗估**：真实面板 2-3 人日（占位已完成）。
+- **v2.0（本轮已完成）**：
+  - 宿主（C#）：`SearchBridge.cs`（桥面 + 取消/超时分类）、`SearchBackend.cs`（DDG 结果页+IA 摘要 / Wolfram 短答案 / SearXNG JSON 三路抓取与四个解析器）、`SearchCache.cs`（**键含引擎** + TTL + 上限 + 原子落盘）、`SearchConfig.cs`（App ID 为 DPAPI 密文）。
+  - 前端：`lib/search/bridge.js` + **路由页面** `views/tools/SearchView.vue`（`/tools/search`，读 `?q=` 直接开搜）+ 设置组 `components/settings/SearchGroup.vue`（catalog 的 search 组 8 项落地）。
+  - 顶栏「搜索」与侧栏「工具 → 搜索」都跳到该页面；**原来的占位浮层已删除**（功能落地后不留旧壳）。
+  - 结果里的表达式可「算这个」一键送进基础运算页（复用 `lib/workspace/pendingInput.js` 的既有通路，**由引擎计算**）。
+  - 端到端 `cdp-search.mjs` **53 / 0**（自带假搜索端点；三条后端、缓存不出网、换引擎不误命中、六类异常分类、App ID 不外泄、`OpenUrl` 协议闸门、深链、自检）。
+  - 详见 `docs/ONLINE-SEARCH.md`。
+- **有意与 v1 不同**：缓存键含引擎（v1 只用查询词 → 换引擎不生效）；结果面板是**路由页面**而不是对话框
+  （结果是内容：要来回看、要送进计算页、教程示例需要落点）；失败分类到"下一步怎么办"而不是一句"搜索失败"。
+- **仍未做**：翻页（只取前 N 条）、网页正文抓取、请求去重/限流。
+- **依赖**：Wolfram 需要 App ID（用户自带）；自定义端点需要 SearXNG 之类开着的 JSON 接口。
+- **粗估**：已完成（约 2 人日）。
 
 ### 2.4 用户系统
 

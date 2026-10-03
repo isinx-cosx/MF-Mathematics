@@ -23,6 +23,9 @@ const REAL_VIEWS = {
   "/plot/geometry": () => import("../views/plot/PlotGeometryView.vue"),
   // 控制台：在应用里写 Python/C++ 小程序，两条语言都通过 mfmath 调同一个 C++ 引擎
   "/tools/console": () => import("../views/tools/ConsoleView.vue"),
+  // 联网搜索：抓取与解析在宿主（C#），凭据不进渲染进程；这里是一个页面
+  // （搜索结果是内容，值得有路由：教程示例「联网搜索」直接落到 /tools/search?q=…）
+  "/tools/search": () => import("../views/tools/SearchView.vue"),
   // 教程系统（v1 只有帮助浏览器一个入口，这里教程目录与示例库都在导航里）
   "/tutorial": () => import("../views/tutorial/TutorialCatalogView.vue"),
   "/examples": () => import("../components/tutorial/ExampleLibrary.vue"),

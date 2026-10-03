@@ -10,8 +10,8 @@ import TourOverlay from "./components/tutorial/TourOverlay.vue";
 import WelcomeDialog from "./components/tutorial/WelcomeDialog.vue";
 import MathKeypad from "./components/math/MathKeypad.vue";
 import HistoryDialog from "./components/history/HistoryDialog.vue";
-import SearchPlaceholder from "./components/tools/SearchPlaceholder.vue";
 import AiPanel from "./components/ai/AiPanel.vue";
+import { initSearch, initSearchHook } from "./lib/search/bridge.js";
 import { initTutorials, isFirstLaunch, markLaunched } from "./lib/tutorial/store.js";
 import { start as startTour } from "./lib/tutorial/tour.js";
 import { initPush } from "./lib/push.js";
@@ -176,6 +176,9 @@ onMounted(() => {
   // 必须在 initPush 之后：推送监听是它唯一的输入来源。
   initAi();
   initAiHook();
+  // 联网搜索：订阅 search.done / search.error，并挂 __mfSearch 钩子（同样要在 initPush 之后）
+  initSearch();
+  initSearchHook();
   // 全局快捷键：F1 帮助、Ctrl+Z/Y 撤销重做（谁有"上一步"谁注册，见 lib/keyboard/shortcuts.js）
   // 卸载放在 onBeforeUnmount 里由 uninstallShortcuts 收尾
   uninstallShortcuts = installShortcuts(router);
@@ -222,9 +225,10 @@ function settings() { router.replace("/settings"); }
  *   · 搜索 → 打开占位说明面板，讲清它将来是什么、依赖什么（比一个死按钮诚实，
  *            也比摆一个搜不出东西的假搜索框好）。 */
 const showHistory = ref(false);
-const showSearch = ref(false);
+// 搜索自本轮起是**真实页面**（/tools/search）：结果是内容，值得有路由，
+// 教程示例「联网搜索」也能直接落过去。所以这里不再有 showSearch 浮层状态。
 function openHistory() { showHistory.value = true; }
-function openSearch() { showSearch.value = true; }
+function openSearch() { router.push("/tools/search"); }
 
 /* ── 顶栏「AI」──
  * 非模态右侧抽屉（不是模态对话框：用户常要一边看结果一边问）。
@@ -390,7 +394,6 @@ function openAi() { showAi.value = true; }
 
     <!-- 顶栏「历史」/「搜索」弹窗 + AI 抽屉 -->
     <HistoryDialog v-if="showHistory" @close="showHistory = false" />
-    <SearchPlaceholder v-if="showSearch" @close="showSearch = false" />
     <AiPanel :open="showAi" @close="showAi = false" />
   </div>
 </template>

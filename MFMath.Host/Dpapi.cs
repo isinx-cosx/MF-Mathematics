@@ -1,4 +1,4 @@
-// AiDpapi.cs — 密钥保护的唯一实现（Windows DPAPI，用户范围）
+// Dpapi.cs — 密钥保护的唯一实现（AI 的 API Key 与搜索的 Wolfram App ID 共用）（Windows DPAPI，用户范围）
 //
 // 为什么自己 P/Invoke 而不是引 NuGet 的 System.Security.Cryptography.ProtectedData：
 //   · 宿主的依赖清单是**刻意短**的（目前只有 WebView2 一个包），而 ProtectedData 在
@@ -19,7 +19,7 @@ using System.Text;
 
 namespace MFMath.Host;
 
-internal static class AiDpapi
+internal static class Dpapi
 {
     private const int CRYPTPROTECT_UI_FORBIDDEN = 0x1;
 
@@ -60,7 +60,7 @@ internal static class AiDpapi
         try
         {
             Marshal.Copy(input, 0, inBlob.pbData, input.Length);
-            if (!CryptProtectData(ref inBlob, "MFMath AI key", IntPtr.Zero, IntPtr.Zero, IntPtr.Zero,
+            if (!CryptProtectData(ref inBlob, "MFMath secret", IntPtr.Zero, IntPtr.Zero, IntPtr.Zero,
                                   CRYPTPROTECT_UI_FORBIDDEN, out outBlob))
                 return null;
             return Convert.ToBase64String(BlobBytes(outBlob));

@@ -20,7 +20,7 @@ export const GROUPS = [
   { id: "engine", label: "引擎", status: "ready", note: "出问题时用来自助排查" },
   { id: "components", label: "组件", status: "ready", note: "可选下载的运行时" },
   { id: "ai", label: "AI", status: "ready", note: "密钥只存宿主（DPAPI）；流式输出走推送通道；默认只发表达式与结果" },
-  { id: "search", label: "搜索", status: "pending", depends: "方案 P1（在线搜索面板）" },
+  { id: "search", label: "搜索", status: "ready", note: "抓取与解析在宿主（C#）；App ID 只存宿主；缓存键含引擎" },
   { id: "update", label: "更新", status: "pending", depends: "方案 P5（站点 /api/version 需先补 sha256）" },
   { id: "storage", label: "存储与数据", status: "partial", depends: "历史/工作区管理依赖 P1" },
 ];
@@ -73,13 +73,15 @@ export const ITEMS = [
   { id: "ai.selftest", group: "ai", label: "AI 自检", keywords: "自检 selftest dpapi sse 分帧 密钥", status: "ready" },
   { id: "ai.chat", group: "ai", label: "会话记录", keywords: "会话 记录 对话 清空 chat ai-chat 缓存", status: "ready" },
 
-  // ── 搜索（占位：依赖 P1）──
-  { id: "search.engine", group: "search", label: "搜索引擎", keywords: "引擎 duckduckgo wolfram custom searxng", status: "pending" },
-  { id: "search.wolframKey", group: "search", label: "Wolfram App ID", keywords: "wolfram appid 密钥 key", status: "pending" },
-  { id: "search.customUrl", group: "search", label: "自定义端点", keywords: "自定义 端点 searxng url", status: "pending" },
-  { id: "search.timeout", group: "search", label: "超时", keywords: "超时 timeout 秒", status: "pending" },
-  { id: "search.cache", group: "search", label: "缓存管理", keywords: "缓存 cache ttl 清空", status: "pending" },
-  { id: "search.privacy", group: "search", label: "隐私说明", keywords: "隐私 说明 privacy 查询", status: "pending" },
+  // ── 搜索（已落地：宿主 SearchBridge/解析器/缓存 + /tools/search 页面）──
+  { id: "search.engine", group: "search", label: "搜索引擎", keywords: "引擎 duckduckgo wolfram custom searxng 免密钥", status: "ready" },
+  { id: "search.wolframKey", group: "search", label: "Wolfram App ID", keywords: "wolfram appid 密钥 key dpapi 只写不读", status: "ready" },
+  { id: "search.customUrl", group: "search", label: "自定义端点", keywords: "自定义 端点 searxng url json", status: "ready" },
+  { id: "search.timeout", group: "search", label: "超时", keywords: "超时 timeout 秒", status: "ready" },
+  { id: "search.results", group: "search", label: "结果条数", keywords: "结果 条数 count 最多", status: "ready" },
+  { id: "search.cache", group: "search", label: "本地缓存", keywords: "缓存 cache ttl 清空 引擎", status: "ready" },
+  { id: "search.privacy", group: "search", label: "隐私说明", keywords: "隐私 说明 privacy 查询 发往", status: "ready" },
+  { id: "search.selftest", group: "search", label: "搜索自检", keywords: "自检 selftest 解析器 缓存键 协议闸门", status: "ready" },
 
   // ── 更新（占位：依赖 P5）──
   { id: "update.version", group: "update", label: "当前版本", keywords: "版本 version 当前", status: "pending" },

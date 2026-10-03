@@ -69,7 +69,7 @@ public class AiBridge
     {
         var cfg = Config;
         bool dpapi = false;
-        try { dpapi = AiDpapi.SelfTest(); } catch { }
+        try { dpapi = Dpapi.SelfTest(); } catch { }
 
         string keySource = !string.IsNullOrEmpty(_memoryKey) ? "memory"
                          : !string.IsNullOrEmpty(cfg.ApiKeyProtected) ? "dpapi"
@@ -210,7 +210,7 @@ public class AiBridge
         string trimmed = key.Trim();
 
         string? blob = null;
-        try { blob = AiDpapi.Protect(trimmed); } catch { }
+        try { blob = Dpapi.Protect(trimmed); } catch { }
 
         if (blob == null)
         {
@@ -243,7 +243,7 @@ public class AiBridge
         if (!string.IsNullOrEmpty(_memoryKey)) return _memoryKey;
         var cfg = Config;
         if (string.IsNullOrEmpty(cfg.ApiKeyProtected)) return "";
-        try { return AiDpapi.Unprotect(cfg.ApiKeyProtected) ?? ""; }
+        try { return Dpapi.Unprotect(cfg.ApiKeyProtected) ?? ""; }
         catch { return ""; }
     }
 
@@ -333,7 +333,7 @@ public class AiBridge
         string dpapiDetail;
         try
         {
-            dpapi = AiDpapi.SelfTest();
+            dpapi = Dpapi.SelfTest();
             dpapiDetail = dpapi ? "可用：密钥以当前用户范围加密后落盘" : "不可用：密钥只留在内存（不写明文）";
         }
         catch (Exception e) { dpapiDetail = "异常：" + e.Message; }

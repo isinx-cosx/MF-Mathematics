@@ -165,12 +165,24 @@ const keyStateText = await ev(`(document.querySelector('[data-ai=key-state]') ||
 check("密钥状态说清了来源（未配置 / DPAPI 密文 / 仅内存）",
   /未配置|DPAPI|内存/.test(keyStateText), keyStateText.slice(0, 60));
 
+// 搜索组现在也是**真实**设置了（宿主 SearchBridge + /tools/search 页面）。
+// "占位必须说清依赖、不留空白"这条覆盖继续往下挪到**仍然是占位的「更新」组** ——
+// 这条断言的价值在于"不许有空白或死控件"，不在于指定哪一个分组。
 await clickText('.set-groups li', "搜索");
+await sleep(300);
+check("搜索分组已是真实设置（有可用的搜索框与引擎选择）",
+  await ev(`!!document.querySelector('[data-setting="search.engine"] input[type=radio]')`) === true);
+check("搜索分组不再有待实现标记",
+  (await ev(`document.querySelectorAll('[data-setting^="search."] .pending-tag').length`)) === 0);
+check("搜索分组写明查询会发往哪个站点",
+  await ev(`(() => { const t = document.querySelector('[data-setting="search.engine"]').textContent; return /查询会发往/.test(t); })()`) === true);
+
+await clickText('.set-groups li', "更新");
 await sleep(250);
-const phText = await ev(`document.querySelector('.set-content').textContent`);
-const searchPending = await ev(`document.querySelectorAll('[data-setting^="search."] .pending-tag').length`);
-check("搜索分组仍显示占位与依赖说明（不是空白）",
-  /该功能将在后续版本提供/.test(phText) && searchPending >= 1, `待实现 ${searchPending} 项`);
+const updText = await ev(`document.querySelector('.set-content').textContent`);
+const updPending = await ev(`document.querySelectorAll('[data-setting^="update."] .pending-tag').length`);
+check("仍占位的「更新」组显示占位与依赖说明（不是空白）",
+  /该功能将在后续版本提供/.test(updText) && updPending >= 1, `待实现 ${updPending} 项`);
 
 await clickText('.set-groups li', "AI");
 await sleep(200);

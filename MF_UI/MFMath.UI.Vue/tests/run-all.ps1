@@ -59,6 +59,11 @@ $tests = @(
   # 覆盖配置 / 密钥不外泄 / 流式 / 停止 / 七类异常 / 隐私开关 /「AI 不得当计算源」。
   # 用例跑完会把密钥与 AI 配置还原（不污染用户环境）。
   "cdp-ai",
+  # 本轮新增：联网搜索（宿主 SearchBridge + 三个后端 + 缓存；页面 /tools/search）。
+  # 自带假搜索端点（tests/fake-search-server.mjs），场景由查询词触发（500/慢速/空/改版）。
+  # ⚠ 宿主必须带 MF_SEARCH_ENDPOINTS 启动指向假端点 —— 端点覆盖走环境变量是有意的：
+  #   页面能改端点就等于能把 Wolfram App ID 发到任意地址。run-all 下面会设置它。
+  "cdp-search",
   "audit-modes",
   # ⚠ 必须放最后：这条用例会**走遍每个视图并逐个模式点一次计算**，因此会顺带把
   # 控制台编辑器内核加载进来、在绘图页留下点与采样。放在前面会让后面那些
@@ -73,6 +78,10 @@ if (-not (Test-Path $hostExe)) {
 }
 
 $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = "--remote-debugging-port=9222"
+# Point the search backends at the local fake server for cdp-search. Endpoint overrides live in
+# an environment variable (not in settings) on purpose: if the renderer could change the Wolfram
+# endpoint, it could send the App ID anywhere. cdp-search refuses to run if this is not set.
+$env:MF_SEARCH_ENDPOINTS = '{"ddgHtml":"http://127.0.0.1:8792/ddg/html","ddgIa":"http://127.0.0.1:8792/ddg/ia","wolfram":"http://127.0.0.1:8792/wolfram/result"}'
 $proc = Start-Process -FilePath $hostExe -PassThru
 Start-Sleep -Seconds 6
 
@@ -123,4 +132,5 @@ if ($tf -eq 0) {
 
 if (-not $proc.HasExited) { Stop-Process -Id $proc.Id -Force }
 Remove-Item Env:\WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS -ErrorAction SilentlyContinue
+Remove-Item Env:\MF_SEARCH_ENDPOINTS -ErrorAction SilentlyContinue
 exit $tf

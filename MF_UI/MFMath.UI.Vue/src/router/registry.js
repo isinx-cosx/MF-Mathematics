@@ -53,7 +53,12 @@ export const NAV_GROUPS = [
   {
     id: "tools",
     title: "工具",
-    items: [{ name: "控制台", route: "/tools/console" }],
+    items: [
+      // 联网搜索是页面（不是浮层）：结果要来回看、要送进计算页，而且教程示例
+      // 「联网搜索」需要有个能落地的路由（/tools/search?q=…）
+      { name: "搜索", route: "/tools/search" },
+      { name: "控制台", route: "/tools/console" },
+    ],
   },
   {
     // 教程系统的入口。v1 的帮助浏览器只能从菜单/F1 打开，且"交互式引导"
