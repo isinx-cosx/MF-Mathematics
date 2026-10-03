@@ -177,12 +177,14 @@ check("搜索分组不再有待实现标记",
 check("搜索分组写明查询会发往哪个站点",
   await ev(`(() => { const t = document.querySelector('[data-setting="search.engine"]').textContent; return /查询会发往/.test(t); })()`) === true);
 
-await clickText('.set-groups li', "更新");
-await sleep(250);
-const updText = await ev(`document.querySelector('.set-content').textContent`);
-const updPending = await ev(`document.querySelectorAll('[data-setting^="update."] .pending-tag').length`);
-check("仍占位的「更新」组显示占位与依赖说明（不是空白）",
-  /该功能将在后续版本提供/.test(updText) && updPending >= 1, `待实现 ${updPending} 项`);
+// 「更新」本轮已落地（只提示 + 显示 sha256 + 交给浏览器）。
+// 现在**没有整组占位的分组了**，所以这条覆盖改成更贴近它本意的形式：
+// 仍未实现的项必须**写明依赖**，而不是留一个空白或光秃秃的「待实现」。
+await clickText('.set-groups li', "存储与数据");
+await sleep(300);
+const storagePending = await ev(`[...document.querySelectorAll('[data-setting^="storage."] .pending-tag')].map(x => x.textContent.trim()).join(' | ')`);
+check("仍未实现的项写明了依赖（不是空白，也不是光秃秃的「待实现」）",
+  /待实现/.test(String(storagePending)) && /需要|宿主|对话框/.test(String(storagePending)), String(storagePending).slice(0, 90));
 
 await clickText('.set-groups li', "AI");
 await sleep(200);

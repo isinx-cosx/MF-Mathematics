@@ -308,6 +308,20 @@ check("模型写的 HTML **没有**变成元素（img/script 数量为 0）", md
 check("HTML 被转义成文本显示（不是被吃掉）", mdObj.escapedHtml === true && mdObj.rawText === true);
 
 console.log("=== ②c 工具调用：AI 调引擎算，而不是自己算 ===");
+// 先钉住"引导能指到面板里的控件"：教程用的是 v1 的语义 ID（ai_dialog.*），
+// 界面必须真的挂上同名 data-tour —— 否则引导只显示一句"尚未实现"的假话（本轮修的就是这个）。
+const tourTargets = JSON.parse(String(await evalJs(`JSON.stringify((() => {
+  const out = {};
+  for (const n of ["ai_dialog.input", "ai_dialog.send_button", "ai_dialog.context_label"]) {
+    const el = document.querySelector('[data-tour="' + n + '"]');
+    const r = el && el.getBoundingClientRect();
+    out[n] = !!el && r.width > 0 && r.height > 0;
+  }
+  return out;
+})())`)));
+check("引导目标 ai_dialog.input 能定位到可见控件", tourTargets["ai_dialog.input"] === true, JSON.stringify(tourTargets));
+check("引导目标 ai_dialog.send_button 能定位到可见控件", tourTargets["ai_dialog.send_button"] === true);
+check("引导目标 ai_dialog.context_label 能定位到可见控件", tourTargets["ai_dialog.context_label"] === true);
 // 工具层的边界先单独验一遍（不起对话，直接调）
 const toolFacts = JSON.parse(String(await evalJs(`JSON.stringify({
   count: window.__mfAi.tools.count(),
@@ -521,6 +535,10 @@ console.log("=== ⑥ 硬约束：AI 不得成为计算源 ===");
 // 先在计算页算出引擎值（按 data-key 定位按键，读 .lcd 里的结果——与 cdp-basic-calc 一致）
 await evalJs(`location.hash = "#/calc/basic"`);
 await waitTrue(`!!document.querySelector('.keypad .key')`, 12000);
+// ⚠ 先清空显示再按：别的用例可能在这个页面留过内容（本轮的 cdp-update 留下 "7+8"，
+// 于是这里的 "1+1" 变成 "7+81+1=89"）。**不依赖上一条用例的收尾**才稳。
+await evalJs(`window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }))`);
+await sleep(300);
 const press = async (keys) => {
   for (const k of keys) {
     await evalJs(`(() => {

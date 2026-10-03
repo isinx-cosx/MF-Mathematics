@@ -22,6 +22,7 @@ import { initTourSanitizerHook } from "./lib/tutorial/targets.js";
 import { initPlotMathHook } from "./lib/plot/plotMath.js";
 import { initAi, initAiHook } from "./lib/ai/bridge.js";
 import { accountInfo, initAccount, initAccountHook } from "./lib/account/bridge.js";
+import { updateState, initUpdate, initUpdateHook, refreshUpdateInfo } from "./lib/update/bridge.js";
 import {
   THEME_LIST, SHAPE_LIST, DENSITY_LIST, FONT_LIST,
   themeLabel, currentAppearance, applyAppearance, watchSystemTheme,
@@ -183,6 +184,9 @@ onMounted(() => {
   // 账号：订阅 account.changed，挂 __mfAccount 钩子（同样在 initPush 之后）
   initAccount();
   initAccountHook();
+  // 更新链：读本机版本与上次检查结果；**自动检查默认关**（启动不偷偷联网）
+  initUpdate();
+  initUpdateHook();
   // 全局快捷键：F1 帮助、Ctrl+Z/Y 撤销重做（谁有"上一步"谁注册，见 lib/keyboard/shortcuts.js）
   // 卸载放在 onBeforeUnmount 里由 uninstallShortcuts 收尾
   uninstallShortcuts = installShortcuts(router);
@@ -255,6 +259,19 @@ const accountTitle = computed(() => {
   return `${i.username} · 额度 ${i.balance}${extra}`;
 });
 function openAccount() { router.push("/account"); }
+
+/* ── 更新提示（只提示，不自动下载）────────────────────────────────────────
+ * 站点版本比本机旧时**不显示这个徽标** —— 否则用户会被引去下载更旧的安装包。
+ * 点击只是跳到「设置 → 更新」，那一页才显示校验值与下载入口。 */
+const updateAvailable = computed(() => updateState.value.result?.hasUpdate === true);
+const updateTitle = computed(() => {
+  const r = updateState.value.result;
+  return r ? `站点上有更新的版本：${r.latest}（点开看校验值与下载入口）` : "";
+});
+function openUpdateSettings() {
+  refreshUpdateInfo();
+  router.push({ path: "/settings", query: { group: "update" } });
+}
 </script>
 
 <template>
@@ -373,6 +390,9 @@ function openAccount() { router.push("/account"); }
         <div class="topbar-actions">
           <!-- 账号：未登录时显示「登录」，登录后显示用户名。**它不挡住任何功能** ——
                未登录、断网都只是这里少一个名字，计算全部在本地引擎里。 -->
+          <!-- 有更新时出现（站点版本比本机旧时**不会**出现 —— 免得把用户引去下载更旧的包） -->
+          <button v-if="updateAvailable" class="btn btn-ghost up-badge" data-update="badge"
+                  :title="updateTitle" @click="openUpdateSettings">有新版本</button>
           <button class="btn btn-ghost" data-account="open" :title="accountTitle"
                   @click="openAccount">{{ accountLabel }}</button>
           <button class="btn btn-ghost" data-tour="toolbar.ai_button" data-ai="open"
@@ -449,6 +469,7 @@ function openAccount() { router.push("/account"); }
 
 /* 顶栏是标题栏：拖动手感交给系统（StartDrag 走 WM_NCLBUTTONDOWN），
    这里只需避免文字被选中、并保持默认箭头光标。 */
+.up-badge { color: var(--accent, #5a82f0); border-color: var(--accent, #5a82f0); }
 #topbar { user-select: none; }
 .sidebar-head { user-select: none; }
 

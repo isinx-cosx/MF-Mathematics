@@ -8,6 +8,11 @@
     <UseWPF>true</UseWPF>
     <PlatformTarget>x64</PlatformTarget>
     <AssemblyName>MFMath</AssemblyName>
+    <!-- 本机版本：更新链拿它与站点 /api/version 的 latest 比较。
+         必须显式声明 —— 靠默认的 1.0.0.0 会让"有没有新版"永远判错（站点报 1.2.0 时还会把
+         v2 用户引去下载 v1 安装包，所以 UpdateBridge 是按"关系"判定的，见那里的注释）。 -->
+    <Version>2.0.0</Version>
+    <InformationalVersion>2.0.0</InformationalVersion>
   </PropertyGroup>
 
   <ItemGroup>

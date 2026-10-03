@@ -111,6 +111,10 @@ public partial class MainWindow : Window
         // token 只存宿主（DPAPI 密文）；**未登录/断网都不影响任何计算功能**（计算全在本地引擎）。
         AccountBridge account = new AccountBridge();
         Browser.CoreWebView2.AddHostObjectToScript("account", account);
+        // 更新链：只查版本、显示校验值、把下载页交给浏览器。
+        // **不自动下载、不执行安装包** —— 少一条"下载并运行可执行文件"的通路。
+        UpdateBridge update = new UpdateBridge();
+        Browser.CoreWebView2.AddHostObjectToScript("update", update);
         // 关窗时把控制台里还活着的子进程带走，不留孤儿；在跑的 AI / 搜索请求也一并取消
         // （否则后台 Task 会拽着一个 HTTP 连接，窗口关了但进程不退出）
         Closed += (_, _) =>
@@ -119,6 +123,7 @@ public partial class MainWindow : Window
             try { ai.CancelAll(); } catch { }
             try { search.CancelAll(); } catch { }
             try { account.CancelAll(); } catch { }
+            try { update.CancelAll(); } catch { }
             PushHub.Detach();
         };
 

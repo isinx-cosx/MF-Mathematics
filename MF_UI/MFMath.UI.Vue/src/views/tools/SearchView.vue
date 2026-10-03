@@ -107,7 +107,8 @@ function sendToCalc(expr) {
 
     <template v-else>
       <div class="sv-bar">
-        <input v-model="draft" data-search="input" class="sv-input" type="search"
+        <!-- 教程引导的目标名沿用 v1 的语义 ID（search_panel.*） -->
+        <input v-model="draft" data-search="input" data-tour="search_panel.input" class="sv-input" type="search"
                placeholder="搜概念、找公式、查定义…（Enter 开始）" @keydown="onKeydown" />
         <select v-model="engine" data-search="engine" class="sv-select" @change="searchInfo.engine !== engine && null">
           <option v-for="e in SEARCH_ENGINES" :key="e.value" :value="e.value">{{ e.label }}</option>
@@ -148,7 +149,7 @@ function sendToCalc(expr) {
           <p>{{ searchState.abstract }}</p>
         </section>
 
-        <ol v-if="searchState.results.length" class="sv-list" data-search="results">
+        <ol v-if="searchState.results.length" class="sv-list" data-search="results" data-tour="search_panel.results">
           <li v-for="(r, i) in searchState.results" :key="i" class="sv-item" :data-search="'r' + i">
             <div class="sv-r-head">
               <a class="sv-title" :href="r.url" :title="'用系统浏览器打开：' + r.url"

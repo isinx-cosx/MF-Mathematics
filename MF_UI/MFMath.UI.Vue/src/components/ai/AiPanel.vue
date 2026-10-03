@@ -131,7 +131,8 @@ function openSettings() {
       <p v-if="!aiHosted">浏览器预览里没有宿主桥。AI 的传输与密钥都在 MFMath.exe 里，所以这里不能用。</p>
       <p v-else-if="!aiConfig.enabled">AI 现在是关的。打开它并填一个 API Key 就能用。</p>
       <p v-else>还没有 API Key。密钥只存在宿主（DPAPI 加密），页面拿不到它。</p>
-      <button class="btn btn-primary" data-ai="settings-link" @click="openSettings">去设置 → AI</button>
+      <button class="btn btn-primary" data-ai="settings-link" data-tour="main_window.ai_settings"
+              @click="openSettings">去设置 → AI</button>
     </div>
 
     <div ref="scroller" class="ai-body" data-ai="msgs" @scroll="onScroll">
@@ -216,11 +217,14 @@ function openSettings() {
     </div>
 
     <div class="ai-compose">
-      <textarea v-model="draft" data-ai="input" class="ai-input" rows="2"
+      <!-- 教程引导的目标：名字沿用 v1 的语义 ID（ai_dialog.*），
+           这样 guides 的步骤不用改，只是把"钩子"补上；data-ai 是给用例与排障用的，
+           两者并存不是重复 —— 一个面向用户引导，一个面向断言。 -->
+      <textarea v-model="draft" data-ai="input" data-tour="ai_dialog.input" class="ai-input" rows="2"
                 placeholder="Enter 发送，Shift+Enter 换行"
                 @keydown="onKeydown" />
       <div class="ai-actions">
-        <span class="ai-out" data-ai="outgoing" :class="{ over: outgoing.over }">
+        <span class="ai-out" data-ai="outgoing" data-tour="ai_dialog.context_label" :class="{ over: outgoing.over }">
           将发送约 {{ outgoing.tokens }} token
           <span class="ai-out-parts">
             <template v-for="(p, i) in outgoing.parts" :key="i">
@@ -228,7 +232,7 @@ function openSettings() {
             </template>
           </span>
         </span>
-        <button v-if="!aiState.running" class="btn btn-primary" data-ai="send"
+        <button v-if="!aiState.running" class="btn btn-primary" data-ai="send" data-tour="ai_dialog.send_button"
                 :disabled="!aiHosted || !aiConfig.enabled || !aiConfig.hasKey" @click="send">发送</button>
         <button v-else class="btn" data-ai="stop" @click="stop">停止</button>
         <button class="btn btn-ghost" data-ai="clear" title="清空这段对话" @click="clearChat">清空</button>

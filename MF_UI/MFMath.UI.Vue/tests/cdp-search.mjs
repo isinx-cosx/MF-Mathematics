@@ -143,6 +143,19 @@ check("摘要来自 Instant Answer 且去掉了标记", /摘要/.test(String(st1
 check("页面渲染出结果列表", await waitTrue(`document.querySelectorAll('[data-search=results] li').length === 3`));
 check("摘要块渲染出来了", (await evalJs(`!!document.querySelector('[data-search=abstract]')`)) === true);
 check("请求确实带上了查询词", (await fakeRequests()).some((r) => r.query.includes("黎曼猜想")));
+// 引导目标：教程用的是 v1 的语义 ID（search_panel.*），页面必须挂同名 data-tour，
+// 否则引导只能显示一句"尚未实现"（本轮修的就是这类"名字对不上"）
+const tourOk = JSON.parse(String(await evalJs(`JSON.stringify((() => {
+  const out = {};
+  for (const n of ["search_panel.input", "search_panel.results"]) {
+    const el = document.querySelector('[data-tour="' + n + '"]');
+    const r = el && el.getBoundingClientRect();
+    out[n] = !!el && r.width > 0 && r.height > 0;
+  }
+  return out;
+})())`)));
+check("引导目标 search_panel.input 能定位到可见控件", tourOk["search_panel.input"] === true, JSON.stringify(tourOk));
+check("引导目标 search_panel.results 能定位到可见控件", tourOk["search_panel.results"] === true);
 
 console.log("=== ④ 缓存：命中不出网 ===");
 const before = (await fakeRequests()).length;

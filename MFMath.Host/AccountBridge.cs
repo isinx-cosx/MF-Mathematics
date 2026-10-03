@@ -440,20 +440,16 @@ public class AccountBridge
                              .GetAwaiter().GetResult();
         if (!call.Ok) { NoteFailure(call); return Fail(call.Error, call.ErrorKind); }
         _offline = false;
-        string latest = "", date = "", download = "";
-        try
-        {
-            using var doc = System.Text.Json.JsonDocument.Parse(call.Body);
-            var root = doc.RootElement;
-            // 站点用的是信封格式 {code,data,msg}
-            if (root.TryGetProperty("data", out var data) && data.ValueKind == System.Text.Json.JsonValueKind.Object)
-                root = data;
-            latest = AccountApi.JsonStr(root.GetRawText(), "latest");
-            date = AccountApi.JsonStr(root.GetRawText(), "date");
-            download = AccountApi.JsonStr(root.GetRawText(), "download_url");
-        }
-        catch { return Fail("版本接口返回的形状不认识", "parse"); }
-        return Ok("\"latest\":" + J(latest) + ",\"date\":" + J(date) + ",\"downloadUrl\":" + J(download));
+        // 解析与比较都复用 UpdateBridge（一处实现）：这里只把结果包成账号页要的形状
+        string parsed = UpdateBridge.ParseVersionBody(call.Body, UpdateBridge.AppVersion());
+        if (!parsed.StartsWith("{\"ok\":true", StringComparison.Ordinal)) return parsed;
+        using var doc = System.Text.Json.JsonDocument.Parse(parsed);
+        var r = doc.RootElement;
+        string g(string k) => r.TryGetProperty(k, out var v) && v.ValueKind == System.Text.Json.JsonValueKind.String ? (v.GetString() ?? "") : "";
+        return Ok("\"latest\":" + J(g("latest")) + ",\"date\":" + J(g("date"))
+            + ",\"downloadUrl\":" + J(g("downloadUrl"))
+            + ",\"hasUpdate\":" + (r.TryGetProperty("hasUpdate", out var hu) && hu.ValueKind == System.Text.Json.JsonValueKind.True ? "true" : "false")
+            + ",\"relation\":" + J(g("relation")));
     }
 
     public bool Busy() => _busyOp.Length > 0;

@@ -19,17 +19,22 @@
  * 那时把对应条目从 PENDING 删掉即可（同时校验脚本会提醒删除过时条目）。
  */
 
-/** 尚未实现的界面：name → 缺什么、依赖哪个阶段。做完后请从这里删除。 */
+/**
+ * 尚未实现的界面：name → 缺什么、依赖哪个阶段。做完后请从这里删除。
+ *
+ * ⚠️ 本轮踩到的坑（值得写下来）：AI 与搜索的 5 个目标曾长期留在这里，
+ * 理由是"尚未实现" —— 而界面其实早就做好了，只是**钩子的名字不一样**
+ * （教程用 v1 的语义 ID `ai_dialog.input`，面板挂的是 `data-ai="input"`）。
+ * 两边名字对不上时 `check-ui.mjs` 查不出来：教程引用了它 ✓、PENDING 有理由 ✓，
+ * 两条检查都满足，于是引导一直指不到东西，理由还是一句假话。
+ * 现在的规矩：**新界面落地时，同一步骤里既补 `data-tour`、也删 PENDING 条目**；
+ * 沿用 v1 的语义 ID 而不是自造名字（这样教程与 YAML 原件都不用改）。
+ */
 export const PENDING = {
-  "toolbar.ai_button": "AI 助手尚未实现（方案 P3）",
-  "ai_dialog.input": "AI 助手输入框尚未实现（方案 P3）",
-  "ai_dialog.send_button": "AI 助手发送键尚未实现（方案 P3）",
-  "ai_dialog.context_label": "AI 助手上下文条尚未实现（方案 P3）",
-  "calc_block.ai_accel_button": "AI 加速按钮尚未实现（方案 P3）",
-  "main_window.ai_settings": "AI 设置入口尚未实现（方案 P3）",
-  "step_viewer.content": "分步显示尚未实现（本轮明确不做的步骤系统）",
-  "search_panel.input": "在线搜索面板尚未实现（顶栏「搜索」现在打开的是说明面板，见 docs/MIGRATION-GAPS.md §2.3）",
-  "search_panel.results": "在线搜索面板尚未实现（同上）",
+  // 真的还没做：v1 每个计算块上有"AI 加速"按钮，v2 没有（不是接线问题）
+  "calc_block.ai_accel_button": "AI 加速按钮尚未实现（v1 有这个入口，v2 未做；见 docs/OPEN-ITEMS.md §4）",
+  // 真的还没做：分步显示的渲染层（语义与地基已定，见 docs/AI-ASSISTANT.md §4.1）
+  "step_viewer.content": "分步显示的渲染层尚未实现（引擎侧地基已落地：AI 通过 engine_call 计算）",
 };
 
 /**
@@ -45,19 +50,21 @@ export const PENDING = {
  */
 export const TARGET_HINTS = {
   "settings_dialog.appearance_tab": { route: "/settings", note: "该设置在设置面板的「外观」分组里" },
-  "settings_dialog.ai_tab": { route: "/settings", note: "该设置在设置面板的「AI」分组里（本轮是占位，功能依赖 P3）" },
+  "settings_dialog.ai_tab": { route: "/settings", note: "AI 的开关、接口与密钥在设置面板的「AI」分组里" },
   "math_keyboard.panel": { note: "先点顶栏的「⌨ 键盘」把面板打开" },
   "math_keyboard.titlebar": { note: "先点顶栏的「⌨ 键盘」把面板打开" },
   "result_dialog.steps_button": { note: "先在本页点一次「计算结果」，结果对话框打开后才有这个按钮" },
   "plot_workspace.sliders": { note: "表达式里要含参数（例如 sin(a*x)）才会出现参数滑块" },
-  "ai_dialog.input": { note: "AI 助手尚未实现（方案 P3）" },
-  "ai_dialog.send_button": { note: "AI 助手尚未实现（方案 P3）" },
-  "ai_dialog.context_label": { note: "AI 助手尚未实现（方案 P3）" },
-  "calc_block.ai_accel_button": { note: "AI 加速尚未实现（方案 P3）" },
-  "main_window.ai_settings": { note: "AI 设置尚未实现（方案 P3）" },
-  "search_panel.input": { note: "在线搜索面板尚未实现；顶栏「搜索」现在打开的是说明面板（讲清将来是什么）" },
-  "search_panel.results": { note: "在线搜索面板尚未实现；顶栏「搜索」现在打开的是说明面板" },
-  "toolbar.ai_button": { note: "AI 助手尚未实现（方案 P3）" },
+  // AI 面板是抽屉：里面的目标要先把它打开才存在（v-if="open"）
+  "ai_dialog.input": { note: "先点顶栏的「AI」把助手抽屉打开" },
+  "ai_dialog.send_button": { note: "先点顶栏的「AI」把助手抽屉打开" },
+  "ai_dialog.context_label": { note: "先点顶栏的「AI」把助手抽屉打开" },
+  "main_window.ai_settings": { route: "/settings", note: "AI 的开关、接口与密钥在设置面板的「AI」分组里（面板未就绪时这里也能进）" },
+  "calc_block.ai_accel_button": { note: "AI 加速尚未实现（v1 有这个入口，v2 未做）" },
+  // 搜索是独立页面（/tools/search）
+  "search_panel.input": { route: "/tools/search", note: "搜索在「工具 → 搜索」这一页" },
+  "search_panel.results": { route: "/tools/search", note: "搜索在「工具 → 搜索」这一页；有结果后才会出现结果列表" },
+  "toolbar.ai_button": { note: "AI 助手在顶栏的「AI」按钮里（非模态抽屉）" },
 };
 
 export function hintFor(name) {
@@ -90,6 +97,14 @@ export const REGISTERED = [
   "math_keyboard.panel",
   "math_keyboard.titlebar",
   "tutorial.catalog",
+  // 本轮补上的 6 个（教程用 v1 的语义 ID，界面挂的就是这些名字）
+  "toolbar.ai_button",
+  "ai_dialog.input",
+  "ai_dialog.send_button",
+  "ai_dialog.context_label",
+  "main_window.ai_settings",
+  "search_panel.input",
+  "search_panel.results",
 ];
 
 const DASH = "\u2014";

@@ -22,8 +22,8 @@ export const GROUPS = [
   { id: "ai", label: "AI", status: "ready", note: "密钥只存宿主（DPAPI）；流式输出走推送通道；默认只发表达式与结果" },
   { id: "search", label: "搜索", status: "ready", note: "抓取与解析在宿主（C#）；App ID 只存宿主；缓存键含引擎" },
   { id: "account", label: "账号", status: "ready", note: "token 只存宿主（DPAPI）；未登录/断网都不影响任何计算功能" },
-  { id: "update", label: "更新", status: "pending", depends: "方案 P5（站点 /api/version 需先补 sha256）" },
-  { id: "storage", label: "存储与数据", status: "partial", depends: "历史/工作区管理依赖 P1" },
+  { id: "update", label: "更新", status: "ready", note: "只提示 + 显示 sha256 + 把下载交给浏览器；不自动下载或执行安装包" },
+  { id: "storage", label: "存储与数据", status: "partial", depends: "导入/导出设置仍待做（见 docs/OPEN-ITEMS.md §4）" },
 ];
 
 /**
@@ -93,12 +93,13 @@ export const ITEMS = [
   { id: "account.selftest", group: "account", label: "连接自检", keywords: "自检 selftest 地址闸门 错误体 jwt 脱敏", status: "ready" },
 
   // ── 更新（占位：依赖 P5）──
-  { id: "update.version", group: "update", label: "当前版本", keywords: "版本 version 当前", status: "pending" },
-  { id: "update.channel", group: "update", label: "更新通道", keywords: "通道 channel stable beta", status: "pending" },
-  { id: "update.mode", group: "update", label: "自动检查", keywords: "自动 检查 下载 安装 auto update", status: "pending" },
-  { id: "update.interval", group: "update", label: "检查间隔", keywords: "间隔 频率 每天 每周 interval", status: "pending" },
-  { id: "update.check", group: "update", label: "手动检查", keywords: "手动 立即检查 check now", status: "pending" },
-  { id: "update.source", group: "update", label: "更新源", keywords: "更新源 地址 url source", status: "pending" },
+  { id: "update.version", group: "update", label: "当前版本", keywords: "版本 version 当前", status: "ready" },
+  { id: "update.channel", group: "update", label: "更新通道", keywords: "通道 channel stable beta", status: "ready" },
+  { id: "update.mode", group: "update", label: "自动检查", keywords: "自动 检查 下载 安装 auto update", status: "ready" },
+  { id: "update.interval", group: "update", label: "检查间隔", keywords: "间隔 频率 每天 每周 interval", status: "ready" },
+  { id: "update.check", group: "update", label: "手动检查", keywords: "手动 立即检查 check now", status: "ready" },
+  { id: "update.source", group: "update", label: "更新源", keywords: "更新源 地址 url source", status: "ready" },
+  { id: "update.selftest", group: "update", label: "更新自检", keywords: "自检 selftest 版本比较 关系 校验值 协议闸门", status: "ready" },
 
   // ── 存储与数据（部分可用）──
   { id: "storage.dir", group: "storage", label: "数据目录", keywords: "数据目录 路径 datadir localappdata 打开", status: "ready" },

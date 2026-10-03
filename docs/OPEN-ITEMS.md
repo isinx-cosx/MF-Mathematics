@@ -37,10 +37,19 @@ GET  https://mf-vis-science.cn/api/version        →  200
 **降级行为是有意的**（所以不算坏掉）：`expires_in` 缺失时改解 JWT 的 `exp`；续期撞 404
 只报错、**不会把用户登出**（只有 401 才清登录态）。
 
-**要做的事**：在服务器上发布站点仓库的 `739c79f`（续期端点 + 记住我）与
-`aeb3233`（`token_version` + 契约验证脚本）。
+**要做的事**：在服务器上发布站点仓库的 `739c79f`（续期端点 + 记住我）、
+`aeb3233`（`token_version` + 契约验证脚本）与**本轮**的 `/api/version` 补 sha256（站点侧提交见下）。
+部署方式是 `git archive HEAD -o mvs-site.tar` → `scp` → 解包 → **`npm run build`** → `systemctl restart`
+（⚠ 必须重跑 `next build`：`next start` 服务的是构建产物，只换源码不重建，新路由不会出现）。
 
-**验证方式**：部署后再跑上面的探针，`/api/token/refresh` 应返回 `401 {"detail":"未认证"}`。
+**验证方式**：部署后再跑上面的探针，`/api/token/refresh` 应返回 `401 {"detail":"未认证"}`；
+`/api/version` 的 `data` 里应出现 `sha256` 与 `size`。
+
+**另一个环境发现（2026-10）**：在本机，**.NET 侧到生产站点的 TLS 建立失败**
+（错误原文 `The SSL connection could not be established`），而 Node 侧（`fetch`）正常。
+影响：账号登录 / 更新检查**对着线上会失败**（错误分类为 `network`，本地功能不受影响）。
+怀疑与服务器 TLS 配置或本机 Schannel 有关，需要单独排查 —— 它不是本项目代码的问题，
+但会让人误以为"账号功能坏了"。
 
 ---
 
@@ -48,23 +57,31 @@ GET  https://mf-vis-science.cn/api/version        →  200
 
 | 项 | 状态 | 说明 |
 | --- | --- | --- |
-| **更新链**（提示有新版本 + 打开下载页 + 显示 sha256，**不自动执行安装包**） | 未做 | 你已定形态。前置：站点 `/api/version` 需先补 sha256 清单（要真实安装包才能算，站点 `DOWNLOAD_FILE_PATH` 指向 `dist/Multifunctional-Mathematics-Setup.exe`） |
+| ~~**更新链**~~ | **已完成**（本轮） | 见 `docs/UPDATE-CHAIN.md`：查版本 + 关系判定（站点更旧时**不**提示更新）+ 显示 sha256/大小 + 把下载交给浏览器。端到端 `cdp-update.mjs` **37 / 0** |
 | **分步显示的渲染层** | 未做 | 语义已定（AI 只能通过 `engine_call` 拿数值，每一步都是引擎算出来的事实）、**地基已落地**（工具调用）；剩下的是把工具记录渲染成"步骤"而不是"工具块" |
 
 ---
 
-## 3. 用户可见的接线问题：引导指不到 AI / 搜索（本轮实测发现）
+## 3. ~~用户可见的接线问题：引导指不到 AI / 搜索~~（**本轮已修**）
 
-教程步骤引用的目标名，与界面实际挂的钩子**不是一回事**：
+修法：给 AI 面板与搜索页补上**与教程同名**的 `data-tour`（沿用 v1 的语义 ID，教程与 YAML 原件不用改），
+并把 5 个条目从 `PENDING` 删掉、理由从"尚未实现"改成**真实前置条件**（"先点顶栏的「AI」把抽屉打开"、
+"搜索在「工具 → 搜索」这一页"）。构建自检现在报 **31 个教程目标里 29 个已实现 / 2 个待实现**
+（只剩真缺口：AI 加速按钮、分步显示），警告也清了。
 
-| 教程里的 target | 实际钩子（已核对源码） | 后果 |
+端到端补了断言：`cdp-ai`（`ai_dialog.input` / `send_button` / `context_label` 能定位到可见控件）、
+`cdp-search`（`search_panel.input` / `results`）。
+
+**为什么静态检查当初没拦住**：`check-ui.mjs` 只查"目标要么在源码里真有 `data-tour`、要么在 PENDING 里写明理由"
+与"PENDING 不留过时条目" —— 名字对不上时两条都满足。所以这次的教训写进了 `targets.js` 的注释：
+**新界面落地时同一步骤里既补 `data-tour`、也删 PENDING 条目**。
+
+| 教程里的 target | 当时的问题 | 现在 |
 | --- | --- | --- |
-| `ai_dialog.input` | `data-ai="input"` | 3 个步骤高亮不到任何控件 |
-| `ai_dialog.send_button` | `data-ai="send"`（停止时是 `data-ai="stop"`） | 同上 |
-| `ai_dialog.context_label` | `data-ai="outgoing"`（"将发送什么"那条） | 同上 |
-| `search_panel.input` | `data-search="input"` | 2 个步骤同上 |
-| `search_panel.results` | `data-search="results"` | 同上 |
-| `step_viewer.content` | —— | 分步显示确实没做（见 §2） |
+| `ai_dialog.input` / `.send_button` / `.context_label` | 面板挂的是 `data-ai=*`，名字对不上 | 已补同名 `data-tour` |
+| `search_panel.input` / `.results` | 页面挂的是 `data-search=*` | 已补同名 `data-tour` |
+| `main_window.ai_settings` | 面板未就绪时才出现的"去设置"按钮 | 已挂上（静态检查覆盖；它只在 blocked 状态可见，故不做 CDP 断言） |
+| `step_viewer.content` / `calc_block.ai_accel_button` | **真的没做** | 仍在 PENDING（理由已改成真实原因） |
 
 （AI 面板实际钩子共 18 个：panel / status / close / blocked / settings-link / msgs / input /
 send / stop / clear / test / outgoing / stream / notices / error / usage / reasoning / tools-live；
@@ -87,8 +104,8 @@ send / stop / clear / test / outgoing / stream / notices / error / usage / reaso
 | 缺口 | 证据 / 出处 |
 | --- | --- |
 | **AI 加速按钮**（v1 每个计算块上有） | `calc_block.ai_accel_button` 目标不存在；v2 未做 |
-| **设置 → 更新**（6 项） | `src/lib/settings/catalog.js`：`update.*` 全为 `pending`，组 `depends: 方案 P5` |
-| **导入 / 导出设置** | `catalog.js` 的 `storage.io` 仍为 `pending` |
+| ~~**设置 → 更新**（6 项）~~ | **本轮已落地**（见 `docs/UPDATE-CHAIN.md`）；catalog 里 `update.*` 已全部 `ready` |
+| **导入 / 导出设置** | `catalog.js` 的 `storage.io` 仍为 `pending`（需要宿主的文件对话框）—— 这是**最后一个**待实现项 |
 | **控制台可选组件（sympy / numpy / scipy）** | 本地已重建组件包；**站点尚未换包** → 用户下载到的仍是旧的（`MIGRATION-GAPS.md` §0.1） |
 | **v1 Python 清零** | **305 个文件 / 61,534 行**未处理；且 `.pyd` 删除前必须先给 5 个算法补返回值（否则静默失效）—— `STATUS-and-ROADMAP.md` 风险台账 |
 | **`cdp-engine-coverage` 的 20 处已知失败基线** | 三类：`;` 后关键词被当表达式（7 处）、算完不弹结果（9 处）、模式自身参数/期望问题（4 处）；`FRONTEND-FIXES.md` §4 明确"建议单独立项" |

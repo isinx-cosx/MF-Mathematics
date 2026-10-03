@@ -27,6 +27,21 @@ const issued = new Map();     // username → [jti…]（供 /__revoke 用）
 const requests = [];
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+/**
+ * /api/version 的可调夹具。默认报 **1.2.0**（v1 的版本，比本机的 2.0.0 **旧**）——
+ * 这个默认值本身就是一条断言场景：站点更旧时不该提示"有新版"（否则用户会被引去下载 v1 包）。
+ * 用例用 /__setversion 改成"有新版 / 缺 sha256"等场景。
+ */
+let versionFixture = {
+  latest: "1.2.0",
+  date: "2026-07-21",
+  download_url: "/download",
+  changelog: "/changelog",
+  sha256: "a".repeat(64),
+  size: 139467557,
+  reason: "",
+};
+
 users.set("alice", { password: "AlicePass123", email: "alice@example.com", balance: 10, active: true, role: 0 });
 users.set("slow_user", { password: "SlowPass123", email: "slow@example.com", balance: 3, active: true, role: 0 });
 users.set("rate_user", { password: "RatePass123", email: "rate@example.com", balance: 1, active: true, role: 0 });
@@ -88,6 +103,20 @@ const server = http.createServer(async (req, res) => {
   if (path === "/__requests") return json(res, 200, requests);
   if (path === "/__reset") { requests.length = 0; blacklist.clear(); return json(res, 200, { ok: true }); }
   if (path === "/__health") return json(res, 200, { ok: true });
+  // 测试钩子：改 /api/version 的夹具（有新版 / 缺 sha256 / 站点更旧……）
+  if (path === "/__setversion") {
+    const q = url.searchParams;
+    versionFixture = {
+      latest: q.get("latest") ?? versionFixture.latest,
+      date: q.get("date") ?? versionFixture.date,
+      download_url: q.get("download") ?? versionFixture.download_url,
+      changelog: versionFixture.changelog,
+      sha256: q.has("sha256") ? (q.get("sha256") || "") : versionFixture.sha256,
+      size: q.has("size") ? Number(q.get("size")) : versionFixture.size,
+      reason: q.get("reason") ?? "",
+    };
+    return json(res, 200, { ok: true, fixture: versionFixture });
+  }
   // 测试钩子：把某用户已签发的 token 全部拉黑，模拟"服务器侧会话被作废"——
   // 客户端并不知道，只有下一次请求才会撞上 401。登出路径走的是**本地清除**，测不到这条，
   // 所以必须有一个"服务端单方面作废"的入口才能真的验证客户端认真处理了服务器的 401。
@@ -214,7 +243,20 @@ const server = http.createServer(async (req, res) => {
     });
   }
   if (path === "/api/version" && req.method === "GET") {
-    return json(res, 200, { code: 0, data: { latest: "1.2.0", date: "2026-07-21", download_url: "/download", changelog: "/changelog" }, msg: "success" });
+    const f = versionFixture;
+    return json(res, 200, {
+      code: 0,
+      data: {
+        latest: f.latest,
+        date: f.date,
+        download_url: f.download_url,
+        changelog: f.changelog,
+        sha256: f.sha256 || null,
+        size: f.sha256 ? f.size : null,
+        ...(f.sha256 ? {} : { sha256_reason: f.reason || "服务器上还没有安装包文件" }),
+      },
+      msg: "success",
+    });
   }
 
   fail(res, 404, "没有这个接口");

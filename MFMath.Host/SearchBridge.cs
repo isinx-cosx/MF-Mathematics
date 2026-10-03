@@ -366,14 +366,9 @@ public class SearchBridge
     /// </summary>
     public string OpenUrl(string url)
     {
-        string u = (url ?? "").Trim();
-        if (!SearchBackend.IsHttpUrl(u)) return Fail("只允许打开 http/https 链接");
-        try
-        {
-            Process.Start(new ProcessStartInfo { FileName = u, UseShellExecute = true });
-            return "{\"ok\":true}";
-        }
-        catch (Exception e) { return Fail("打开失败：" + e.Message); }
+        // 闸门与实现都在 ShellOpen 里（更新链也用同一份）；这里只做转发，避免两处各写一份
+        var (ok, err) = ShellOpen.Url(url);
+        return ok ? "{\"ok\":true}" : Fail(err);
     }
 
     /* ── 缓存 ───────────────────────────────────────────────────────────── */
