@@ -419,6 +419,87 @@ check("关掉「发送引擎结果」后：工具被拒且明确告诉模型原�
   /发送引擎结果/.test(String(gatedMsg?.content)) && gatedRec[0]?.ok === false, String(gatedMsg?.content).slice(0, 120));
 await evalJs(`window.__mfAi.configure({ sendResult: true })`);
 
+// ── 分步显示的**渲染层**：把工具记录按步骤排开（数值全部来自引擎）──
+console.log("=== ②d 分步显示（渲染层：步骤 = AI 调引擎的记录）===");
+// 先跑一轮**成功的**工具调用再打开步骤：上面 ②c 的最后几条是隐私闸门/轮次上限的失败场景，
+// 直接取"最后一个"会拿到被拦住的那条（第一版就是这么错的）。
+await evalJs(`window.__mfAi.configure({ sendResult: true, toolsEnabled: true })`);
+await runTurn("用工具算 x^2-4=0", /"doneReason":"stop"/);
+const stepsBtn = await evalJs(`(() => {
+  const b = [...document.querySelectorAll('[data-ai^=view-steps-]')].pop();
+  if (!b) return "无";
+  b.click();
+  return "点了";
+})()`);
+check("回答上有「查看步骤」按钮", stepsBtn === "点了", stepsBtn);
+check("步骤视图打开了", await waitTrue(`!!document.querySelector('[data-steps=view]')`, 6000));
+check("**教程目标 step_viewer.content 能定位到可见内容**（本轮的引导接线也覆盖了它）",
+  await evalJs(`(() => {
+    const el = document.querySelector('[data-tour="step_viewer.content"]');
+    const r = el && el.getBoundingClientRect();
+    return !!el && r.width > 0 && r.height > 0;
+  })()`) === true);
+const stepFacts = JSON.parse(String(await evalJs(`JSON.stringify({
+  count: document.querySelectorAll('[data-steps^=step-]:not([data-steps=view])').length,
+  fn0: (document.querySelector('[data-steps=fn-0]') || {}).textContent || "",
+  value0: (document.querySelector('[data-steps=value-0]') || {}).textContent || "",
+  args0: (document.querySelector('[data-steps=args-0]') || {}).textContent || "",
+  prose: !!document.querySelector('.sv-prose'),
+  okState: (document.querySelector('[data-steps=step-0] .sv-state') || {}).textContent || ""
+})`)));
+check("步骤被编号列出（≥1 步）", stepFacts.count >= 1, `实际 ${stepFacts.count} 步`);
+check("步骤里写着用的是哪个引擎函数", stepFacts.fn0 === "solve_quadratic", stepFacts.fn0);
+check("**步骤的结果是引擎的值**（x^2-4 的根，不是模型那句 99）",
+  /2/.test(stepFacts.value0) && !/99/.test(stepFacts.value0), stepFacts.value0.slice(0, 90));
+check("步骤里带着传入参数", /expr/.test(stepFacts.args0), stepFacts.args0.slice(0, 70));
+check("标出这一步「引擎已算出」", /引擎已算出/.test(stepFacts.okState), stepFacts.okState);
+check("步骤下面是 AI 的说明（模型措辞与引擎数值分开显示）", stepFacts.prose === true);
+// 关闭后目标应消失（弹层不是常驻的）
+await evalJs(`(() => { const b = document.querySelector('[data-steps=close]'); if (b) b.click(); return true; })()`);
+check("关闭后步骤视图消失", await waitTrue(`!document.querySelector('[data-steps=view]')`, 6000));
+
+// ── 由别处发起（计算页的「查看步骤」走的就是这条通路）──
+console.log("=== ②e 由别处发起分步讲解（结果对话框的路径）===");
+await evalJs(`window.__mfAi.requestTurn("用工具算 x^2-4=0", { autoSteps: true })`);
+check("请求会把 AI 面板打开（App 监听 aiRequest）", await waitTrue(`!!document.querySelector('[data-ai=panel]')`, 6000));
+await waitIdle(60000);
+const lastUser = String(await evalJs(`(() => {
+  const m = [...window.__mfAi.messages()].reverse().find((x) => x.role === "user");
+  return m ? m.content : "";
+})()`));
+check("请求内容成了用户那条消息（预填并自动发出，用户不用再点一次发送）", /x\^2-4/.test(lastUser), lastUser.slice(0, 80));
+check("**收尾后自动弹出步骤**（这就是「查看步骤」要的结果）", await waitTrue(`!!document.querySelector('[data-steps=view]')`, 8000));
+await evalJs(`(() => { const b = document.querySelector('[data-steps=ok]'); if (b) b.click(); return true; })()`);
+
+// ── 计算页结果对话框里的「查看步骤」真的接上了（不是死按钮）──
+console.log("=== ②f 计算页的结果对话框 → 查看步骤 ===");
+// 用**工作区恢复**把表达式放进计算块：直接给 math-field 赋值不可靠（Vue 的 v-model 不一定会跟上），
+// 这条配方在 cdp-workspace 里已经用了很久。
+await evalJs(`(() => {
+  window.__mfWorkspace.setPage("/calc/algebra", { kind: "calc", blocks: [{ id: "b1", expr: "x^2-4", mode: "因式分解", operation: "因式分解" }] });
+  location.hash = "#/";
+  return true;
+})()`);
+await sleep(600);
+await evalJs(`location.hash = "#/calc/algebra"`);
+check("计算块被恢复（表达式在）", await waitTrue(`(() => { const f = document.querySelector('math-field.cb-input'); return !!f && f.value === "x^2-4"; })()`, 12000));
+await evalJs(`(() => { const b = document.querySelector('button.cb-calc'); if (b) b.click(); return true; })()`);
+check("算完弹出结果对话框（v1 的 showResultDialog 对应物）",
+  await waitTrue(`!!document.querySelector('[data-tour="result_dialog.steps_button"]')`, 12000));
+const beforeStepsReq = String(await evalJs(`JSON.stringify(window.__mfAi.state())`));
+await evalJs(`(() => { const b = document.querySelector('[data-tour="result_dialog.steps_button"]'); if (b) b.click(); return true; })()`);
+await waitTrue(`!!document.querySelector('[data-ai=panel]')`, 8000);
+const askedForSteps = String(await evalJs(`(() => {
+  const msgs = window.__mfAi.messages();
+  const m = [...msgs].reverse().find((x) => x.role === "user");
+  return m ? m.content : "";
+})()`));
+check("**「查看步骤」不再是死按钮**：它请 AI 分步讲解（并带上题目）",
+  /分步/.test(askedForSteps) && /x\^2-4/.test(askedForSteps), askedForSteps.replace(/\n/g, " ").slice(0, 120));
+await waitIdle(60000);
+check("这一轮也自动弹出了步骤视图", await waitTrue(`!!document.querySelector('[data-steps=view]')`, 8000));
+await evalJs(`(() => { const b = document.querySelector('[data-steps=ok]'); if (b) b.click(); return true; })()`);
+
 console.log("=== ③ 停止（流式进行时按下）===");
 await resetTurn();
 const sendSlow = String(await evalJs(`JSON.stringify(window.__mfAi.send("慢速"))`));

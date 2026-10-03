@@ -15,11 +15,13 @@
 import { computed, nextTick, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import AiMarkdown from "./AiMarkdown.vue";
+import StepViewer from "./StepViewer.vue";
 import {
   aiConfig, aiState, aiMessages, aiTestState, aiHosted,
   initAi, refreshAiConfig, aiTest, clearChat, contextBudget,
   currentContext, estimateMessagesTokens,
   buildMessages, sendTurn, stopTurn,
+  aiRequest, aiStepsFor, takeAiRequest, clearAiSteps,
 } from "../../lib/ai/bridge.js";
 
 const props = defineProps({ open: { type: Boolean, default: false } });
@@ -33,6 +35,38 @@ const scroller = ref(null);
 /** 用户往上翻的时候不要把他拽回底部 */
 const pinned = ref(true);
 
+/* ── 分步显示（渲染层）───────────────────────────────────────────────────
+ * 步骤内容 = 这一轮里 AI 调引擎的记录（不是模型写的步骤）。所以"查看步骤"只是换一种排布，
+ * 数值仍然是引擎给的。 */
+const stepsOpen = ref(false);
+const stepsData = ref({ steps: [], prose: "" });
+
+function openSteps(message, index) {
+  stepsData.value = { steps: message?.toolCalls || [], prose: message?.content || "" };
+  stepsOpen.value = true;
+}
+function closeSteps() {
+  stepsOpen.value = false;
+  clearAiSteps();
+}
+
+/* 计算页的「查看步骤」→ 这里取走请求并自动发送（用户已经明确点了那个按钮）。
+ * 收尾后若这一轮带着引擎步骤，自动把步骤弹出来 —— 这就是"查看步骤"要的结果。 */
+watch(aiRequest, (req) => {
+  if (!req) return;
+  const taken = takeAiRequest();
+  if (!taken) return;
+  draft.value = taken.text;
+  send({ autoSteps: taken.autoSteps });
+});
+
+watch(aiStepsFor, (v) => {
+  if (v && v.steps?.length) {
+    stepsData.value = { steps: v.steps, prose: v.prose || "" };
+    stepsOpen.value = true;
+  }
+});
+
 onMounted(() => {
   initAi();
   refreshAiConfig();
@@ -43,11 +77,14 @@ watch(() => props.open, (v) => { if (v) { refreshAiConfig(); scrollToEnd(); } })
 /* ── 正文渲染：交给 AiMarkdown（token 树 + 模板，无 v-html）────────────── */
 
 /* ── 发送 ─────────────────────────────────────────────────────────── */
-function send() {
+function send(opts = {}) {
+  // ⚠ 这个函数也直接绑在按钮上（@click="send"），此时 Vue 会把 MouseEvent 当第一个参数传进来 ——
+  // 所以选项必须显式检查，不能写 `!!opts.autoSteps`（那样每次点按钮都会以为要看步骤）。
+  const autoSteps = !!opts && typeof opts === "object" && opts.autoSteps === true;
   const text = draft.value.trim();
   if (!text) return;
   draft.value = "";
-  const r = sendTurn(text, { route: route.path });
+  const r = sendTurn(text, { route: route.path, autoSteps });
   if (!r.ok) return;   // 错误已经进 aiState.error，由界面显示
   scrollToEnd();
 }
@@ -150,8 +187,7 @@ function openSettings() {
             <div class="ai-reason-body">{{ m.reasoning }}</div>
           </details>
 
-          <!-- 工具调用：AI 调引擎算过什么。这是"计算由引擎完成"的**可见证据** ——
-               每一步都写着函数名、参数与引擎返回的东西，而不是让读者相信模型的措辞。 -->
+          <!-- 工具调用：AI 调引擎算过什么。这是"计算由引擎完成"的**可见证据** -->
           <div v-if="m.toolCalls && m.toolCalls.length" class="ai-tools" :data-ai="'tools-' + i">
             <div v-for="(t, k) in m.toolCalls" :key="k" class="ai-tool" :class="{ bad: !t.ok }"
                  :data-ai="'tool-' + i + '-' + k">
@@ -165,6 +201,12 @@ function openSettings() {
               </div>
               <div class="ai-tool-out">{{ t.summary }}</div>
             </div>
+            <!-- 分步显示：把上面这些调用按步骤排开给人看（数值由引擎给出） -->
+            <button class="btn btn-ghost ai-steps-btn" :data-ai="'view-steps-' + i"
+                    :title="'按步骤看这 ' + m.toolCalls.length + ' 次引擎计算（数值都是引擎算的）'"
+                    @click="openSteps(m, i)">
+              查看步骤（{{ m.toolCalls.length }}）
+            </button>
           </div>
 
           <AiMarkdown :text="m.content" />
@@ -247,6 +289,9 @@ function openSettings() {
       </div>
     </div>
   </aside>
+
+  <!-- 分步显示：与面板同级渲染（面板是抽屉，弹层要盖在它上面） -->
+  <StepViewer v-if="stepsOpen" :steps="stepsData.steps" :prose="stepsData.prose" @close="closeSteps" />
 </template>
 
 <style scoped>

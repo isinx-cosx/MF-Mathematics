@@ -23,7 +23,7 @@ export const GROUPS = [
   { id: "search", label: "搜索", status: "ready", note: "抓取与解析在宿主（C#）；App ID 只存宿主；缓存键含引擎" },
   { id: "account", label: "账号", status: "ready", note: "token 只存宿主（DPAPI）；未登录/断网都不影响任何计算功能" },
   { id: "update", label: "更新", status: "ready", note: "只提示 + 显示 sha256 + 把下载交给浏览器；不自动下载或执行安装包" },
-  { id: "storage", label: "存储与数据", status: "partial", depends: "导入/导出设置仍待做（见 docs/OPEN-ITEMS.md §4）" },
+  { id: "storage", label: "存储与数据", status: "ready", note: "含导入/导出设置（凭据不进备份）" },
 ];
 
 /**
@@ -108,7 +108,7 @@ export const ITEMS = [
   { id: "storage.diagnostics", group: "storage", label: "导出诊断包", keywords: "诊断 导出 日志 diagnostics support", status: "ready" },
   { id: "storage.history", group: "storage", label: "历史记录", keywords: "历史 记录 清空 条数 history", status: "ready" },
   { id: "storage.workspace", group: "storage", label: "工作区", keywords: "工作区 workspace 保存 载入 另存为 打开 清空", status: "ready" },
-  { id: "storage.io", group: "storage", label: "导入 / 导出设置", keywords: "导入 导出 备份 迁移 import export", status: "pending" },
+  { id: "storage.io", group: "storage", label: "导入 / 导出设置", keywords: "导入 导出 备份 迁移 import export 密钥", status: "ready" },
 ];
 
 export const itemsOf = (groupId) => ITEMS.filter((i) => i.group === groupId);

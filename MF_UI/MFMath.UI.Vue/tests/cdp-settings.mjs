@@ -134,12 +134,12 @@ await sleep(700);
 const diagMsg = await ev(`(document.querySelector('.s-warn') || {}).textContent || ''`);
 check("导出诊断包成功", /诊断包已导出/.test(diagMsg), String(diagMsg).trim());
 const pendingTags = await ev(`document.querySelectorAll('[data-setting^="storage."] .pending-tag').length`);
-// 存储组里"待实现"的只剩导入/导出设置（依赖文件对话框的批量迁移）：
-// 历史记录、工作区都已经是真实控件，所以阈值一路从 3 调到 1，
-// 并补上"它们确实变成了真实控件"的正向断言（否则这条只剩个空壳）。
-check("未实现项以「待实现」显式列出（不隐藏不留空）", pendingTags >= 1, `实际 ${pendingTags} 项`);
+// 这条断言的历史：阈值从 3 一路调到 1，本轮变成 **0** —— 导入/导出设置落地后，
+// 存储组里已经没有任何"待实现"项。所以它翻过来用：**不许再有**待实现标签。
+// 这比"必须有一个待实现项"更有意义：以后谁加了占位却没说清，这里会红。
+check("存储组里不再有待实现项（导入/导出已落地）", pendingTags === 0, `实际 ${pendingTags} 项`);
 const histReady = await ev(`!!document.querySelector('[data-setting="storage.history"] .s-btn')`);
-check("历史记录已从「待实现」变成真实控件（清空按钮）", histReady === true);
+check("历史记录是真实控件（清空按钮）", histReady === true);
 const wsReady = await ev(`(() => {
   const row = document.querySelector('[data-setting="storage.workspace"]');
   if (!row) return false;
@@ -177,14 +177,14 @@ check("搜索分组不再有待实现标记",
 check("搜索分组写明查询会发往哪个站点",
   await ev(`(() => { const t = document.querySelector('[data-setting="search.engine"]').textContent; return /查询会发往/.test(t); })()`) === true);
 
-// 「更新」本轮已落地（只提示 + 显示 sha256 + 交给浏览器）。
-// 现在**没有整组占位的分组了**，所以这条覆盖改成更贴近它本意的形式：
-// 仍未实现的项必须**写明依赖**，而不是留一个空白或光秃秃的「待实现」。
+// 「更新」与「导入/导出设置」本轮都落地了 —— 于是**整份设置里已经没有任何"待实现"项**。
+// 这条覆盖因此改成一个里程碑断言：不许再出现 pending 标签（出现就说明有人加了占位却没说清）。
 await clickText('.set-groups li', "存储与数据");
 await sleep(300);
 const storagePending = await ev(`[...document.querySelectorAll('[data-setting^="storage."] .pending-tag')].map(x => x.textContent.trim()).join(' | ')`);
-check("仍未实现的项写明了依赖（不是空白，也不是光秃秃的「待实现」）",
-  /待实现/.test(String(storagePending)) && /需要|宿主|对话框/.test(String(storagePending)), String(storagePending).slice(0, 90));
+check("存储与数据里不再有待实现项（导入/导出已落地）", String(storagePending) === "", String(storagePending).slice(0, 90));
+const allPending = await ev(`document.querySelectorAll('.set-content .pending-tag').length`);
+check("这一组里没有任何「待实现」标签", allPending === 0, `实际 ${allPending} 个`);
 
 await clickText('.set-groups li', "AI");
 await sleep(200);

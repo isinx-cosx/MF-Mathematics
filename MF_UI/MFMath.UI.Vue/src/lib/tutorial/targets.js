@@ -33,8 +33,6 @@
 export const PENDING = {
   // 真的还没做：v1 每个计算块上有"AI 加速"按钮，v2 没有（不是接线问题）
   "calc_block.ai_accel_button": "AI 加速按钮尚未实现（v1 有这个入口，v2 未做；见 docs/OPEN-ITEMS.md §4）",
-  // 真的还没做：分步显示的渲染层（语义与地基已定，见 docs/AI-ASSISTANT.md §4.1）
-  "step_viewer.content": "分步显示的渲染层尚未实现（引擎侧地基已落地：AI 通过 engine_call 计算）",
 };
 
 /**
@@ -54,6 +52,8 @@ export const TARGET_HINTS = {
   "math_keyboard.panel": { note: "先点顶栏的「⌨ 键盘」把面板打开" },
   "math_keyboard.titlebar": { note: "先点顶栏的「⌨ 键盘」把面板打开" },
   "result_dialog.steps_button": { note: "先在本页点一次「计算结果」，结果对话框打开后才有这个按钮" },
+  // 分步显示：由「查看步骤」打开（计算页的结果对话框，或 AI 面板里那条回答上的按钮）
+  "step_viewer.content": { note: "先点结果对话框或 AI 回答里的「查看步骤」；步骤来自 AI 调引擎的记录" },
   "plot_workspace.sliders": { note: "表达式里要含参数（例如 sin(a*x)）才会出现参数滑块" },
   // AI 面板是抽屉：里面的目标要先把它打开才存在（v-if="open"）
   "ai_dialog.input": { note: "先点顶栏的「AI」把助手抽屉打开" },
@@ -105,6 +105,8 @@ export const REGISTERED = [
   "main_window.ai_settings",
   "search_panel.input",
   "search_panel.results",
+  // 本轮补上：分步显示的渲染层（StepViewer，由「查看步骤」打开）
+  "step_viewer.content",
 ];
 
 const DASH = "\u2014";

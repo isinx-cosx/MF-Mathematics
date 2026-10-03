@@ -54,6 +54,9 @@ function pickScenario(text) {
   if (has("工具错参数")) return "tool_badargs";
   if (has("工具越权")) return "tool_privilege";
   if (has("工具算")) return "tool_calc";
+  // 「分步讲解」也是一种要引擎算的请求（计算页的「查看步骤」发的就是它）——
+  // 让它也走工具场景，这样"分步"这条路在测试里同样能拿到引擎步骤
+  if (has("分步")) return "tool_calc";
   return "normal";
 }
 

@@ -372,7 +372,7 @@ let controller = null;   // 当前这一轮的 AbortController
  */
 export const MAX_TOOL_ROUNDS = 4;
 
-export function sendTurn(userText, { route = "", history = aiMessages.value, context = null } = {}) {
+export function sendTurn(userText, { route = "", history = aiMessages.value, context = null, autoSteps = false } = {}) {
   const text = String(userText || "").trim();
   if (!text) return { ok: false, error: "先说点什么" };
 
@@ -515,6 +515,10 @@ export function sendTurn(userText, { route = "", history = aiMessages.value, con
       if (reasoning) msg.reasoning = reasoning;
       // 工具调用记录跟着消息走（面板据此渲染"这一步调了引擎、结果是什么"）
       if (r.toolRecords.length) msg.toolCalls = r.toolRecords;
+      // 这一轮是"查看步骤"发起的：收尾后自动把步骤弹出来（用户点那个按钮就是想看步骤）
+      if (autoSteps && r.toolRecords.length) {
+        aiStepsFor.value = { steps: r.toolRecords, prose: finalText };
+      }
       aiMessages.value = [...aiMessages.value, msg].slice(-MAX_MESSAGES);
       persistChat();
     }
@@ -545,6 +549,35 @@ export function stopTurn() {
   return { ok: true };
 }
 
+/* ── 由别处发起的"分步讲解"（计算页的结果对话框点「查看步骤」）──────────────
+ * 为什么要有这条通道：分步显示的内容**只能来自 AI 调引擎的记录** —— 引擎信封里没有 steps
+ * 字段，自己编步骤就等于伪造推导。所以"查看步骤"的正确做法是：把这道题交给 AI，让它逐步调
+ * 引擎，每一步的数值都由引擎给出。
+ *
+ * 通路：计算页 requestAiTurn(prompt, {autoSteps}) → App 打开面板 → 面板取走请求并自动发送
+ * → 收尾后若这一轮带着引擎步骤，面板自动弹出 StepViewer。
+ * 用 ref 而不是事件总线：只有一处消费（面板），取一次即清，免得下次打开面板又重放一遍。
+ */
+export const aiRequest = ref(null);
+export const aiStepsFor = ref(null);
+
+export function requestAiTurn(text, { autoSteps = false } = {}) {
+  const t = String(text || "").trim();
+  if (!t) return { ok: false, error: "没有内容" };
+  aiRequest.value = { text: t, autoSteps: !!autoSteps, at: Date.now() };
+  return { ok: true };
+}
+
+/** 面板取走请求（取一次即清空） */
+export function takeAiRequest() {
+  const r = aiRequest.value;
+  aiRequest.value = null;
+  return r;
+}
+
+/** 面板关掉步骤弹层后清空 */
+export function clearAiSteps() { aiStepsFor.value = null; }
+
 export const aiBusy = computed(() => aiState.value.running);
 
 /** 测试/排障钩子：CDP 里够不到模块作用域 */
@@ -561,6 +594,10 @@ export function initAiHook() {
       selfCheck: aiSelfCheck,
       test: aiTest,
       send: (text, opts) => sendTurn(text, opts || {}),
+      requestTurn: requestAiTurn,
+      takeRequest: takeAiRequest,
+      steps: () => aiStepsFor.value,
+      clearSteps: clearAiSteps,
       stop: stopTurn,
       clear: clearChat,
       build: (opts) => buildMessages(opts || {}),

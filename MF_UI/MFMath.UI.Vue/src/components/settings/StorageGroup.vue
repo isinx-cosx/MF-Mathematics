@@ -15,11 +15,42 @@ import { info, storeList, openPath, exportDiagnostics, isSettingsHosted } from "
 import { progress, resetAllProgress, storageError } from "../../lib/tutorial/store.js";
 import { useHistory } from "../../lib/history/store.js";
 import { useWorkspace } from "../../lib/workspace/store.js";
+import { exportToFile, importFromFile, initSettingsIoHook } from "../../lib/settings/io.js";
 
 const hostInfo = ref(info());
 const files = ref([]);
 const msg = ref("");
 const confirmingReset = ref(false);
+const confirmingIo = ref(false);
+const ioBusy = ref(false);
+const ioMsg = ref("");
+
+/** 导出设置备份：走宿主的保存对话框（宿主自带自动化钩子：path 非空时跳过对话框）
+ *  ⚠ 函数名不能与下面那个导出**诊断包**的 doExport 撞（本文件已有同名函数，撞了会编译失败） */
+async function ioExport() {
+  ioBusy.value = true; ioMsg.value = "";
+  try {
+    const r = await exportToFile();
+    if (r.canceled) { ioMsg.value = "已取消导出。"; return; }
+    ioMsg.value = r.ok
+      ? `已导出 ${r.files} 个设置文件与 ${r.prefs} 项外观偏好（不含密钥）：${r.path}`
+      : `导出失败：${r.error}`;
+  } finally { ioBusy.value = false; }
+}
+
+/** 导入设置备份：先确认（会覆盖同名设置），再走宿主的打开对话框 */
+async function ioImport() {
+  confirmingIo.value = false;
+  ioBusy.value = true; ioMsg.value = "";
+  try {
+    const r = await importFromFile();
+    if (r.canceled) { ioMsg.value = "已取消导入。"; return; }
+    if (!r.ok) { ioMsg.value = `导入失败：${r.error}`; return; }
+    const skipped = r.skipped?.length ? `（跳过 ${r.skipped.length} 项：${r.skipped.slice(0, 3).join(", ")}…）` : "";
+    ioMsg.value = `已导入 ${r.files} 个设置文件与 ${r.prefs} 项外观偏好${skipped}。密钥未被改动；重启后全部生效。`;
+    refreshFiles();
+  } finally { ioBusy.value = false; }
+}
 const confirmingHistory = ref(false);
 const confirmingWs = ref(false);
 const diagPath = ref("");
@@ -222,9 +253,29 @@ function refreshFiles() {
         </template>
       </div>
     </div>
-    <div class="s-row" data-setting="storage.io">
-      <div class="s-label"><label>导入 / 导出设置</label><p class="s-hint">换机迁移用</p></div>
-      <div class="s-ctl"><span class="pending-tag">待实现 · 需要文件对话框（宿主侧）</span></div>
+    <div class="s-row col" data-setting="storage.io">
+      <div class="s-label">
+        <label>导入 / 导出设置</label>
+        <p class="s-hint">换机迁移用；**不含密钥**</p>
+      </div>
+      <div class="s-ctl wrap">
+        <template v-if="!confirmingIo">
+          <button class="s-btn" data-io="export" :disabled="ioBusy" @click="ioExport">导出…</button>
+          <button class="s-btn" data-io="import" :disabled="ioBusy" @click="confirmingIo = true">导入…</button>
+        </template>
+        <template v-else>
+          <span class="s-hint" data-io="confirm">导入会覆盖同名的设置文件，确定？</span>
+          <button class="s-btn" data-io="confirm-yes" @click="ioImport">确定导入</button>
+          <button class="s-btn" @click="confirmingIo = false">取消</button>
+        </template>
+        <p v-if="ioMsg" class="s-hint" data-io="msg">{{ ioMsg }}</p>
+        <p class="s-hint" data-io="scope">
+          包含：历史、工作区、会话记录、教程进度等设置文件，以及外观偏好（<code>mf_*</code>）。
+          <b>不含密钥</b>：AI 的 API Key、登录状态、Wolfram App ID 都不进备份 ——
+          换台机器也解不开（DPAPI 密文），搬过去只会让人误以为"密钥跟着走了"。
+          导入**不会**清掉你现在的密钥，也不会写这三类文件；设置与外观在**重启后**全部生效。
+        </p>
+      </div>
     </div>
 
     <p v-if="msg" class="s-warn">{{ msg }}</p>

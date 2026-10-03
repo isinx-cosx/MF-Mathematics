@@ -18,10 +18,12 @@ import { initPush } from "./lib/push.js";
 import { initWorkspace } from "./lib/workspace/store.js";
 import { installShortcuts } from "./lib/keyboard/shortcuts.js";
 import { initPrefs } from "./lib/settings/prefs.js";
+import { initSettingsIoHook } from "./lib/settings/io.js";
 import { initTourSanitizerHook } from "./lib/tutorial/targets.js";
 import { initPlotMathHook } from "./lib/plot/plotMath.js";
 import { initAi, initAiHook } from "./lib/ai/bridge.js";
 import { accountInfo, initAccount, initAccountHook } from "./lib/account/bridge.js";
+import { aiRequest } from "./lib/ai/bridge.js";
 import { updateState, initUpdate, initUpdateHook, refreshUpdateInfo } from "./lib/update/bridge.js";
 import {
   THEME_LIST, SHAPE_LIST, DENSITY_LIST, FONT_LIST,
@@ -187,6 +189,8 @@ onMounted(() => {
   // 更新链：读本机版本与上次检查结果；**自动检查默认关**（启动不偷偷联网）
   initUpdate();
   initUpdateHook();
+  // 设置备份（导入/导出）：挂 __mfSettingsIo 钩子（用例与排障要用；界面按钮走文件对话框）
+  initSettingsIoHook();
   // 全局快捷键：F1 帮助、Ctrl+Z/Y 撤销重做（谁有"上一步"谁注册，见 lib/keyboard/shortcuts.js）
   // 卸载放在 onBeforeUnmount 里由 uninstallShortcuts 收尾
   uninstallShortcuts = installShortcuts(router);
@@ -244,6 +248,10 @@ function openSearch() { router.push("/tools/search"); }
  * 比给一个点不动的按钮诚实（沿用搜索占位面板的那条判断）。 */
 const showAi = ref(false);
 function openAi() { showAi.value = true; }
+
+/* 别处发起的"分步讲解"（计算页结果对话框的「查看步骤」）：把抽屉打开，
+   面板自己会取走请求并自动发送。用户点那个按钮就是想看步骤，不该再让他点一次发送。 */
+watch(aiRequest, (req) => { if (req) showAi.value = true; });
 
 /* ── 账号（顶栏登录态）───────────────────────────────────────────────────
  * 这里只放"这个名字 + 一个入口"，不做拦截：未登录、断网、站点挂了，

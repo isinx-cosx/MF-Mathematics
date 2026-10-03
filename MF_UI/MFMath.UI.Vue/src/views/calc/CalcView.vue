@@ -15,6 +15,8 @@ import { getViewConfig } from "../../lib/engine/viewConfigs.js";
 import { ENGINE_MAP, ENGINE_VAR_SPECS } from "../../lib/engine/engineMap.js";
 import { buildEngineArgs, buildEngineArgsFromValues, toEngineExpr, hasEngineMode, needsVarDialog } from "../../lib/engine/calcArgs.js";
 import { engineCall, isHosted, bridgeVersion } from "../../lib/bridge.js";
+// 「查看步骤」：把这道题交给 AI 逐步调引擎讲解（分步显示的渲染层在 AiPanel/StepViewer）
+import { requestAiTurn } from "../../lib/ai/bridge.js";
 import { takePending, pickMode } from "../../lib/workspace/pendingInput.js";
 import { getPage, setPage } from "../../lib/workspace/store.js";
 import { registerUndoable } from "../../lib/keyboard/shortcuts.js";
@@ -319,12 +321,33 @@ function specFnName(mode) {
 
 function closeResult() { resultDialog.value = null; }
 
-/** 查看步骤：由上层能力决定（当前给出明确提示，不伪造内容） */
+/**
+ * 查看步骤 —— 现在真的做事了（本轮接上"AI 调引擎"这条线）。
+ *
+ * 为什么不是从引擎直接拿步骤：引擎信封里**没有 steps 字段**（已核对 api.cpp 与全部 *_api.cpp），
+ * 自己编步骤就等于伪造推导。所以正确做法是：把这道题交给 AI，让它逐步调引擎，
+ * 每一步的数值都由引擎给出（工具调用），面板再把那些调用按步骤排开。
+ *
+ * 用户的动作是"查看步骤"，那就别让他再点一次发送：这条请求会预填进面板并自动发出，
+ * 收尾后面板自动弹出步骤视图。
+ */
 function onSteps() {
   const d = resultDialog.value;
   closeResult();
   if (!d) return;
-  statusText.value = `「步骤」需 AI 或符号推理服务：引擎已给出精确结果 ${specFnName(d.mode)}，步骤推导未接入`;
+  const expr = String(d.expr || d.input || "").trim();
+  const lines = [
+    "请**分步**讲解下面这道题，每一步都要用 engine_call 让本地引擎算出数值（不要自己心算）：",
+    expr ? `题目：${expr}` : "",
+    `当前模式：${d.mode || ""}${specFnName(d.mode) ? `（引擎函数 ${specFnName(d.mode)}）` : ""}`,
+    "已知引擎给出的结果：见上下文；请把推导拆成可核对的步骤，每步标明用了哪个引擎函数与它的返回。",
+  ].filter(Boolean);
+  const r = requestAiTurn(lines.join("\n"), { autoSteps: true });
+  if (r.ok) {
+    statusText.value = "已请 AI 分步讲解（会调用 AI 服务；每一步的数值仍由本地引擎算出）";
+  } else {
+    statusText.value = `无法发起分步讲解：${r.error}`;
+  }
 }
 
 /* 该视图已映射/未映射模式统计（供状态栏与排查） */
