@@ -22,9 +22,10 @@ import { computed, ref } from "vue";
 import { onPush } from "../push.js";
 import { getPage } from "../workspace/store.js";
 import { HostRelayClient } from "./client.ts";
-import { collect } from "./collect.ts";
+import { collect, parseToolArgs } from "./collect.ts";
 import { isRelayHosted, relayCancelAll } from "./relay.ts";
 import { parseInline } from "./markdown.ts";
+import { AI_TOOLS, executeTool, initAiToolsHook, ENGINE_FN_COUNT } from "./tools.ts";
 
 /* ── 宿主桥 ──────────────────────────────────────────────────────────── */
 
@@ -75,6 +76,8 @@ const DEFAULT_CFG = {
   dpapiAvailable: false,
   configPath: "",
   lastError: "",
+  // 工具调用：让 AI 能调本地 C++ 引擎真算（默认开 —— 计算必须发生在引擎里）
+  toolsEnabled: true,
 };
 
 /** 脱敏后的配置（永远不含密钥本身） */
@@ -359,8 +362,16 @@ let controller = null;   // 当前这一轮的 AbortController
 
 /**
  * 发一轮。**立即返回**（不等回复），流式增量由 onEvent 写进 aiState。
+ *
+ * 支持**工具循环**：模型可以调 `engine_call` 让本地 C++ 引擎真算，拿回结果再继续讲。
+ *   ① 轮次有上限（MAX_TOOL_ROUNDS）：模型抽风反复调工具时会被截断并给出说明，而不是无限烧钱；
+ *   ② 工具只能碰引擎（见 lib/ai/tools.ts），碰不到能写文件/起进程的桥；
+ *   ③ 「发送引擎结果」关着时工具会被拒（结果要回传给模型 = 把引擎结果发出去）；
+ *   ④ 停止按钮在任何一轮都能中断（abort + 取消宿主侧连接）。
  * @returns {{ok:boolean, error?:string}}
  */
+export const MAX_TOOL_ROUNDS = 4;
+
 export function sendTurn(userText, { route = "", history = aiMessages.value, context = null } = {}) {
   const text = String(userText || "").trim();
   if (!text) return { ok: false, error: "先说点什么" };
@@ -373,6 +384,8 @@ export function sendTurn(userText, { route = "", history = aiMessages.value, con
 
   const ctx = context ?? currentContext(route);
   const messages = buildMessages({ userText: text, history, context: ctx, cfg });
+  const toolsOn = cfg.toolsEnabled !== false;          // 默认开：让计算发生在引擎里
+  const allowResults = cfg.sendResult !== false;       // 隐私开关，工具结果的发送要和它一致
 
   // 先落到会话里（用户那条），这样即使请求失败也能看到自己说过什么
   aiMessages.value = [...aiMessages.value, { role: "user", content: text }].slice(-MAX_MESSAGES);
@@ -380,57 +393,137 @@ export function sendTurn(userText, { route = "", history = aiMessages.value, con
   aiState.value = {
     running: true, requestId: "", model: cfg.model, stream: "", reasoning: "",
     notices: [], usage: null, error: null, doneReason: "", startedAt: Date.now(),
+    toolCalls: [], rounds: 0,
   };
 
   controller = new AbortController();
   const client = new HostRelayClient({ includeUsage: cfg.includeUsage !== false });
 
-  // 不 await：调用方（面板）要立刻恢复响应，增量靠回调推进
-  collect(client.stream({
-    model: cfg.model,
-    messages,
-    temperature: Number(cfg.temperature),
-    maxTokens: Number(cfg.maxTokens),
-    signal: controller.signal,
-  }), {
-    onEvent: (ev) => {
-      const s = aiState.value;
-      switch (ev.type) {
-        case "text_delta":
-          aiState.value = { ...s, stream: s.stream + ev.text };
-          break;
-        case "reasoning_delta":
-          aiState.value = { ...s, reasoning: s.reasoning + ev.text };
-          break;
-        case "usage":
-          aiState.value = { ...s, usage: ev.usage };
-          break;
-        case "notice":
-          aiState.value = { ...s, notices: [...s.notices, ev.notice] };
-          break;
-        case "error":
-          aiState.value = { ...s, error: ev.error };
-          break;
-        default:
-          break;   // tool_call_delta：契约留位，本版不执行工具
+  // 工具循环。不 await：调用方（面板）要立刻恢复响应，增量靠回调推进。
+  (async () => {
+    const convo = [...messages];
+    const toolRecords = [];
+    let textAll = "";
+    let reasoningAll = "";
+    let lastReason = "";
+    let error = null;
+
+    for (let round = 0; ; round++) {
+      const out = await collect(client.stream({
+        model: cfg.model,
+        messages: convo,
+        temperature: Number(cfg.temperature),
+        maxTokens: Number(cfg.maxTokens),
+        tools: toolsOn ? AI_TOOLS : undefined,
+        signal: controller.signal,
+      }), {
+        onEvent: (ev) => {
+          const s = aiState.value;
+          switch (ev.type) {
+            case "text_delta":
+              aiState.value = { ...s, stream: s.stream + ev.text };
+              break;
+            case "reasoning_delta":
+              aiState.value = { ...s, reasoning: s.reasoning + ev.text };
+              break;
+            case "usage":
+              aiState.value = { ...s, usage: ev.usage };
+              break;
+            case "notice":
+              aiState.value = { ...s, notices: [...s.notices, ev.notice] };
+              break;
+            case "error":
+              aiState.value = { ...s, error: ev.error };
+              break;
+            default:
+              break;   // tool_call_delta：按 index 累积在 collect 里，这里等收尾统一处理
+          }
+        },
+      });
+
+      textAll += out.text || "";
+      reasoningAll += out.reasoning || "";
+      lastReason = out.finishReason;
+      if (out.error) { error = out.error; break; }
+
+      const calls = out.toolCalls || [];
+      if (!toolsOn || calls.length === 0) break;
+
+      if (round >= MAX_TOOL_ROUNDS - 1) {
+        // 到顶了：如实说明，而不是继续烧
+        aiState.value = {
+          ...aiState.value,
+          notices: [...aiState.value.notices, {
+            kind: "tool_round_limit",
+            message: `工具调用已达上限（${MAX_TOOL_ROUNDS} 轮），停止继续调用。`,
+          }],
+        };
+        break;
       }
-    },
-  }).then((out) => {
+
+      aiState.value = { ...aiState.value, rounds: round + 1 };
+      // 助手这一轮（可能带正文 + 工具调用）要进上下文，否则下一轮模型不知道自己要过什么
+      convo.push({
+        role: "assistant",
+        content: out.text || "",
+        toolCalls: calls.map((c) => ({ id: c.id, name: c.name, argsJson: c.argsJson })),
+      });
+
+      for (const call of calls) {
+        let args = {};
+        try {
+          const parsed = parseToolArgs(call);
+          args = parsed && typeof parsed === "object" ? parsed : {};
+        } catch (e) {
+          // 参数碎片拼不成 JSON（流被截断/模型抽风）：当成一次失败的工具调用回给模型
+          const rec = {
+            name: call.name || "(未命名)", ok: false,
+            content: `{"ok":false,"error":${JSON.stringify(String(e?.message || e))}}`,
+            summary: "参数不是合法 JSON", ms: 0,
+          };
+          toolRecords.push(rec);
+          aiState.value = { ...aiState.value, toolCalls: [...toolRecords] };
+          convo.push({ role: "tool", toolCallId: call.id, content: rec.content });
+          continue;
+        }
+        const rec = executeTool(call.name, args, allowResults);
+        toolRecords.push(rec);
+        aiState.value = { ...aiState.value, toolCalls: [...toolRecords] };
+        convo.push({ role: "tool", toolCallId: call.id, content: rec.content });
+      }
+      // 这一轮的正文已经"说完了"，把它从实时缓冲移进已定稿的部分，
+      // 免得下一轮的增量接在旧文字后面显示成一个畸形段落
+      aiState.value = { ...aiState.value, stream: "", reasoning: "" };
+    }
+
+    return { text: textAll, reasoning: reasoningAll, finishReason: lastReason, error, toolRecords };
+  })().then((r) => {
     // 收尾：把这一轮的正文与思考过程**并入会话**，然后清掉实时缓冲。
     //
     // ⚠ 这里必须清 stream / reasoning —— 上一版没清，于是同一段回答被渲染两次：
     // 一次来自消息列表（最终文本），一次来自还留在 aiState 里的"流式块"。
     // 症状很显眼但根因很蠢：running 只是"还在跑"的标志，它不是"这段文本属于谁"的归属。
-    const text = out.text;
-    const reasoning = (out.reasoning || "").slice(0, MAX_REASONING);
-    aiState.value = { ...aiState.value, running: false, doneReason: out.finishReason, stream: "", reasoning: "" };
-    if (text.trim() || reasoning.trim()) {
-      const msg = { role: "assistant", content: text };
+    const finalText = r.text;
+    const reasoning = (r.reasoning || "").slice(0, MAX_REASONING);
+    aiState.value = {
+      ...aiState.value, running: false,
+      doneReason: r.error ? "error" : r.finishReason,
+      stream: "", reasoning: "",
+    };
+    if (finalText.trim() || reasoning.trim() || r.toolRecords.length) {
+      const msg = { role: "assistant", content: finalText };
       if (reasoning) msg.reasoning = reasoning;
+      // 工具调用记录跟着消息走（面板据此渲染"这一步调了引擎、结果是什么"）
+      if (r.toolRecords.length) msg.toolCalls = r.toolRecords;
       aiMessages.value = [...aiMessages.value, msg].slice(-MAX_MESSAGES);
       persistChat();
     }
   }).catch((e) => {
+    // 用户按了停止：不是错误，别弹红字
+    if (controller?.signal?.aborted) {
+      aiState.value = { ...aiState.value, running: false, doneReason: "aborted", stream: "", reasoning: "" };
+      return;
+    }
     aiState.value = {
       ...aiState.value,
       running: false,
@@ -476,6 +569,14 @@ export function initAiHook() {
       budget: contextBudget,
       context: currentContext,
       hosted: isAiHosted,
+      // 工具：引擎目录规模、单个函数/校验/执行（"只能调引擎"这条边界也靠它断言）
+      tools: {
+        count: () => ENGINE_FN_COUNT,
+        schemas: () => AI_TOOLS,
+        execute: executeTool,
+        maxRounds: () => MAX_TOOL_ROUNDS,
+      },
     };
   } catch { /* 忽略 */ }
+  initAiToolsHook();
 }

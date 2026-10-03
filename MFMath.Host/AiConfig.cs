@@ -60,6 +60,13 @@ internal sealed class AiConfig
     /// <summary>控制台代码：默认关。那是用户的私人内容，只有明确打开才发。</summary>
     public bool SendCode { get; set; }
 
+    /// <summary>
+    /// 工具调用（function calling）：让 AI 能调本地 C++ 引擎真算。
+    /// 默认**开** —— 计算必须发生在引擎里，而不是让模型心算。
+    /// 关掉之后模型仍可回答，但数值只能靠它自己（那正是我们不想看到的）。
+    /// 注意：工具结果要回传给模型，所以「发送引擎结果」关着时工具会被拒（见 lib/ai/tools.ts）。
+    /// </summary>
+    public bool ToolsEnabled { get; set; } = true;
     /// <summary>DPAPI 密文（base64）。**绝不出现在任何返回给页面的 JSON 里**。</summary>
     public string ApiKeyProtected { get; set; } = "";
 

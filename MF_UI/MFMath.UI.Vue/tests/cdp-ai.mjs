@@ -307,6 +307,104 @@ check("模型写的 HTML **没有**变成元素（img/script 数量为 0）", md
   `img=${mdObj.imgs} script=${mdObj.scripts}`);
 check("HTML 被转义成文本显示（不是被吃掉）", mdObj.escapedHtml === true && mdObj.rawText === true);
 
+console.log("=== ②c 工具调用：AI 调引擎算，而不是自己算 ===");
+// 工具层的边界先单独验一遍（不起对话，直接调）
+const toolFacts = JSON.parse(String(await evalJs(`JSON.stringify({
+  count: window.__mfAi.tools.count(),
+  names: window.__mfAi.tools.schemas().map((t) => t.name),
+  ok: window.__mfAi.tools.execute("engine_call", { fn: "solve_quadratic", args: { expr: "x^2-4", var: "x" } }, true),
+  badfn: window.__mfAi.tools.execute("engine_call", { fn: "definitely_not_here", args: {} }, true),
+  badargs: window.__mfAi.tools.execute("engine_call", { fn: "solve_quadratic", args: { exprr: "x^2-4" } }, true),
+  privilege: window.__mfAi.tools.execute("engine_call", { fn: "SaveTextFile", args: { path: "C:/evil.txt" } }, true),
+  notatool: window.__mfAi.tools.execute("file_write", { path: "C:/evil.txt" }, true),
+  gated: window.__mfAi.tools.execute("engine_call", { fn: "gcd", args: { a: 12, b: 18 } }, false)
+})`)));
+check("引擎函数目录够大（424 个动作 → 唯一的函数名）", toolFacts.count >= 300, `${toolFacts.count} 个`);
+check("只暴露两个工具（查 + 调），不是把 370 个函数都塞进 schema",
+  JSON.stringify(toolFacts.names) === '["engine_find","engine_call"]', JSON.stringify(toolFacts.names));
+check("engine_call 真的调到了引擎（x^2-4 的根由引擎给出）",
+  toolFacts.ok.ok === true && /"value"/.test(toolFacts.ok.content) && /2/.test(toolFacts.ok.content), toolFacts.ok.content.slice(0, 110));
+check("表外的函数名被拒（不会盲调）", toolFacts.badfn.ok === false && /引擎里没有/.test(toolFacts.badfn.content), toolFacts.badfn.content.slice(0, 110));
+check("参数写错时回的是「缺什么/多了什么」并附上正确签名",
+  toolFacts.badargs.ok === false && /缺少必填参数 expr/.test(toolFacts.badargs.content) && /solve_quadratic\(/.test(toolFacts.badargs.content),
+  toolFacts.badargs.content.slice(0, 150));
+check("**工具只能碰引擎**：想调 SaveTextFile（能写文件）被拒", toolFacts.privilege.ok === false, toolFacts.privilege.content.slice(0, 90));
+check("未注册的工具名被拒", toolFacts.notatool.ok === false && /没有这个工具/.test(toolFacts.notatool.content), toolFacts.notatool.content.slice(0, 90));
+check("「发送引擎结果」关着时工具被拒（结果要回传给模型）",
+  toolFacts.gated.ok === false && /发送引擎结果/.test(toolFacts.gated.content), toolFacts.gated.content.slice(0, 120));
+
+// 端到端：模型先要工具 → 页面执行引擎 → 结果回传 → 模型收尾
+const beforeToolReqs = (await fakeRequests()).length;
+await runTurn("用工具算 x^2-4=0", /"doneReason":"stop"/);
+const toolReqs = await fakeRequests();
+const roundReqs = toolReqs.slice(beforeToolReqs);
+check("工具轮里发起了两次请求（先要工具、拿到结果再回答）", roundReqs.length === 2, `实际 ${roundReqs.length} 次`);
+const secondBody = roundReqs[1]?.body || {};
+const toolMsgs = (secondBody.messages || []).filter((m) => m.role === "tool");
+check("第二次请求里带了 role:tool 的消息", toolMsgs.length === 1, JSON.stringify((secondBody.messages || []).map((m) => m.role)));
+check("**回传给模型的是引擎的输出**（含引擎算出的两个根）",
+  /"ok":true/.test(String(toolMsgs[0]?.content)) && /2/.test(String(toolMsgs[0]?.content)), String(toolMsgs[0]?.content).slice(0, 130));
+check("请求里确实声明了工具（tools 字段）", Array.isArray(secondBody.tools) && secondBody.tools.length === 2,
+  JSON.stringify((secondBody.tools || []).map((t) => t.function?.name)));
+const assistantWire = (secondBody.messages || []).find((m) => m.role === "assistant" && m.tool_calls);
+check("助手那条带 tool_calls（协议形状对得上）", !!assistantWire && assistantWire.tool_calls[0].function.name === "engine_call",
+  JSON.stringify(assistantWire?.tool_calls || []).slice(0, 120));
+
+// 界面：工具块挂在消息上，显示的是引擎结果
+const toolUi = JSON.parse(String(await evalJs(`JSON.stringify((() => {
+  const panel = document.querySelector('[data-ai=panel]');
+  const blocks = [...panel.querySelectorAll('[data-ai^=tool-]')].filter((e) => !/tool-live/.test(e.getAttribute('data-ai')));
+  return {
+    count: blocks.length,
+    text: blocks.map((b) => b.textContent.replace(/\\s+/g, ' ').trim()).join(' || ').slice(0, 300),
+    live: panel.querySelectorAll('[data-ai=tools-live]').length,
+    messageToolCalls: (window.__mfAi.messages().slice(-1)[0] || {}).toolCalls?.length || 0
+  };
+})())`)));
+check("面板里渲染出了工具块", toolUi.count >= 1, toolUi.text.slice(0, 140));
+check("工具块里是引擎的函数名与结果", /solve_quadratic/.test(toolUi.text), toolUi.text.slice(0, 160));
+check("收尾后实时工具块消失（不重复）", toolUi.live === 0);
+check("工具记录挂在消息上", toolUi.messageToolCalls === 1, String(toolUi.messageToolCalls));
+const lastMsg = String(await evalJs(`JSON.stringify(window.__mfAi.messages().slice(-1)[0])`));
+check("模型那句错的数字只是文本，工具块显示的才是引擎的值",
+  /99/.test(lastMsg) && /2/.test(toolUi.text), "模型说 99，工具块给的是引擎的根");
+
+// 坏例子与越权：模型必须看到拒绝原因
+for (const [say, expect, label] of [
+  ["用工具坏函数 算一下", /引擎里没有/, "表外函数"],
+  ["用工具错参数 算一下", /缺少必填参数/, "参数写错"],
+  ["用工具越权 试一下", /引擎里没有/, "越权调用非引擎函数"],
+]) {
+  const before = (await fakeRequests()).length;
+  await runTurn(say, /"doneReason":"stop"/);
+  const reqs = (await fakeRequests()).slice(before);
+  const toolMsg = (reqs[1]?.body?.messages || []).find((m) => m.role === "tool");
+  const recs = JSON.parse(String(await evalJs(`JSON.stringify((window.__mfAi.messages().slice(-1)[0] || {}).toolCalls || [])`)));
+  check(`${label}：工具被拒且原因回给了模型`, expect.test(String(toolMsg?.content)) && recs[0]?.ok === false,
+    String(toolMsg?.content).slice(0, 120));
+  check(`${label}：界面上标成失败`, JSON.parse(String(await evalJs(`JSON.stringify(
+    !!document.querySelector('[data-ai=panel] .ai-tool.bad'))`))) === true);
+}
+
+// 轮次上限：模型一直要工具也必须被截断
+const beforeLoop = (await fakeRequests()).length;
+await runTurn("用工具循环 算个没完", /"doneReason":"stop"/);
+const loopReqs = (await fakeRequests()).length - beforeLoop;
+check(`工具循环被轮次上限截断（最多 ${String(await evalJs(`window.__mfAi.tools.maxRounds()`))} 轮）`,
+  loopReqs <= Number(await evalJs(`window.__mfAi.tools.maxRounds()`)), `实际发了 ${loopReqs} 次请求`);
+const loopNotice = String(await evalJs(`JSON.stringify(window.__mfAi.state().notices)`));
+check("被截断时给出了说明（不是默默停住）", /已达上限|上限/.test(loopNotice), loopNotice.slice(0, 130));
+
+// 隐私闸门（端到端）
+await evalJs(`window.__mfAi.configure({ sendResult: false })`);
+const beforeGate = (await fakeRequests()).length;
+await runTurn("用工具算 1+1", /"doneReason":"stop"/);
+const gatedMsg = ((await fakeRequests()).slice(beforeGate)[1]?.body?.messages || []).find((m) => m.role === "tool");
+const gatedRec = JSON.parse(String(await evalJs(`JSON.stringify((window.__mfAi.messages().slice(-1)[0] || {}).toolCalls || [])`)));
+check("关掉「发送引擎结果」后：工具被拒且明确告诉模型原因",
+  /发送引擎结果/.test(String(gatedMsg?.content)) && gatedRec[0]?.ok === false, String(gatedMsg?.content).slice(0, 120));
+await evalJs(`window.__mfAi.configure({ sendResult: true })`);
+
 console.log("=== ③ 停止（流式进行时按下）===");
 await resetTurn();
 const sendSlow = String(await evalJs(`JSON.stringify(window.__mfAi.send("慢速"))`));

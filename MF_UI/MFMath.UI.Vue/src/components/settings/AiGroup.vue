@@ -41,6 +41,11 @@ onMounted(() => {
 });
 
 const cfg = aiConfig;
+
+/** 引擎函数总数（工具能调多少个）—— 从工具层读，避免这里再写死一个数字 */
+const toolCount = (() => {
+  try { return window.__mfAi?.tools?.count?.() ?? 0; } catch { return 0; }
+})();
 const keyState = computed(() => {
   if (!cfg.value.hasKey) return "未配置";
   return cfg.value.keySource === "memory"
@@ -207,7 +212,29 @@ const testLine = computed(() => {
       </div>
     </section>
 
-    <!-- ⑦ 隐私：会发什么，逐项可关 -->
+    <!-- ⑦ 工具调用：让 AI 调引擎算，而不是自己心算 -->
+    <section class="row" data-setting="ai.tools">
+      <div class="lab">
+        <span>工具调用</span>
+        <small>让 AI 直接调本地 C++ 引擎做真实计算（推荐开启）</small>
+      </div>
+      <div class="ctl col">
+        <label class="sw">
+          <input type="checkbox" data-ai-set="toolsEnabled" :checked="cfg.toolsEnabled"
+                 @change="set({ toolsEnabled: $event.target.checked }, '工具调用')" />
+          <span>允许 AI 调用引擎计算（共 {{ toolCount }} 个引擎函数，查一个调一个）</span>
+        </label>
+        <p class="hint">
+          开着的时候：模型只能通过 <code>engine_call</code> 拿到数值，每一步都是引擎算出来的；
+          它负责讲思路与措辞，不负责算术。关掉之后它仍能回答，但数值只能靠它自己 —— 那正是本项要避免的。
+          <br />
+          边界：工具**只能碰引擎**（碰不到能写文件、起进程的那些桥），参数按引擎的动作表校验，
+          一轮对话里最多调用 4 轮。工具结果要回传给模型，所以「引擎算出的结果」关着时会被拒。
+        </p>
+      </div>
+    </section>
+
+    <!-- ⑧ 隐私：会发什么，逐项可关 -->
     <section class="row" data-setting="ai.privacy">
       <div class="lab">
         <span>会发送什么</span>

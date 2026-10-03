@@ -148,6 +148,24 @@ function openSettings() {
             <summary>思考过程（{{ m.reasoning.length }} 字）</summary>
             <div class="ai-reason-body">{{ m.reasoning }}</div>
           </details>
+
+          <!-- 工具调用：AI 调引擎算过什么。这是"计算由引擎完成"的**可见证据** ——
+               每一步都写着函数名、参数与引擎返回的东西，而不是让读者相信模型的措辞。 -->
+          <div v-if="m.toolCalls && m.toolCalls.length" class="ai-tools" :data-ai="'tools-' + i">
+            <div v-for="(t, k) in m.toolCalls" :key="k" class="ai-tool" :class="{ bad: !t.ok }"
+                 :data-ai="'tool-' + i + '-' + k">
+              <div class="ai-tool-head">
+                <span class="ai-tool-badge">引擎</span>
+                <code class="ai-tool-fn">{{ t.fn || t.name }}</code>
+                <span class="ai-tool-ms">{{ t.ms }} ms</span>
+              </div>
+              <div v-if="t.args && Object.keys(t.args).length" class="ai-tool-args">
+                {{ JSON.stringify(t.args) }}
+              </div>
+              <div class="ai-tool-out">{{ t.summary }}</div>
+            </div>
+          </div>
+
           <AiMarkdown :text="m.content" />
         </div>
       </template>
@@ -158,6 +176,22 @@ function openSettings() {
         <summary>思考过程（{{ aiState.reasoning.length }} 字）</summary>
         <div class="ai-reason-body">{{ aiState.reasoning }}</div>
       </details>
+
+      <!-- 这一轮里正在发生的工具调用（实时） -->
+      <div v-if="aiState.running && aiState.toolCalls && aiState.toolCalls.length" class="ai-tools" data-ai="tools-live">
+        <div v-for="(t, k) in aiState.toolCalls" :key="k" class="ai-tool" :class="{ bad: !t.ok }"
+             :data-ai="'tool-live-' + k">
+          <div class="ai-tool-head">
+            <span class="ai-tool-badge">引擎</span>
+            <code class="ai-tool-fn">{{ t.fn || t.name }}</code>
+            <span class="ai-tool-ms">{{ t.ms }} ms</span>
+          </div>
+          <div v-if="t.args && Object.keys(t.args).length" class="ai-tool-args">
+            {{ JSON.stringify(t.args) }}
+          </div>
+          <div class="ai-tool-out">{{ t.summary }}</div>
+        </div>
+      </div>
 
       <div v-if="aiState.running && aiState.stream" class="ai-asst ai-streaming" data-ai="stream">
         <AiMarkdown :text="aiState.stream" />
@@ -252,7 +286,30 @@ function openSettings() {
 @keyframes ai-blink { 50% { opacity: 0; } }
 .ai-waiting { color: var(--muted); font-size: 12.5px; }
 .ai-reason { font-size: 12.5px; color: var(--muted); border-left: 2px solid var(--border); padding-left: 8px; }
-.ai-reason-body { white-space: pre-wrap; margin-top: 6px; }
+/* 工具调用块：让"这一步是引擎算的"看得见 */
+.ai-tools { display: flex; flex-direction: column; gap: 6px; }
+.ai-tool {
+  border: 1px solid var(--border); border-left: 3px solid var(--accent, #5a82f0);
+  border-radius: 6px; padding: 6px 9px; font-size: 12px;
+  background: var(--code-bg, rgba(127, 127, 127, .08));
+}
+.ai-tool.bad { border-left-color: var(--danger, #d05a5a); }
+.ai-tool-head { display: flex; align-items: baseline; gap: 7px; }
+.ai-tool-badge {
+  font-size: 10.5px; color: var(--accent, #5a82f0);
+  border: 1px solid currentColor; border-radius: 4px; padding: 0 4px;
+}
+.ai-tool.bad .ai-tool-badge { color: var(--danger, #d05a5a); }
+.ai-tool-fn { font-family: ui-monospace, Consolas, monospace; font-size: 12px; }
+.ai-tool-ms { margin-left: auto; font-size: 10.5px; color: var(--muted); }
+.ai-tool-args {
+  font-family: ui-monospace, Consolas, monospace; font-size: 11px;
+  color: var(--muted); margin-top: 3px; word-break: break-all;
+}
+.ai-tool-out {
+  font-family: ui-monospace, Consolas, monospace; font-size: 11.5px;
+  margin-top: 3px; white-space: pre-wrap; word-break: break-word;
+}.ai-reason-body { white-space: pre-wrap; margin-top: 6px; }
 .ai-notices { font-size: 12px; color: var(--muted); }
 .ai-notices p { margin: 2px 0; }
 .ai-error {

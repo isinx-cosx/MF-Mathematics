@@ -48,8 +48,42 @@ function pickScenario(text) {
   if (has("思考")) return "reasoning";
   if (has("公式")) return "math";
   if (has("markdown")) return "markdown";
+  // 工具调用系列（见下面的 toolChunk / TOOL_SCENARIOS）
+  if (has("工具循环")) return "tool_loop";
+  if (has("工具坏函数")) return "tool_badfn";
+  if (has("工具错参数")) return "tool_badargs";
+  if (has("工具越权")) return "tool_privilege";
+  if (has("工具算")) return "tool_calc";
   return "normal";
 }
+
+/* ── 工具调用：假端点也要像真端点那样"先要工具、拿到结果再回答" ───────────
+ *
+ * 判据是**请求里有没有 role:"tool" 的消息**（无状态、可重复）：
+ *   没有 → 发一个 tool_call（要引擎算）
+ *   有   → 用引擎返回的内容收尾（并把那段内容原样回显，方便断言"引擎的值确实到了模型手里"）
+ */
+function toolChunk(index, name, argsJson, { id = "call_1" } = {}) {
+  // 参数刻意切成碎片：真实端点也是这么流的，拼不回来就白测了
+  const mid = Math.max(1, Math.floor(argsJson.length / 2));
+  return [
+    wrap({ tool_calls: [{ index, id, type: "function", function: { name, arguments: "" } }] }),
+    wrap({ tool_calls: [{ index, function: { arguments: argsJson.slice(0, mid) } }] }),
+    wrap({ tool_calls: [{ index, function: { arguments: argsJson.slice(mid) } }] }),
+  ];
+}
+
+/** 各场景要发起的工具调用（fn / args 由场景决定，故意包含坏例子） */
+const TOOL_SCENARIOS = {
+  tool_calc: { name: "engine_call", args: { fn: "solve_quadratic", args: { expr: "x^2-4", var: "x" } }, claim: "答案应该是 99" },
+  tool_badfn: { name: "engine_call", args: { fn: "definitely_not_an_engine_function", args: {} }, claim: "我用了一个不存在的函数" },
+  tool_badargs: { name: "engine_call", args: { fn: "solve_quadratic", args: { exprr: "x^2-4" } }, claim: "参数名写错了" },
+  // 越权：想调"写文件"这种非引擎工具，以及把引擎工具当成万能入口
+  tool_privilege: { name: "engine_call", args: { fn: "SaveTextFile", args: { path: "C:/evil.txt", text: "x" } }, claim: "我想写文件" },
+  tool_loop: { name: "engine_call", args: { fn: "gcd", args: { a: 12, b: 18 } }, claim: "一直算下去" },
+};
+
+const toolMessages = (messages) => messages.filter((m) => m.role === "tool");
 
 /** markdown 全家桶 + 故意混进 HTML：用来断言"渲染了，但没有注入面" */
 const MARKDOWN_SAMPLE = [
@@ -186,6 +220,46 @@ const server = http.createServer((req, res) => {
         res.write("data: [DONE]\n\n");
         res.end();
         return;
+
+      // ── 工具调用 ────────────────────────────────────────────────────
+      case "tool_calc":
+      case "tool_badfn":
+      case "tool_badargs":
+      case "tool_privilege":
+      case "tool_loop": {
+        const spec = TOOL_SCENARIOS[scenario];
+        const seen = toolMessages(messages);
+
+        if (scenario === "tool_loop") {
+          // 故意永远要工具：用来验证"轮次上限"真的拦得住（不然会一直烧）
+          for (const c of toolChunk(0, spec.name, JSON.stringify(spec.args), { id: `call_${seen.length + 1}` })) res.write(c);
+          res.write(wrap({}, "tool_calls"));
+          res.write(usageChunk());
+          res.write("data: [DONE]\n\n");
+          res.end();
+          return;
+        }
+
+        if (seen.length === 0) {
+          // 第一轮：先要一次工具
+          for (const c of toolChunk(0, spec.name, JSON.stringify(spec.args))) res.write(c);
+          res.write(wrap({}, "tool_calls"));
+          res.write(usageChunk());
+          res.write("data: [DONE]\n\n");
+          res.end();
+          return;
+        }
+
+        // 第二轮：把工具返回的内容**原样**回显（断言"引擎的值到了模型手里"就靠它），
+        // 再故意加一句与引擎无关的错数字 —— 界面上必须看到引擎的值，而不是这句错的
+        const toolContent = String(seen[seen.length - 1].content || "");
+        await streamText(res, `我收到工具结果：${toolContent}\n\n${spec.claim}`, 0);
+        res.write(wrap({}, "stop"));
+        res.write(usageChunk());
+        res.write("data: [DONE]\n\n");
+        res.end();
+        return;
+      }
 
       case "nousage":
         await streamText(res, "这条回复没有 usage 尾包。", 0);
