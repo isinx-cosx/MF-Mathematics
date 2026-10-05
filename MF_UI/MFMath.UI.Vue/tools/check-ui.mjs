@@ -24,6 +24,7 @@ import { VIEW_CONFIGS } from "../src/lib/engine/viewConfigs.js";
 import { ENGINE_MAP } from "../src/lib/engine/engineMap.js";
 import { EXTRA_MAP } from "../src/lib/engine/engineMapExtra.js";
 import { EN } from "../src/lib/i18n/en-US.js";
+import { EN_MODES } from "../src/lib/i18n/en-modes.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SRC = path.resolve(HERE, "..", "src");
@@ -274,11 +275,21 @@ const NOT_EXPOSED = new Map(
     }
   }
 
-  const missing = [...used.keys()].filter((k) => !(k in EN));
+  const missing = [...used.keys()].filter((k) => !(k in EN) && !(k in EN_MODES));
   for (const k of missing) {
     problems.push(`i18n：t("${k}") 在 lib/i18n/en-US.js 里没有译文（${used.get(k)}）`);
   }
   console.log(`i18n 文案            ：已用 t() 包裹 ${used.size} 条，缺译文 ${missing.length} 条`);
+
+  /* 8. 模式名必须全部有译文 —— t(m) 传的是**变量**，上面那条字面量自检盯不到它。
+   *    模式名只在一个地方渲染（CalcView 的下拉框与结果标题），改一处即覆盖 14 个视图；
+   *    但也正因为是变量，漏译会**静默回退成中文**。所以这里按 ENGINE_MAP 直接对账。 */
+  const ALL = { ...ENGINE_MAP, ...EXTRA_MAP };
+  const noTr = Object.keys(ALL).filter((m) => !(m in EN_MODES));
+  for (const m of noTr) {
+    problems.push(`i18n：模式「${m}」在 lib/i18n/en-modes.js 里没有译文（计算页下拉框会显示中文）`);
+  }
+  console.log(`i18n 模式名          ：${Object.keys(ALL).length} 个模式，缺译文 ${noTr.length} 个`);
 }
 
 /* ── 输出 ──────────────────────────────────────────────────────────────── */

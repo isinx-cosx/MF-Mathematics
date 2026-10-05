@@ -21,6 +21,7 @@ import { takePending, pickMode } from "../../lib/workspace/pendingInput.js";
 import { getPage, setPage } from "../../lib/workspace/store.js";
 import { registerUndoable } from "../../lib/keyboard/shortcuts.js";
 import { briefValue } from "../../lib/engine/resultModel.js";
+import { t } from "../../lib/i18n/index.js";
 import { record } from "../../lib/history/store.js";
 
 const route = useRoute();
@@ -367,8 +368,8 @@ const varDialogCount = computed(() => modes.value.filter((m) => needsVarDialog(m
 <template>
   <div class="view-body">
     <div class="ws-wrap">
-      <div class="ws-title">{{ config.title }}</div>
-      <div class="ws-desc">{{ config.desc }}</div>
+      <div class="ws-title">{{ t(config.title) }}</div>
+      <div class="ws-desc">{{ t(config.desc) }}</div>
 
       <div class="work-card">
         <div v-for="(b, i) in blocks" :key="b.id">
@@ -386,7 +387,7 @@ const varDialogCount = computed(() => modes.value.filter((m) => needsVarDialog(m
                 v-model="b.expr"
                 class="cb-input"
                 data-tour="calc_block.input"
-                placeholder="输入表达式，如 x^2+3*x-1"
+                :placeholder="t('输入表达式，如 x^2+3*x-1')"
                 @enter="calc(b)"
               />
               <select v-model="b.mode" class="select cb-mode" data-tour="calc_block.action_dropdown"
@@ -397,16 +398,16 @@ const varDialogCount = computed(() => modes.value.filter((m) => needsVarDialog(m
                   :value="m"
                   :data-mapped="hasEngineMode(m)"
                   :data-var-dialog="needsVarDialog(m)"
-                >{{ m }}{{ hasEngineMode(m) ? "" : "（未接入引擎）" }}</option>
+                >{{ t(m) }}{{ hasEngineMode(m) ? "" : t("（未接入引擎）") }}</option>
               </select>
               <button class="btn btn-primary cb-calc" data-tour="calc_block.calc_button"
                       :disabled="b.computing" @click="calc(b)">
-                {{ b.computing ? "计算中…" : "计算结果" }}
+                {{ b.computing ? t("计算中…") : t("计算结果") }}
               </button>
               <button
                 v-if="!single"
                 class="btn btn-danger cb-del"
-                title="删除"
+                :title="t('删除')"
                 @click="removeBlock(b.id)"
               >✕</button>
             </div>

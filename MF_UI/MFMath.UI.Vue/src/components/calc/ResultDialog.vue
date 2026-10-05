@@ -14,6 +14,7 @@ import MathLatex from "../math/MathLatex.vue";
 import { toResultNodes, textLatex, labelOf } from "../../lib/engine/resultModel.js";
 import { fmtNum } from "../../lib/engine/resultFormat.js";
 import { prepareExpr } from "../../lib/plot/prepare.js";
+import { t } from "../../lib/i18n/index.js";
 
 const props = defineProps({
   mode: { type: String, default: "" },
@@ -117,7 +118,7 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onKeydown));
     <div class="dialog">
       <div class="dialog-header">
         <!-- 出错时标题要说"错误"：恒为"计算结果 — xxx"会让用户以为算完了（原版就是这么分的） -->
-        <span>{{ state.k === "error" ? "错误" : "计算结果" }} — {{ mode }}</span>
+        <span>{{ state.k === "error" ? t("错误") : t("计算结果") }} — {{ t(mode) }}</span>
         <button class="dialog-close" @click="emit('close')">✕</button>
       </div>
       <div class="dialog-body">

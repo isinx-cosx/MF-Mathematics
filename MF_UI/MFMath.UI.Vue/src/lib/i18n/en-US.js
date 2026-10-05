@@ -83,4 +83,43 @@ export const EN = {
   "切换到英文界面": "Switch to English",
   "语言只影响界面文字，计算与结果表示方式不变。":
     "Language affects interface text only; computation and result formatting are unchanged.",
+
+  /* ── 计算页：界面文案 ── */
+  "计算中…": "Computing…",
+  "计算结果": "Compute",
+  "错误": "Error",
+  "删除": "Delete",
+  "（未接入引擎）": " (not wired to the engine)",
+  "输入表达式，如 x^2+3*x-1": "Enter an expression, e.g. x^2+3*x-1",
+
+  /* ── 计算页：视图描述 ──
+   * 视图**标题**与导航条目同名，已被上面的导航译文覆盖；这里只需要描述。 */
+  "包含：表达式化简、求导、积分、极限、级数展开、复数运算等":
+    "Includes expression simplification, derivatives, integrals, limits, series expansion, complex arithmetic and more",
+  "包含：基本群、同调群、上同调、贝蒂数、欧拉示性数、映射度、不动点定理、持续同调等":
+    "Includes fundamental groups, homology and cohomology, Betti numbers, Euler characteristic, mapping degree, fixed point theorems, persistent homology and more",
+  "包含：两点距离、中点、直线方程、圆方程等":
+    "Includes distances, midpoints, line and circle equations and more",
+  "包含：求导/积分/极限/级数/微分应用/积分应用/收敛判别等":
+    "Includes derivatives, integrals, limits, series, differential and integral applications, convergence tests and more",
+  "包含：复数运算、回路积分、柯西定理、留数、洛朗级数、Zeta函数等":
+    "Includes complex arithmetic, loop integrals, Cauchy's theorem, residues, Laurent series, the zeta function and more",
+  "包含：Banach/Hilbert空间、算子理论、Hahn-Banach、谱定理等":
+    "Includes Banach/Hilbert spaces, operator theory, Hahn-Banach, the spectral theorem and more",
+  "包含：高斯消元、特征值、对角化、施密特正交化、二次型等":
+    "Includes Gaussian elimination, eigenvalues, diagonalization, Gram-Schmidt, quadratic forms and more",
+  "包含：σ-代数、勒贝格测度、可测函数、勒贝格积分、收敛定理、乘积测度、Fubini定理、概率测度等":
+    "Includes sigma-algebras, Lebesgue measure, measurable functions, the Lebesgue integral, convergence theorems, product measures, Fubini's theorem, probability measures and more",
+  "包含：素数、模运算、欧拉函数、连分数、中国剩余定理等":
+    "Includes primes, modular arithmetic, Euler's totient, continued fractions, the Chinese remainder theorem and more",
+  "包含：插值、数值积分、ODE 数值解、非线性方程求根等":
+    "Includes interpolation, numerical integration, numerical ODE solutions, root finding and more",
+  "包含：概率空间、随机变量、分布族、统计推断、回归分析等":
+    "Includes probability spaces, random variables, distribution families, statistical inference, regression analysis and more",
+  "包含：ε-δ极限、一致收敛、黎曼积分、介值/极值定理等":
+    "Includes ε-δ limits, uniform convergence, the Riemann integral, the intermediate and extreme value theorems and more",
+  "包含：等差/等比数列、递推数列等":
+    "Includes arithmetic and geometric sequences, recurrence sequences and more",
+  "包含：傅里叶变换与级数、卷积与卷积定理、小波与短时傅里叶、滤波器、δ 分布与缓增分布、泊松求和、不确定性原理等":
+    "Includes Fourier transforms and series, convolution and the convolution theorem, wavelets and the short-time Fourier transform, filters, the delta and tempered distributions, Poisson summation, the uncertainty principle and more",
 };

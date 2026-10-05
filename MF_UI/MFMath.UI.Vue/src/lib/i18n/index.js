@@ -1,5 +1,9 @@
 import { ref } from "vue";
 import { EN } from "./en-US.js";
+import { EN_MODES } from "./en-modes.js";
+
+/** 合并译文表：模式名（en-modes）打底，外壳文案（en-US）优先 */
+const DICT = { ...EN_MODES, ...EN };
 
 /**
  * 国际化（D4）—— 以**中文原文为键**的最小实现。
@@ -57,7 +61,7 @@ export function setLocale(id) {
  */
 export function t(key, params) {
   if (locale.value === "zh-CN") return key;
-  let s = Object.prototype.hasOwnProperty.call(EN, key) ? EN[key] : key;
+  let s = Object.prototype.hasOwnProperty.call(DICT, key) ? DICT[key] : key;
   if (params) {
     for (const [k, v] of Object.entries(params)) s = s.split("{" + k + "}").join(String(v));
   }
