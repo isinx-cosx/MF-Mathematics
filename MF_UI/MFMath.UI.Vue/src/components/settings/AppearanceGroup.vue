@@ -15,6 +15,9 @@ import {
   THEME_LIST, SHAPE_LIST, DENSITY_LIST, FONT_LIST,
   currentAppearance, applyAppearance,
 } from "../../lib/bridge.js";
+// 界面语言（i18n）的入口就放在"外观"这一组：它和主题/字体一样属于"界面长什么样"，
+// 而且这里本来就有分段控件的样式可复用。切换立即生效、并记住选择（见 lib/i18n/index.js）。
+import { LOCALES, locale, setLocale, t } from "../../lib/i18n/index.js";
 
 const ap = ref(currentAppearance());
 
@@ -44,6 +47,17 @@ function resetAll() {
 
 <template>
   <section>
+    <div class="s-row" data-setting="appearance.language">
+      <div class="s-label">
+        <label>{{ t('界面语言') }}</label>
+        <p class="s-hint">{{ t('语言只影响界面文字，计算与结果表示方式不变。') }}</p>
+      </div>
+      <div class="s-ctl seg">
+        <button v-for="l in LOCALES" :key="l.id" :class="{ on: locale === l.id }"
+                @click="setLocale(l.id)">{{ l.label }}</button>
+      </div>
+    </div>
+
     <div class="s-row" data-setting="appearance.mode">
       <div class="s-label">
         <label>主题模式</label>

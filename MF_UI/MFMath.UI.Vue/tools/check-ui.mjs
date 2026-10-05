@@ -23,6 +23,7 @@ import { keyFaceInfo, showsRawLatex } from "../src/lib/math/keyFace.js";
 import { VIEW_CONFIGS } from "../src/lib/engine/viewConfigs.js";
 import { ENGINE_MAP } from "../src/lib/engine/engineMap.js";
 import { EXTRA_MAP } from "../src/lib/engine/engineMapExtra.js";
+import { EN } from "../src/lib/i18n/en-US.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SRC = path.resolve(HERE, "..", "src");
@@ -244,6 +245,40 @@ const NOT_EXPOSED = new Map(
     (m) => !pageModes.has(m) && !pageFns.has(ALL_MODES[m]?.fn));
   console.log(`引擎模式可达性      ：映射 ${Object.keys(ALL_MODES).length} 个 / 页面并集 ${pageModes.size} 个 / ` +
     `取不到 ${missing.length} 个（已登记 ${NOT_EXPOSED.size} 个待补或无处安放）`);
+}
+
+/* ── 7. i18n：t("…") 用到的键，必须在 en-US 里有译文 ─────────────────────────
+ *
+ * 译文表以**中文原文为键**（见 src/lib/i18n/index.js 的说明），好处是数据层一行都不用改、
+ * 可以逐条迁移；代价是"改了中文原文就等于改了 key"。那种情况下英文界面会**回退显示中文**
+ * —— 不空白、不乱码，但等于漏译，而且很难被人发现。这条自检专门盯它。
+ *
+ * 反向（译文表里多出来的条目）**不算问题**：那可能只是别处还没包 t()，属于迁移中间态。
+ * 只认"键里含中文"的调用：`t` 是个极短的名字，其它地方的普通变量 t 会误报，
+ * 而本项目的翻译键就是中文原文，这个过滤足够精准。
+ */
+{
+  const walk = (dir) => fs.readdirSync(dir, { withFileTypes: true }).flatMap((d) => {
+    if (d.name === "node_modules" || d.name === "dist") return [];
+    const p = path.join(dir, d.name);
+    return d.isDirectory() ? walk(p) : [p];
+  });
+
+  const used = new Map();   // 键 → 首次出现的文件（用于定位）
+  const files = walk(SRC).filter(
+    (p) => /\.(vue|js)$/.test(p) && !p.endsWith(path.join("i18n", "en-US.js")));
+  for (const f of files) {
+    const text = fs.readFileSync(f, "utf8");
+    for (const m of text.matchAll(/\bt\(\s*(["'])([^"'\\]*[\u4e00-\u9fff][^"'\\]*)\1/g)) {
+      if (!used.has(m[2])) used.set(m[2], path.relative(SRC, f));
+    }
+  }
+
+  const missing = [...used.keys()].filter((k) => !(k in EN));
+  for (const k of missing) {
+    problems.push(`i18n：t("${k}") 在 lib/i18n/en-US.js 里没有译文（${used.get(k)}）`);
+  }
+  console.log(`i18n 文案            ：已用 t() 包裹 ${used.size} 条，缺译文 ${missing.length} 条`);
 }
 
 /* ── 输出 ──────────────────────────────────────────────────────────────── */

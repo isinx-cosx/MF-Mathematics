@@ -12,6 +12,7 @@ import MathKeypad from "./components/math/MathKeypad.vue";
 import HistoryDialog from "./components/history/HistoryDialog.vue";
 import AiPanel from "./components/ai/AiPanel.vue";
 import { initSearch, initSearchHook } from "./lib/search/bridge.js";
+import { t } from "./lib/i18n/index.js";
 import { initTutorials, isFirstLaunch, markLaunched } from "./lib/tutorial/store.js";
 import { start as startTour } from "./lib/tutorial/tour.js";
 import { initPush } from "./lib/push.js";
@@ -302,7 +303,7 @@ function openUpdateSettings() {
           <span class="logo-badge">M</span>
           <span class="logo-text">MF-Mathematics</span>
         </div>
-        <button class="nav-btn sidebar-toggle" :title="sidebarCollapsed ? '展开侧栏' : '收起侧栏'"
+        <button class="nav-btn sidebar-toggle" :title="sidebarCollapsed ? t('展开侧栏') : t('收起侧栏')"
                 @click="toggleSidebar">{{ sidebarCollapsed ? "»" : "«" }}</button>
       </div>
 
@@ -310,14 +311,14 @@ function openUpdateSettings() {
         <template v-for="g in NAV_GROUPS" :key="g.id">
           <p class="nav-group" :class="{ collapsed: groupCollapsed[g.id] }" @click="toggleGroup(g.id)"
              :data-tour="g.id === 'calc' ? 'toolbar.calc_button' : (g.id === 'plot' ? 'toolbar.plot_button' : undefined)">
-            {{ g.title }} <span class="nav-arrow">▾</span>
+            {{ t(g.title) }} <span class="nav-arrow">▾</span>
           </p>
           <!-- 计算模式列表 = 旧版教程里说的「这里切换子模式」，故沿用 main_window.mode_selector -->
           <ul class="mode-list" :class="{ collapsed: groupCollapsed[g.id] }"
               :data-tour="g.id === 'calc' ? 'main_window.mode_selector' : undefined">
             <li v-for="it in g.items" :key="it.route"
                 :class="{ active: current && current.item.route === it.route }"
-                @click="$router.push(it.route)">{{ it.name }}</li>
+                @click="$router.push(it.route)">{{ t(it.name) }}</li>
           </ul>
         </template>
       </nav>
@@ -325,18 +326,18 @@ function openUpdateSettings() {
       <div class="sidebar-footer appearance-anchor">
         <!-- 外观选择器：点开弹层挑，而不是点一下循环到下一套。
              title 保留「切换主题」四个字：既有的 cdp-window-shell 套件按它定位按钮。 -->
-        <button class="nav-btn" title="切换主题" data-icon="◐" data-tour="main_window.theme_toggle"
+        <button class="nav-btn" :title="t('切换主题')" data-icon="◐" data-tour="main_window.theme_toggle"
                 :aria-expanded="showAppearance" @click="showAppearance = !showAppearance">
-          <span>◐ 外观 · {{ themeLabel(appearance.theme) }}</span>
+          <span>◐ {{ t('外观') }} · {{ themeLabel(appearance.theme) }}</span>
         </button>
 
-        <div v-if="showAppearance" class="appearance-pop" role="dialog" aria-label="外观设置">
+        <div v-if="showAppearance" class="appearance-pop" role="dialog" :aria-label="t('外观设置')">
           <div class="ap-head">
-            <span>外观</span>
-            <button class="ap-close" title="关闭" @click="showAppearance = false">✕</button>
+            <span>{{ t('外观') }}</span>
+            <button class="ap-close" :title="t('关闭')" @click="showAppearance = false">✕</button>
           </div>
 
-          <p class="ap-label">配色</p>
+          <p class="ap-label">{{ t('配色') }}</p>
           <div class="ap-themes">
             <button v-for="t in THEME_LIST" :key="t.id"
                     class="tp-card" :data-theme="t.id" :data-shape="appearance.shape"
@@ -355,21 +356,21 @@ function openUpdateSettings() {
             </button>
           </div>
 
-          <p class="ap-label">圆角与阴影</p>
+          <p class="ap-label">{{ t('圆角与阴影') }}</p>
           <div class="ap-row">
             <button v-for="s in SHAPE_LIST" :key="s.id" class="ap-seg"
                     :class="{ on: appearance.shape === s.id }" :title="s.desc"
                     @click="pickAppearance({ shape: s.id })">{{ s.label }}</button>
           </div>
 
-          <p class="ap-label">疏密</p>
+          <p class="ap-label">{{ t('疏密') }}</p>
           <div class="ap-row">
             <button v-for="d in DENSITY_LIST" :key="d.id" class="ap-seg"
                     :class="{ on: appearance.density === d.id }" :title="d.desc"
                     @click="pickAppearance({ density: d.id })">{{ d.label }}</button>
           </div>
 
-          <p class="ap-label">界面字体</p>
+          <p class="ap-label">{{ t('界面字体') }}</p>
           <div class="ap-row">
             <button v-for="f in FONT_LIST" :key="f.id" class="ap-seg"
                     :class="{ on: appearance.font === f.id }" :title="f.desc"
@@ -379,13 +380,13 @@ function openUpdateSettings() {
           <label class="ap-follow">
             <input type="checkbox" :checked="appearance.followSystem"
                    @change="pickAppearance({ followSystem: $event.target.checked })" />
-            <span>跟随系统深浅色</span>
+            <span>{{ t('跟随系统深浅色') }}</span>
           </label>
-          <p class="ap-hint">公式与代码始终等宽，不受界面字体影响。</p>
+          <p class="ap-hint">{{ t('公式与代码始终等宽，不受界面字体影响。') }}</p>
         </div>
 
-        <button class="nav-btn" title="设置" data-icon="⚙" data-tour="toolbar.settings_button" @click="settings">
-          <span>⚙ 设置</span>
+        <button class="nav-btn" :title="t('设置')" data-icon="⚙" data-tour="toolbar.settings_button" @click="settings">
+          <span>⚙ {{ t('设置') }}</span>
         </button>
       </div>
     </aside>
@@ -408,21 +409,21 @@ function openUpdateSettings() {
                   @click="openAccount">{{ accountLabel }}</button>
           <button class="btn btn-ghost" data-tour="toolbar.ai_button" data-ai="open"
                   title="AI 助手（解释与思路；计算仍由引擎完成）" @click="openAi">AI</button>
-          <button class="btn btn-ghost" data-tour="toolbar.search_button" @click="openSearch">搜索</button>
-          <button class="btn btn-ghost" data-tour="toolbar.history_button" @click="openHistory">历史</button>
+          <button class="btn btn-ghost" data-tour="toolbar.search_button" @click="openSearch">{{ t('搜索') }}</button>
+          <button class="btn btn-ghost" data-tour="toolbar.history_button" @click="openHistory">{{ t('历史') }}</button>
           <button class="btn btn-ghost" data-tour="main_window.keyboard_button"
-                  :title="keypadVisible ? '收起数学键盘' : '打开数学键盘'"
-                  @click="toggleKeypad">{{ keypadVisible ? "▼ 收起" : "⌨ 键盘" }}</button>
-          <button class="btn btn-ghost" data-tour="main_window.help_button" title="使用教程"
-                  @click="openTutorial">帮助</button>
-          <button class="btn btn-ghost" @click="about">关于</button>
+                  :title="keypadVisible ? t('收起数学键盘') : t('打开数学键盘')"
+                  @click="toggleKeypad">{{ keypadVisible ? "▼ " + t('收起') : "⌨ " + t('键盘') }}</button>
+          <button class="btn btn-ghost" data-tour="main_window.help_button" :title="t('使用教程')"
+                  @click="openTutorial">{{ t('帮助') }}</button>
+          <button class="btn btn-ghost" @click="about">{{ t('关于') }}</button>
           <!-- 窗口控制：只有桌面壳里才可用；浏览器里不显示（点了也没意义） -->
           <span v-if="canControlWindow" class="win-controls">
-            <button class="win-btn" title="最小化" @click="onWinMinimize">─</button>
-            <button class="win-btn" :title="isMaximized ? '还原' : '最大化'" @click="onWinMaximize">
+            <button class="win-btn" :title="t('最小化')" @click="onWinMinimize">─</button>
+            <button class="win-btn" :title="isMaximized ? t('还原') : t('最大化')" @click="onWinMaximize">
               {{ isMaximized ? "❐" : "□" }}
             </button>
-            <button class="win-btn win-close" title="关闭" @click="onWinClose">✕</button>
+            <button class="win-btn win-close" :title="t('关闭')" @click="onWinClose">✕</button>
           </span>
         </div>
       </header>
