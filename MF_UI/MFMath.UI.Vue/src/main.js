@@ -6,6 +6,7 @@ import "katex/dist/katex.min.css";
  */
 import { createApp } from "vue";
 import { winStartDrag, winToggleMaximize } from "./lib/bridge.js";
+import { installErrorReporting } from "./lib/diagnostics/errors.js";
 import App from "./App.vue";
 import router from "./router/index.js";
 import { initTheme } from "./lib/bridge.js";
@@ -15,6 +16,10 @@ import "./styles/theme.css";
 initTheme();
 
 const app = createApp(App).use(router);
+/* 尽早上报钩子（在 mount 之前）：之后发生的任何未捕获异常、未处理 Promise、
+ * 以及 Vue 组件内部抛的错，都会经宿主日志桥写进 app.log —— 否则 WebView2 里
+ * 的异常宿主完全看不到，用户遇到的就是"点了没反应"且日志空白。 */
+installErrorReporting(app);
 app.mount("#app");
 
 /* 窗口留白也能拖动窗口。

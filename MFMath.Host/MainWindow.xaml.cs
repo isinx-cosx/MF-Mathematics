@@ -89,6 +89,10 @@ public partial class MainWindow : Window
         // 分开注册：JS 侧分别是 hostObjects.sync.mf / .win / .con / .sys。
         Browser.CoreWebView2.AddHostObjectToScript("mf", new MathBridge());
         Browser.CoreWebView2.AddHostObjectToScript("win", new WindowBridge(this));
+        // 前端日志桥（hostObjects.sync.diag）：把渲染进程里捕获到的 JS 异常
+        // 写进宿主的 app.log。没有它，WebView2 里的异常宿主一条都看不到，
+        // 用户遇到的就是"点了没反应"且日志空白。
+        Browser.CoreWebView2.AddHostObjectToScript("diag", new LogBridge());
         ConsoleBridge console = new ConsoleBridge();
         Browser.CoreWebView2.AddHostObjectToScript("con", console);
         // 设置面板：报路径、查依赖 DLL 在不在、读写设置 JSON、打开目录、导出诊断包。

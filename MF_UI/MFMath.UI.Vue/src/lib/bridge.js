@@ -1,6 +1,8 @@
 /**
  * WebView2 桥封装 — 对齐 C# MathBridge
- * - 桌面壳（WebView2）：window.chrome.webview.hostObjects.sync.mf.{dispatch,ready,version}
+ * - 桌面壳（WebView2）：window.chrome.webview.hostObjects.sync.mf.{Dispatch,Ready,Version}
+ *   ⚠ 成员名是 **PascalCase 且大小写敏感**（写 `mf.dispatch` 会抛 0x80070057，
+ *     而不是返回 undefined）—— 这里曾写成小写，排查过一次"日志一行都没记"的故障。
  * - 浏览器（无桥）：全部优雅降级（返回 null / false），UI 显示"待接入"
  */
 "use strict";

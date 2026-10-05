@@ -11,6 +11,10 @@ public partial class App : Application
         base.OnStartup(e);
 
         Log.Info("启动；程序目录 " + AppContext.BaseDirectory);
+        // 记一行系统代理状态：**只取证、不改行为**。
+        // 曾经因为"账号连不上"怀疑过 PAC，实测 A/B 证明与代理无关（详见 Http.cs 的完整记录），
+        // 所以这里不碰系统代理 —— 关掉它会害到真正需要代理访问 AI 端点的用户。
+        Log.Info("系统代理设置：" + Http.DescribeSystemProxy());
 
         // ① WPF UI 线程的未处理异常（最常见的一类）
         DispatcherUnhandledException += (_, args) =>
