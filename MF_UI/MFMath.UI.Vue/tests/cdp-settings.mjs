@@ -96,6 +96,39 @@ await sleep(400);
 const afterReset = await ev(`document.documentElement.dataset.theme`);
 check("「恢复默认外观」确实改回默认配色", afterReset === "glass-light" && afterReset !== afterPick, String(afterReset));
 
+console.log("=== 界面语言（i18n，运行时）===");
+/* 这一组补的是构建期自检**查不到**的部分：tools/check-ui.mjs 只能证明"译文存在"，
+ * 证明不了"切换会生效"。而 i18n 的失效方式恰恰是静默的（切换器坏了、或者有人
+ * 去翻了 ENGINE_MAP 的键 → 界面有英文但计算整体失效）。 */
+check("外观组里有语言行", await waitTrue(`!!document.querySelector('[data-setting="appearance.language"]')`));
+const langBtns = await ev(`[...document.querySelectorAll('[data-setting="appearance.language"] button')].map(b=>b.textContent.trim()).join(',')`);
+check("语言行有中文/English 两个选项", langBtns === "简体中文,English", langBtns);
+
+await ev(`[...document.querySelectorAll('[data-setting="appearance.language"] button')].find(b=>b.textContent.trim()==='English').click()`);
+await sleep(500);
+const enGroups = await ev(`[...document.querySelectorAll('.nav-group')].map(x=>x.textContent.replace('▾','').trim()).join(',')`);
+check("切到英文后导航分组真的变英文", enGroups === "Calculation,Plotting,Tools,Help", enGroups);
+check("html lang 同步为 en-US", (await ev(`document.documentElement.lang`)) === "en-US");
+check("选择被记住（localStorage mf.lang）", (await ev(`localStorage.getItem('mf.lang')`)) === "en-US");
+
+/* ★ 最关键的不变量：模式下拉**显示英文、value 仍是中文键**。
+ * 翻译只能发生在渲染点；一旦有人顺手把 engineMap 的键翻了，查表会整体失效 ——
+ * 而那种坏法在界面上看不出来（有英文、能点、只是算不出来），必须由用例守住。 */
+await ev(`location.hash='#/calc/calculus'`);
+await sleep(1400);
+const opt = await ev(`(() => { const o=document.querySelector('.cb-mode option'); return o ? { text:o.textContent.trim(), value:o.value } : null; })()`);
+check("英文模式下模式下拉显示英文", !!opt && opt.text === "Derivative", JSON.stringify(opt));
+check("但 value 仍是中文键（保证计算可用）", !!opt && opt.value === "求导", JSON.stringify(opt));
+
+/* 切回中文再收尾：其它用例默认跑在中文态，别把语言留在英文 */
+await ev(`location.hash='#/settings'`);
+await sleep(1000);
+await ev(`[...document.querySelectorAll('[data-setting="appearance.language"] button')].find(b=>b.textContent.trim()==='简体中文').click()`);
+await sleep(500);
+const zhGroups = await ev(`[...document.querySelectorAll('.nav-group')].map(x=>x.textContent.replace('▾','').trim()).join(',')`);
+check("切回中文后导航恢复", zhGroups === "计算模式,绘图模式,工具,帮助", zhGroups);
+check("html lang 同步回 zh-CN", (await ev(`document.documentElement.lang`)) === "zh-CN");
+
 console.log("=== 引擎（只读展示 + 自检）===");
 await clickText('.set-groups li', "引擎");
 check("引擎分组可打开", await waitTrue(`!!document.querySelector('[data-setting="engine.deps"]')`));
