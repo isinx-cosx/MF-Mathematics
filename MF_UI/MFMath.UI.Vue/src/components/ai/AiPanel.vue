@@ -12,7 +12,7 @@
  *     这也是不引 marked + DOMPurify 的原因：结构上不存在注入面，就不用赌净化器写对了；
  *   · 公式交给 MathLatex（KaTeX）；`$...$` 里不像公式的内容按占位符当文本。
  */
-import { computed, nextTick, onMounted, ref, watch } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import AiMarkdown from "./AiMarkdown.vue";
 import StepViewer from "./StepViewer.vue";
@@ -34,6 +34,26 @@ const draft = ref("");
 const scroller = ref(null);
 /** 用户往上翻的时候不要把他拽回底部 */
 const pinned = ref(true);
+
+/**
+ * 流式正文的**节流副本**（只给渲染层用）。
+ *
+ * 直接渲染 `aiState.stream` 的话，每个增量都会把**全文**重新做一次 markdown 解析，
+ * 并把其中所有公式重新交给 KaTeX 渲染 —— 长回答是 O(n²)，流式会明显掉帧。
+ * 这里最多每 ~80ms 同步一次。收尾时 `aiState.stream` 被置空，副本随之清空；
+ * 最终文本走 aiMessages，**不受节流影响**，所以不会丢字。
+ */
+const streamShown = ref("");
+let streamTimer = 0;
+watch(() => aiState.stream, (v) => {
+  if (!v) { streamShown.value = ""; return; }
+  if (streamTimer) return;
+  streamTimer = setTimeout(() => {
+    streamTimer = 0;
+    streamShown.value = aiState.stream;
+  }, 80);
+}, { flush: "post" });
+onBeforeUnmount(() => { if (streamTimer) clearTimeout(streamTimer); });
 
 /* ── 分步显示（渲染层）───────────────────────────────────────────────────
  * 步骤内容 = 这一轮里 AI 调引擎的记录（不是模型写的步骤）。所以"查看步骤"只是换一种排布，
@@ -237,7 +257,7 @@ function openSettings() {
       </div>
 
       <div v-if="aiState.running && aiState.stream" class="ai-asst ai-streaming" data-ai="stream">
-        <AiMarkdown :text="aiState.stream" />
+        <AiMarkdown :text="streamShown" />
         <span class="ai-caret">▌</span>
       </div>
 

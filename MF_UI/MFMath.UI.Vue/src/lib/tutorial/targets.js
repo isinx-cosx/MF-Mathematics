@@ -31,8 +31,19 @@
  * 沿用 v1 的语义 ID 而不是自造名字（这样教程与 YAML 原件都不用改）。
  */
 export const PENDING = {
-  // 真的还没做：v1 每个计算块上有"AI 加速"按钮，v2 没有（不是接线问题）
-  "calc_block.ai_accel_button": "AI 加速按钮尚未实现（v1 有这个入口，v2 未做；见 docs/OPEN-ITEMS.md §4）",
+  // 空 —— v2 已经没有"尚未实现的界面"了。
+  //
+  // 这里曾有唯一一条 `calc_block.ai_accel_button`（v1 每个计算块上的「AI 加速」按钮）。
+  // v2 **决定不做**它，并把教程里那两步改指向了真实控件：
+  //   · tools/build-tutorials.mjs 的 V2_OVERRIDES（v1 原件不动，每次生成都生效）
+  //   · 理由：引擎现在跑 1113 个病态用例只需 4.9 秒、最慢一例 199.6 ms、0 超时
+  //     （docs/stress-scan.json），"本地引擎算不动"这个前提基本消失了；
+  //     而"让模型直接计算"恰恰是本产品唯一那条硬约束所禁止的 ——
+  //     **AI 不得成为计算源**，它的所有数值都必须来自 engine_call
+  //     （src/lib/ai/tools.ts:310，端到端断言在 tests/cdp-ai.mjs ⑥）。
+  //
+  // 维护规矩不变：新界面落地时，同一步骤里既补 data-tour、也从这里删条目；
+  // 反过来，从这里删掉条目时，必须确保教程不再指向不存在的控件。
 };
 
 /**
@@ -60,7 +71,6 @@ export const TARGET_HINTS = {
   "ai_dialog.send_button": { note: "先点顶栏的「AI」把助手抽屉打开" },
   "ai_dialog.context_label": { note: "先点顶栏的「AI」把助手抽屉打开" },
   "main_window.ai_settings": { route: "/settings", note: "AI 的开关、接口与密钥在设置面板的「AI」分组里（面板未就绪时这里也能进）" },
-  "calc_block.ai_accel_button": { note: "AI 加速尚未实现（v1 有这个入口，v2 未做）" },
   // 搜索是独立页面（/tools/search）
   "search_panel.input": { route: "/tools/search", note: "搜索在「工具 → 搜索」这一页" },
   "search_panel.results": { route: "/tools/search", note: "搜索在「工具 → 搜索」这一页；有结果后才会出现结果列表" },

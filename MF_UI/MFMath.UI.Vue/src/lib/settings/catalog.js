@@ -1,18 +1,18 @@
 /**
  * settings/catalog.js — 设置项目的目录（唯一真相源）
  *
- * 为什么把"有哪些设置项"单独抽成数据：设置面板是一个**容器**，分组会陆续填内容
- * （外观/引擎/组件现在就能做，搜索依赖 P1、AI 依赖 P3、更新依赖 P5）。
- * 有了这份目录：
+ * 为什么把"有哪些设置项"单独抽成数据：设置面板是一个**容器**。
+ * 各分组已全部落地（9 组 / 60 项，全部 status === "ready"），这份目录仍然有用：
  *   · 顶部搜索能按名字/关键词**跳到具体某一项**（而不是只筛分组）；
- *   · 每个分组的"完成了哪些、还缺哪些"一目了然，占位分组也能显示"将提供什么"；
+ *   · 每个分组的"完成了哪些、还缺哪些"一目了然；
  *   · 构建期脚本可以断言"catalog 里的项都在界面上有对应行"（避免又出现
  *     v1 那种"看起来有、实际没有"的静默缺口）。
  *
  * status 取值：
- *   "ready"   已有实现，做完即可用
- *   "partial" 部分可用（例如历史/工作区管理依赖 P1）
- *   "pending" 依赖其它缺口，本轮只显示占位与依赖说明
+ *   "ready"   已有实现，做完即可用（当前全部是它）
+ *   "partial" 部分可用
+ *   "pending" 依赖其它缺口，只显示占位与依赖说明
+ *             （当前没有 pending 项；占位渲染仍由 SettingsView 的 PlaceholderGroup 兜住）
  */
 export const GROUPS = [
   { id: "appearance", label: "外观", status: "ready", note: "改了就生效，没有保存按钮" },
@@ -92,7 +92,7 @@ export const ITEMS = [
   { id: "account.offline", group: "account", label: "离线承诺", keywords: "离线 断网 未登录 不影响 计算 offline", status: "ready" },
   { id: "account.selftest", group: "account", label: "连接自检", keywords: "自检 selftest 地址闸门 错误体 jwt 脱敏", status: "ready" },
 
-  // ── 更新（占位：依赖 P5）──
+  // ── 更新 ──
   { id: "update.version", group: "update", label: "当前版本", keywords: "版本 version 当前", status: "ready" },
   { id: "update.channel", group: "update", label: "更新通道", keywords: "通道 channel stable beta", status: "ready" },
   { id: "update.mode", group: "update", label: "自动检查", keywords: "自动 检查 下载 安装 auto update", status: "ready" },

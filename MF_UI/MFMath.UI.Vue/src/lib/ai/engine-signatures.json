@@ -1,0 +1,5905 @@
+{
+ "abs_value": {
+  "file": "algebra/algebra_api.cpp",
+  "optional": [],
+  "params": {
+   "x": "number"
+  },
+  "required": [
+   "x"
+  ],
+  "signature": ""
+ },
+ "absolute_convergence": {
+  "file": "extras/extras_api.cpp",
+  "optional": [
+   "var"
+  ],
+  "params": {
+   "expr": "string",
+   "var": "string"
+  },
+  "required": [
+   "expr"
+  ],
+  "signature": ""
+ },
+ "addition_principle": {
+  "file": "algebra/algebra_api.cpp",
+  "optional": [],
+  "params": {
+   "ways": "int[]"
+  },
+  "required": [
+   "ways"
+  ],
+  "signature": ""
+ },
+ "adjoint_operator": {
+  "file": "extras/extras_api.cpp",
+  "optional": [],
+  "params": {
+   "A": "matrix"
+  },
+  "required": [
+   "A"
+  ],
+  "signature": ""
+ },
+ "alg_solve_linear_system": {
+  "file": "algebra/algebra_api.cpp",
+  "optional": [
+   "var1",
+   "var2"
+  ],
+  "params": {
+   "eq1": "string",
+   "eq2": "string",
+   "var1": "string",
+   "var2": "string"
+  },
+  "required": [
+   "eq1",
+   "eq2"
+  ],
+  "signature": ""
+ },
+ "am_gm_inequality": {
+  "file": "algebra/algebra_api.cpp",
+  "optional": [],
+  "params": {
+   "a": "number",
+   "b": "number"
+  },
+  "required": [
+   "a",
+   "b"
+  ],
+  "signature": ""
+ },
+ "analytic_continuation_zeta": {
+  "file": "complex_analysis/complex_analysis_api.cpp",
+  "optional": [],
+  "params": {
+   "s": "?"
+  },
+  "required": [
+   "s"
+  ],
+  "signature": ""
+ },
+ "angle": {
+  "file": "linear_algebra/linear_algebra_api.cpp",
+  "optional": [],
+  "params": {
+   "u": "array",
+   "v": "array"
+  },
+  "required": [
+   "u",
+   "v"
+  ],
+  "signature": ""
+ },
+ "arc_length": {
+  "file": "calculus/calculus_api.cpp",
+  "optional": [
+   "var",
+   "a",
+   "b"
+  ],
+  "params": {
+   "a": "number",
+   "b": "number",
+   "expr": "string",
+   "var": "string"
+  },
+  "required": [
+   "expr"
+  ],
+  "signature": ""
+ },
+ "archimedean_property": {
+  "file": "real_analysis/real_analysis_api.cpp",
+  "optional": [
+   "epsilon"
+  ],
+  "params": {
+   "epsilon": "number",
+   "x": "number"
+  },
+  "required": [
+   "x"
+  ],
+  "signature": ""
+ },
+ "area_between": {
+  "file": "calculus/calculus_api.cpp",
+  "optional": [
+   "var",
+   "a",
+   "b"
+  ],
+  "params": {
+   "a": "number",
+   "b": "number",
+   "expr1": "string",
+   "expr2": "string",
+   "var": "string"
+  },
+  "required": [
+   "expr1",
+   "expr2"
+  ],
+  "signature": ""
+ },
+ "argument_principle": {
+  "file": "complex_analysis/complex_analysis_api.cpp",
+  "optional": [],
+  "params": {
+   "contour": "string",
+   "func": "string"
+  },
+  "required": [
+   "contour",
+   "func"
+  ],
+  "signature": ""
+ },
+ "arithmetic_proof": {
+  "file": "algebra/algebra_api.cpp",
+  "optional": [],
+  "params": {},
+  "required": [],
+  "signature": ""
+ },
+ "arithmetic_sequence": {
+  "file": "algebra/algebra_api.cpp",
+  "optional": [],
+  "params": {
+   "a1": "number",
+   "d": "number",
+   "n": "int"
+  },
+  "required": [
+   "a1",
+   "d",
+   "n"
+  ],
+  "signature": ""
+ },
+ "arithmetic_sum": {
+  "file": "algebra/algebra_api.cpp",
+  "optional": [],
+  "params": {
+   "a1": "number",
+   "d": "number",
+   "n": "int"
+  },
+  "required": [
+   "a1",
+   "d",
+   "n"
+  ],
+  "signature": ""
+ },
+ "associative_law": {
+  "file": "algebra/algebra_api.cpp",
+  "optional": [],
+  "params": {
+   "a": "number",
+   "b": "number",
+   "c": "number",
+   "op": "string"
+  },
+  "required": [
+   "a",
+   "b",
+   "c",
+   "op"
+  ],
+  "signature": ""
+ },
+ "barcode_plot": {
+  "file": "algebraic_topology/at_api.cpp",
+  "optional": [
+   "dim",
+   "max_scale"
+  ],
+  "params": {
+   "dim": "int",
+   "max_scale": "number",
+   "point_cloud": "int"
+  },
+  "required": [
+   "point_cloud"
+  ],
+  "signature": ""
+ },
+ "basis": {
+  "file": "linear_algebra/linear_algebra_api.cpp",
+  "optional": [],
+  "params": {
+   "vectors": "matrix"
+  },
+  "required": [
+   "vectors"
+  ],
+  "signature": ""
+ },
+ "bayes_theorem": {
+  "file": "probability/probability_api.cpp",
+  "optional": [],
+  "params": {
+   "P": "?",
+   "events": "?",
+   "evidence": "string"
+  },
+  "required": [
+   "evidence",
+   "events",
+   "P"
+  ],
+  "signature": ""
+ },
+ "bernoulli": {
+  "file": "probability/probability_api.cpp",
+  "optional": [],
+  "params": {
+   "p": "number"
+  },
+  "required": [
+   "p"
+  ],
+  "signature": ""
+ },
+ "bernoulli_number": {
+  "file": "number_theory/number_theory_api.cpp",
+  "optional": [],
+  "params": {
+   "n": "int"
+  },
+  "required": [
+   "n"
+  ],
+  "signature": ""
+ },
+ "best_rational_approximation": {
+  "file": "number_theory/number_theory_api.cpp",
+  "optional": [
+   "max_denom"
+  ],
+  "params": {
+   "max_denom": "int",
+   "x": "number"
+  },
+  "required": [
+   "x"
+  ],
+  "signature": ""
+ },
+ "betti_numbers": {
+  "file": "algebraic_topology/at_api.cpp",
+  "optional": [
+   "max_dim",
+   "complex"
+  ],
+  "params": {
+   "complex": "?",
+   "max_dim": "int",
+   "space": "?"
+  },
+  "required": [
+   "space"
+  ],
+  "signature": ""
+ },
+ "binomial": {
+  "file": "probability/probability_api.cpp",
+  "optional": [],
+  "params": {
+   "n": "int",
+   "p": "number"
+  },
+  "required": [
+   "n",
+   "p"
+  ],
+  "signature": ""
+ },
+ "binomial_expand": {
+  "file": "algebra/algebra_api.cpp",
+  "optional": [],
+  "params": {
+   "a": "string|number",
+   "b": "string|number",
+   "n": "int"
+  },
+  "required": [
+   "a",
+   "b",
+   "n"
+  ],
+  "signature": ""
+ },
+ "binomial_term": {
+  "file": "algebra/algebra_api.cpp",
+  "optional": [],
+  "params": {
+   "a": "string|number",
+   "b": "string|number",
+   "k": "int",
+   "n": "int"
+  },
+  "required": [
+   "a",
+   "b",
+   "n",
+   "k"
+  ],
+  "signature": ""
+ },
+ "borel_sigma_algebra": {
+  "file": "measure_theory/measure_theory_api.cpp",
+  "optional": [],
+  "params": {
+   "space": "?"
+  },
+  "required": [
+   "space"
+  ],
+  "signature": ""
+ },
+ "boundary_correspondence": {
+  "file": "complex_analysis/complex_analysis_api.cpp",
+  "optional": [
+   "region"
+  ],
+  "params": {
+   "func": "string",
+   "region": "string"
+  },
+  "required": [
+   "func"
+  ],
+  "signature": ""
+ },
+ "boundary_operator": {
+  "file": "algebraic_topology/at_api.cpp",
+  "optional": [],
+  "params": {
+   "dimension": "int"
+  },
+  "required": [
+   "dimension"
+  ],
+  "signature": ""
+ },
+ "brouwer_fixed_point_theorem": {
+  "file": "algebraic_topology/at_api.cpp",
+  "optional": [],
+  "params": {
+   "space": "string"
+  },
+  "required": [
+   "space"
+  ],
+  "signature": ""
+ },
+ "calc_asymptotes": {
+  "file": "extras/extras_api.cpp",
+  "optional": [
+   "var"
+  ],
+  "params": {
+   "expr": "string",
+   "var": "string"
+  },
+  "required": [
+   "expr"
+  ],
+  "signature": ""
+ },
+ "calc_cauchy_mvt": {
+  "file": "extras/extras_api.cpp",
+  "optional": [
+   "var",
+   "a",
+   "b"
+  ],
+  "params": {
+   "a": "number",
+   "b": "number",
+   "expr": "string",
+   "g_expr": "string",
+   "var": "string"
+  },
+  "required": [
+   "expr",
+   "g_expr"
+  ],
+  "signature": ""
+ },
+ "calc_concavity": {
+  "file": "extras/extras_api.cpp",
+  "optional": [
+   "var",
+   "a",
+   "b"
+  ],
+  "params": {
+   "a": "number",
+   "b": "number",
+   "expr": "string",
+   "var": "string"
+  },
+  "required": [
+   "expr"
+  ],
+  "signature": ""
+ },
+ "calc_curvature": {
+  "file": "extras/extras_api.cpp",
+  "optional": [
+   "var",
+   "point"
+  ],
+  "params": {
+   "expr": "string",
+   "point": "number",
+   "var": "string"
+  },
+  "required": [
+   "expr"
+  ],
+  "signature": ""
+ },
+ "calc_discontinuity_classify": {
+  "file": "calculus/calculus_api.cpp",
+  "optional": [
+   "var"
+  ],
+  "params": {
+   "expr": "string",
+   "point": "string|number",
+   "var": "string"
+  },
+  "required": [
+   "expr",
+   "point"
+  ],
+  "signature": ""
+ },
+ "calc_inflection": {
+  "file": "extras/extras_api.cpp",
+  "optional": [
+   "var",
+   "a",
+   "b"
+  ],
+  "params": {
+   "a": "number",
+   "b": "number",
+   "expr": "string",
+   "var": "string"
+  },
+  "required": [
+   "expr"
+  ],
+  "signature": ""
+ },
+ "calc_is_continuous": {
+  "file": "calculus/calculus_api.cpp",
+  "optional": [
+   "var"
+  ],
+  "params": {
+   "expr": "string",
+   "point": "string|number",
+   "var": "string"
+  },
+  "required": [
+   "expr",
+   "point"
+  ],
+  "signature": ""
+ },
+ "calc_lagrange_theorem": {
+  "file": "calculus/calculus_api.cpp",
+  "optional": [
+   "var",
+   "a",
+   "b"
+  ],
+  "params": {
+   "a": "number",
+   "b": "number",
+   "expr": "string",
+   "var": "string"
+  },
+  "required": [
+   "expr"
+  ],
+  "signature": ""
+ },
+ "calc_rolle_theorem": {
+  "file": "calculus/calculus_api.cpp",
+  "optional": [
+   "var",
+   "a",
+   "b"
+  ],
+  "params": {
+   "a": "number",
+   "b": "number",
+   "expr": "string",
+   "var": "string"
+  },
+  "required": [
+   "expr"
+  ],
+  "signature": ""
+ },
+ "caratheodory_measurable": {
+  "file": "measure_theory/measure_theory_api.cpp",
+  "optional": [],
+  "params": {
+   "E": "?"
+  },
+  "required": [
+   "E"
+  ],
+  "signature": ""
+ },
+ "cauchy_criterion": {
+  "file": "real_analysis/real_analysis_api.cpp",
+  "optional": [
+   "epsilon",
+   "max_n",
+   "var"
+  ],
+  "params": {
+   "epsilon": "number",
+   "max_n": "int",
+   "seq": "string",
+   "var": "string"
+  },
+  "required": [
+   "seq"
+  ],
+  "signature": ""
+ },
+ "cauchy_integral_formula": {
+  "file": "complex_analysis/complex_analysis_api.cpp",
+  "optional": [
+   "n_points"
+  ],
+  "params": {
+   "a": "?",
+   "contour": "string",
+   "func": "string",
+   "n_points": "int"
+  },
+  "required": [
+   "contour",
+   "func",
+   "a"
+  ],
+  "signature": ""
+ },
+ "cauchy_riemann": {
+  "file": "complex_analysis/complex_analysis_api.cpp",
+  "optional": [],
+  "params": {
+   "u": "string",
+   "v": "string"
+  },
+  "required": [
+   "u",
+   "v"
+  ],
+  "signature": ""
+ },
+ "cauchy_theorem": {
+  "file": "complex_analysis/complex_analysis_api.cpp",
+  "optional": [],
+  "params": {
+   "contour": "string",
+   "func": "string"
+  },
+  "required": [
+   "contour",
+   "func"
+  ],
+  "signature": ""
+ },
+ "central_limit_theorem": {
+  "file": "probability/probability_api.cpp",
+  "optional": [],
+  "params": {
+   "mu": "number",
+   "n": "int",
+   "sample": "number[]",
+   "sigma": "number"
+  },
+  "required": [
+   "sample",
+   "mu",
+   "sigma",
+   "n"
+  ],
+  "signature": ""
+ },
+ "characteristic_polynomial": {
+  "file": "linear_algebra/linear_algebra_api.cpp",
+  "optional": [],
+  "params": {
+   "matrix": "matrix"
+  },
+  "required": [
+   "matrix"
+  ],
+  "signature": ""
+ },
+ "chi_square_test": {
+  "file": "probability/probability_api.cpp",
+  "optional": [],
+  "params": {
+   "expected": "number[]",
+   "observed": "number[]"
+  },
+  "required": [
+   "observed",
+   "expected"
+  ],
+  "signature": ""
+ },
+ "circle_general": {
+  "file": "algebra/algebra_api.cpp",
+  "optional": [],
+  "params": {
+   "D": "number",
+   "E": "number",
+   "F": "number"
+  },
+  "required": [
+   "D",
+   "E",
+   "F"
+  ],
+  "signature": ""
+ },
+ "circle_standard": {
+  "file": "algebra/algebra_api.cpp",
+  "optional": [],
+  "params": {
+   "center": "int",
+   "r": "number"
+  },
+  "required": [
+   "center",
+   "r"
+  ],
+  "signature": ""
+ },
+ "classify_and_test": {
+  "file": "calculus/calculus_api.cpp",
+  "optional": [
+   "var"
+  ],
+  "params": {
+   "expr": "string",
+   "var": "string"
+  },
+  "required": [
+   "expr"
+  ],
+  "signature": ""
+ },
+ "classify_second_order_pde": {
+  "file": "extras/extras_api.cpp",
+  "optional": [],
+  "params": {
+   "A": "number",
+   "B": "number",
+   "C": "number"
+  },
+  "required": [
+   "A",
+   "B",
+   "C"
+  ],
+  "signature": ""
+ },
+ "closed_graph": {
+  "file": "functional_analysis/fa_api.cpp",
+  "optional": [],
+  "params": {
+   "A": "matrix"
+  },
+  "required": [
+   "A"
+  ],
+  "signature": ""
+ },
+ "cohomology_group": {
+  "file": "algebraic_topology/at_api.cpp",
+  "optional": [
+   "complex"
+  ],
+  "params": {
+   "complex": "?",
+   "n": "int",
+   "space": "?"
+  },
+  "required": [
+   "n",
+   "space"
+  ],
+  "signature": ""
+ },
+ "comb_identities": {
+  "file": "algebra/algebra_api.cpp",
+  "optional": [],
+  "params": {},
+  "required": [],
+  "signature": ""
+ },
+ "combination": {
+  "file": "algebra/algebra_api.cpp",
+  "optional": [],
+  "params": {
+   "m": "int",
+   "n": "int"
+  },
+  "required": [
+   "n",
+   "m"
+  ],
+  "signature": ""
+ },
+ "common_denominator": {
+  "file": "algebra/algebra_api.cpp",
+  "optional": [],
+  "params": {
+   "expr1": "string",
+   "expr2": "string"
+  },
+  "required": [
+   "expr1",
+   "expr2"
+  ],
+  "signature": ""
+ },
+ "commutative_law": {
+  "file": "algebra/algebra_api.cpp",
+  "optional": [],
+  "params": {
+   "a": "number",
+   "b": "number",
+   "op": "string"
+  },
+  "required": [
+   "a",
+   "b",
+   "op"
+  ],
+  "signature": ""
+ },
+ "compare_expr": {
+  "file": "symbolic_api.cpp",
+  "optional": [],
+  "params": {
+   "a": "string",
+   "b": "string"
+  },
+  "required": [
+   "a",
+   "b"
+  ],
+  "signature": ""
+ },
+ "complex_argument": {
+  "file": "extras/extras_api.cpp",
+  "optional": [],
+  "params": {
+   "expr": "string"
+  },
+  "required": [
+   "expr"
+  ],
+  "signature": ""
+ },
+ "complex_conjugate": {
+  "file": "extras/extras_api.cpp",
+  "optional": [],
+  "params": {
+   "expr": "string"
+  },
+  "required": [
+   "expr"
+  ],
+  "signature": ""
+ },
+ "complex_eval": {
+  "file": "plot_api.cpp",
+  "optional": [],
+  "params": {
+   "expr": "string"
+  },
+  "required": [
+   "expr"
+  ],
+  "signature": ""
+ },
+ "complex_eval_many": {
+  "file": "plot_api.cpp",
+  "optional": [],
+  "params": {
+   "exprs": "?"
+  },
+  "required": [
+   "exprs"
+  ],
+  "signature": ""
+ },
+ "complex_fourier_coeff": {
+  "file": "harmonic_analysis/harmonic_analysis_api.cpp",
+  "optional": [
+   "period"
+  ],
+  "params": {
+   "f": "string",
+   "n": "int",
+   "period": "number"
+  },
+  "required": [
+   "f",
+   "n"
+  ],
+  "signature": ""
+ },
+ "complex_grid": {
+  "file": "plot_api.cpp",
+  "optional": [
+   "var",
+   "ny",
+   "digits"
+  ],
+  "params": {
+   "digits": "number",
+   "expr": "string",
+   "nx": "number",
+   "ny": "number",
+   "var": "string",
+   "x0": "number",
+   "x1": "number",
+   "y0": "number",
+   "y1": "number"
+  },
+  "required": [
+   "expr",
+   "x0",
+   "x1",
+   "y0",
+   "y1",
+   "nx"
+  ],
+  "signature": ""
+ },
+ "complex_modulus": {
+  "file": "extras/extras_api.cpp",
+  "optional": [],
+  "params": {
+   "expr": "string"
+  },
+  "required": [
+   "expr"
+  ],
+  "signature": ""
+ },
+ "condition_number": {
+  "file": "numerical/numerical_api.cpp",
+  "optional": [
+   "eps"
+  ],
+  "params": {
+   "eps": "number",
+   "f": "string",
+   "x": "number"
+  },
+  "required": [
+   "f",
+   "x"
+  ],
+  "signature": ""
+ },
+ "conditional_expectation": {
+  "file": "measure_theory/measure_theory_api.cpp",
+  "optional": [
+   "X"
+  ],
+  "params": {
+   "Omega": "?parse_omega",
+   "X": "string",
+   "sub_sigma_algebra": "matrix"
+  },
+  "required": [
+   "Omega",
+   "sub_sigma_algebra"
+  ],
+  "signature": ""
+ },
+ "conditional_probability": {
+  "file": "probability/probability_api.cpp",
+  "optional": [],
+  "params": {
+   "A": "string",
+   "B": "string",
+   "P": "?"
+  },
+  "required": [
+   "A",
+   "B",
+   "P"
+  ],
+  "signature": ""
+ },
+ "confidence_interval": {
+  "file": "probability/probability_api.cpp",
+  "optional": [
+   "confidence"
+  ],
+  "params": {
+   "confidence": "number",
+   "data": "number[]"
+  },
+  "required": [
+   "data"
+  ],
+  "signature": ""
+ },
+ "conjugate_gradient": {
+  "file": "numerical/numerical_api.cpp",
+  "optional": [
+   "tol",
+   "max_iter"
+  ],
+  "params": {
+   "A": "matrix",
+   "b": "array",
+   "max_iter": "int",
+   "tol": "number",
+   "x0": "array"
+  },
+  "required": [
+   "A",
+   "b",
+   "x0"
+  ],
+  "signature": ""
+ },
+ "continued_fraction": {
+  "file": "number_theory/number_theory_api.cpp",
+  "optional": [
+   "n_terms"
+  ],
+  "params": {
+   "n_terms": "int",
+   "x": "number"
+  },
+  "required": [
+   "x"
+  ],
+  "signature": ""
+ },
+ "contour_integral": {
+  "file": "complex_analysis/complex_analysis_api.cpp",
+  "optional": [
+   "n_points"
+  ],
+  "params": {
+   "func": "string",
+   "gamma": "?",
+   "n_points": "int",
+   "t_range": "?"
+  },
+  "required": [
+   "func",
+   "gamma",
+   "t_range"
+  ],
+  "signature": ""
+ },
+ "convergents": {
+  "file": "number_theory/number_theory_api.cpp",
+  "optional": [],
+  "params": {
+   "frac": "int[]"
+  },
+  "required": [
+   "frac"
+  ],
+  "signature": ""
+ },
+ "convolution": {
+  "file": "harmonic_analysis/harmonic_analysis_api.cpp",
+  "optional": [
+   "x_val"
+  ],
+  "params": {
+   "f": "string",
+   "g": "string",
+   "x_val": "number"
+  },
+  "required": [
+   "f",
+   "g"
+  ],
+  "signature": ""
+ },
+ "convolution_theorem": {
+  "file": "harmonic_analysis/harmonic_analysis_api.cpp",
+  "optional": [],
+  "params": {
+   "f": "string",
+   "g": "string",
+   "n_points": "int"
+  },
+  "required": [
+   "f",
+   "g",
+   "n_points"
+  ],
+  "signature": ""
+ },
+ "correlation_coefficient": {
+  "file": "probability/probability_api.cpp",
+  "optional": [],
+  "params": {
+   "X": "number[]",
+   "Y": "number[]",
+   "joint": "?",
+   "values": "?"
+  },
+  "required": [
+   "X",
+   "Y",
+   "joint",
+   "values"
+  ],
+  "signature": ""
+ },
+ "correspondence_rule": {
+  "file": "algebra/algebra_api.cpp",
+  "optional": [],
+  "params": {
+   "expr": "string"
+  },
+  "required": [
+   "expr"
+  ],
+  "signature": ""
+ },
+ "covariance": {
+  "file": "probability/probability_api.cpp",
+  "optional": [],
+  "params": {
+   "X": "number[]",
+   "Y": "number[]",
+   "joint": "?",
+   "values": "?"
+  },
+  "required": [
+   "X",
+   "Y",
+   "joint",
+   "values"
+  ],
+  "signature": ""
+ },
+ "crt": {
+  "file": "number_theory/number_theory_api.cpp",
+  "optional": [],
+  "params": {
+   "moduli": "int[]",
+   "residues": "int[]"
+  },
+  "required": [
+   "residues",
+   "moduli"
+  ],
+  "signature": ""
+ },
+ "cubic_spline": {
+  "file": "numerical/numerical_api.cpp",
+  "optional": [],
+  "params": {
+   "x": "number[]",
+   "y": "number[]"
+  },
+  "required": [
+   "x",
+   "y"
+  ],
+  "signature": ""
+ },
+ "cup_product": {
+  "file": "algebraic_topology/at_api.cpp",
+  "optional": [],
+  "params": {},
+  "required": [],
+  "signature": ""
+ },
+ "darboux_sum": {
+  "file": "real_analysis/real_analysis_api.cpp",
+  "optional": [],
+  "params": {
+   "expr": "string"
+  },
+  "required": [
+   "expr"
+  ],
+  "signature": ""
+ },
+ "dedekind_cut": {
+  "file": "real_analysis/real_analysis_api.cpp",
+  "optional": [],
+  "params": {
+   "setA": "number[]",
+   "setB": "number[]"
+  },
+  "required": [
+   "setA",
+   "setB"
+  ],
+  "signature": ""
+ },
+ "delta_distribution": {
+  "file": "harmonic_analysis/harmonic_analysis_api.cpp",
+  "optional": [
+   "x0"
+  ],
+  "params": {
+   "phi": "string",
+   "x0": "number"
+  },
+  "required": [
+   "phi"
+  ],
+  "signature": ""
+ },
+ "derivative_definition": {
+  "file": "real_analysis/real_analysis_api.cpp",
+  "optional": [
+   "var",
+   "point"
+  ],
+  "params": {
+   "expr": "string",
+   "point": "number",
+   "var": "string"
+  },
+  "required": [
+   "expr"
+  ],
+  "signature": ""
+ },
+ "derivative_formula": {
+  "file": "complex_analysis/complex_analysis_api.cpp",
+  "optional": [
+   "n_points"
+  ],
+  "params": {
+   "a": "?",
+   "contour": "string",
+   "func": "string",
+   "n": "int",
+   "n_points": "int"
+  },
+  "required": [
+   "contour",
+   "func",
+   "n",
+   "a"
+  ],
+  "signature": ""
+ },
+ "diagonalize": {
+  "file": "linear_algebra/linear_algebra_api.cpp",
+  "optional": [],
+  "params": {
+   "matrix": "matrix"
+  },
+  "required": [
+   "matrix"
+  ],
+  "signature": ""
+ },
+ "diff": {
+  "file": "calculus/calculus_api.cpp",
+  "optional": [
+   "var",
+   "order"
+  ],
+  "params": {
+   "expr": "string",
+   "order": "int",
+   "var": "string"
+  },
+  "required": [
+   "expr"
+  ],
+  "signature": ""
+ },
+ "diff_at": {
+  "file": "calculus/calculus_api.cpp",
+  "optional": [
+   "var",
+   "order"
+  ],
+  "params": {
+   "expr": "string",
+   "order": "int",
+   "point": "number",
+   "var": "string"
+  },
+  "required": [
+   "expr",
+   "point"
+  ],
+  "signature": ""
+ },
+ "differential": {
+  "file": "calculus/calculus_api.cpp",
+  "optional": [
+   "var",
+   "point",
+   "dx"
+  ],
+  "params": {
+   "dx": "number",
+   "expr": "string",
+   "point": "number",
+   "var": "string"
+  },
+  "required": [
+   "expr"
+  ],
+  "signature": ""
+ },
+ "dimension": {
+  "file": "linear_algebra/linear_algebra_api.cpp",
+  "optional": [],
+  "params": {
+   "vectors": "matrix"
+  },
+  "required": [
+   "vectors"
+  ],
+  "signature": ""
+ },
+ "direct_comparison_test": {
+  "file": "calculus/calculus_api.cpp",
+  "optional": [
+   "var",
+   "compare_expr"
+  ],
+  "params": {
+   "compare_expr": "string",
+   "expr": "string",
+   "var": "string"
+  },
+  "required": [
+   "expr"
+  ],
+  "signature": ""
+ },
+ "dirichlet_eta": {
+  "file": "extras/extras_api.cpp",
+  "optional": [],
+  "params": {
+   "s": "number"
+  },
+  "required": [
+   "s"
+  ],
+  "signature": ""
+ },
+ "dirichlet_l_function": {
+  "file": "number_theory/number_theory_api.cpp",
+  "optional": [
+   "n_terms",
+   "conductor"
+  ],
+  "params": {
+   "chi": "int[]",
+   "conductor": "int",
+   "n_terms": "int",
+   "s": "number"
+  },
+  "required": [
+   "s",
+   "chi"
+  ],
+  "signature": ""
+ },
+ "discrete_log": {
+  "file": "number_theory/number_theory_api.cpp",
+  "optional": [],
+  "params": {
+   "g": "int",
+   "h": "int",
+   "p": "int"
+  },
+  "required": [
+   "g",
+   "h",
+   "p"
+  ],
+  "signature": ""
+ },
+ "discriminant": {
+  "file": "algebra/algebra_api.cpp",
+  "optional": [
+   "var"
+  ],
+  "params": {
+   "expr": "string",
+   "var": "string"
+  },
+  "required": [
+   "expr"
+  ],
+  "signature": ""
+ },
+ "discriminant_sym": {
+  "file": "symbolic_api.cpp",
+  "optional": [
+   "var"
+  ],
+  "params": {
+   "expr": "equation",
+   "var": "string"
+  },
+  "required": [
+   "expr"
+  ],
+  "signature": ""
+ },
+ "distance": {
+  "file": "algebra/algebra_api.cpp",
+  "optional": [],
+  "params": {
+   "p1": "int",
+   "p2": "int"
+  },
+  "required": [
+   "p1",
+   "p2"
+  ],
+  "signature": ""
+ },
+ "distance_on_number_line": {
+  "file": "algebra/algebra_api.cpp",
+  "optional": [],
+  "params": {
+   "a": "number",
+   "b": "number"
+  },
+  "required": [
+   "a",
+   "b"
+  ],
+  "signature": ""
+ },
+ "distribution_function": {
+  "file": "probability/probability_api.cpp",
+  "optional": [],
+  "params": {
+   "data": "number[]",
+   "x": "number"
+  },
+  "required": [
+   "data",
+   "x"
+  ],
+  "signature": ""
+ },
+ "distributive_law": {
+  "file": "algebra/algebra_api.cpp",
+  "optional": [],
+  "params": {
+   "a": "number",
+   "b": "number",
+   "c": "number"
+  },
+  "required": [
+   "a",
+   "b",
+   "c"
+  ],
+  "signature": ""
+ },
+ "divisor_count": {
+  "file": "number_theory/number_theory_api.cpp",
+  "optional": [],
+  "params": {
+   "n": "int"
+  },
+  "required": [
+   "n"
+  ],
+  "signature": ""
+ },
+ "divisor_sum": {
+  "file": "number_theory/number_theory_api.cpp",
+  "optional": [],
+  "params": {
+   "n": "int"
+  },
+  "required": [
+   "n"
+  ],
+  "signature": ""
+ },
+ "domain": {
+  "file": "algebra/algebra_api.cpp",
+  "optional": [
+   "var"
+  ],
+  "params": {
+   "expr": "string",
+   "var": "string"
+  },
+  "required": [
+   "expr"
+  ],
+  "signature": ""
+ },
+ "dominated_convergence": {
+  "file": "measure_theory/measure_theory_api.cpp",
+  "optional": [],
+  "params": {
+   "f": "string",
+   "f_n": "string",
+   "g": "string",
+   "n_values": "array"
+  },
+  "required": [
+   "f_n",
+   "f",
+   "g",
+   "n_values"
+  ],
+  "signature": ""
+ },
+ "dot": {
+  "file": "linear_algebra/linear_algebra_api.cpp",
+  "optional": [],
+  "params": {
+   "u": "array",
+   "v": "array"
+  },
+  "required": [
+   "u",
+   "v"
+  ],
+  "signature": ""
+ },
+ "dual_space_basis": {
+  "file": "functional_analysis/fa_api.cpp",
+  "optional": [],
+  "params": {
+   "basis": "matrix",
+   "space": "string"
+  },
+  "required": [
+   "space",
+   "basis"
+  ],
+  "signature": ""
+ },
+ "eigenvalues": {
+  "file": "linear_algebra/linear_algebra_api.cpp",
+  "optional": [],
+  "params": {
+   "matrix": "matrix"
+  },
+  "required": [
+   "matrix"
+  ],
+  "signature": ""
+ },
+ "eigenvectors": {
+  "file": "linear_algebra/linear_algebra_api.cpp",
+  "optional": [],
+  "params": {
+   "matrix": "matrix"
+  },
+  "required": [
+   "matrix"
+  ],
+  "signature": ""
+ },
+ "ellipse_standard": {
+  "file": "algebra/algebra_api.cpp",
+  "optional": [],
+  "params": {
+   "a": "number",
+   "b": "number"
+  },
+  "required": [
+   "a",
+   "b"
+  ],
+  "signature": ""
+ },
+ "eratosthenes": {
+  "file": "number_theory/number_theory_api.cpp",
+  "optional": [],
+  "params": {
+   "n": "int"
+  },
+  "required": [
+   "n"
+  ],
+  "signature": ""
+ },
+ "euler_characteristic": {
+  "file": "algebraic_topology/at_api.cpp",
+  "optional": [
+   "complex"
+  ],
+  "params": {
+   "complex": "?",
+   "space": "?"
+  },
+  "required": [
+   "space"
+  ],
+  "signature": ""
+ },
+ "euler_method": {
+  "file": "numerical/numerical_api.cpp",
+  "optional": [
+   "h"
+  ],
+  "params": {
+   "f": "string",
+   "h": "number",
+   "t0": "number",
+   "t_end": "number",
+   "y0": "number"
+  },
+  "required": [
+   "f",
+   "t0",
+   "y0",
+   "t_end"
+  ],
+  "signature": ""
+ },
+ "euler_phi": {
+  "file": "number_theory/number_theory_api.cpp",
+  "optional": [],
+  "params": {
+   "n": "int"
+  },
+  "required": [
+   "n"
+  ],
+  "signature": ""
+ },
+ "euler_product": {
+  "file": "number_theory/number_theory_api.cpp",
+  "optional": [
+   "prime_limit"
+  ],
+  "params": {
+   "prime_limit": "int",
+   "s": "number"
+  },
+  "required": [
+   "s"
+  ],
+  "signature": ""
+ },
+ "exp_complex": {
+  "file": "complex_analysis/complex_analysis_api.cpp",
+  "optional": [],
+  "params": {
+   "z": "?"
+  },
+  "required": [
+   "z"
+  ],
+  "signature": ""
+ },
+ "exp_smoothing": {
+  "file": "probability/probability_api.cpp",
+  "optional": [
+   "alpha"
+  ],
+  "params": {
+   "alpha": "number",
+   "data": "number[]"
+  },
+  "required": [
+   "data"
+  ],
+  "signature": ""
+ },
+ "expand_expression": {
+  "file": "algebra/algebra_api.cpp",
+  "optional": [],
+  "params": {
+   "expr": "string"
+  },
+  "required": [
+   "expr"
+  ],
+  "signature": ""
+ },
+ "expectation_rv": {
+  "file": "probability/probability_api.cpp",
+  "optional": [
+   "expr"
+  ],
+  "params": {
+   "expr": "string",
+   "pmf_data": "?"
+  },
+  "required": [
+   "pmf_data"
+  ],
+  "signature": ""
+ },
+ "exponential": {
+  "file": "probability/probability_api.cpp",
+  "optional": [],
+  "params": {
+   "lambda": "number"
+  },
+  "required": [
+   "lambda"
+  ],
+  "signature": ""
+ },
+ "exponential_function": {
+  "file": "algebra/algebra_api.cpp",
+  "optional": [],
+  "params": {
+   "base": "number",
+   "x": "number"
+  },
+  "required": [
+   "base",
+   "x"
+  ],
+  "signature": ""
+ },
+ "expr_eval": {
+  "file": "expr_api.cpp",
+  "optional": [
+   "x"
+  ],
+  "params": {
+   "expr": "string",
+   "x": "number"
+  },
+  "required": [
+   "expr"
+  ],
+  "signature": ""
+ },
+ "expr_eval2": {
+  "file": "expr_api.cpp",
+  "optional": [
+   "x",
+   "y"
+  ],
+  "params": {
+   "expr": "string",
+   "x": "number",
+   "y": "number"
+  },
+  "required": [
+   "expr"
+  ],
+  "signature": ""
+ },
+ "expr_eval_batch": {
+  "file": "expr_api.cpp",
+  "optional": [],
+  "params": {
+   "expr": "string",
+   "xs": "number[]"
+  },
+  "required": [
+   "expr",
+   "xs"
+  ],
+  "signature": ""
+ },
+ "expr_eval_grid": {
+  "file": "expr_api.cpp",
+  "optional": [
+   "vars"
+  ],
+  "params": {
+   "expr": "string",
+   "vars": "?",
+   "x": "?",
+   "xs": "number[]",
+   "y": "?",
+   "ys": "number[]"
+  },
+  "required": [
+   "expr",
+   "xs",
+   "ys",
+   "y",
+   "x"
+  ],
+  "signature": ""
+ },
+ "expr_eval_vars": {
+  "file": "expr_api.cpp",
+  "optional": [
+   "var",
+   "vars"
+  ],
+  "params": {
+   "expr": "string",
+   "values": "?",
+   "var": "string",
+   "vars": "?"
+  },
+  "required": [
+   "expr",
+   "values"
+  ],
+  "signature": ""
+ },
+ "expr_eval_vars_batch": {
+  "file": "expr_api.cpp",
+  "optional": [
+   "var",
+   "vars"
+  ],
+  "params": {
+   "expr": "string",
+   "var": "string",
+   "vars": "?",
+   "xs": "number[]"
+  },
+  "required": [
+   "expr",
+   "xs"
+  ],
+  "signature": ""
+ },
+ "extended_gcd": {
+  "file": "number_theory/number_theory_api.cpp",
+  "optional": [],
+  "params": {
+   "a": "int",
+   "b": "int"
+  },
+  "required": [
+   "a",
+   "b"
+  ],
+  "signature": ""
+ },
+ "extrema_sym": {
+  "file": "symbolic_api.cpp",
+  "optional": [
+   "var",
+   "xmin",
+   "xmax",
+   "vars"
+  ],
+  "params": {
+   "expr": "string",
+   "var": "string",
+   "vars": "?",
+   "xmax": "number",
+   "xmin": "number"
+  },
+  "required": [
+   "expr"
+  ],
+  "signature": ""
+ },
+ "extreme_value": {
+  "file": "real_analysis/real_analysis_api.cpp",
+  "optional": [],
+  "params": {
+   "expr": "string"
+  },
+  "required": [
+   "expr"
+  ],
+  "signature": ""
+ },
+ "factor": {
+  "file": "algebra/algebra_api.cpp",
+  "optional": [],
+  "params": {
+   "expr": "string"
+  },
+  "required": [
+   "expr"
+  ],
+  "signature": ""
+ },
+ "factor_common": {
+  "file": "algebra/algebra_api.cpp",
+  "optional": [],
+  "params": {
+   "expr": "string"
+  },
+  "required": [
+   "expr"
+  ],
+  "signature": ""
+ },
+ "factor_cross": {
+  "file": "algebra/algebra_api.cpp",
+  "optional": [],
+  "params": {
+   "expr": "string"
+  },
+  "required": [
+   "expr"
+  ],
+  "signature": ""
+ },
+ "factor_difference_squares": {
+  "file": "algebra/algebra_api.cpp",
+  "optional": [],
+  "params": {
+   "expr": "string"
+  },
+  "required": [
+   "expr"
+  ],
+  "signature": ""
+ },
+ "factor_group": {
+  "file": "algebra/algebra_api.cpp",
+  "optional": [],
+  "params": {
+   "expr": "string"
+  },
+  "required": [
+   "expr"
+  ],
+  "signature": ""
+ },
+ "factor_perfect_square": {
+  "file": "algebra/algebra_api.cpp",
+  "optional": [],
+  "params": {
+   "expr": "string"
+  },
+  "required": [
+   "expr"
+  ],
+  "signature": ""
+ },
+ "factor_sym": {
+  "file": "symbolic_api.cpp",
+  "optional": [
+   "var"
+  ],
+  "params": {
+   "expr": "string",
+   "var": "string"
+  },
+  "required": [
+   "expr"
+  ],
+  "signature": ""
+ },
+ "fatou_lemma": {
+  "file": "measure_theory/measure_theory_api.cpp",
+  "optional": [],
+  "params": {
+   "f_n": "string",
+   "n_values": "array"
+  },
+  "required": [
+   "f_n",
+   "n_values"
+  ],
+  "signature": ""
+ },
+ "filtration": {
+  "file": "algebraic_topology/at_api.cpp",
+  "optional": [
+   "max_scale",
+   "max_dim"
+  ],
+  "params": {
+   "max_dim": "int",
+   "max_scale": "number",
+   "point_cloud": "int"
+  },
+  "required": [
+   "point_cloud"
+  ],
+  "signature": ""
+ },
+ "first_order_linear_pde": {
+  "file": "extras/extras_api.cpp",
+  "optional": [
+   "c"
+  ],
+  "params": {
+   "a": "number",
+   "b": "number",
+   "c": "number"
+  },
+  "required": [
+   "a",
+   "b"
+  ],
+  "signature": ""
+ },
+ "fourier_coeff": {
+  "file": "harmonic_analysis/harmonic_analysis_api.cpp",
+  "optional": [
+   "period",
+   "coeff_type"
+  ],
+  "params": {
+   "coeff_type": "string",
+   "f": "string",
+   "n": "int",
+   "period": "number"
+  },
+  "required": [
+   "f",
+   "n"
+  ],
+  "signature": ""
+ },
+ "fourier_series": {
+  "file": "harmonic_analysis/harmonic_analysis_api.cpp",
+  "optional": [
+   "period"
+  ],
+  "params": {
+   "f": "string",
+   "n_terms": "int",
+   "period": "number"
+  },
+  "required": [
+   "f",
+   "n_terms"
+  ],
+  "signature": ""
+ },
+ "fourier_transform": {
+  "file": "harmonic_analysis/harmonic_analysis_api.cpp",
+  "optional": [
+   "use_angular"
+  ],
+  "params": {
+   "f": "string",
+   "use_angular": "bool",
+   "xi": "?"
+  },
+  "required": [
+   "f",
+   "xi"
+  ],
+  "signature": ""
+ },
+ "fraction_operations": {
+  "file": "algebra/algebra_api.cpp",
+  "optional": [],
+  "params": {
+   "expr1": "string",
+   "expr2": "string",
+   "op": "string"
+  },
+  "required": [
+   "expr1",
+   "op",
+   "expr2"
+  ],
+  "signature": ""
+ },
+ "fredholm_alternative": {
+  "file": "extras/extras_api.cpp",
+  "optional": [],
+  "params": {
+   "A": "matrix",
+   "b": "number[]"
+  },
+  "required": [
+   "A",
+   "b"
+  ],
+  "signature": ""
+ },
+ "free_symbols_of": {
+  "file": "symbolic_api.cpp",
+  "optional": [],
+  "params": {
+   "expr": "string"
+  },
+  "required": [
+   "expr"
+  ],
+  "signature": "{expr: string}"
+ },
+ "ft_constant": {
+  "file": "harmonic_analysis/harmonic_analysis_api.cpp",
+  "optional": [],
+  "params": {},
+  "required": [],
+  "signature": ""
+ },
+ "ft_delta": {
+  "file": "harmonic_analysis/harmonic_analysis_api.cpp",
+  "optional": [],
+  "params": {},
+  "required": [],
+  "signature": ""
+ },
+ "ft_of_gaussian": {
+  "file": "harmonic_analysis/harmonic_analysis_api.cpp",
+  "optional": [],
+  "params": {
+   "a": "number"
+  },
+  "required": [
+   "a"
+  ],
+  "signature": ""
+ },
+ "fubini_theorem": {
+  "file": "measure_theory/measure_theory_api.cpp",
+  "optional": [],
+  "params": {
+   "f": "string",
+   "range": "?"
+  },
+  "required": [
+   "f",
+   "range"
+  ],
+  "signature": ""
+ },
+ "funct_gram_schmidt": {
+  "file": "functional_analysis/fa_api.cpp",
+  "optional": [],
+  "params": {
+   "vectors": "?"
+  },
+  "required": [
+   "vectors"
+  ],
+  "signature": ""
+ },
+ "funct_is_orthogonal": {
+  "file": "functional_analysis/fa_api.cpp",
+  "optional": [
+   "tol"
+  ],
+  "params": {
+   "domain": "number[]",
+   "f": "string",
+   "g": "string",
+   "tol": "number"
+  },
+  "required": [
+   "domain",
+   "f",
+   "g"
+  ],
+  "signature": ""
+ },
+ "functional_equation_demo": {
+  "file": "harmonic_analysis/harmonic_analysis_api.cpp",
+  "optional": [
+   "s"
+  ],
+  "params": {
+   "s": "number"
+  },
+  "required": [],
+  "signature": ""
+ },
+ "functional_equation_zeta": {
+  "file": "complex_analysis/complex_analysis_api.cpp",
+  "optional": [],
+  "params": {
+   "s": "?"
+  },
+  "required": [
+   "s"
+  ],
+  "signature": ""
+ },
+ "fundamental_group": {
+  "file": "algebraic_topology/at_api.cpp",
+  "optional": [
+   "n"
+  ],
+  "params": {
+   "n": "int",
+   "space": "string"
+  },
+  "required": [
+   "space"
+  ],
+  "signature": ""
+ },
+ "fundamental_theorem": {
+  "file": "real_analysis/real_analysis_api.cpp",
+  "optional": [],
+  "params": {
+   "expr": "string"
+  },
+  "required": [
+   "expr"
+  ],
+  "signature": ""
+ },
+ "gauss_quadrature": {
+  "file": "numerical/numerical_api.cpp",
+  "optional": [
+   "n"
+  ],
+  "params": {
+   "a": "number",
+   "b": "number",
+   "f": "string",
+   "n": "int"
+  },
+  "required": [
+   "f",
+   "a",
+   "b"
+  ],
+  "signature": ""
+ },
+ "gauss_seidel": {
+  "file": "numerical/numerical_api.cpp",
+  "optional": [
+   "tol",
+   "max_iter"
+  ],
+  "params": {
+   "A": "matrix",
+   "b": "array",
+   "max_iter": "int",
+   "tol": "number",
+   "x0": "array"
+  },
+  "required": [
+   "A",
+   "b",
+   "x0"
+  ],
+  "signature": ""
+ },
+ "gaussian_blur": {
+  "file": "harmonic_analysis/harmonic_analysis_api.cpp",
+  "optional": [],
+  "params": {
+   "sigma": "number",
+   "signal": "?get_sig"
+  },
+  "required": [
+   "signal",
+   "sigma"
+  ],
+  "signature": ""
+ },
+ "gaussian_elimination": {
+  "file": "linear_algebra/linear_algebra_api.cpp",
+  "optional": [
+   "b"
+  ],
+  "params": {
+   "b": "array",
+   "matrix": "matrix"
+  },
+  "required": [
+   "matrix"
+  ],
+  "signature": ""
+ },
+ "gcd": {
+  "file": "number_theory/number_theory_api.cpp",
+  "optional": [],
+  "params": {
+   "a": "int",
+   "b": "int"
+  },
+  "required": [
+   "a",
+   "b"
+  ],
+  "signature": ""
+ },
+ "generate_sigma_algebra": {
+  "file": "measure_theory/measure_theory_api.cpp",
+  "optional": [],
+  "params": {
+   "X": "array",
+   "generators": "matrix"
+  },
+  "required": [
+   "generators",
+   "X"
+  ],
+  "signature": ""
+ },
+ "geometric_proof": {
+  "file": "algebra/algebra_api.cpp",
+  "optional": [],
+  "params": {},
+  "required": [],
+  "signature": ""
+ },
+ "geometric_sequence": {
+  "file": "algebra/algebra_api.cpp",
+  "optional": [],
+  "params": {
+   "a1": "number",
+   "n": "int",
+   "q": "number"
+  },
+  "required": [
+   "a1",
+   "q",
+   "n"
+  ],
+  "signature": ""
+ },
+ "geometric_sum": {
+  "file": "algebra/algebra_api.cpp",
+  "optional": [],
+  "params": {
+   "a1": "number",
+   "n": "int",
+   "q": "number"
+  },
+  "required": [
+   "a1",
+   "q",
+   "n"
+  ],
+  "signature": ""
+ },
+ "global_extrema": {
+  "file": "calculus/calculus_api.cpp",
+  "optional": [
+   "var",
+   "a",
+   "b"
+  ],
+  "params": {
+   "a": "number",
+   "b": "number",
+   "expr": "string",
+   "var": "string"
+  },
+  "required": [
+   "expr"
+  ],
+  "signature": ""
+ },
+ "gradient_descent": {
+  "file": "numerical/numerical_api.cpp",
+  "optional": [
+   "x0",
+   "learning_rate",
+   "max_iter",
+   "tol"
+  ],
+  "params": {
+   "f": "string",
+   "learning_rate": "number",
+   "max_iter": "int",
+   "tol": "number",
+   "x0": "number"
+  },
+  "required": [
+   "f"
+  ],
+  "signature": ""
+ },
+ "hahn_banach_extension": {
+  "file": "functional_analysis/fa_api.cpp",
+  "optional": [
+   "ambient_dim"
+  ],
+  "params": {
+   "a": "number[]",
+   "ambient_dim": "int",
+   "subspace_dim": "int"
+  },
+  "required": [
+   "a",
+   "subspace_dim"
+  ],
+  "signature": ""
+ },
+ "hairy_ball_theorem": {
+  "file": "algebraic_topology/at_api.cpp",
+  "optional": [],
+  "params": {
+   "sphere_dim": "int"
+  },
+  "required": [
+   "sphere_dim"
+  ],
+  "signature": ""
+ },
+ "homology_group": {
+  "file": "algebraic_topology/at_api.cpp",
+  "optional": [
+   "complex"
+  ],
+  "params": {
+   "complex": "?",
+   "n": "int",
+   "space": "?"
+  },
+  "required": [
+   "n",
+   "space"
+  ],
+  "signature": ""
+ },
+ "hyperbola_standard": {
+  "file": "algebra/algebra_api.cpp",
+  "optional": [],
+  "params": {
+   "a": "number",
+   "b": "number"
+  },
+  "required": [
+   "a",
+   "b"
+  ],
+  "signature": ""
+ },
+ "image": {
+  "file": "linear_algebra/linear_algebra_api.cpp",
+  "optional": [],
+  "params": {
+   "matrix": "matrix"
+  },
+  "required": [
+   "matrix"
+  ],
+  "signature": ""
+ },
+ "implicit_diff": {
+  "file": "calculus/calculus_api.cpp",
+  "optional": [
+   "var",
+   "dep_var"
+  ],
+  "params": {
+   "dep_var": "string",
+   "eq": "equation",
+   "var": "string"
+  },
+  "required": [
+   "eq"
+  ],
+  "signature": ""
+ },
+ "implicit_euler": {
+  "file": "numerical/numerical_api.cpp",
+  "optional": [
+   "h"
+  ],
+  "params": {
+   "f": "string",
+   "h": "number",
+   "t0": "number",
+   "t_end": "number",
+   "y0": "number"
+  },
+  "required": [
+   "f",
+   "t0",
+   "y0",
+   "t_end"
+  ],
+  "signature": ""
+ },
+ "improper_integral": {
+  "file": "calculus/calculus_api.cpp",
+  "optional": [
+   "var"
+  ],
+  "params": {
+   "a": "?bound",
+   "b": "?bound",
+   "expr": "string",
+   "var": "string"
+  },
+  "required": [
+   "expr",
+   "a",
+   "b"
+  ],
+  "signature": ""
+ },
+ "independence_check": {
+  "file": "measure_theory/measure_theory_api.cpp",
+  "optional": [],
+  "params": {
+   "A": "array",
+   "B": "array",
+   "Omega": "?parse_omega"
+  },
+  "required": [
+   "Omega",
+   "A",
+   "B"
+  ],
+  "signature": ""
+ },
+ "inequality_properties": {
+  "file": "algebra/algebra_api.cpp",
+  "optional": [],
+  "params": {
+   "a": "number",
+   "b": "number",
+   "c": "number"
+  },
+  "required": [
+   "a",
+   "b",
+   "c"
+  ],
+  "signature": ""
+ },
+ "infimum": {
+  "file": "real_analysis/real_analysis_api.cpp",
+  "optional": [],
+  "params": {
+   "set": "number[]"
+  },
+  "required": [
+   "set"
+  ],
+  "signature": ""
+ },
+ "infinite_product": {
+  "file": "extras/extras_api.cpp",
+  "optional": [
+   "var"
+  ],
+  "params": {
+   "expr": "string",
+   "var": "string"
+  },
+  "required": [
+   "expr"
+  ],
+  "signature": ""
+ },
+ "inner_product": {
+  "file": "functional_analysis/fa_api.cpp",
+  "optional": [
+   "n_points"
+  ],
+  "params": {
+   "domain": "number[]",
+   "f": "string",
+   "g": "string",
+   "n_points": "int"
+  },
+  "required": [
+   "domain",
+   "f",
+   "g"
+  ],
+  "signature": ""
+ },
+ "integral_general": {
+  "file": "measure_theory/measure_theory_api.cpp",
+  "optional": [],
+  "params": {
+   "f": "string"
+  },
+  "required": [
+   "f"
+  ],
+  "signature": ""
+ },
+ "integral_mean_value": {
+  "file": "real_analysis/real_analysis_api.cpp",
+  "optional": [],
+  "params": {
+   "expr": "string"
+  },
+  "required": [
+   "expr"
+  ],
+  "signature": ""
+ },
+ "integral_nonnegative": {
+  "file": "measure_theory/measure_theory_api.cpp",
+  "optional": [],
+  "params": {
+   "f": "string"
+  },
+  "required": [
+   "f"
+  ],
+  "signature": ""
+ },
+ "integral_simple": {
+  "file": "measure_theory/measure_theory_api.cpp",
+  "optional": [],
+  "params": {
+   "coefficients": "array",
+   "sets": "array"
+  },
+  "required": [
+   "coefficients",
+   "sets"
+  ],
+  "signature": ""
+ },
+ "integral_test": {
+  "file": "calculus/calculus_api.cpp",
+  "optional": [
+   "var"
+  ],
+  "params": {
+   "expr": "string",
+   "var": "string"
+  },
+  "required": [
+   "expr"
+  ],
+  "signature": ""
+ },
+ "integral_zero_set_independent": {
+  "file": "measure_theory/measure_theory_api.cpp",
+  "optional": [],
+  "params": {
+   "f": "string",
+   "g": "string"
+  },
+  "required": [
+   "f",
+   "g"
+  ],
+  "signature": ""
+ },
+ "integrate": {
+  "file": "calculus/calculus_api.cpp",
+  "optional": [
+   "var"
+  ],
+  "params": {
+   "a": "?bound",
+   "b": "?bound",
+   "expr": "string",
+   "var": "string"
+  },
+  "required": [
+   "expr",
+   "a",
+   "b"
+  ],
+  "signature": ""
+ },
+ "integrate_complex": {
+  "file": "calculus/calculus_api.cpp",
+  "optional": [
+   "var"
+  ],
+  "params": {
+   "a": "?bound",
+   "b": "?bound",
+   "expr": "string",
+   "var": "string"
+  },
+  "required": [
+   "expr",
+   "a",
+   "b"
+  ],
+  "signature": ""
+ },
+ "integrate_double": {
+  "file": "calculus/calculus_api.cpp",
+  "optional": [
+   "x",
+   "y"
+  ],
+  "params": {
+   "expr": "string",
+   "x": "string",
+   "xa": "?bound",
+   "xb": "?bound",
+   "y": "string",
+   "ya": "?bound",
+   "yb": "?bound"
+  },
+  "required": [
+   "expr",
+   "xa",
+   "xb",
+   "ya",
+   "yb"
+  ],
+  "signature": ""
+ },
+ "integrate_numeric": {
+  "file": "calculus/calculus_api.cpp",
+  "optional": [
+   "var",
+   "a",
+   "b"
+  ],
+  "params": {
+   "a": "number",
+   "b": "number",
+   "expr": "string",
+   "var": "string"
+  },
+  "required": [
+   "expr"
+  ],
+  "signature": ""
+ },
+ "integrate_triple": {
+  "file": "calculus/calculus_api.cpp",
+  "optional": [
+   "x",
+   "y",
+   "z"
+  ],
+  "params": {
+   "expr": "string",
+   "x": "string",
+   "xa": "?bound",
+   "xb": "?bound",
+   "y": "string",
+   "ya": "?bound",
+   "yb": "?bound",
+   "z": "string",
+   "za": "?bound",
+   "zb": "?bound"
+  },
+  "required": [
+   "expr",
+   "xa",
+   "xb",
+   "ya",
+   "yb",
+   "za",
+   "zb"
+  ],
+  "signature": ""
+ },
+ "intermediate_value": {
+  "file": "real_analysis/real_analysis_api.cpp",
+  "optional": [
+   "value"
+  ],
+  "params": {
+   "expr": "string",
+   "value": "number"
+  },
+  "required": [
+   "expr"
+  ],
+  "signature": ""
+ },
+ "intersections": {
+  "file": "plot_api.cpp",
+  "optional": [
+   "var",
+   "xmin",
+   "xmax",
+   "vars"
+  ],
+  "params": {
+   "expr1": "string",
+   "expr2": "string",
+   "var": "string",
+   "vars": "?",
+   "xmax": "number",
+   "xmin": "number"
+  },
+  "required": [
+   "expr1",
+   "expr2"
+  ],
+  "signature": ""
+ },
+ "inverse_fourier_transform": {
+  "file": "harmonic_analysis/harmonic_analysis_api.cpp",
+  "optional": [
+   "use_angular"
+  ],
+  "params": {
+   "F": "string",
+   "use_angular": "bool",
+   "x": "?"
+  },
+  "required": [
+   "F",
+   "x"
+  ],
+  "signature": ""
+ },
+ "inverse_proportional": {
+  "file": "algebra/algebra_api.cpp",
+  "optional": [],
+  "params": {
+   "k": "number"
+  },
+  "required": [
+   "k"
+  ],
+  "signature": ""
+ },
+ "is_banach": {
+  "file": "functional_analysis/fa_api.cpp",
+  "optional": [
+   "dimension"
+  ],
+  "params": {
+   "dimension": "int",
+   "space": "string"
+  },
+  "required": [
+   "space"
+  ],
+  "signature": ""
+ },
+ "is_bounded": {
+  "file": "functional_analysis/fa_api.cpp",
+  "optional": [],
+  "params": {
+   "A": "matrix"
+  },
+  "required": [
+   "A"
+  ],
+  "signature": ""
+ },
+ "is_compact_operator": {
+  "file": "extras/extras_api.cpp",
+  "optional": [],
+  "params": {
+   "A": "matrix"
+  },
+  "required": [
+   "A"
+  ],
+  "signature": ""
+ },
+ "is_conformal": {
+  "file": "complex_analysis/complex_analysis_api.cpp",
+  "optional": [],
+  "params": {
+   "func": "string",
+   "z": "?"
+  },
+  "required": [
+   "func",
+   "z"
+  ],
+  "signature": ""
+ },
+ "is_connected": {
+  "file": "complex_analysis/complex_analysis_api.cpp",
+  "optional": [
+   "connect_threshold"
+  ],
+  "params": {
+   "connect_threshold": "number"
+  },
+  "required": [],
+  "signature": ""
+ },
+ "is_diagonalizable": {
+  "file": "linear_algebra/linear_algebra_api.cpp",
+  "optional": [],
+  "params": {
+   "matrix": "matrix"
+  },
+  "required": [
+   "matrix"
+  ],
+  "signature": ""
+ },
+ "is_differentiable": {
+  "file": "real_analysis/real_analysis_api.cpp",
+  "optional": [
+   "var",
+   "point"
+  ],
+  "params": {
+   "expr": "string",
+   "point": "number",
+   "var": "string"
+  },
+  "required": [
+   "expr"
+  ],
+  "signature": ""
+ },
+ "is_domain": {
+  "file": "complex_analysis/complex_analysis_api.cpp",
+  "optional": [
+   "epsilon",
+   "connect_threshold"
+  ],
+  "params": {
+   "connect_threshold": "number",
+   "epsilon": "number"
+  },
+  "required": [],
+  "signature": ""
+ },
+ "is_harmonic": {
+  "file": "complex_analysis/complex_analysis_api.cpp",
+  "optional": [],
+  "params": {
+   "func": "string"
+  },
+  "required": [
+   "func"
+  ],
+  "signature": ""
+ },
+ "is_hilbert": {
+  "file": "functional_analysis/fa_api.cpp",
+  "optional": [
+   "dimension"
+  ],
+  "params": {
+   "dimension": "int",
+   "space": "string"
+  },
+  "required": [
+   "space"
+  ],
+  "signature": ""
+ },
+ "is_holomorphic": {
+  "file": "complex_analysis/complex_analysis_api.cpp",
+  "optional": [],
+  "params": {
+   "func": "string",
+   "z": "?"
+  },
+  "required": [
+   "func",
+   "z"
+  ],
+  "signature": ""
+ },
+ "is_indefinite": {
+  "file": "linear_algebra/linear_algebra_api.cpp",
+  "optional": [],
+  "params": {
+   "matrix": "matrix"
+  },
+  "required": [
+   "matrix"
+  ],
+  "signature": ""
+ },
+ "is_independent": {
+  "file": "probability/probability_api.cpp",
+  "optional": [],
+  "params": {
+   "A": "string",
+   "B": "string",
+   "P": "?"
+  },
+  "required": [
+   "A",
+   "B",
+   "P"
+  ],
+  "signature": ""
+ },
+ "is_linear_independent": {
+  "file": "linear_algebra/linear_algebra_api.cpp",
+  "optional": [],
+  "params": {
+   "vectors": "matrix"
+  },
+  "required": [
+   "vectors"
+  ],
+  "signature": ""
+ },
+ "is_measurable": {
+  "file": "measure_theory/measure_theory_api.cpp",
+  "optional": [],
+  "params": {
+   "f": "string"
+  },
+  "required": [
+   "f"
+  ],
+  "signature": ""
+ },
+ "is_negative_definite": {
+  "file": "linear_algebra/linear_algebra_api.cpp",
+  "optional": [],
+  "params": {
+   "matrix": "matrix"
+  },
+  "required": [
+   "matrix"
+  ],
+  "signature": ""
+ },
+ "is_open": {
+  "file": "complex_analysis/complex_analysis_api.cpp",
+  "optional": [
+   "epsilon"
+  ],
+  "params": {
+   "epsilon": "number",
+   "point": "?"
+  },
+  "required": [
+   "point"
+  ],
+  "signature": ""
+ },
+ "is_positive_definite": {
+  "file": "linear_algebra/linear_algebra_api.cpp",
+  "optional": [],
+  "params": {
+   "matrix": "matrix"
+  },
+  "required": [
+   "matrix"
+  ],
+  "signature": ""
+ },
+ "is_prime": {
+  "file": "number_theory/number_theory_api.cpp",
+  "optional": [],
+  "params": {
+   "n": "int"
+  },
+  "required": [
+   "n"
+  ],
+  "signature": ""
+ },
+ "is_reflexive": {
+  "file": "functional_analysis/fa_api.cpp",
+  "optional": [
+   "dimension"
+  ],
+  "params": {
+   "dimension": "int",
+   "space": "string"
+  },
+  "required": [
+   "space"
+  ],
+  "signature": ""
+ },
+ "is_self_adjoint": {
+  "file": "extras/extras_api.cpp",
+  "optional": [],
+  "params": {
+   "A": "matrix"
+  },
+  "required": [
+   "A"
+  ],
+  "signature": ""
+ },
+ "is_sigma_algebra": {
+  "file": "measure_theory/measure_theory_api.cpp",
+  "optional": [],
+  "params": {
+   "X": "array",
+   "collection": "matrix"
+  },
+  "required": [
+   "collection",
+   "X"
+  ],
+  "signature": ""
+ },
+ "is_simply_connected": {
+  "file": "algebraic_topology/at_api.cpp",
+  "optional": [
+   "n"
+  ],
+  "params": {
+   "n": "int",
+   "space": "string"
+  },
+  "required": [
+   "space"
+  ],
+  "signature": ""
+ },
+ "is_stable": {
+  "file": "numerical/numerical_api.cpp",
+  "optional": [],
+  "params": {
+   "f": "string",
+   "x": "number"
+  },
+  "required": [
+   "f",
+   "x"
+  ],
+  "signature": ""
+ },
+ "is_vector_space": {
+  "file": "linear_algebra/linear_algebra_api.cpp",
+  "optional": [],
+  "params": {
+   "vectors": "matrix"
+  },
+  "required": [
+   "vectors"
+  ],
+  "signature": ""
+ },
+ "jacobi_iteration": {
+  "file": "numerical/numerical_api.cpp",
+  "optional": [
+   "tol",
+   "max_iter"
+  ],
+  "params": {
+   "A": "matrix",
+   "b": "array",
+   "max_iter": "int",
+   "tol": "number",
+   "x0": "array"
+  },
+  "required": [
+   "A",
+   "b",
+   "x0"
+  ],
+  "signature": ""
+ },
+ "kernel": {
+  "file": "linear_algebra/linear_algebra_api.cpp",
+  "optional": [],
+  "params": {
+   "matrix": "matrix"
+  },
+  "required": [
+   "matrix"
+  ],
+  "signature": ""
+ },
+ "kernel_dimension": {
+  "file": "functional_analysis/fa_api.cpp",
+  "optional": [
+   "tol"
+  ],
+  "params": {
+   "A": "matrix",
+   "tol": "number"
+  },
+  "required": [
+   "A"
+  ],
+  "signature": ""
+ },
+ "kruskal_wallis": {
+  "file": "probability/probability_api.cpp",
+  "optional": [
+   "alpha"
+  ],
+  "params": {
+   "alpha": "number",
+   "groups": "matrix"
+  },
+  "required": [
+   "groups"
+  ],
+  "signature": ""
+ },
+ "lagrange_interpolation": {
+  "file": "numerical/numerical_api.cpp",
+  "optional": [],
+  "params": {
+   "x": "number[]",
+   "y": "number[]"
+  },
+  "required": [
+   "x",
+   "y"
+  ],
+  "signature": ""
+ },
+ "laurent_series": {
+  "file": "complex_analysis/complex_analysis_api.cpp",
+  "optional": [
+   "n"
+  ],
+  "params": {
+   "func": "string",
+   "n": "int",
+   "z0": "?"
+  },
+  "required": [
+   "func",
+   "z0"
+  ],
+  "signature": ""
+ },
+ "law_of_large_numbers": {
+  "file": "probability/probability_api.cpp",
+  "optional": [],
+  "params": {
+   "n": "int",
+   "sample_mean": "number",
+   "true_mean": "number"
+  },
+  "required": [
+   "sample_mean",
+   "true_mean",
+   "n"
+  ],
+  "signature": ""
+ },
+ "least_squares_fit": {
+  "file": "numerical/numerical_api.cpp",
+  "optional": [
+   "degree"
+  ],
+  "params": {
+   "degree": "int",
+   "x": "number[]",
+   "y": "number[]"
+  },
+  "required": [
+   "x",
+   "y"
+  ],
+  "signature": ""
+ },
+ "lebesgue_measure": {
+  "file": "measure_theory/measure_theory_api.cpp",
+  "optional": [],
+  "params": {
+   "E": "?"
+  },
+  "required": [
+   "E"
+  ],
+  "signature": ""
+ },
+ "leibniz_test": {
+  "file": "calculus/calculus_api.cpp",
+  "optional": [
+   "var"
+  ],
+  "params": {
+   "expr": "string",
+   "var": "string"
+  },
+  "required": [
+   "expr"
+  ],
+  "signature": ""
+ },
+ "lhopital": {
+  "file": "calculus/calculus_api.cpp",
+  "optional": [
+   "var",
+   "point"
+  ],
+  "params": {
+   "expr": "string",
+   "point": "number",
+   "var": "string"
+  },
+  "required": [
+   "expr"
+  ],
+  "signature": ""
+ },
+ "like_radicals": {
+  "file": "algebra/algebra_api.cpp",
+  "optional": [],
+  "params": {
+   "expr1": "string",
+   "expr2": "string"
+  },
+  "required": [
+   "expr1",
+   "expr2"
+  ],
+  "signature": ""
+ },
+ "limit": {
+  "file": "calculus/calculus_api.cpp",
+  "optional": [
+   "var",
+   "direction"
+  ],
+  "params": {
+   "direction": "string",
+   "expr": "string",
+   "point": "string|number",
+   "var": "string"
+  },
+  "required": [
+   "expr",
+   "point"
+  ],
+  "signature": ""
+ },
+ "limit_comparison_test": {
+  "file": "calculus/calculus_api.cpp",
+  "optional": [
+   "var"
+  ],
+  "params": {
+   "expr": "string",
+   "var": "string"
+  },
+  "required": [
+   "expr"
+  ],
+  "signature": ""
+ },
+ "limit_epsilon_delta": {
+  "file": "real_analysis/real_analysis_api.cpp",
+  "optional": [
+   "point",
+   "epsilon"
+  ],
+  "params": {
+   "epsilon": "number",
+   "expr": "string",
+   "point": "number"
+  },
+  "required": [
+   "expr"
+  ],
+  "signature": ""
+ },
+ "lin_gram_schmidt": {
+  "file": "linear_algebra/linear_algebra_api.cpp",
+  "optional": [],
+  "params": {
+   "vectors": "matrix"
+  },
+  "required": [
+   "vectors"
+  ],
+  "signature": ""
+ },
+ "lin_is_orthogonal": {
+  "file": "linear_algebra/linear_algebra_api.cpp",
+  "optional": [],
+  "params": {
+   "u": "array",
+   "v": "array"
+  },
+  "required": [
+   "u",
+   "v"
+  ],
+  "signature": ""
+ },
+ "lin_solve_linear_system": {
+  "file": "linear_algebra/linear_algebra_api.cpp",
+  "optional": [
+   "b"
+  ],
+  "params": {
+   "A": "matrix",
+   "b": "array"
+  },
+  "required": [
+   "A"
+  ],
+  "signature": ""
+ },
+ "line_from_intercepts": {
+  "file": "algebra/algebra_api.cpp",
+  "optional": [],
+  "params": {
+   "a": "number",
+   "b": "number"
+  },
+  "required": [
+   "a",
+   "b"
+  ],
+  "signature": ""
+ },
+ "line_from_point_slope": {
+  "file": "algebra/algebra_api.cpp",
+  "optional": [],
+  "params": {
+   "k": "number",
+   "p": "int"
+  },
+  "required": [
+   "p",
+   "k"
+  ],
+  "signature": ""
+ },
+ "line_from_points": {
+  "file": "algebra/algebra_api.cpp",
+  "optional": [],
+  "params": {
+   "p1": "int",
+   "p2": "int"
+  },
+  "required": [
+   "p1",
+   "p2"
+  ],
+  "signature": ""
+ },
+ "line_from_slope_intercept": {
+  "file": "algebra/algebra_api.cpp",
+  "optional": [],
+  "params": {
+   "b": "number",
+   "k": "number"
+  },
+  "required": [
+   "k",
+   "b"
+  ],
+  "signature": ""
+ },
+ "line_general": {
+  "file": "algebra/algebra_api.cpp",
+  "optional": [],
+  "params": {
+   "A": "number",
+   "B": "number",
+   "C": "number"
+  },
+  "required": [
+   "A",
+   "B",
+   "C"
+  ],
+  "signature": ""
+ },
+ "linear_combination": {
+  "file": "linear_algebra/linear_algebra_api.cpp",
+  "optional": [],
+  "params": {
+   "coeffs": "number[]",
+   "vectors": "matrix"
+  },
+  "required": [
+   "vectors",
+   "coeffs"
+  ],
+  "signature": ""
+ },
+ "linear_function": {
+  "file": "algebra/algebra_api.cpp",
+  "optional": [
+   "b"
+  ],
+  "params": {
+   "b": "number",
+   "k": "number"
+  },
+  "required": [
+   "k"
+  ],
+  "signature": ""
+ },
+ "linear_functional_eval": {
+  "file": "functional_analysis/fa_api.cpp",
+  "optional": [],
+  "params": {
+   "func": "number[]",
+   "x": "number[]"
+  },
+  "required": [
+   "func",
+   "x"
+  ],
+  "signature": ""
+ },
+ "linear_regression": {
+  "file": "probability/probability_api.cpp",
+  "optional": [],
+  "params": {
+   "x": "number[]",
+   "y": "number[]"
+  },
+  "required": [
+   "x",
+   "y"
+  ],
+  "signature": ""
+ },
+ "linear_transform": {
+  "file": "linear_algebra/linear_algebra_api.cpp",
+  "optional": [],
+  "params": {
+   "matrix": "matrix",
+   "vector": "array"
+  },
+  "required": [
+   "matrix",
+   "vector"
+  ],
+  "signature": ""
+ },
+ "linear_trend": {
+  "file": "probability/probability_api.cpp",
+  "optional": [
+   "forecast_steps"
+  ],
+  "params": {
+   "data": "number[]",
+   "forecast_steps": "int"
+  },
+  "required": [
+   "data"
+  ],
+  "signature": ""
+ },
+ "list_functions": {
+  "file": "introspect_api.cpp",
+  "optional": [],
+  "params": {},
+  "required": [],
+  "signature": ""
+ },
+ "local_extrema": {
+  "file": "calculus/calculus_api.cpp",
+  "optional": [
+   "var"
+  ],
+  "params": {
+   "expr": "string",
+   "var": "string"
+  },
+  "required": [
+   "expr"
+  ],
+  "signature": ""
+ },
+ "log_complex": {
+  "file": "complex_analysis/complex_analysis_api.cpp",
+  "optional": [
+   "branch_cut"
+  ],
+  "params": {
+   "branch_cut": "number",
+   "z": "?"
+  },
+  "required": [
+   "z"
+  ],
+  "signature": ""
+ },
+ "log_function": {
+  "file": "algebra/algebra_api.cpp",
+  "optional": [],
+  "params": {
+   "base": "number",
+   "x": "number"
+  },
+  "required": [
+   "base",
+   "x"
+  ],
+  "signature": ""
+ },
+ "low_pass_filter": {
+  "file": "harmonic_analysis/harmonic_analysis_api.cpp",
+  "optional": [
+   "sample_rate"
+  ],
+  "params": {
+   "cutoff": "number",
+   "sample_rate": "number",
+   "signal": "?get_sig"
+  },
+  "required": [
+   "signal",
+   "cutoff"
+  ],
+  "signature": ""
+ },
+ "lp_norm": {
+  "file": "functional_analysis/fa_api.cpp",
+  "optional": [
+   "p"
+  ],
+  "params": {
+   "p": "?",
+   "vector": "number[]"
+  },
+  "required": [
+   "vector"
+  ],
+  "signature": ""
+ },
+ "lu_decomposition": {
+  "file": "numerical/numerical_api.cpp",
+  "optional": [],
+  "params": {
+   "A": "matrix"
+  },
+  "required": [
+   "A"
+  ],
+  "signature": ""
+ },
+ "mandelbrot": {
+  "file": "fractal_api.cpp",
+  "optional": [
+   "xmin",
+   "xmax",
+   "ymin",
+   "ymax",
+   "width",
+   "height",
+   "max_iter"
+  ],
+  "params": {
+   "height": "int",
+   "max_iter": "int",
+   "width": "int",
+   "xmax": "number",
+   "xmin": "number",
+   "ymax": "number",
+   "ymin": "number"
+  },
+  "required": [],
+  "signature": ""
+ },
+ "mann_whitney_u": {
+  "file": "probability/probability_api.cpp",
+  "optional": [
+   "alternative",
+   "alpha"
+  ],
+  "params": {
+   "alpha": "number",
+   "alternative": "string",
+   "group1": "number[]",
+   "group2": "number[]"
+  },
+  "required": [
+   "group1",
+   "group2"
+  ],
+  "signature": ""
+ },
+ "mapping_degree": {
+  "file": "algebraic_topology/at_api.cpp",
+  "optional": [],
+  "params": {
+   "sphere_dim": "int"
+  },
+  "required": [
+   "sphere_dim"
+  ],
+  "signature": ""
+ },
+ "matrix_inverse": {
+  "file": "linear_algebra/linear_algebra_api.cpp",
+  "optional": [],
+  "params": {
+   "matrix": "matrix"
+  },
+  "required": [
+   "matrix"
+  ],
+  "signature": ""
+ },
+ "matrix_multiply": {
+  "file": "extras/extras_api.cpp",
+  "optional": [],
+  "params": {
+   "A": "matrix",
+   "B": "matrix"
+  },
+  "required": [
+   "A",
+   "B"
+  ],
+  "signature": ""
+ },
+ "matrix_representation": {
+  "file": "linear_algebra/linear_algebra_api.cpp",
+  "optional": [],
+  "params": {
+   "domain_basis": "matrix",
+   "transform": "matrix"
+  },
+  "required": [
+   "transform",
+   "domain_basis"
+  ],
+  "signature": ""
+ },
+ "max_min_initial": {
+  "file": "algebra/algebra_api.cpp",
+  "optional": [],
+  "params": {
+   "a": "number",
+   "b": "number"
+  },
+  "required": [
+   "a",
+   "b"
+  ],
+  "signature": ""
+ },
+ "meas_expectation": {
+  "file": "measure_theory/measure_theory_api.cpp",
+  "optional": [
+   "P",
+   "X"
+  ],
+  "params": {
+   "P": "string",
+   "X": "string"
+  },
+  "required": [],
+  "signature": ""
+ },
+ "measure_properties": {
+  "file": "measure_theory/measure_theory_api.cpp",
+  "optional": [],
+  "params": {},
+  "required": [],
+  "signature": ""
+ },
+ "midpoint": {
+  "file": "algebra/algebra_api.cpp",
+  "optional": [],
+  "params": {
+   "p1": "int",
+   "p2": "int"
+  },
+  "required": [
+   "p1",
+   "p2"
+  ],
+  "signature": ""
+ },
+ "mle": {
+  "file": "probability/probability_api.cpp",
+  "optional": [],
+  "params": {
+   "data": "number[]",
+   "dist": "string"
+  },
+  "required": [
+   "data",
+   "dist"
+  ],
+  "signature": ""
+ },
+ "mobius": {
+  "file": "number_theory/number_theory_api.cpp",
+  "optional": [],
+  "params": {
+   "n": "int"
+  },
+  "required": [
+   "n"
+  ],
+  "signature": ""
+ },
+ "mobius_prefix": {
+  "file": "number_theory/number_theory_api.cpp",
+  "optional": [],
+  "params": {
+   "n": "int"
+  },
+  "required": [
+   "n"
+  ],
+  "signature": ""
+ },
+ "mobius_transform": {
+  "file": "complex_analysis/complex_analysis_api.cpp",
+  "optional": [],
+  "params": {
+   "a": "?",
+   "b": "?",
+   "c": "?",
+   "d": "?",
+   "z": "?"
+  },
+  "required": [
+   "z",
+   "a",
+   "b",
+   "c",
+   "d"
+  ],
+  "signature": ""
+ },
+ "mod_inverse": {
+  "file": "number_theory/number_theory_api.cpp",
+  "optional": [],
+  "params": {
+   "a": "int",
+   "m": "int"
+  },
+  "required": [
+   "a",
+   "m"
+  ],
+  "signature": ""
+ },
+ "mod_pow": {
+  "file": "number_theory/number_theory_api.cpp",
+  "optional": [],
+  "params": {
+   "base": "int",
+   "exp": "int",
+   "mod": "int"
+  },
+  "required": [
+   "base",
+   "exp",
+   "mod"
+  ],
+  "signature": ""
+ },
+ "moment_estimate": {
+  "file": "probability/probability_api.cpp",
+  "optional": [],
+  "params": {
+   "data": "number[]",
+   "dist": "string"
+  },
+  "required": [
+   "data",
+   "dist"
+  ],
+  "signature": ""
+ },
+ "monotone_convergence": {
+  "file": "measure_theory/measure_theory_api.cpp",
+  "optional": [],
+  "params": {
+   "f": "string",
+   "f_n": "string",
+   "n_values": "array"
+  },
+  "required": [
+   "f_n",
+   "f",
+   "n_values"
+  ],
+  "signature": ""
+ },
+ "monotonicity": {
+  "file": "calculus/calculus_api.cpp",
+  "optional": [
+   "var"
+  ],
+  "params": {
+   "expr": "string",
+   "var": "string"
+  },
+  "required": [
+   "expr"
+  ],
+  "signature": ""
+ },
+ "moving_average": {
+  "file": "probability/probability_api.cpp",
+  "optional": [
+   "window"
+  ],
+  "params": {
+   "data": "number[]",
+   "window": "int"
+  },
+  "required": [
+   "data"
+  ],
+  "signature": ""
+ },
+ "multiplication_principle": {
+  "file": "algebra/algebra_api.cpp",
+  "optional": [],
+  "params": {
+   "steps": "int[]"
+  },
+  "required": [
+   "steps"
+  ],
+  "signature": ""
+ },
+ "newton_interpolation": {
+  "file": "numerical/numerical_api.cpp",
+  "optional": [],
+  "params": {
+   "x": "number[]",
+   "y": "number[]"
+  },
+  "required": [
+   "x",
+   "y"
+  ],
+  "signature": ""
+ },
+ "nontrivial_zeros": {
+  "file": "complex_analysis/complex_analysis_api.cpp",
+  "optional": [
+   "limit"
+  ],
+  "params": {
+   "limit": "int"
+  },
+  "required": [],
+  "signature": ""
+ },
+ "norm": {
+  "file": "linear_algebra/linear_algebra_api.cpp",
+  "optional": [],
+  "params": {
+   "vector": "array"
+  },
+  "required": [
+   "vector"
+  ],
+  "signature": ""
+ },
+ "normal": {
+  "file": "probability/probability_api.cpp",
+  "optional": [
+   "mu",
+   "sigma"
+  ],
+  "params": {
+   "mu": "number",
+   "sigma": "number"
+  },
+  "required": [],
+  "signature": ""
+ },
+ "nullspace": {
+  "file": "linear_algebra/linear_algebra_api.cpp",
+  "optional": [],
+  "params": {
+   "A": "matrix"
+  },
+  "required": [
+   "A"
+  ],
+  "signature": ""
+ },
+ "numerical_derivative": {
+  "file": "numerical/numerical_api.cpp",
+  "optional": [
+   "h",
+   "method"
+  ],
+  "params": {
+   "f": "string",
+   "h": "number",
+   "method": "string",
+   "x": "number"
+  },
+  "required": [
+   "f",
+   "x"
+  ],
+  "signature": ""
+ },
+ "ode_constant_coefficients": {
+  "file": "extras/extras_api.cpp",
+  "optional": [],
+  "params": {
+   "coeffs": "number[]"
+  },
+  "required": [
+   "coeffs"
+  ],
+  "signature": ""
+ },
+ "ode_first_order": {
+  "file": "extras/extras_api.cpp",
+  "optional": [
+   "var",
+   "yvar"
+  ],
+  "params": {
+   "f": "string",
+   "var": "string",
+   "yvar": "string"
+  },
+  "required": [
+   "f"
+  ],
+  "signature": ""
+ },
+ "ode_linear_system": {
+  "file": "extras/extras_api.cpp",
+  "optional": [],
+  "params": {
+   "A": "matrix"
+  },
+  "required": [
+   "A"
+  ],
+  "signature": ""
+ },
+ "one_way_anova": {
+  "file": "probability/probability_api.cpp",
+  "optional": [
+   "alpha"
+  ],
+  "params": {
+   "alpha": "number",
+   "groups": "matrix"
+  },
+  "required": [
+   "groups"
+  ],
+  "signature": ""
+ },
+ "open_mapping": {
+  "file": "functional_analysis/fa_api.cpp",
+  "optional": [],
+  "params": {
+   "A": "matrix"
+  },
+  "required": [
+   "A"
+  ],
+  "signature": ""
+ },
+ "operator_norm": {
+  "file": "functional_analysis/fa_api.cpp",
+  "optional": [
+   "p"
+  ],
+  "params": {
+   "A": "matrix",
+   "p": "?"
+  },
+  "required": [
+   "A"
+  ],
+  "signature": ""
+ },
+ "optimal_step": {
+  "file": "numerical/numerical_api.cpp",
+  "optional": [
+   "method"
+  ],
+  "params": {
+   "f": "string",
+   "method": "string",
+   "x": "number"
+  },
+  "required": [
+   "f",
+   "x"
+  ],
+  "signature": ""
+ },
+ "orthogonal_projection": {
+  "file": "linear_algebra/linear_algebra_api.cpp",
+  "optional": [],
+  "params": {
+   "basis": "matrix",
+   "vector": "array"
+  },
+  "required": [
+   "vector",
+   "basis"
+  ],
+  "signature": ""
+ },
+ "orthogonality_check": {
+  "file": "harmonic_analysis/harmonic_analysis_api.cpp",
+  "optional": [
+   "period"
+  ],
+  "params": {
+   "m": "int",
+   "n": "int",
+   "period": "number"
+  },
+  "required": [
+   "n",
+   "m"
+  ],
+  "signature": ""
+ },
+ "outer_measure": {
+  "file": "measure_theory/measure_theory_api.cpp",
+  "optional": [
+   "epsilon"
+  ],
+  "params": {
+   "E": "?",
+   "epsilon": "number"
+  },
+  "required": [
+   "E"
+  ],
+  "signature": ""
+ },
+ "p_series_test": {
+  "file": "calculus/calculus_api.cpp",
+  "optional": [
+   "var"
+  ],
+  "params": {
+   "expr": "string",
+   "var": "string"
+  },
+  "required": [
+   "expr"
+  ],
+  "signature": ""
+ },
+ "p_value": {
+  "file": "probability/probability_api.cpp",
+  "optional": [
+   "df",
+   "alternative"
+  ],
+  "params": {
+   "alternative": "string",
+   "df": "int",
+   "dist": "string",
+   "test_statistic": "number"
+  },
+  "required": [
+   "test_statistic",
+   "dist"
+  ],
+  "signature": ""
+ },
+ "parabola_standard": {
+  "file": "algebra/algebra_api.cpp",
+  "optional": [
+   "axis"
+  ],
+  "params": {
+   "axis": "string",
+   "p": "number"
+  },
+  "required": [
+   "p"
+  ],
+  "signature": ""
+ },
+ "parametric_diff": {
+  "file": "calculus/calculus_api.cpp",
+  "optional": [
+   "t"
+  ],
+  "params": {
+   "t": "string",
+   "x_expr": "string",
+   "y_expr": "string"
+  },
+  "required": [
+   "x_expr",
+   "y_expr"
+  ],
+  "signature": ""
+ },
+ "path_homotopy": {
+  "file": "algebraic_topology/at_api.cpp",
+  "optional": [],
+  "params": {
+   "space": "string"
+  },
+  "required": [
+   "space"
+  ],
+  "signature": ""
+ },
+ "pdf": {
+  "file": "probability/probability_api.cpp",
+  "optional": [
+   "var"
+  ],
+  "params": {
+   "expr": "string",
+   "var": "string"
+  },
+  "required": [
+   "expr"
+  ],
+  "signature": ""
+ },
+ "percentage": {
+  "file": "algebra/algebra_api.cpp",
+  "optional": [],
+  "params": {
+   "part": "number",
+   "total": "number"
+  },
+  "required": [
+   "part",
+   "total"
+  ],
+  "signature": ""
+ },
+ "percentage_change": {
+  "file": "algebra/algebra_api.cpp",
+  "optional": [],
+  "params": {
+   "new": "number",
+   "old": "number"
+  },
+  "required": [
+   "old",
+   "new"
+  ],
+  "signature": ""
+ },
+ "permutation": {
+  "file": "algebra/algebra_api.cpp",
+  "optional": [],
+  "params": {
+   "m": "int",
+   "n": "int"
+  },
+  "required": [
+   "n",
+   "m"
+  ],
+  "signature": ""
+ },
+ "persistence_diagram": {
+  "file": "algebraic_topology/at_api.cpp",
+  "optional": [
+   "dim",
+   "max_scale",
+   "significance"
+  ],
+  "params": {
+   "dim": "int",
+   "max_scale": "number",
+   "point_cloud": "int",
+   "significance": "number"
+  },
+  "required": [
+   "point_cloud"
+  ],
+  "signature": ""
+ },
+ "phase_portrait": {
+  "file": "numerical/numerical_api.cpp",
+  "optional": [
+   "n_trajectories",
+   "resolution"
+  ],
+  "params": {
+   "dx_dt": "string",
+   "dy_dt": "string",
+   "n_trajectories": "int",
+   "resolution": "int",
+   "x_range": "number[]",
+   "y_range": "number[]"
+  },
+  "required": [
+   "x_range",
+   "y_range",
+   "dx_dt",
+   "dy_dt"
+  ],
+  "signature": ""
+ },
+ "plancherel_theorem": {
+  "file": "harmonic_analysis/harmonic_analysis_api.cpp",
+  "optional": [],
+  "params": {
+   "f": "string",
+   "n_points": "int"
+  },
+  "required": [
+   "f",
+   "n_points"
+  ],
+  "signature": ""
+ },
+ "pmf": {
+  "file": "probability/probability_api.cpp",
+  "optional": [],
+  "params": {
+   "probs": "number[]"
+  },
+  "required": [
+   "probs"
+  ],
+  "signature": ""
+ },
+ "poincare_duality": {
+  "file": "algebraic_topology/at_api.cpp",
+  "optional": [
+   "k"
+  ],
+  "params": {
+   "k": "int",
+   "manifold": "string"
+  },
+  "required": [
+   "manifold"
+  ],
+  "signature": ""
+ },
+ "pointwise_convergence": {
+  "file": "real_analysis/real_analysis_api.cpp",
+  "optional": [
+   "point"
+  ],
+  "params": {
+   "point": "number",
+   "seq_expr": "string"
+  },
+  "required": [
+   "seq_expr"
+  ],
+  "signature": ""
+ },
+ "poisson": {
+  "file": "probability/probability_api.cpp",
+  "optional": [],
+  "params": {
+   "lambda": "number"
+  },
+  "required": [
+   "lambda"
+  ],
+  "signature": ""
+ },
+ "poisson_summation": {
+  "file": "harmonic_analysis/harmonic_analysis_api.cpp",
+  "optional": [
+   "a",
+   "n_terms"
+  ],
+  "params": {
+   "a": "number",
+   "f": "string",
+   "n_terms": "int"
+  },
+  "required": [
+   "f"
+  ],
+  "signature": ""
+ },
+ "pole_order": {
+  "file": "complex_analysis/complex_analysis_api.cpp",
+  "optional": [],
+  "params": {
+   "func": "string",
+   "z0": "?"
+  },
+  "required": [
+   "func",
+   "z0"
+  ],
+  "signature": ""
+ },
+ "power_function": {
+  "file": "algebra/algebra_api.cpp",
+  "optional": [],
+  "params": {
+   "n": "number",
+   "x": "string|number"
+  },
+  "required": [
+   "x",
+   "n"
+  ],
+  "signature": ""
+ },
+ "power_method": {
+  "file": "numerical/numerical_api.cpp",
+  "optional": [
+   "tol",
+   "max_iter"
+  ],
+  "params": {
+   "A": "matrix",
+   "max_iter": "int",
+   "tol": "number"
+  },
+  "required": [
+   "A"
+  ],
+  "signature": ""
+ },
+ "power_series": {
+  "file": "calculus/calculus_api.cpp",
+  "optional": [
+   "var",
+   "point",
+   "n"
+  ],
+  "params": {
+   "expr": "string",
+   "n": "int",
+   "point": "number",
+   "var": "string"
+  },
+  "required": [
+   "expr"
+  ],
+  "signature": ""
+ },
+ "power_series_radius": {
+  "file": "calculus/calculus_api.cpp",
+  "optional": [
+   "var"
+  ],
+  "params": {
+   "expr": "string",
+   "var": "string"
+  },
+  "required": [
+   "expr"
+  ],
+  "signature": ""
+ },
+ "predict": {
+  "file": "probability/probability_api.cpp",
+  "optional": [],
+  "params": {
+   "intercept": "number",
+   "slope": "number",
+   "x": "number[]"
+  },
+  "required": [
+   "slope",
+   "intercept",
+   "x"
+  ],
+  "signature": ""
+ },
+ "prepare_expr": {
+  "file": "expr_api.cpp",
+  "optional": [],
+  "params": {
+   "expr": "string"
+  },
+  "required": [
+   "expr"
+  ],
+  "signature": "{expr: string}"
+ },
+ "prime_factors": {
+  "file": "number_theory/number_theory_api.cpp",
+  "optional": [],
+  "params": {
+   "n": "int"
+  },
+  "required": [
+   "n"
+  ],
+  "signature": ""
+ },
+ "primitive_root": {
+  "file": "number_theory/number_theory_api.cpp",
+  "optional": [],
+  "params": {
+   "p": "int"
+  },
+  "required": [
+   "p"
+  ],
+  "signature": ""
+ },
+ "prob_expectation": {
+  "file": "probability/probability_api.cpp",
+  "optional": [],
+  "params": {
+   "data": "number[]",
+   "expr": "string",
+   "pmf_data": "?"
+  },
+  "required": [
+   "data",
+   "expr",
+   "pmf_data"
+  ],
+  "signature": ""
+ },
+ "probability_space": {
+  "file": "measure_theory/measure_theory_api.cpp",
+  "optional": [],
+  "params": {
+   "Omega": "?parse_omega"
+  },
+  "required": [
+   "Omega"
+  ],
+  "signature": ""
+ },
+ "product_measure": {
+  "file": "measure_theory/measure_theory_api.cpp",
+  "optional": [],
+  "params": {
+   "A": "?",
+   "B": "?"
+  },
+  "required": [
+   "A",
+   "B"
+  ],
+  "signature": ""
+ },
+ "product_sequence": {
+  "file": "extras/extras_api.cpp",
+  "optional": [
+   "var",
+   "a",
+   "b"
+  ],
+  "params": {
+   "a": "int",
+   "b": "int",
+   "expr": "string",
+   "var": "string"
+  },
+  "required": [
+   "expr"
+  ],
+  "signature": ""
+ },
+ "qr_algorithm": {
+  "file": "numerical/numerical_api.cpp",
+  "optional": [
+   "tol",
+   "max_iter"
+  ],
+  "params": {
+   "A": "matrix",
+   "max_iter": "int",
+   "tol": "number"
+  },
+  "required": [
+   "A"
+  ],
+  "signature": ""
+ },
+ "quadratic_extrema": {
+  "file": "algebra/algebra_api.cpp",
+  "optional": [],
+  "params": {
+   "a": "number",
+   "b": "number",
+   "c": "number"
+  },
+  "required": [
+   "a",
+   "b",
+   "c"
+  ],
+  "signature": ""
+ },
+ "quadratic_form": {
+  "file": "linear_algebra/linear_algebra_api.cpp",
+  "optional": [
+   "x"
+  ],
+  "params": {
+   "matrix": "matrix",
+   "x": "string"
+  },
+  "required": [
+   "matrix"
+  ],
+  "signature": ""
+ },
+ "quadratic_function": {
+  "file": "algebra/algebra_api.cpp",
+  "optional": [],
+  "params": {
+   "a": "number",
+   "b": "number",
+   "c": "number"
+  },
+  "required": [
+   "a",
+   "b",
+   "c"
+  ],
+  "signature": ""
+ },
+ "radical_operations": {
+  "file": "algebra/algebra_api.cpp",
+  "optional": [],
+  "params": {
+   "expr1": "string",
+   "expr2": "string",
+   "op": "string"
+  },
+  "required": [
+   "expr1",
+   "op",
+   "expr2"
+  ],
+  "signature": ""
+ },
+ "random_variable": {
+  "file": "measure_theory/measure_theory_api.cpp",
+  "optional": [
+   "rule"
+  ],
+  "params": {
+   "Omega": "?parse_omega",
+   "rule": "?get_keyword_opt"
+  },
+  "required": [
+   "Omega"
+  ],
+  "signature": ""
+ },
+ "range_estimate": {
+  "file": "algebra/algebra_api.cpp",
+  "optional": [
+   "var"
+  ],
+  "params": {
+   "expr": "string",
+   "var": "string"
+  },
+  "required": [
+   "expr"
+  ],
+  "signature": ""
+ },
+ "rank": {
+  "file": "linear_algebra/linear_algebra_api.cpp",
+  "optional": [],
+  "params": {
+   "matrix": "matrix"
+  },
+  "required": [
+   "matrix"
+  ],
+  "signature": ""
+ },
+ "rank_nullity": {
+  "file": "linear_algebra/linear_algebra_api.cpp",
+  "optional": [],
+  "params": {
+   "matrix": "matrix"
+  },
+  "required": [
+   "matrix"
+  ],
+  "signature": ""
+ },
+ "ratio": {
+  "file": "algebra/algebra_api.cpp",
+  "optional": [],
+  "params": {
+   "a": "number",
+   "b": "number"
+  },
+  "required": [
+   "a",
+   "b"
+  ],
+  "signature": ""
+ },
+ "rationalize_denominator": {
+  "file": "algebra/algebra_api.cpp",
+  "optional": [],
+  "params": {
+   "expr": "string"
+  },
+  "required": [
+   "expr"
+  ],
+  "signature": ""
+ },
+ "real_discontinuity_classify": {
+  "file": "real_analysis/real_analysis_api.cpp",
+  "optional": [
+   "point"
+  ],
+  "params": {
+   "expr": "string",
+   "point": "number"
+  },
+  "required": [
+   "expr"
+  ],
+  "signature": ""
+ },
+ "real_integral": {
+  "file": "complex_analysis/complex_analysis_api.cpp",
+  "optional": [
+   "a",
+   "b"
+  ],
+  "params": {
+   "a": "number",
+   "b": "number",
+   "func": "string"
+  },
+  "required": [
+   "func"
+  ],
+  "signature": ""
+ },
+ "real_is_continuous": {
+  "file": "real_analysis/real_analysis_api.cpp",
+  "optional": [
+   "point"
+  ],
+  "params": {
+   "expr": "string",
+   "point": "number"
+  },
+  "required": [
+   "expr"
+  ],
+  "signature": ""
+ },
+ "real_lagrange_theorem": {
+  "file": "real_analysis/real_analysis_api.cpp",
+  "optional": [
+   "var"
+  ],
+  "params": {
+   "expr": "string",
+   "var": "string"
+  },
+  "required": [
+   "expr"
+  ],
+  "signature": ""
+ },
+ "real_rolle_theorem": {
+  "file": "real_analysis/real_analysis_api.cpp",
+  "optional": [
+   "var"
+  ],
+  "params": {
+   "expr": "string",
+   "var": "string"
+  },
+  "required": [
+   "expr"
+  ],
+  "signature": ""
+ },
+ "recurrence_sequence": {
+  "file": "algebra/algebra_api.cpp",
+  "optional": [],
+  "params": {
+   "initial": "?",
+   "n": "int",
+   "rule": "string"
+  },
+  "required": [
+   "rule",
+   "n",
+   "initial"
+  ],
+  "signature": ""
+ },
+ "residuals": {
+  "file": "probability/probability_api.cpp",
+  "optional": [],
+  "params": {
+   "intercept": "number",
+   "slope": "number",
+   "x": "number[]",
+   "y": "number[]"
+  },
+  "required": [
+   "slope",
+   "intercept",
+   "x",
+   "y"
+  ],
+  "signature": ""
+ },
+ "residue": {
+  "file": "complex_analysis/complex_analysis_api.cpp",
+  "optional": [],
+  "params": {
+   "func": "string",
+   "z0": "?"
+  },
+  "required": [
+   "func",
+   "z0"
+  ],
+  "signature": ""
+ },
+ "residue_theorem": {
+  "file": "complex_analysis/complex_analysis_api.cpp",
+  "optional": [],
+  "params": {
+   "func": "string",
+   "singularities": "?"
+  },
+  "required": [
+   "func",
+   "singularities"
+  ],
+  "signature": ""
+ },
+ "riemann_integrable": {
+  "file": "real_analysis/real_analysis_api.cpp",
+  "optional": [],
+  "params": {
+   "expr": "string"
+  },
+  "required": [
+   "expr"
+  ],
+  "signature": ""
+ },
+ "riemann_mapping": {
+  "file": "complex_analysis/complex_analysis_api.cpp",
+  "optional": [],
+  "params": {
+   "region": "string"
+  },
+  "required": [
+   "region"
+  ],
+  "signature": ""
+ },
+ "riesz_representation": {
+  "file": "extras/extras_api.cpp",
+  "optional": [],
+  "params": {
+   "x": "number[]"
+  },
+  "required": [
+   "x"
+  ],
+  "signature": ""
+ },
+ "rk4": {
+  "file": "numerical/numerical_api.cpp",
+  "optional": [
+   "h"
+  ],
+  "params": {
+   "f": "string",
+   "h": "number",
+   "t0": "number",
+   "t_end": "number",
+   "y0": "number"
+  },
+  "required": [
+   "f",
+   "t0",
+   "y0",
+   "t_end"
+  ],
+  "signature": ""
+ },
+ "rouche_theorem": {
+  "file": "complex_analysis/complex_analysis_api.cpp",
+  "optional": [],
+  "params": {
+   "contour": "string",
+   "f": "string",
+   "g": "string"
+  },
+  "required": [
+   "contour",
+   "f",
+   "g"
+  ],
+  "signature": ""
+ },
+ "rounding_error_estimate": {
+  "file": "numerical/numerical_api.cpp",
+  "optional": [
+   "precision"
+  ],
+  "params": {
+   "precision": "int"
+  },
+  "required": [],
+  "signature": ""
+ },
+ "sample_mean": {
+  "file": "probability/probability_api.cpp",
+  "optional": [],
+  "params": {
+   "data": "number[]"
+  },
+  "required": [
+   "data"
+  ],
+  "signature": ""
+ },
+ "sample_variance": {
+  "file": "probability/probability_api.cpp",
+  "optional": [
+   "ddof"
+  ],
+  "params": {
+   "data": "number[]",
+   "ddof": "int"
+  },
+  "required": [
+   "data"
+  ],
+  "signature": ""
+ },
+ "segmented_sieve": {
+  "file": "number_theory/number_theory_api.cpp",
+  "optional": [
+   "segment_size"
+  ],
+  "params": {
+   "n": "int",
+   "segment_size": "int"
+  },
+  "required": [
+   "n"
+  ],
+  "signature": ""
+ },
+ "sequence_convergence": {
+  "file": "real_analysis/real_analysis_api.cpp",
+  "optional": [
+   "var"
+  ],
+  "params": {
+   "expr": "string",
+   "var": "string"
+  },
+  "required": [
+   "expr"
+  ],
+  "signature": ""
+ },
+ "sequence_limit": {
+  "file": "real_analysis/real_analysis_api.cpp",
+  "optional": [
+   "var"
+  ],
+  "params": {
+   "expr": "string",
+   "var": "string"
+  },
+  "required": [
+   "expr"
+  ],
+  "signature": ""
+ },
+ "sequence_term": {
+  "file": "algebra/algebra_api.cpp",
+  "optional": [],
+  "params": {
+   "formula": "string",
+   "n": "int"
+  },
+  "required": [
+   "formula",
+   "n"
+  ],
+  "signature": ""
+ },
+ "series_convergence": {
+  "file": "calculus/calculus_api.cpp",
+  "optional": [
+   "var"
+  ],
+  "params": {
+   "expr": "string",
+   "var": "string"
+  },
+  "required": [
+   "expr"
+  ],
+  "signature": ""
+ },
+ "series_sum": {
+  "file": "calculus/calculus_api.cpp",
+  "optional": [
+   "var",
+   "a"
+  ],
+  "params": {
+   "a": "int",
+   "b": "?",
+   "expr": "string",
+   "var": "string"
+  },
+  "required": [
+   "expr",
+   "b"
+  ],
+  "signature": ""
+ },
+ "significant_figures": {
+  "file": "algebra/algebra_api.cpp",
+  "optional": [],
+  "params": {
+   "n": "int",
+   "x": "number"
+  },
+  "required": [
+   "x",
+   "n"
+  ],
+  "signature": ""
+ },
+ "simple_function": {
+  "file": "measure_theory/measure_theory_api.cpp",
+  "optional": [
+   "x"
+  ],
+  "params": {
+   "coefficients": "array",
+   "sets": "array",
+   "x": "number"
+  },
+  "required": [
+   "coefficients",
+   "sets"
+  ],
+  "signature": ""
+ },
+ "simplicial_complex": {
+  "file": "algebraic_topology/at_api.cpp",
+  "optional": [
+   "maximal"
+  ],
+  "params": {
+   "maximal": "bool",
+   "simplices": "?"
+  },
+  "required": [
+   "simplices"
+  ],
+  "signature": ""
+ },
+ "simplify_fraction": {
+  "file": "algebra/algebra_api.cpp",
+  "optional": [],
+  "params": {
+   "expr": "string"
+  },
+  "required": [
+   "expr"
+  ],
+  "signature": ""
+ },
+ "simplify_polynomial": {
+  "file": "algebra/algebra_api.cpp",
+  "optional": [],
+  "params": {
+   "expr": "string"
+  },
+  "required": [
+   "expr"
+  ],
+  "signature": ""
+ },
+ "simplify_radical": {
+  "file": "algebra/algebra_api.cpp",
+  "optional": [],
+  "params": {
+   "expr": "string"
+  },
+  "required": [
+   "expr"
+  ],
+  "signature": ""
+ },
+ "simplify_sym": {
+  "file": "symbolic_api.cpp",
+  "optional": [],
+  "params": {
+   "expr": "string"
+  },
+  "required": [
+   "expr"
+  ],
+  "signature": "{expr: string}"
+ },
+ "simpson_rule": {
+  "file": "numerical/numerical_api.cpp",
+  "optional": [
+   "n"
+  ],
+  "params": {
+   "a": "number",
+   "b": "number",
+   "f": "string",
+   "n": "int"
+  },
+  "required": [
+   "f",
+   "a",
+   "b"
+  ],
+  "signature": ""
+ },
+ "sine_cosine_tangent": {
+  "file": "algebra/algebra_api.cpp",
+  "optional": [
+   "mode"
+  ],
+  "params": {
+   "angle": "number",
+   "mode": "string"
+  },
+  "required": [
+   "angle"
+  ],
+  "signature": ""
+ },
+ "singularity_classify": {
+  "file": "complex_analysis/complex_analysis_api.cpp",
+  "optional": [],
+  "params": {
+   "func": "string",
+   "z0": "?"
+  },
+  "required": [
+   "func",
+   "z0"
+  ],
+  "signature": ""
+ },
+ "slope_intercept": {
+  "file": "algebra/algebra_api.cpp",
+  "optional": [],
+  "params": {
+   "b": "number",
+   "k": "number"
+  },
+  "required": [
+   "k",
+   "b"
+  ],
+  "signature": ""
+ },
+ "solve_fractional": {
+  "file": "algebra/algebra_api.cpp",
+  "optional": [
+   "var"
+  ],
+  "params": {
+   "expr": "string",
+   "var": "string"
+  },
+  "required": [
+   "expr"
+  ],
+  "signature": ""
+ },
+ "solve_inequality_system": {
+  "file": "algebra/algebra_api.cpp",
+  "optional": [],
+  "params": {
+   "ineqs": "?"
+  },
+  "required": [
+   "ineqs"
+  ],
+  "signature": ""
+ },
+ "solve_irrational": {
+  "file": "algebra/algebra_api.cpp",
+  "optional": [
+   "var"
+  ],
+  "params": {
+   "expr": "string",
+   "var": "string"
+  },
+  "required": [
+   "expr"
+  ],
+  "signature": ""
+ },
+ "solve_linear": {
+  "file": "algebra/algebra_api.cpp",
+  "optional": [
+   "var"
+  ],
+  "params": {
+   "expr": "string",
+   "var": "string"
+  },
+  "required": [
+   "expr"
+  ],
+  "signature": ""
+ },
+ "solve_linear_inequality": {
+  "file": "algebra/algebra_api.cpp",
+  "optional": [],
+  "params": {
+   "expr": "string"
+  },
+  "required": [
+   "expr"
+  ],
+  "signature": ""
+ },
+ "solve_quadratic": {
+  "file": "algebra/algebra_api.cpp",
+  "optional": [
+   "var"
+  ],
+  "params": {
+   "expr": "string",
+   "var": "string"
+  },
+  "required": [
+   "expr"
+  ],
+  "signature": ""
+ },
+ "solve_quadratic_inequality": {
+  "file": "algebra/algebra_api.cpp",
+  "optional": [],
+  "params": {
+   "expr": "string"
+  },
+  "required": [
+   "expr"
+  ],
+  "signature": ""
+ },
+ "solve_sym": {
+  "file": "symbolic_api.cpp",
+  "optional": [
+   "var"
+  ],
+  "params": {
+   "expr": "equation",
+   "var": "string"
+  },
+  "required": [
+   "expr"
+  ],
+  "signature": ""
+ },
+ "space_completeness_check": {
+  "file": "functional_analysis/fa_api.cpp",
+  "optional": [
+   "norm"
+  ],
+  "params": {
+   "norm": "string",
+   "sequence": "?"
+  },
+  "required": [
+   "sequence"
+  ],
+  "signature": ""
+ },
+ "spectral_radius": {
+  "file": "extras/extras_api.cpp",
+  "optional": [],
+  "params": {
+   "A": "matrix"
+  },
+  "required": [
+   "A"
+  ],
+  "signature": ""
+ },
+ "spectral_theorem": {
+  "file": "functional_analysis/fa_api.cpp",
+  "optional": [],
+  "params": {
+   "A": "matrix"
+  },
+  "required": [
+   "A"
+  ],
+  "signature": ""
+ },
+ "spectrum_approx": {
+  "file": "functional_analysis/fa_api.cpp",
+  "optional": [],
+  "params": {
+   "A": "matrix"
+  },
+  "required": [
+   "A"
+  ],
+  "signature": ""
+ },
+ "spectrum_classify": {
+  "file": "functional_analysis/fa_api.cpp",
+  "optional": [
+   "tol"
+  ],
+  "params": {
+   "A": "matrix",
+   "tol": "number"
+  },
+  "required": [
+   "A"
+  ],
+  "signature": ""
+ },
+ "sqrt_complex": {
+  "file": "complex_analysis/complex_analysis_api.cpp",
+  "optional": [],
+  "params": {
+   "z": "?"
+  },
+  "required": [
+   "z"
+  ],
+  "signature": ""
+ },
+ "standard_form": {
+  "file": "linear_algebra/linear_algebra_api.cpp",
+  "optional": [],
+  "params": {
+   "matrix": "matrix"
+  },
+  "required": [
+   "matrix"
+  ],
+  "signature": ""
+ },
+ "step_function_approx": {
+  "file": "measure_theory/measure_theory_api.cpp",
+  "optional": [],
+  "params": {
+   "f": "string",
+   "n": "int"
+  },
+  "required": [
+   "f",
+   "n"
+  ],
+  "signature": ""
+ },
+ "stft": {
+  "file": "harmonic_analysis/harmonic_analysis_api.cpp",
+  "optional": [
+   "hop_size",
+   "sample_rate"
+  ],
+  "params": {
+   "hop_size": "int",
+   "sample_rate": "number",
+   "signal": "?get_sig",
+   "window_size": "int"
+  },
+  "required": [
+   "signal",
+   "window_size"
+  ],
+  "signature": ""
+ },
+ "stiff_detector": {
+  "file": "numerical/numerical_api.cpp",
+  "optional": [],
+  "params": {
+   "f": "string",
+   "t0": "number",
+   "t_end": "number",
+   "y0": "number"
+  },
+  "required": [
+   "f",
+   "t0",
+   "y0",
+   "t_end"
+  ],
+  "signature": ""
+ },
+ "subspace_span": {
+  "file": "linear_algebra/linear_algebra_api.cpp",
+  "optional": [],
+  "params": {
+   "vectors": "matrix"
+  },
+  "required": [
+   "vectors"
+  ],
+  "signature": ""
+ },
+ "supremum": {
+  "file": "real_analysis/real_analysis_api.cpp",
+  "optional": [],
+  "params": {
+   "set": "number[]"
+  },
+  "required": [
+   "set"
+  ],
+  "signature": ""
+ },
+ "sym_latex": {
+  "file": "expr_api.cpp",
+  "optional": [],
+  "params": {
+   "expr": "string"
+  },
+  "required": [
+   "expr"
+  ],
+  "signature": "{expr: string}"
+ },
+ "t_test": {
+  "file": "probability/probability_api.cpp",
+  "optional": [
+   "alpha",
+   "alternative"
+  ],
+  "params": {
+   "alpha": "number",
+   "alternative": "string",
+   "data": "number[]",
+   "mu0": "number"
+  },
+  "required": [
+   "data",
+   "mu0"
+  ],
+  "signature": ""
+ },
+ "taylor": {
+  "file": "calculus/calculus_api.cpp",
+  "optional": [
+   "var",
+   "point",
+   "order"
+  ],
+  "params": {
+   "expr": "string",
+   "order": "int",
+   "point": "number",
+   "var": "string"
+  },
+  "required": [
+   "expr"
+  ],
+  "signature": ""
+ },
+ "taylor_polynomial": {
+  "file": "real_analysis/real_analysis_api.cpp",
+  "optional": [
+   "var",
+   "point",
+   "n"
+  ],
+  "params": {
+   "expr": "string",
+   "n": "int",
+   "point": "number",
+   "var": "string"
+  },
+  "required": [
+   "expr"
+  ],
+  "signature": ""
+ },
+ "taylor_remainder": {
+  "file": "real_analysis/real_analysis_api.cpp",
+  "optional": [
+   "var",
+   "point",
+   "n",
+   "xi"
+  ],
+  "params": {
+   "expr": "string",
+   "n": "int",
+   "point": "number",
+   "var": "string",
+   "xi": "number"
+  },
+  "required": [
+   "expr"
+  ],
+  "signature": ""
+ },
+ "taylor_series": {
+  "file": "complex_analysis/complex_analysis_api.cpp",
+  "optional": [
+   "n"
+  ],
+  "params": {
+   "func": "string",
+   "n": "int",
+   "z0": "?"
+  },
+  "required": [
+   "func",
+   "z0"
+  ],
+  "signature": ""
+ },
+ "tempered_distribution": {
+  "file": "harmonic_analysis/harmonic_analysis_api.cpp",
+  "optional": [],
+  "params": {
+   "func": "string"
+  },
+  "required": [
+   "func"
+  ],
+  "signature": ""
+ },
+ "termwise_differentiation": {
+  "file": "real_analysis/real_analysis_api.cpp",
+  "optional": [
+   "n_terms"
+  ],
+  "params": {
+   "n_terms": "int",
+   "seq_expr": "string"
+  },
+  "required": [
+   "seq_expr"
+  ],
+  "signature": ""
+ },
+ "termwise_integration": {
+  "file": "real_analysis/real_analysis_api.cpp",
+  "optional": [
+   "n_terms"
+  ],
+  "params": {
+   "n_terms": "int",
+   "seq_expr": "string"
+  },
+  "required": [
+   "seq_expr"
+  ],
+  "signature": ""
+ },
+ "theta_function": {
+  "file": "harmonic_analysis/harmonic_analysis_api.cpp",
+  "optional": [
+   "n_terms"
+  ],
+  "params": {
+   "n_terms": "int",
+   "t": "number"
+  },
+  "required": [
+   "t"
+  ],
+  "signature": ""
+ },
+ "to_engine_expr": {
+  "file": "expr_api.cpp",
+  "optional": [],
+  "params": {
+   "expr": "string"
+  },
+  "required": [
+   "expr"
+  ],
+  "signature": "{expr: string}"
+ },
+ "to_scientific_notation": {
+  "file": "algebra/algebra_api.cpp",
+  "optional": [],
+  "params": {
+   "x": "number"
+  },
+  "required": [
+   "x"
+  ],
+  "signature": ""
+ },
+ "total_probability": {
+  "file": "probability/probability_api.cpp",
+  "optional": [],
+  "params": {
+   "P": "?",
+   "condition": "string",
+   "events": "?"
+  },
+  "required": [
+   "condition",
+   "events",
+   "P"
+  ],
+  "signature": ""
+ },
+ "trapezoidal_rule": {
+  "file": "numerical/numerical_api.cpp",
+  "optional": [
+   "n"
+  ],
+  "params": {
+   "a": "number",
+   "b": "number",
+   "f": "string",
+   "n": "int"
+  },
+  "required": [
+   "f",
+   "a",
+   "b"
+  ],
+  "signature": ""
+ },
+ "trig_basic_identities": {
+  "file": "algebra/algebra_api.cpp",
+  "optional": [],
+  "params": {},
+  "required": [],
+  "signature": ""
+ },
+ "trig_periodicity": {
+  "file": "algebra/algebra_api.cpp",
+  "optional": [],
+  "params": {
+   "func": "string"
+  },
+  "required": [
+   "func"
+  ],
+  "signature": ""
+ },
+ "truncation_error": {
+  "file": "numerical/numerical_api.cpp",
+  "optional": [
+   "true_value"
+  ],
+  "params": {
+   "n": "int",
+   "series": "string",
+   "true_value": "number",
+   "x": "number"
+  },
+  "required": [
+   "series",
+   "x",
+   "n"
+  ],
+  "signature": ""
+ },
+ "two_way_anova": {
+  "file": "probability/probability_api.cpp",
+  "optional": [
+   "alpha"
+  ],
+  "params": {
+   "alpha": "number",
+   "data": "matrix"
+  },
+  "required": [
+   "data"
+  ],
+  "signature": ""
+ },
+ "uncertainty_principle": {
+  "file": "harmonic_analysis/harmonic_analysis_api.cpp",
+  "optional": [],
+  "params": {
+   "f": "string",
+   "n_points": "int"
+  },
+  "required": [
+   "f",
+   "n_points"
+  ],
+  "signature": ""
+ },
+ "uniform": {
+  "file": "probability/probability_api.cpp",
+  "optional": [],
+  "params": {
+   "a": "number",
+   "b": "number"
+  },
+  "required": [
+   "a",
+   "b"
+  ],
+  "signature": ""
+ },
+ "uniform_boundedness": {
+  "file": "functional_analysis/fa_api.cpp",
+  "optional": [],
+  "params": {
+   "operators": "?",
+   "test_points": "?"
+  },
+  "required": [
+   "operators",
+   "test_points"
+  ],
+  "signature": ""
+ },
+ "uniform_continuity": {
+  "file": "real_analysis/real_analysis_api.cpp",
+  "optional": [],
+  "params": {
+   "expr": "string"
+  },
+  "required": [
+   "expr"
+  ],
+  "signature": ""
+ },
+ "uniform_convergence": {
+  "file": "real_analysis/real_analysis_api.cpp",
+  "optional": [],
+  "params": {
+   "seq_expr": "string"
+  },
+  "required": [
+   "seq_expr"
+  ],
+  "signature": ""
+ },
+ "variance": {
+  "file": "probability/probability_api.cpp",
+  "optional": [
+   "ddof"
+  ],
+  "params": {
+   "data": "number[]",
+   "ddof": "int",
+   "expr": "string",
+   "pmf_data": "?"
+  },
+  "required": [
+   "data",
+   "expr",
+   "pmf_data"
+  ],
+  "signature": ""
+ },
+ "vieta_theorem": {
+  "file": "algebra/algebra_api.cpp",
+  "optional": [
+   "var"
+  ],
+  "params": {
+   "expr": "string",
+   "var": "string"
+  },
+  "required": [
+   "expr"
+  ],
+  "signature": ""
+ },
+ "volume_disk": {
+  "file": "calculus/calculus_api.cpp",
+  "optional": [
+   "var",
+   "a",
+   "b"
+  ],
+  "params": {
+   "a": "number",
+   "b": "number",
+   "expr": "string",
+   "var": "string"
+  },
+  "required": [
+   "expr"
+  ],
+  "signature": ""
+ },
+ "volume_shell": {
+  "file": "calculus/calculus_api.cpp",
+  "optional": [
+   "var",
+   "a",
+   "b"
+  ],
+  "params": {
+   "a": "number",
+   "b": "number",
+   "expr": "string",
+   "var": "string"
+  },
+  "required": [
+   "expr"
+  ],
+  "signature": ""
+ },
+ "wavelet_transform": {
+  "file": "harmonic_analysis/harmonic_analysis_api.cpp",
+  "optional": [
+   "wavelet_type"
+  ],
+  "params": {
+   "scales": "number[]",
+   "signal": "?get_sig",
+   "wavelet_type": "string"
+  },
+  "required": [
+   "scales",
+   "signal"
+  ],
+  "signature": ""
+ },
+ "weak_convergence": {
+  "file": "functional_analysis/fa_api.cpp",
+  "optional": [
+   "tol"
+  ],
+  "params": {
+   "functional": "number[]",
+   "limit": "number[]",
+   "sequence": "?",
+   "tol": "number"
+  },
+  "required": [
+   "functional",
+   "limit",
+   "sequence"
+  ],
+  "signature": ""
+ },
+ "weierstrass_m_test": {
+  "file": "real_analysis/real_analysis_api.cpp",
+  "optional": [],
+  "params": {
+   "seq_expr": "string"
+  },
+  "required": [
+   "seq_expr"
+  ],
+  "signature": ""
+ },
+ "wilcoxon_signed_rank": {
+  "file": "probability/probability_api.cpp",
+  "optional": [
+   "mu",
+   "alternative",
+   "alpha"
+  ],
+  "params": {
+   "alpha": "number",
+   "alternative": "string",
+   "group1": "number[]",
+   "group2": "number[]",
+   "mu": "number"
+  },
+  "required": [
+   "group1",
+   "group2"
+  ],
+  "signature": ""
+ },
+ "z_test": {
+  "file": "probability/probability_api.cpp",
+  "optional": [
+   "alpha",
+   "alternative"
+  ],
+  "params": {
+   "alpha": "number",
+   "alternative": "string",
+   "mu0": "number",
+   "n": "int",
+   "sample_mean": "number",
+   "sigma": "number"
+  },
+  "required": [
+   "sample_mean",
+   "mu0",
+   "sigma",
+   "n"
+  ],
+  "signature": ""
+ },
+ "zeros_and_poles": {
+  "file": "extras/extras_api.cpp",
+  "optional": [
+   "radius"
+  ],
+  "params": {
+   "center": "?",
+   "func": "string",
+   "radius": "number"
+  },
+  "required": [
+   "func",
+   "center"
+  ],
+  "signature": ""
+ },
+ "zeta_dirichlet_series": {
+  "file": "number_theory/number_theory_api.cpp",
+  "optional": [
+   "n_terms"
+  ],
+  "params": {
+   "n_terms": "int",
+   "s": "number"
+  },
+  "required": [
+   "s"
+  ],
+  "signature": ""
+ },
+ "zeta_negative": {
+  "file": "number_theory/number_theory_api.cpp",
+  "optional": [],
+  "params": {
+   "n": "int"
+  },
+  "required": [
+   "n"
+  ],
+  "signature": ""
+ },
+ "zeta_series": {
+  "file": "complex_analysis/complex_analysis_api.cpp",
+  "optional": [
+   "n_terms"
+  ],
+  "params": {
+   "n_terms": "int",
+   "s": "?"
+  },
+  "required": [
+   "s"
+  ],
+  "signature": ""
+ }
+}

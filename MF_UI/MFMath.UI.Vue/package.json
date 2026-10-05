@@ -10,7 +10,9 @@
     "build:raw": "vite build",
     "preview": "vite preview",
     "tutorials": "node tools/build-tutorials.mjs",
-    "check:ui": "node tools/build-tutorials.mjs && node tools/check-ui.mjs && node tools/check-examples.mjs"
+    "check:types": "tsc --noEmit -p tsconfig.json",
+    "check:ui": "node tools/build-tutorials.mjs && node tools/check-ui.mjs && node tools/check-examples.mjs",
+    "check": "npm run check:types && npm run check:ui"
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6.20.3",
@@ -29,6 +31,7 @@
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^5.2.1",
+    "typescript": "^5.9.3",
     "vite": "^6.0.7"
   }
 }

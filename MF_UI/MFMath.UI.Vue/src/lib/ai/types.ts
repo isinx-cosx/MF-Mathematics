@@ -78,6 +78,8 @@ export type ModelErrorKind =
   /** 整轮墙钟超时 */
   | 'timeout'
   | 'aborted'
+  /** 宿主侧已有一轮在跑（页面刷新后旧请求还没结束时点发送会撞上） */
+  | 'busy'
   | 'unknown'
 
 export interface ModelError {

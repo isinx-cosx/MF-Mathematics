@@ -63,6 +63,12 @@ function newQueue(): Queue {
 const queues = new Map<string, Queue>()
 /** 请求头可能比 Begin 的返回值先到（极端时序），先按 id 存这里，绑定时认领 */
 const orphans = new Map<string, Queue>()
+/**
+ * 孤儿队列的上限。请求结束/取消之后**迟到**的 `ai.raw` 推送会不断新建孤儿队列，
+ * 而原实现从不清理 —— 整个会话期内单调增长（内存泄漏）。
+ * 只保留最近的若干个就够用（孤儿只在"头比 Begin 返回值先到"这个窗口里被认领）。
+ */
+const MAX_ORPHANS = 32
 let subscribed = false
 
 function hostObj() {
@@ -99,7 +105,18 @@ function ensureSubscribed() {
     const p = env.payload || {}
     const id = String(p.requestId || '')
     const q = queues.get(id) ?? orphans.get(id) ?? newQueue()
-    if (!queues.has(id) && !orphans.has(id)) orphans.set(id, q)
+    if (!queues.has(id) && !orphans.has(id)) {
+      /* ⚠ 这里必须**真的**封顶（MAX_ORPHANS 以前是声明了却没人用的死常量，
+       * 于是注释里写的那个泄漏一直存在）：每个 id 未知的推送都会新建一条孤儿队列，
+       * 请求结束/取消之后迟到的推送就这么一直在会话期内堆积。
+       * Map 保持插入顺序，所以删掉最早的一条即可 —— 孤儿只在"响应头比 Begin 的返回值
+       * 先到"那个极窄窗口里会被认领，老的注定认领不到了。 */
+      if (orphans.size >= MAX_ORPHANS) {
+        const oldest = orphans.keys().next().value
+        if (oldest !== undefined) orphans.delete(oldest)
+      }
+      orphans.set(id, q)
+    }
 
     switch (topic) {
       case 'ai.http':
@@ -127,10 +144,14 @@ function ensureSubscribed() {
 
 /**
  * 让宿主带密钥请求一次（path 必须是相对路径），把响应体当字节流交回来。
+ *
+ * `signal` 必须真的能打断这条流 —— 否则"停止"只把页面状态改成空闲，
+ * 宿主侧连接与在跑的迭代照旧，工具循环还会继续开新请求（真实 token 花费）。
  */
-export async function relayPost(path: string, body: unknown): Promise<RelayResponse> {
+export async function relayPost(path: string, body: unknown, signal?: AbortSignal): Promise<RelayResponse> {
   const ai = hostObj()
   if (!ai) throw new RelayError('config', '无宿主：AI 只在 MFMath.exe 里可用')
+  if (signal?.aborted) throw new RelayError('aborted', '已取消')
 
   ensureSubscribed()
 
@@ -144,9 +165,35 @@ export async function relayPost(path: string, body: unknown): Promise<RelayRespo
   queues.set(id, q)
   orphans.delete(id)
 
+  // ── signal → 打断队列 ──────────────────────────────────────────────────
+  // 做法是"把队列置成已完成 + 唤醒等待者"，而不是在别处再挂一套 Promise：
+  // bodyStream 的循环本来就会检查 q.error / q.done，于是它自然抛出。
+  let detach: (() => void) | null = null
+  if (signal) {
+    const onAbort = () => {
+      if (!q.done) {
+        q.error = new RelayError('aborted', '已取消')
+        q.done = true
+      }
+      q.resolveHeaders()   // 连接还没起来时不会有 ai.http，别让调用方干等
+      wake(q)
+    }
+    if (signal.aborted) onAbort()
+    else signal.addEventListener('abort', onAbort, { once: true })
+    detach = () => { try { signal.removeEventListener('abort', onAbort) } catch { /* 忽略 */ } }
+  }
+
   // 等状态行：宿主在收到响应头时立刻推 ai.http（早于任何字节）。
   // 没有它就没法判断 2xx/4xx，所以这里必须等，而不是拿一个恒为 0 的 status 去猜。
+  // （被取消时 onAbort 会 resolveHeaders，所以这里不会卡住。）
   await q.headersReady
+
+  if (q.error) {
+    detach?.()
+    queues.delete(id)
+    try { ai.Cancel(id) } catch { /* 忽略 */ }
+    throw q.error
+  }
 
   const cancel = () => {
     try { ai.Cancel(id) } catch { /* 忽略 */ }
@@ -164,6 +211,7 @@ export async function relayPost(path: string, body: unknown): Promise<RelayRespo
         await new Promise<void>((resolve) => { q.wake = resolve })
       }
     } finally {
+      detach?.()
       queues.delete(id)
       cancel()
     }

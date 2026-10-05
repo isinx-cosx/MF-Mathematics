@@ -71,7 +71,13 @@ export function buildBundle() {
   if (!sys) return { ok: false, error: "无宿主：设置文件由宿主管理，导出只在 MFMath.exe 里可用" };
 
   const listRaw = parse(sys.StoreList());
-  const files = Array.isArray(listRaw) ? listRaw : [];
+  // StoreList 出错时返回 {"error":…}（SettingsBridge.StoreList 的异常分支），**不是数组**。
+  // 原先静默当成空列表 → 导出"0 个设置文件"却报 ok:true，界面显示"已导出 0 个…"，
+  // 用户以为备份好了，真去恢复时什么都没有。这里改成如实失败。
+  if (!Array.isArray(listRaw)) {
+    return { ok: false, error: String(listRaw?.error || "读不到设置文件清单，导出已中止") };
+  }
+  const files = listRaw;
   const bundleFiles = {};
   const stripped = [];
   const skippedCorrupt = [];
@@ -81,7 +87,12 @@ export function buildBundle() {
     if (!name) continue;
     if (CREDENTIAL_FILES.includes(name)) continue;          // 整份排除
     const r = parse(sys.StoreRead(name));
-    if (!r || r.ok !== true) continue;
+    if (!r || r.ok !== true) {
+      // 读失败 / JSON 已损坏：原先直接 continue，**连痕迹都不留** ——
+      // 包是"成功"的，但少了一份设置且无人知道。现在记进 skippedCorrupt。
+      if (r && r.corrupt) skippedCorrupt.push(name);
+      continue;
+    }
     if (r.exists === false || !r.json) continue;
     const value = parse(r.json, null);
     if (value === null) { skippedCorrupt.push(name); continue; }

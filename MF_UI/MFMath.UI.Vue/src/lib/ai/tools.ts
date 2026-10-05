@@ -19,6 +19,7 @@
 import { ENGINE_MAP } from "../engine/engineMap.js";
 import { engineCall } from "../bridge.js";
 import type { ToolSchema } from "./types.ts";
+import SIGNATURES from "./engine-signatures.json";
 
 /** 一个引擎函数（由 ENGINE_MAP 反推：多个中文模式可能指向同一个 fn） */
 export interface EngineFn {
@@ -41,28 +42,75 @@ export interface ToolCallRecord {
   ms: number;
 }
 
-/* ── 目录（从 ENGINE_MAP 反推）────────────────────────────────────────── */
+/* ── 目录（以**引擎签名表**为权威，界面映射只补充"哪些模式用到它"）──────────
+ *
+ * 为什么不再从 ENGINE_MAP 反推：那样 AI 的能力面会被**界面模式**间接决定 ——
+ * 只有 371/424 个函数可达，而够不着的 53 个里正好包括**全部 `expr_eval` 家族**。
+ * 于是模型陷入死局：按硬约束"不许自己算"，却又**没有工具能算**，
+ * 连"x²+1 在 x=3 等于多少"都答不了（只能歪打正着拿 limit 凑）。
+ *
+ * `engine-signatures.json` 是从引擎 handler 生成的 424 条参数表
+ * （`params` / `required` / `optional`），与本仓库 v2 引擎的注册表
+ * **逐字一致**（424/424、双向零差异，已核对）。它顺带补上了
+ * "424 个 handler 里只有 12 个提供了人类可读签名"这个老问题 ——
+ * 机器可读的参数说明现在全都有了。
+ */
+
+interface SigEntry {
+  file?: string;
+  params?: Record<string, string>;
+  required?: string[];
+  optional?: string[];
+}
+
+/** 由签名表的 file 反推模块名：`algebra/algebra_api.cpp` → `algebra` */
+function moduleOfFile(file: string): string {
+  const top = String(file || "").split("/")[0].trim();
+  if (!top) return "(未分组)";
+  const stem = top.replace(/_api\.cpp$/, "");
+  return /\.cpp$/i.test(stem) || !stem ? "(未分组)" : stem;
+}
 
 const CATALOG: EngineFn[] = (() => {
   const byFn = new Map<string, EngineFn>();
+
+  // ① 权威：引擎签名表的全部 424 个 action
+  for (const [fn, raw] of Object.entries(SIGNATURES as Record<string, SigEntry>)) {
+    const s = raw || {};
+    const params = s.params || {};
+    const optional = new Set(s.optional || []);
+    byFn.set(fn, {
+      fn,
+      module: moduleOfFile(String(s.file || "")),
+      modes: [],
+      args: Object.keys(params).map((key) => ({
+        key,
+        type: String(params[key] || "string").replace(/^\?/, ""),   // `?bound` → `bound`
+        opt: optional.has(key),
+      })),
+    });
+  }
+
+  // ② 界面映射：补 modes（engine_find 可以用中文模式名检索），
+  //    并把它知道、而签名表没提到的参数并进来（防御性，正常情况下不该发生）
   for (const [mode, spec] of Object.entries(ENGINE_MAP as Record<string, any>)) {
     const fn = String(spec?.fn || "").trim();
     if (!fn) continue;
     let cur = byFn.get(fn);
     if (!cur) {
-      cur = { fn, module: String(spec?.module || ""), modes: [], args: [] };
+      cur = { fn, module: String(spec?.module || "(未分组)"), modes: [], args: [] };
       byFn.set(fn, cur);
     }
     cur.modes.push(mode);
     for (const a of (spec?.args || []) as { key: string; type: string; opt?: boolean }[]) {
       const key = String(a?.key || "");
       if (!key) continue;
-      const seen = cur.args.find((x) => x.key === key);
-      if (!seen) cur.args.push({ key, type: String(a?.type || "string"), opt: !!a?.opt });
-      // 同一个 fn 在不同模式下对同一参数的要求可能不同：**从严**（任一处必填就算必填）
-      else if (!a?.opt) seen.opt = false;
+      if (!cur.args.some((x) => x.key === key)) {
+        cur.args.push({ key, type: String(a?.type || "string"), opt: !!a?.opt });
+      }
     }
   }
+
   return [...byFn.values()].sort((a, b) => a.fn.localeCompare(b.fn));
 })();
 
@@ -284,6 +332,38 @@ export function executeTool(name: string, args: Record<string, unknown>, allowRe
   });
 }
 
+/**
+ * 与**运行中的引擎**核对这张表（漂移检测）。
+ *
+ * 表是从引擎 handler 生成的**静态副本**；万一引擎新增/删改了 action 而表没跟上，
+ * 这里能当场发现 —— 否则症状是"模型去调一个不存在的名字"或"漏掉一个能用的能力"，
+ * 两者都不会报错。返回缺失/多余两组名字。
+ */
+export function verifyEngineTable(): {
+  ok: boolean; engineCount: number; tableCount: number; missing: string[]; extra: string[];
+} {
+  const names: string[] = (() => {
+    try {
+      const r = engineCall("list_functions", {});
+      const list = r && !r.isError ? ((r.value as { functions?: unknown })?.functions ?? []) : [];
+      return Array.isArray(list) ? list.map((x) => String(x)) : [];
+    } catch {
+      return [];
+    }
+  })();
+  const table = new Set(CATALOG.map((e) => e.fn));
+  const live = new Set(names);
+  const missing = [...live].filter((n) => !table.has(n));   // 引擎有、表没有
+  const extra = [...table].filter((n) => !live.has(n));     // 表有、引擎没有
+  return {
+    ok: names.length > 0 && missing.length === 0 && extra.length === 0,
+    engineCount: live.size,
+    tableCount: table.size,
+    missing,
+    extra,
+  };
+}
+
 /** 测试/排障钩子：把工具能力暴露给断言（含"只能调引擎"这条边界） */
 export function initAiToolsHook() {
   try {
@@ -300,6 +380,8 @@ export function initAiToolsHook() {
       tools: () => AI_TOOLS,
       execute: executeTool,
       nameOf: (fn: string) => BY_NAME.get(String(fn).toLowerCase())?.fn ?? "",
+      /** 表与运行中引擎的一致性（漂移检测） */
+      verify: verifyEngineTable,
     };
   } catch { /* 忽略 */ }
 }

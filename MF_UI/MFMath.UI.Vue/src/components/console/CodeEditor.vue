@@ -36,6 +36,17 @@ const errorText = ref("");
 let handle = null;
 /** 语言切换期间可能有多次请求，只认最后一次（否则快速连点会用到旧语法） */
 let langSeq = 0;
+/**
+ * 语言切换必须**串行**。setLanguage 内部是 `await loadLanguage(name)`（动态 import
+ * 语言包，几十~几百毫秒）之后才 `dispatch(reconfigure)` —— 两次调用并发时，谁后
+ * dispatch 谁说了算，于是先发出的慢请求会盖掉后发出的快请求，最终语法与下拉框不符。
+ * 只用序号判断**挡不住**这一点：等 await 回来时 reconfigure 早已执行完。
+ * 这里改成一条 Promise 链：同一时刻只有一个在跑，且排队期间被取代的请求直接跳过
+ * （连语言包都不必再 import）。
+ */
+let langChain = Promise.resolve();
+/** 组件是否已卸载：boot() 是异步的，期间可能已经 unmount */
+let disposed = false;
 
 /** 回退分支的双向绑定：直接走同一份 modelValue，避免两份状态 */
 const fallbackText = computed({
@@ -55,9 +66,11 @@ async function boot() {
     errorText.value = "编辑器内核加载失败，已退回到纯文本编辑框：" + String(e?.message || e);
     return;
   }
+  if (disposed) return;                 // 动态 import 期间已卸载：不必再建
   await nextTick();
+  if (disposed) return;
   try {
-    handle = await mod.createEditor({
+    const created = await mod.createEditor({
       parent: host.value,
       doc: props.modelValue,
       language: props.language,
@@ -65,6 +78,14 @@ async function boot() {
       onRun: () => emit("run"),
       onChange: (text) => emit("update:modelValue", text),
     });
+    if (disposed) {
+      // 创建期间卸载了：onBeforeUnmount 当时看到的 handle 还是 null，不会替我们销毁。
+      // 不在这里 destroy 的话，EditorView 会挂在已脱离文档的宿主上，连同它自己的
+      // 监听与 MutationObserver 一起泄漏，且永远无人回收。
+      created.destroy();
+      return;
+    }
+    handle = created;
     // 给自动化测试与调试用：测试要能拿到 EditorView 才能设置/读取内容。
     // 挂成 DOM 属性而不是全局变量，够用又不污染 window。
     host.value.__mfEditor = handle;
@@ -81,6 +102,7 @@ async function boot() {
 onMounted(boot);
 
 onBeforeUnmount(() => {
+  disposed = true;
   if (handle) handle.destroy();
   handle = null;
 });
@@ -94,11 +116,17 @@ watch(() => props.modelValue, (v) => {
 watch(() => props.candidates, (v) => { handle?.setCandidates?.(v); });
 
 // 切语言 → 换语法扩展（只下载那门语言的包）
-watch(() => props.language, async (lang) => {
-  if (!handle) return;
+watch(() => props.language, (lang) => {
   const seq = ++langSeq;
-  await handle.setLanguage(lang);
-  if (seq !== langSeq) return;   // 已被更新的切换取代，不做事
+  langChain = langChain
+    .then(async () => {
+      // 顺序判断必须放在 await **之前**：等到 setLanguage 返回时 reconfigure
+      // 早就 dispatch 完了，那时再判已经晚了（旧写法就是这个毛病）。
+      if (seq !== langSeq) return;   // 排队期间已被更新的切换取代 → 本次作废
+      if (!handle) return;
+      await handle.setLanguage(lang);
+    })
+    .catch(() => { /* 某一门语言包加载失败不该毒化整条链、也不该卡住后续切换 */ });
 });
 
 defineExpose({ focus: () => handle?.focus() });

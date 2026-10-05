@@ -5,7 +5,7 @@
  * 右：画布 + 视图控制（Zoom In/Out / Fit / 重置）
  * 计算：全部经 C++ 引擎（expr_eval_vars_batch 带参数采样、solve/extrema 做精确标注）
  */
-import { ref, computed, watch, onMounted } from "vue";
+import { ref, computed, watch, onMounted, onBeforeUnmount } from "vue";
 import { useRoute } from "vue-router";
 import ExpressionList from "../../components/plot/ExpressionList.vue";
 import ParamSlider from "../../components/plot/ParamSlider.vue";
@@ -37,7 +37,7 @@ const restoredPlot = savedPage && savedPage.kind === "plot" ? savedPage : null;
 const expressions = ref(
   restoredPlot?.expressions?.length
     ? restoredPlot.expressions.map((e, i) => ({
-        id: (nextId = i + 1),
+        id: i + 1,
         text: String(e.text ?? ""),
         color: e.color || colorAt(i),
         visible: e.visible !== false,
@@ -45,6 +45,19 @@ const expressions = ref(
       }))
     : [{ id: nextId++, text: "y=x^2", color: colorAt(0), visible: true, error: null }]
 );
+// ⚠ 还原之后必须把 nextId 推到**下一个空 id**。
+//
+// 原实现写的是 `id: (nextId = i + 1)`：还原 N 行之后 nextId 停在 **N**（最后用掉的那个 id），
+// 而 addRow 用的是 `nextId++` —— 新行于是拿到 id = N，**与第 N 行撞车**。
+//
+// 后果（实测，不是推测）：列表里出现两条**同 id** 的行 ——
+//   · 它们永远显示同一个值（`v-for` 两条记录渲染同一个 row.text）；
+//   · 写任意一行会改到所有行（`update(id, patch)` 同时命中两条）；
+//   · 删一行会一次删掉两条（`removeRow(id)` 按 id 过滤）。
+// 触发条件很常见：**这个页面存过工作区 → 页面重挂载时还原 → 点一次「＋ 添加表达式」**。
+// （套件里正好由 cdp-plot-verify 留下一行触发，于是后面 6 条绘图用例全部读到
+//  「引擎采样 0 条曲线」——整片假失败的根因就是这里，不在测试脚本。）
+if (restoredPlot?.expressions?.length) nextId = restoredPlot.expressions.length + 1;
 const activeId = ref(expressions.value[0].id);
 const view = ref(restoredPlot?.view || defaultView(1, 1));
 const params = ref(restoredPlot?.params && typeof restoredPlot.params === "object" ? { ...restoredPlot.params } : {});
@@ -295,9 +308,15 @@ function sampleGrids() {
 
 /* 采样节流：滚动/拖拽时每帧最多重算一次（视图变换不阻塞交互） */
 let sampleRaf = 0;
+/** 组件已卸载：已排队的 rAF 不该再跑（那是 180×180 网格 + 每条曲线自适应采样） */
+let disposed = false;
 function scheduleSample() {
   if (sampleRaf) return;
-  sampleRaf = requestAnimationFrame(() => { sampleRaf = 0; sampleAll(); });
+  sampleRaf = requestAnimationFrame(() => {
+    sampleRaf = 0;
+    if (disposed) return;
+    sampleAll();
+  });
 }
 
 /* ── 点与探索（对齐 Desmos）─────────────────────────────────────────────── */
@@ -648,9 +667,14 @@ function exportImage() {
   };
 }
 
+/** 首帧初始化用的 rAF 句柄（卸载时要能取消） */
+let bootRaf = 0;
+
 onMounted(() => {
   // 等首次布局完成后再按画布宽高比初始化视图
-  requestAnimationFrame(() => {
+  bootRaf = requestAnimationFrame(() => {
+    bootRaf = 0;
+    if (disposed) return;   // 挂载后立即卸载：整轮首帧采样/求交都不必跑
     const { w, h } = canvasRef.value?.canvasSize() ?? { w: 0, h: 0 };
     // **还原过视野就不要再按画布比例重置**，否则用户存下来的范围会被冲掉
     if (w > 0 && h > 0 && !restoredPlot?.view) view.value = defaultView(w, h);
@@ -660,6 +684,15 @@ onMounted(() => {
     computeSymbolicExtrema();
   });
   syncWorkspace = true;   // 挂载完成，之后的变化才写回工作区
+});
+
+// 本视图自己不挂 window 监听、也不建 ResizeObserver（那些都在子画布组件里，已各自收尾），
+// 唯一需要在这里收尾的是**已排队的 rAF**：不取消的话，卸载后它仍会跑一整轮
+// 采样与求交（180×180 网格 × 每条曲线），白白过桥若干次，还写已销毁组件的状态。
+onBeforeUnmount(() => {
+  disposed = true;
+  if (bootRaf) { cancelAnimationFrame(bootRaf); bootRaf = 0; }
+  if (sampleRaf) { cancelAnimationFrame(sampleRaf); sampleRaf = 0; }
 });
 
 watch([expressions, view, gridMode, showGrid, params], () => {

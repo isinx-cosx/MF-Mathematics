@@ -31,6 +31,9 @@ export const NAV_GROUPS = [
       { name: "复分析", route: "/calc/complex-analysis" },
       { name: "代数拓扑", route: "/calc/algebraic-topology" },
       { name: "测度论", route: "/calc/measure-theory" },
+      // 调和分析：本轮新增的第 14 个学科视图。引擎的 harmonic_analysis 模块
+      // （傅里叶/卷积/小波/滤波器/δ 分布…）原先在 13 个视图里没有容身之处。
+      { name: "调和分析", route: "/calc/harmonic-analysis" },
     ],
   },
   {
@@ -58,6 +61,14 @@ export const NAV_GROUPS = [
       // 「联网搜索」需要有个能落地的路由（/tools/search?q=…）
       { name: "搜索", route: "/tools/search" },
       { name: "控制台", route: "/tools/console" },
+      // 函数工具箱：把**全部 424 个引擎 action**列表化并可直接调用。
+      // 为什么需要它：界面模式表（ENGINE_MAP）只覆盖 371 个，剩下 38 个
+      // （matrix_multiply / simplify_sym / taylor_series / is_harmonic …）
+      // 在界面上**没有任何入口** —— 引擎算得出来、人却点不出来。
+      // 这里以 src/lib/ai/engine-signatures.json（从引擎 handler 生成、
+      // 与注册表逐字一致的 424 条参数表）为唯一数据源，表驱动渲染，
+      // 所以引擎将来新增 action 会自动出现在这里，不会再出现这种倒挂。
+      { name: "函数工具箱", route: "/tools/toolbox" },
     ],
   },
   {

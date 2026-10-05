@@ -65,9 +65,33 @@ const engCache = new Map();
 export function toEngineExpr(latex) {
   const key = String(latex ?? "");
   if (engCache.has(key)) return engCache.get(key);
-  let out = key;
-  const r = engineCall("to_engine_expr", { expr: key });
-  if (r && !r.isError && r.value && typeof r.value.expr === "string") out = r.value.expr;
+  /* ⚠ 只归一化**第一段**。
+   *
+   * `;` 分段的约定是"第一段 = 那条表达式，后面是附带参数"，而参数可能是**关键词**：
+   *   `central` / `normal` / `t` / `chi2` / `lebesgue` / `circle(0+0i,1)` / `square` …
+   * 引擎的 to_engine_expr 是给**数学表达式**补隐式乘号的，它会把未知的多字母标识符
+   * 拆成字母乘积：
+   *   "x^2; 1; 1e-6; central"  →  "x^2; 1; 1e-6; c*e*n*t*r*a*l"
+   * 于是引擎拿到 c*e*n*t*r*a*l，报「未知方法: c*e*n*t*r*a*l」。实测受影响的模式：
+   *   数值求导、最优步长、p值、围道积分、Cauchy积分（样本/默认值里带关键词的那些）。
+   * 后面的段一律原样透传：它们由 calcArgs 的 convertArg 按各自类型转换，
+   * 而且引擎自己的解析器本来就认得 2x / (x+1)(x-1) 这类隐式乘法。
+   */
+  const parts = key.split(";");
+  /* 纯字母的词**不归一化**：它要么是关键词（lebesgue / central / normal / parity …），
+   * 要么是隐式乘法的写法（xy）。前者归一化会被拆成字母乘积、彻底失效：
+   *   to_engine_expr("lebesgue") → "l*e*b*e*s*g*u*e"
+   *   （实测：乘积测度那一格标签就写着"数字或 lebesgue"，用户在这儿打 lebesgue 必然踩到）
+   * 后者**有引擎兜底**：符号那条路径是"先原样解析，只有拿到可疑结果才改用归一化串"，
+   *   diff(xy) 直接得 y ✓，所以跳过归一化不会让它退化。
+   * 含数字/运算符/括号的串（2x、(x+1)(x-1)、x^2）照旧归一化。 */
+  const isBareWord = (s) => /^[A-Za-z]+$/.test(s.trim());
+  const normOne = (s) => {
+    if (isBareWord(s)) return s;
+    const r = engineCall("to_engine_expr", { expr: s });
+    return (r && !r.isError && r.value && typeof r.value.expr === "string") ? r.value.expr : s;
+  };
+  const out = parts.length === 1 ? normOne(key) : [normOne(parts[0]), ...parts.slice(1)].join(";");
   if (engCache.size >= MAX_CACHE) engCache.clear();
   engCache.set(key, out);
   return out;

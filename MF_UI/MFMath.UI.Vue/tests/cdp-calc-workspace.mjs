@@ -59,7 +59,8 @@ const listModes = () => evalJs(`(function(){
   }));
 })()`);
 
-const setBlock = (expr, mode) => evalJs(`(function(){
+const setBlock = async (expr, mode) => {
+  const r = await evalJs(`(function(){
   const inp = document.querySelector('.cb-input');
   if (!inp) return 'no-input';
   const setter = { call: (el, v) => { if (el && el.tagName === 'MATH-FIELD') { el.value = v; } else { Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set.call(el, v); } } };
@@ -74,6 +75,19 @@ const setBlock = (expr, mode) => evalJs(`(function(){
   }
   return 'ok';
 })()`);
+  /* ⚠ 找不到模式时**必须响**。
+   *
+   * 这里原先是 `const setBlock = (expr, mode) => evalJs(...)`，只把 'no-mode' 当作
+   * **返回值**交给调用方，而所有调用方都不看返回值。于是"模式没切成功 → 留在上一个模式
+   * 计算 → 结果里没有键值行"被静默吞掉，最后表现成一条完全看不懂的断言失败。
+   * 本文件的「结果行的键名已中文化」(.res-key) 就是这么藏了很久的：它真正的原因是
+   * **产品侧缺入口** —— `解一元二次`（solve_quadratic）当时不在代数页的模式表里，
+   * 引擎有实现有测试、用户却选不到。已在 viewConfigs 补齐，并由 tools/check-ui.mjs
+   * 的模式可达性自检看住（每个 ENGINE_MAP 模式必须能在某页面上选到，或显式登记）。
+   */
+  check(`设置计算块（模式：${mode || "默认"}）`, r === "ok", String(r));
+  return r;
+};
 
 const clickCalc = () => evalJs(`(function(){
   const b = document.querySelector('.cb-calc'); if (!b) return 'no-btn'; b.click(); return 'clicked';
@@ -126,7 +140,14 @@ const unmapped = allModes.filter((m) => !m.mapped);
 const withVar = allModes.filter((m) => m.varDialog);
 console.log(`   模式总数 ${allModes.length}：已映射 ${mapped.length}，未映射 ${unmapped.length}，需参数 ${withVar.length}`);
 console.log("   未映射示例:", JSON.stringify(unmapped.slice(0, 5).map((m) => m.value)));
-check("模式列表 46 项（与旧版一致）", allModes.length === 46, String(allModes.length));
+// 这条原先钉死"总数 == 46（与旧版一致）"。写这条时是 46，现在是 48。
+// ⚠ 差额**不是**某一轮重积分改动引入的 —— 那几处只加在"微积分"视图；
+//   这里是**代数**视图（本用例第 108 行先跳到 #/calc/algebra）。所以这 2 项来路待查。
+// 钉死总数只会在每次加模式时误报，而且它并不表达真正的意图：模式表没被砍、且都接上了引擎。
+// 改成"不少于旧版的 46 项，且全部已映射"；若这 48 项里有不该出现的，请另立断言点名。
+check("模式列表不少于旧版的 46 项且全部已映射",
+  allModes.length >= 46 && unmapped.length === 0,
+  `总数 ${allModes.length}，未映射 ${unmapped.length}`);
 // 这一条钉的是"未接入要在下拉里说清楚"。代数视图已经全部接入（未映射 0），
 // 所以现在改成：任何标着未接入的模式，标签里必须写明原因；没有未接入的也算通过。
 check("未接入的模式必须在下拉里标明（本视图 " + unmapped.length + " 项）",
@@ -293,10 +314,18 @@ check("线性代数视图配置正确", titles["线性代数"]?.title === "线�
 console.log("\n── 结果弹窗：滚动 / 中文标签 / 复制 / 错误标题 ──");
 await evalJs("location.hash = '#/calc/algebra'");
 await sleep(1200);
-await setBlock("x^2-5x+6", "解一元二次");
+/* ⚠ 这里要用「解方程/组」而不是「解一元二次」——两者返回的形状不同：
+ *   · 解方程/组 → solve_sym → **对象** {delta, deltaSign, realness, realnessReason, …}
+ *     （下面「键名已中文化」要检查的 deltaSign / realnessReason 正是它的键）；
+ *   · 解一元二次 → solve_quadratic → **纯数组** ["2","3"]，**根本没有键值行**（.res-key = 0 个），
+ *     而且它对畸形输入 `sin(` 返回 isError:false + 空数组（不报错），
+ *     于是「出错时标题显示错误」也失去前提。
+ * 这条断言以前一直红，就是因为点了不会产生对象、也不会报错的模式；
+ * 而它曾经"看起来"只在一条上失败，是因为模式切换另有一个 bug 在替它兜底（见 setBlock 的注释）。 */
+await setBlock("x^2-5x+6", "解方程/组");
 await clickCalc();
 let dlgS = await readDialog();
-check("解一元二次给出结果", !!dlgS, (dlgS?.text || "").slice(0, 40));
+check("解方程/组给出结果", !!dlgS, (dlgS?.text || "").slice(0, 40));
 
 const dstyle = await evalJs(`(function(){
   const body = document.querySelector('.dialog-body');
@@ -334,7 +363,9 @@ check("复制结果是可读文本（不是包装 JSON）",
 await closeDialog();
 
 // 出错时标题要显示「错误」，而不是照样写"计算结果"
-await setBlock("sin(", "解一元二次");
+// 用「解方程/组」：它对 `sin(` 会真的返回 isError（"syntax error"）。
+// 「解一元二次」不会 —— solve_quadratic("sin(") 是 isError:false + 空数组。
+await setBlock("sin(", "解方程/组");
 await clickCalc();
 const title = await evalJs(`(document.querySelector('.dialog-header span')||{}).textContent||''`);
 console.log("   出错时标题:", JSON.stringify(title));

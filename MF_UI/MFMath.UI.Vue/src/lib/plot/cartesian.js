@@ -142,13 +142,22 @@ export function drawPolarGrid(ctx, w, h, view, gridColors, major, showGridLines 
   const reach = Math.hypot(Math.max(w, h) * 1.2, Math.max(w, h) * 1.2);
   const rStep = major;
 
+  // ⚠ 与 PlotCanvas.vue 里那份同源：本函数的两个循环（同心圆、半径刻度）都必须用
+  // 这个前置条件兜住。rStep === 0（视图范围退化 → niceStep 返回 0）时 `r += 0` 原地
+  // 踏步；pxPerUnit === 0（画布宽度为 0）时条件恒真、半径刻度里的 `break` 也失效 ——
+  // 两种都会让渲染进程被同步死循环卡住。
+  const canRings = Number.isFinite(rStep) && rStep > 0 &&
+                   Number.isFinite(pxPerUnit) && pxPerUnit > 0;
+
   if (showGridLines) {
     ctx.strokeStyle = gridColors.major;
     ctx.lineWidth = 1;
     ctx.beginPath();
-    for (let r = rStep; r * pxPerUnit < reach; r += rStep) {
-      ctx.moveTo(ox + r * pxPerUnit, oy);
-      ctx.arc(ox, oy, r * pxPerUnit, 0, Math.PI * 2);
+    if (canRings) {
+      for (let r = rStep, rings = 0; r * pxPerUnit < reach && rings < 4000; r += rStep, rings++) {
+        ctx.moveTo(ox + r * pxPerUnit, oy);
+        ctx.arc(ox, oy, r * pxPerUnit, 0, Math.PI * 2);
+      }
     }
     ctx.stroke();
 
@@ -191,10 +200,13 @@ export function drawPolarGrid(ctx, w, h, view, gridColors, major, showGridLines 
     }
     ctx.textAlign = "center";
     ctx.textBaseline = "top";
-    for (let r = rStep; r * pxPerUnit < reach; r += rStep) {
-      const lx = ox + r * pxPerUnit;
-      if (lx > w - 10) break;
-      ctx.fillText(formatTick(r, rStep), lx, oy + 3);
+    // 与同心圆同一个护栏：`if (lx > w - 10) break` 只在"r 增大到超出画布"时生效
+    if (canRings) {
+      for (let r = rStep, ticks = 0; r * pxPerUnit < reach && ticks < 4000; r += rStep, ticks++) {
+        const lx = ox + r * pxPerUnit;
+        if (lx > w - 10) break;
+        ctx.fillText(formatTick(r, rStep), lx, oy + 3);
+      }
     }
   }
 

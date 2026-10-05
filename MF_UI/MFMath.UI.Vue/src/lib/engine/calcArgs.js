@@ -173,6 +173,15 @@ export function convertArg(type, raw) {
     case "complex_obj": return complexObjOf(s);
     case "ll_matrix": return matrixOf(s);
     case "ll_array": case "ll_list": return numberList(s);
+    // pair_list（[[a,b],…]，如「简单函数」的 sets）原先**没有分支**，直接落到
+    // default: toEngineExpr → 变成字符串 → 引擎报「缺少数组参数 sets」。
+    // 而用到 pair_list 的这两个模式都**没有参数弹窗**，于是 sets 根本填不进去，
+    // 模式永远算不出来（实测：点计算只得到"缺少数组参数 sets"）。
+    // 用与 matrix 同一套写法即可：`[[0,1],[1,2]]`。
+    case "pair_list": return matrixOf(s);
+    // sig（信号/序列数组，高斯模糊/低通滤波器/短时傅里叶变换/小波变换）
+    // 同样原先没有分支 → 落到 default: toEngineExpr → 字符串 → 引擎报"缺少数组参数 signal"。
+    case "sig": return numberList(s);
     case "double_array": case "double_list": return numberList(s);
     case "int_array": case "int_list": return numberList(s).map((v) => Math.trunc(v));
     case "string_array": return splitSegments(s);
@@ -276,8 +285,14 @@ export function buildEngineArgsFromValues(spec, fields, values) {
   const args = {};
   // 弹窗第一个格子就是输入框的内容，里面同样可以用 `;` 分段带参数：
   //   "x^3; x; 2" + 弹窗默认 → 不必逐个手填
-  const segments = splitSegments(String((values && values[0]) ?? ""));
-  const boxEmpty = segments.length === 1 && segments[0] === "";
+  const boxText = String((values && values[0]) ?? "");
+  const segments = splitSegments(boxText);
+  /* ⚠ 判空要看**去掉空白后的字符串**，不能靠 segments：
+   * splitSegments("") 返回的是**空数组**，于是 `segments.length === 1 && segments[0] === ""`
+   * 恒为 false —— 输入框明明空着却被判成"有输入"。后果是走"有输入框"的分支但没有段可吃，
+   * 字段队列从一个本不该被消费的位置开始，整体错位一格（乘积测度实测：
+   * mu 吃了 nu 的格子 → 引擎报"值不是数字"）。 */
+  const boxEmpty = boxText.trim() === "";
   // 输入框为空时（例如"只靠弹窗填参数"的模式）跳过它，直接吃弹窗字段
   const rest = fields
     .map((f, i) => ({ label: f[0], value: values[i] }))
@@ -305,6 +320,25 @@ export function buildEngineArgsFromValues(spec, fields, values) {
   // 段已经填过若干参数 → 对应的弹窗字段也要跳过，否则同一参数被"段"和"字段"各填一次
   // （交换律验证就是这样把运算符填成了 b 的值）
   ui = Math.max(0, seg - 1);
+  /* 输入框为空时，先处理**第 0 格**（输入框的镜像）。
+   *
+   * 它对应的参数（textArg，与 ① 的选法一致）此时拿不到"段"，但**这一格自己是有值的**：
+   * 多数模式是空串，而有的模式默认值是有意义的 —— 乘积测度的第 0 格默认就是 "lebesgue"。
+   * 早先这里直接把这个参数**整个跳过**，于是 mu 根本没传给引擎，
+   * product_measure 读不到 mu → as_double 抛「值不是数字」（cdp-engine-coverage 实测）。
+   * 现在用这一格自己的值填；为空时才走 fallbackOf（引擎仍会如实报"缺少必填参数 X"）。 */
+  {
+    const textArg = spec.args.find((a) => !a.opt && a.type === "string")
+                 || spec.args.find((a) => !a.opt) || spec.args[0];
+    const f0 = fields[0];
+    // 注意：**不能**因为第 0 格带"（输入框）"就跳过它 —— isSkippedField 说"它是输入框的镜像、
+    // 不进字段队列"是对的，但**空输入框**时这一格的默认值正是该参数该取的值
+    // （乘积测度第 0 格默认 "lebesgue"；其它模式是 ""，于是走 fallback，引擎照样如实报错）。
+    if (boxEmpty && textArg && f0 && values.length) {
+      const v = values[0];
+      args[textArg.key] = String(v ?? "") === "" ? fallbackOf(textArg.type) : conv(textArg, v);
+    }
+  }
   // ③ 其余必填参数（弹窗字段优先，其次兜底）
   for (const a of spec.args) {
     if (a.opt || a.key in args) continue;

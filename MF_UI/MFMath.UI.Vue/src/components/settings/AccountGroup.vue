@@ -43,6 +43,29 @@ function saveBase() {
   } else flash((r && r.error) || "保存失败");
 }
 
+/* ⚠ 下面三个桥函数是**同步**的（返回普通对象，不是 Promise）。
+ *
+ * 原来模板里写成 `clearLocal().then(...)` —— 点击必抛
+ *   TypeError: clearLocal(...).then is not a function
+ * 宿主调用其实执行了（凭据真被清掉、续期真发了），但**用户看不到任何反馈**，
+ * 控制台还留着未处理异常。
+ *
+ * cdp-account 之所以 52/0 也没抓到：它直接调 `window.__mfAccount.*` 这个调试钩子，
+ * **从来没有点过这三个按钮** —— 测了桥，没测控件。 */
+function onClearLocal() {
+  const r = clearLocal();
+  flash(r && r.ok === false ? (r.error || "清除失败") : "本机凭据已清除");
+  refreshAccountInfo();
+}
+function onRefreshProfile() {
+  const r = refreshProfile();
+  flash(r && r.ok ? "已重新校验" : ((r && r.error) || "校验失败"));
+}
+function onRefreshToken() {
+  const r = refreshToken();
+  flash(r && r.ok ? "已续期" : ((r && r.error) || "续期失败"));
+}
+
 const info = accountInfo;
 const sessionText = computed(() => {
   if (!info.value.loggedIn) return "未登录";
@@ -118,15 +141,15 @@ const tokenText = computed(() => ({
         <p class="state" data-account="token-state">token：{{ tokenText }}</p>
         <p class="hint">保存位置：<code>{{ info.configPath }}</code></p>
         <div class="inline">
-          <button class="btn btn-ghost" data-account="clear" @click="clearLocal().then(() => flash('本机凭据已清除'))">
+          <button class="btn btn-ghost" data-account="clear" @click="onClearLocal()">
             清除本机凭据
           </button>
           <button class="btn" data-account="refresh-profile" :disabled="!info.loggedIn"
-                  @click="refreshProfile().then((r) => flash(r.ok ? '已重新校验' : (r.error || '校验失败')))">
+                  @click="onRefreshProfile()">
             重新校验登录状态
           </button>
           <button class="btn btn-ghost" data-account="refresh-token" :disabled="!info.loggedIn"
-                  @click="refreshToken().then((r) => flash(r.ok ? '已续期' : (r.error || '续期失败')))">
+                  @click="onRefreshToken()">
             立即续期
           </button>
         </div>

@@ -237,13 +237,31 @@ function drawPolarGrid(g, v, major, showGridLines = true) {
 
   // 同心圆 + 角度射线（受网格开关控制，与 Desmos 一致）
   const rStep = major;   // 半径用与直角网格相同的 nice step
+
+  // ⚠ 本函数里**两个**循环（同心圆、半径刻度）都必须用这个前置条件兜住，
+  // 否则退化参数下它们是死循环，会把渲染进程同步卡死 —— 这就是
+  // `cdp-plot-p5`「跑到极坐标网格就挂住页面」的成因
+  // （docs/MIGRATION-GAPS.md、docs/STATUS-and-ROADMAP.md 都记了症状，但都搁置了）。
+  //
+  // 两条退化路径都会让 `r * pxPerUnit < reach` 永远成立：
+  //   · rStep === 0     —— 视图范围退化成 0 时，niceStep 里 raw=0 → mag=10^-Infinity=0
+  //                         → 返回 0；此时 `r += 0` 原地踏步，永远出不来。
+  //   · pxPerUnit === 0 —— 画布宽度为 0 时 cssW / viewW = 0，r 一直增大也永远 < reach；
+  //                         半径刻度那个循环里的 `if (lx > cssW - 10) break` 也失效（lx 恒为 ox）。
+  // 直角网格那几个循环早就有 `i1 - i0 < 4000` 的同源护栏，这里当时漏了。
+  const canRings = Number.isFinite(rStep) && rStep > 0 &&
+                   Number.isFinite(pxPerUnit) && pxPerUnit > 0;
+
   if (showGridLines) {
     ctx.strokeStyle = g.major;
     ctx.lineWidth = 1;
     ctx.beginPath();
-    for (let r = rStep; r * pxPerUnit < reach; r += rStep) {
-      ctx.moveTo(ox + r * pxPerUnit, oy);
-      ctx.arc(ox, oy, r * pxPerUnit, 0, Math.PI * 2);
+    if (canRings) {
+      // 迭代上限与直角网格的 4000 同源：即使将来又冒出一条退化路径，也不会再卡死
+      for (let r = rStep, rings = 0; r * pxPerUnit < reach && rings < 4000; r += rStep, rings++) {
+        ctx.moveTo(ox + r * pxPerUnit, oy);
+        ctx.arc(ox, oy, r * pxPerUnit, 0, Math.PI * 2);
+      }
     }
     ctx.stroke();
 
@@ -289,10 +307,14 @@ function drawPolarGrid(g, v, major, showGridLines = true) {
     // 半径数值刻度（沿 0° 方向）
     ctx.textAlign = "center";
     ctx.textBaseline = "top";
-    for (let r = rStep; r * pxPerUnit < reach; r += rStep) {
-      const lx = ox + r * pxPerUnit;
-      if (lx > cssW - 10) break;
-      ctx.fillText(formatTick(r, rStep), lx, oy + 3);
+    // 与上面同心圆同一个护栏：`if (lx > cssW - 10) break` 只在"r 增大到超出画布"时
+    // 才生效，rStep === 0 / pxPerUnit === 0 时它永远不触发。
+    if (canRings) {
+      for (let r = rStep, ticks = 0; r * pxPerUnit < reach && ticks < 4000; r += rStep, ticks++) {
+        const lx = ox + r * pxPerUnit;
+        if (lx > cssW - 10) break;
+        ctx.fillText(formatTick(r, rStep), lx, oy + 3);
+      }
     }
   }
 

@@ -47,6 +47,19 @@ await send("Runtime.enable");
 await sleep(1500);
 
 const before = await evalJs("document.documentElement.dataset.theme");
+// 只清**外观**这几个键，然后重新加载页面。
+//
+// ⚠ 不要在这里做 `localStorage.clear()`（或顺手把工作区也清了）：
+//   这把 `mf_tut_progress`（教程进度）一起清掉，引导遮罩会重新弹出并拦住点击 ——
+//   实测代价是 cdp-plot-geometry 从 20/0 直接掉到 5/15；清掉 `mf_theme` 还会伤到
+//   后面的 cdp-canvas-theme / cdp-modes-render / cdp-diff-at-param（实测整套
+//   从 53 失败恶化到 236 失败）。外观复位就只做外观复位。
+//
+// 另注（未解决、别在这里顺手"修"）：绘图组在同一会话里仍受前序用例影响
+//   （p4/region/p5/final/asymptote/extrema-domain 在整组里失败、单独跑能过）。
+//   在进入绘图组前**只重载一次页面**能让这 15 条全部转绿，但那会打破后面一大批
+//   用例（audit-modes 一族出现 `未知方法: c*e*n*t*r*a*l` 之类的参数错乱），
+//   所以那个做法已回退，留待单独处理。
 await evalJs(`(function(){
   try {
     ['mf_theme','mf_shape','mf_density','mf_font','mf_theme_follow'].forEach((k) => localStorage.removeItem(k));

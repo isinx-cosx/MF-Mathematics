@@ -5,7 +5,7 @@
  * 右：曲面画布（拖拽旋转 / 滚轮缩放 / 重置视角）
  * 计算：网格值由 C++ 引擎 expr_eval_grid 求值（支持参数代入）
  */
-import { ref, computed, watch, onMounted } from "vue";
+import { ref, computed, watch, onMounted, onBeforeUnmount } from "vue";
 import SurfaceCanvas from "../../components/plot/SurfaceCanvas.vue";
 import ParamSlider from "../../components/plot/ParamSlider.vue";
 import { parseExpr, validate, toEngineExpr } from "../../lib/plot/plotMath.js";
@@ -136,8 +136,24 @@ function resetView() {
   canvasRef.value?.resetView();
 }
 
+/** 首帧采样用的 rAF 句柄（卸载时要能取消）；disposed 让回调自己也不再跑 */
+let bootRaf = 0;
+let disposed = false;
+
 onMounted(() => {
-  requestAnimationFrame(() => sampleSurface());
+  bootRaf = requestAnimationFrame(() => {
+    bootRaf = 0;
+    if (disposed) return;   // 挂载后立即卸载：不必再算一次曲面
+    sampleSurface();
+  });
+});
+
+// 曲面采样也要收尾：不取消的话，卸载后这一帧仍会执行 sampleSurface()
+// （整张网格 × 引擎过桥），并写已销毁组件的状态。
+// 本视图其余监听都在子画布组件里，由它们各自收尾。
+onBeforeUnmount(() => {
+  disposed = true;
+  if (bootRaf) { cancelAnimationFrame(bootRaf); bootRaf = 0; }
 });
 </script>
 

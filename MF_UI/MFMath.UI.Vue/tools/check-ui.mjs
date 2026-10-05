@@ -19,6 +19,10 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { PENDING, REGISTERED } from "../src/lib/tutorial/targets.js";
 import { ALL_KEYS, KEY_COUNT, V1_KEY_COUNT, CATEGORIES } from "../src/lib/math/keypadSymbols.js";
+import { keyFaceInfo, showsRawLatex } from "../src/lib/math/keyFace.js";
+import { VIEW_CONFIGS } from "../src/lib/engine/viewConfigs.js";
+import { ENGINE_MAP } from "../src/lib/engine/engineMap.js";
+import { EXTRA_MAP } from "../src/lib/engine/engineMapExtra.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SRC = path.resolve(HERE, "..", "src");
@@ -108,6 +112,22 @@ if (cats !== "基础运算,微积分,线性代数,希腊字母,概率统计,常�
   problems.push(`键盘分类的名称或顺序与 v1 不一致：${cats}`);
 }
 
+/* ── 3b. 键面必须"看得懂"：不允许把 LaTeX 源码当文字显示 ──────────────────
+ * 这是一次真实缺陷的自检：模板类键的键面本身就是 LaTeX（`\frac{▢}{▢}`、
+ * `\begin{pmatrix}`），以前直接把源码画在键上，用户看到的是一串反斜杠和花括号。
+ * 现在键面要么排版成数学，要么是清理过语法的可读文本 —— 两者必居其一。 */
+const faceStats = { math: 0, plain: 0, override: 0, fallback: 0 };
+for (const k of ALL_KEYS) {
+  const face = keyFaceInfo(k.label);
+  faceStats[face.reason] = (faceStats[face.reason] || 0) + 1;
+  if (showsRawLatex(face)) {
+    problems.push(`键面「${k.label}」仍在显示裸 LaTeX —— 用户看不懂（cat=${k.cat}）`);
+  }
+}
+if (faceStats.math === 0) {
+  problems.push("没有任何键面按数学排版：模板类键的键面很可能又退回成 LaTeX 源码了");
+}
+
 /* ── 4. 教程数据字段合法性 ─────────────────────────────────────────────── */
 const ACTIONS = new Set([null, "click", "type", "select", "wait"]);
 for (const t of tutorials) {
@@ -168,11 +188,70 @@ function checkDuplicateKeys(file) {
 checkDuplicateKeys(path.join(SRC, "lib", "engine", "engineMap.js"));
 checkDuplicateKeys(path.join(SRC, "lib", "engine", "engineMapExtra.js"));
 
+/* ── 6. 引擎模式可达性：ENGINE_MAP 里有映射的模式，必须能在某个页面上选到 ──
+ *
+ * 这是一次真实缺陷的自检。实测发现：**64 个**模式在 ENGINE_MAP/EXTRA_MAP 里有完整映射、
+ * 引擎也实现并有测试，但 viewConfigs 的 13 个页面模式表**一个都没挂** —— 用户在页面上
+ * 根本选不到（`解一元二次`/`判别式`/`韦达定理`/`化简分式` …）。代数页那 10 个已补齐。
+ *
+ * 它为什么藏得住：用例里 setBlock 找不到模式时只 `return 'no-mode'`，调用方不看返回值，
+ * 于是"模式没切成功 → 用上一个模式算 → 结果里没有键值行"被静默吞掉，最后表现成一条
+ * 完全看不懂的断言失败（cdp-calc-workspace 的 .res-key 就是这么藏了很久的）。
+ *
+ * 判据：每个模式要么在某页面的 modes 里，要么它映射的 fn 已由**页面上的**某个模式覆盖
+ * （同一个 action 换个名字挂在页面上，不算缺口）。其余必须显式登记进 NOT_EXPOSED 并写明原因。
+ */
+const NOT_EXPOSED_GROUPS = [
+  // ★ 现已为空：ENGINE_MAP 里**每一个**模式都能在某个页面上选到（本项自检第一次跑时是 64 个）。
+  //
+  // 最后离开这里的三条，修法都不是"补个入口"那么简单：
+  //  · 「柯西定理 / 辐角原理 / Rouche 定理」：围道参数走输入框时会被引擎 to_engine_expr
+  //    补隐式乘号拆坏（circle(0,1) → c*i*r*c*l*e*(0+0*i,1)）。改为走**参数弹窗**
+  //    （普通 <input>，转换走 calcArgs 自带的透传版 toEngineExpr），并把 args 里的
+  //    func/f **重排到 contour 前面**（声明顺序决定谁吃输入框第一段），再挂回复分析页。
+  //  · 「空间完备性」：引擎要的是二维数组（vector<vector<double>>），而参数类型声明成了 `?`
+  //    → 前端把它转成字符串 → 引擎报"值不是数组或对象"。已声明为 matrix。
+  //
+  // 保留这个空数组是为了机制：将来若确有模式不该暴露，按 ["原因", ["模式名", …]] 登记；
+  // 自检会**双向校验** —— 没登记的必须能在某页面上选到，登记了的必须真的选不到（否则报"过时条目"）。
+];
+const NOT_EXPOSED = new Map(
+  NOT_EXPOSED_GROUPS.flatMap(([why, names]) => names.map((n) => [n, why])));
+
+{
+  const ALL_MODES = { ...ENGINE_MAP, ...EXTRA_MAP };
+  const pageModes = new Set();
+  for (const cfg of Object.values(VIEW_CONFIGS)) for (const m of cfg.modes || []) pageModes.add(m);
+  const pageFns = new Set([...pageModes].map((m) => ALL_MODES[m]?.fn).filter(Boolean));
+
+  for (const [mode, spec] of Object.entries(ALL_MODES)) {
+    if (pageModes.has(mode)) continue;
+    if (pageFns.has(spec.fn)) continue;          // 同 action 在页面另有名字 → 不算缺口
+    if (NOT_EXPOSED.has(mode)) continue;         // 已显式登记
+    problems.push(`模式「${mode}」（${spec.fn}）没有任何页面能选到，也没登记进 NOT_EXPOSED`);
+  }
+  // 反向：登记了却已经可达 → 过时条目（和 PENDING 的规矩一致）
+  for (const [mode, why] of NOT_EXPOSED) {
+    if (!ALL_MODES[mode]) {
+      problems.push(`NOT_EXPOSED 里的「${mode}」在 ENGINE_MAP 里不存在（${why}）`);
+      continue;
+    }
+    if (pageModes.has(mode) || pageFns.has(ALL_MODES[mode].fn)) {
+      problems.push(`NOT_EXPOSED 里的「${mode}」现在已经能在页面上选到了 —— 过时条目，请删除`);
+    }
+  }
+  const missing = [...new Set(Object.keys(ALL_MODES))].filter(
+    (m) => !pageModes.has(m) && !pageFns.has(ALL_MODES[m]?.fn));
+  console.log(`引擎模式可达性      ：映射 ${Object.keys(ALL_MODES).length} 个 / 页面并集 ${pageModes.size} 个 / ` +
+    `取不到 ${missing.length} 个（已登记 ${NOT_EXPOSED.size} 个待补或无处安放）`);
+}
+
 /* ── 输出 ──────────────────────────────────────────────────────────────── */
 console.log("=".repeat(78));
 console.log(`源码里注册的 data-tour：${sourceTargets.size} 个`);
 console.log(`教程引用的 target    ：${usedTargets.size} 个（已实现 ${[...usedTargets.keys()].filter((n) => sourceTargets.has(n)).length}，待实现 ${Object.keys(PENDING).length}）`);
 console.log(`数学键盘            ：${CATEGORIES.length} 分类 / ${KEY_COUNT} 键（v1 也是 ${V1_KEY_COUNT}）`);
+console.log(`键面可读性          ：排版 ${faceStats.math} 键 / 文字 ${faceStats.plain} 键 / 紧凑替代 ${faceStats.override} 键 / 清理后文字 ${faceStats.fallback} 键（裸 LaTeX 0 键）`);
 console.log("=".repeat(78));
 
 if (warnings.length) {
@@ -184,4 +263,4 @@ if (problems.length) {
   for (const p of problems) console.error("  ✗ " + p);
   process.exit(1);
 }
-console.log("\n自检通过 ✔  引导目标无静默失效、键盘键位与 v1 对齐");
+console.log("\n自检通过 ✔  引导目标无静默失效、键盘键位与 v1 对齐、每个键面都看得懂");

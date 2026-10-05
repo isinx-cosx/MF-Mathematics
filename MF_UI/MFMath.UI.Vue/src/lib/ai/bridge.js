@@ -91,6 +91,19 @@ export function refreshAiConfig() {
   if (info && typeof info === "object" && "enabled" in info) {
     aiConfig.value = { ...DEFAULT_CFG, ...info };
   }
+  // 宿主侧可能有一轮在跑而页面不知道 —— **刷新过页面就会这样**：旧请求还活在宿主里。
+  // Info() 一直带着 running（宿主注释也写了"页面刷新后靠它决定要不要显示正在输出"），
+  // 但此前 JS 侧没人读：界面显示空闲、点发送被 busy 拒绝（还显示成 unknown）、
+  // 停止按钮又不出现（它要求 running），于是最长要干等 900s 才能再用。
+  if (!currentTurn) {
+    const hostRunning = Number(aiConfig.value.running) > 0;
+    if (hostRunning && !aiState.value.running) {
+      aiState.value = { ...aiState.value, running: true, doneReason: "remote" };
+    } else if (!hostRunning && aiState.value.running && aiState.value.doneReason === "remote") {
+      // 只清自己写进去的那种，免得把真正在跑的本地轮次也关掉
+      aiState.value = { ...aiState.value, running: false, doneReason: "" };
+    }
+  }
   return aiConfig.value;
 }
 
@@ -358,7 +371,21 @@ export function splitMath(text) {
 
 /* ── 发送 / 停止（走 TS 客户端；宿主只负责带密钥发请求与转发字节）───────── */
 
-let controller = null;   // 当前这一轮的 AbortController
+/**
+ * 当前这一轮的**归属**。
+ *
+ * 原先这里只有一个模块级的 `let controller = null`，于是两个轮次会互相踩：
+ *   · 旧轮的 `.finally` 把**新轮**的 controller 抹成 null（新轮此后无法被 abort）；
+ *   · 旧轮的 `.catch` 靠 `controller?.signal?.aborted` 判断"是不是我"，读到的已是新轮的；
+ *   · 旧轮的 `.then` 把 `running:false, stream:""` 写回共享的 aiState ——
+ *     **把新轮正在流式的正文整段清掉**（面板 `v-if="running && stream"` 直接不成立）。
+ *
+ * 现在每轮有自己的 id 与自己的 controller，所有收尾先验明"我还是不是当前那轮"。
+ * 另外 `stopTurn` 不再同步把 `running` 置 false —— 那样会让 `sendTurn` 的守卫失效，
+ * 在上一条流真正结束前就放新的轮次进来（正是上面那个竞态的入口）。
+ */
+let turnSeq = 0;
+let currentTurn = null;   // { id, ctrl }
 
 /**
  * 发一轮。**立即返回**（不等回复），流式增量由 onEvent 写进 aiState。
@@ -367,20 +394,43 @@ let controller = null;   // 当前这一轮的 AbortController
  *   ① 轮次有上限（MAX_TOOL_ROUNDS）：模型抽风反复调工具时会被截断并给出说明，而不是无限烧钱；
  *   ② 工具只能碰引擎（见 lib/ai/tools.ts），碰不到能写文件/起进程的桥；
  *   ③ 「发送引擎结果」关着时工具会被拒（结果要回传给模型 = 把引擎结果发出去）；
- *   ④ 停止按钮在任何一轮都能中断（abort + 取消宿主侧连接）。
+ *   ④ 停止会**真正**中断：abort 会打断中继那条流（relayPost 现在收 signal），
+ *      工具循环在每轮开始与每次工具调用前都查 aborted，不再"按了停止还继续开新请求"。
  * @returns {{ok:boolean, error?:string}}
  */
 export const MAX_TOOL_ROUNDS = 4;
+/**
+ * 单轮工具调用数上限。
+ *
+ * `MAX_TOOL_ROUNDS` 只管"轮"：模型一轮里给 20 个 `tool_calls`，就会连着调 20 次
+ * **同步**引擎调用（`mf.Dispatch` 跑在渲染进程主线程、无 timeout），界面会明显卡住。
+ * 超限的那些**不能简单丢掉** —— 协议要求每个 tool_call 都有对应的 tool 结果，
+ * 否则下一轮请求会被端点拒；所以给它们各回一条"未执行"的结果（见下面的 skipped 段）。
+ */
+export const MAX_TOOL_CALLS_PER_ROUND = 8;
+
+/**
+ * 早退也要写 `aiState.error`。
+ *
+ * AiPanel.send() 的写法是「先清空草稿，再 `if (!r.ok) return;`」，注释写着
+ * "错误已经进 aiState.error，由界面显示" —— 这些前置分支原先只 return 一个被丢弃
+ * 的对象，于是用户看到的是：**输入框空了、界面毫无反应、刚打的字没了**。
+ * 计算页「查看步骤」自动发送时只要已有一轮在跑，整条 prompt 就会这样被无声吞掉。
+ */
+function failTurn(message, kind = "config") {
+  aiState.value = { ...aiState.value, error: { kind, status: 0, message } };
+  return { ok: false, error: message };
+}
 
 export function sendTurn(userText, { route = "", history = aiMessages.value, context = null, autoSteps = false } = {}) {
   const text = String(userText || "").trim();
   if (!text) return { ok: false, error: "先说点什么" };
 
   const cfg = aiConfig.value;
-  if (!cfg.enabled) return { ok: false, error: "AI 未启用：去「设置 → AI」打开开关" };
-  if (!cfg.hasKey) return { ok: false, error: "还没有 API Key：去「设置 → AI」填一个" };
-  if (aiState.value.running) return { ok: false, error: "已有一轮在输出，先停止它" };
-  if (!isRelayHosted()) return { ok: false, error: "无宿主：AI 只在 MFMath.exe 里可用" };
+  if (!cfg.enabled) return failTurn("AI 未启用：去「设置 → AI」打开开关");
+  if (!cfg.hasKey) return failTurn("还没有 API Key：去「设置 → AI」填一个");
+  if (aiState.value.running) return failTurn("已有一轮在输出，先停止它", "busy");
+  if (!isRelayHosted()) return failTurn("无宿主：AI 只在 MFMath.exe 里可用");
 
   const ctx = context ?? currentContext(route);
   const messages = buildMessages({ userText: text, history, context: ctx, cfg });
@@ -396,7 +446,12 @@ export function sendTurn(userText, { route = "", history = aiMessages.value, con
     toolCalls: [], rounds: 0,
   };
 
-  controller = new AbortController();
+  const myTurn = ++turnSeq;
+  const myCtrl = new AbortController();
+  currentTurn = { id: myTurn, ctrl: myCtrl };
+  /** 这一轮是否已被取消或被更新的轮次取代 —— 工具循环每一步都靠它决定要不要继续 */
+  const superseded = () => myCtrl.signal.aborted || currentTurn?.id !== myTurn;
+
   const client = new HostRelayClient({ includeUsage: cfg.includeUsage !== false });
 
   // 工具循环。不 await：调用方（面板）要立刻恢复响应，增量靠回调推进。
@@ -408,16 +463,22 @@ export function sendTurn(userText, { route = "", history = aiMessages.value, con
     let lastReason = "";
     let error = null;
 
+    toolLoop:
     for (let round = 0; ; round++) {
+      // 每轮开始先查：不查这里的话，按了停止还会把这一轮跑完、并继续开下一轮请求
+      if (superseded()) { lastReason = "aborted"; break; }
       const out = await collect(client.stream({
         model: cfg.model,
         messages: convo,
         temperature: Number(cfg.temperature),
         maxTokens: Number(cfg.maxTokens),
         tools: toolsOn ? AI_TOOLS : undefined,
-        signal: controller.signal,
+        signal: myCtrl.signal,
       }), {
         onEvent: (ev) => {
+          // 被取代/取消后一律不再写共享状态：
+          // 否则旧轮的增量会串进新轮的正文（"文本串台"就是这么来的）
+          if (currentTurn?.id !== myTurn) return;
           const s = aiState.value;
           switch (ev.type) {
             case "text_delta":
@@ -426,10 +487,23 @@ export function sendTurn(userText, { route = "", history = aiMessages.value, con
             case "reasoning_delta":
               aiState.value = { ...s, reasoning: s.reasoning + ev.text };
               break;
-            case "usage":
-              aiState.value = { ...s, usage: ev.usage };
+            case "usage": {
+              // 工具循环会有多轮，每轮都带一份 usage。原实现直接**覆盖**，
+              // 于是面板上的"本轮 token"其实只是最后一轮的量（严重低估花费）。
+              const prev = s.usage || { inputTokens: 0, outputTokens: 0 };
+              aiState.value = {
+                ...s,
+                usage: {
+                  inputTokens: prev.inputTokens + (ev.usage?.inputTokens || 0),
+                  outputTokens: prev.outputTokens + (ev.usage?.outputTokens || 0),
+                },
+              };
               break;
+            }
             case "notice":
+              // 每轮结束都会重发 missing_usage / truncated_stream 一类的 notice，
+              // 4 轮工具循环就会看到同一条出现 4 次。按 code 去重。
+              if (ev.notice?.code && s.notices.some((n) => n.code === ev.notice.code)) break;
               aiState.value = { ...s, notices: [...s.notices, ev.notice] };
               break;
             case "error":
@@ -469,7 +543,13 @@ export function sendTurn(userText, { route = "", history = aiMessages.value, con
         toolCalls: calls.map((c) => ({ id: c.id, name: c.name, argsJson: c.argsJson })),
       });
 
-      for (const call of calls) {
+      // 单轮只实际执行前 N 个；其余的仍要回结果（协议），但**不执行**引擎调用
+      const runnable = calls.slice(0, MAX_TOOL_CALLS_PER_ROUND);
+      const skipped = calls.slice(MAX_TOOL_CALLS_PER_ROUND);
+
+      for (const call of runnable) {
+        // 每次工具调用前再查一次：引擎调用是**同步**的，取消只能在调用之间的间隙生效
+        if (superseded()) { lastReason = "aborted"; break toolLoop; }
         let args = {};
         try {
           const parsed = parseToolArgs(call);
@@ -491,6 +571,25 @@ export function sendTurn(userText, { route = "", history = aiMessages.value, con
         aiState.value = { ...aiState.value, toolCalls: [...toolRecords] };
         convo.push({ role: "tool", toolCallId: call.id, content: rec.content });
       }
+      // 超限未执行的也要各回一条结果：OpenAI 协议要求每个 tool_call 都有对应响应，
+      // 否则下一轮请求会被端点拒（或模型以为这个工具不被支持）。
+      for (const call of skipped) {
+        const rec = {
+          name: call.name || "(未命名)", ok: false,
+          content: JSON.stringify({
+            ok: false,
+            error: `本轮工具调用数超过上限（${MAX_TOOL_CALLS_PER_ROUND}），这一次没有执行。` +
+                   "请减少单轮的工具调用数量，或分多轮来问。",
+          }),
+          summary: "超出单轮工具调用上限，未执行", ms: 0,
+        };
+        toolRecords.push(rec);
+        convo.push({ role: "tool", toolCallId: call.id, content: rec.content });
+      }
+      if (skipped.length) {
+        aiState.value = { ...aiState.value, toolCalls: [...toolRecords] };
+      }
+
       // 这一轮的正文已经"说完了"，把它从实时缓冲移进已定稿的部分，
       // 免得下一轮的增量接在旧文字后面显示成一个畸形段落
       aiState.value = { ...aiState.value, stream: "", reasoning: "" };
@@ -503,6 +602,10 @@ export function sendTurn(userText, { route = "", history = aiMessages.value, con
     // ⚠ 这里必须清 stream / reasoning —— 上一版没清，于是同一段回答被渲染两次：
     // 一次来自消息列表（最终文本），一次来自还留在 aiState 里的"流式块"。
     // 症状很显眼但根因很蠢：running 只是"还在跑"的标志，它不是"这段文本属于谁"的归属。
+    //
+    // ⚠ 所以这里先验归属：只有在**我还是当前那一轮**时才允许写共享状态。
+    //    否则旧轮的收尾会把新轮正在流式的正文清掉，并把旧轮那半截回答当成一条新消息插进历史。
+    if (currentTurn?.id !== myTurn) return;
     const finalText = r.text;
     const reasoning = (r.reasoning || "").slice(0, MAX_REASONING);
     aiState.value = {
@@ -523,8 +626,10 @@ export function sendTurn(userText, { route = "", history = aiMessages.value, con
       persistChat();
     }
   }).catch((e) => {
-    // 用户按了停止：不是错误，别弹红字
-    if (controller?.signal?.aborted) {
+    if (currentTurn?.id !== myTurn) return;   // 已被取代：不碰共享状态
+    // 用户按了停止：不是错误，别弹红字。
+    // 判据用**自己那份** signal —— 原先读模块级 controller，归属已经错乱。
+    if (myCtrl.signal.aborted) {
       aiState.value = { ...aiState.value, running: false, doneReason: "aborted", stream: "", reasoning: "" };
       return;
     }
@@ -534,18 +639,33 @@ export function sendTurn(userText, { route = "", history = aiMessages.value, con
       error: { kind: "unknown", status: 0, message: String(e?.message || e) },
     };
   }).finally(() => {
-    controller = null;
+    // 只清自己那一份。原先无条件置 null，会把**下一轮**的 controller 抹掉，
+    // 于是下一轮之后再也无法被 abort。
+    if (currentTurn?.id === myTurn) currentTurn = null;
   });
 
   return { ok: true };
 }
 
-/** 停止当前这一轮：先取消宿主侧连接，再 abort 本地迭代 */
+/**
+ * 停止当前这一轮：取消宿主侧连接 + abort 本地迭代。
+ *
+ * ⚠ 关键：**不要**在这里同步把 `running` 置 false。原先那样写，`sendTurn` 的
+ * `if (aiState.value.running) return` 守卫就失效了 —— 在旧那条流真正结束前
+ * （几百毫秒到数秒）就放新的轮次进来，于是两个循环同时往同一个 `aiState.stream`
+ * 追加增量（文本串台）、各自写 aiMessages、互相覆盖 error/usage。
+ * 现在 `running` 交给有归属校验的收尾路径去落。
+ */
 export function stopTurn() {
   if (!aiState.value.running) return { ok: false, error: "当前没有在输出的请求" };
-  try { controller?.abort(); } catch { /* 忽略 */ }
+  const local = currentTurn;
+  try { local?.ctrl?.abort(); } catch { /* 忽略 */ }
+  // 页面刷新过的情况下 currentTurn 是 null（那一轮只活在宿主里），
+  // 所以 CancelAll 必须在，不能只靠 abort。
   relayCancelAll();
-  aiState.value = { ...aiState.value, running: false, doneReason: "aborted" };
+  aiState.value = { ...aiState.value, doneReason: "aborted" };
+  // 没有本地轮次时没人会来收尾，这里自己落下，否则界面永远停在"正在输出"
+  if (!local) aiState.value = { ...aiState.value, running: false };
   return { ok: true };
 }
 

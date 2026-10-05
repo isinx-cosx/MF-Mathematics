@@ -1,14 +1,25 @@
 /**
  * vue-router — 单页多路由（替代旧 iframe 多页）
- * 骨架阶段：首页 + 占位计算视图；功能视图迁移时逐个替换
+ *
+ * 迁移已完成：registry.js 里的 25 个导航项**全部**有真实组件
+ * （14 个在 REAL_VIEWS、13 个 CALC_ROUTES 走 CalcView，另加首页）。
+ * 原先的 PlaceholderView（文案是"该模式正由旧版 MFMath.UI 迁移到 Vue，暂未接入"）
+ * 已经**没有任何路由会走到**，故删除；这里留一个最小兜底，
+ * 防止将来往导航里加条目却忘了配视图时直接白屏。
  */
+import { h } from "vue";
 import { createRouter, createWebHashHistory } from "vue-router";
 import { NAV_GROUPS, findNav } from "./registry.js";
 
 const HomeView = () => import("../views/HomeView.vue");
-const PlaceholderView = () => import("../views/PlaceholderView.vue");
 
-/** 已迁移为真实组件的路由（其余仍为占位） */
+/** 兜底视图：每个导航项都应在 REAL_VIEWS 或 CALC_ROUTES 里有归宿（当前 25/25） */
+const FallbackView = {
+  name: "FallbackView",
+  render: () => h("div", { class: "placeholder" }, "这个入口还没有对应的界面。"),
+};
+
+/** 有独立组件的路由（其余学科计算视图统一走 CalcView） */
 const REAL_VIEWS = {
   // 基础运算：计算器视图（旧版是空壳，这里经引擎真算）
   "/calc/basic": () => import("../views/calc/BasicCalcView.vue"),
@@ -26,14 +37,17 @@ const REAL_VIEWS = {
   // 联网搜索：抓取与解析在宿主（C#），凭据不进渲染进程；这里是一个页面
   // （搜索结果是内容，值得有路由：教程示例「联网搜索」直接落到 /tools/search?q=…）
   "/tools/search": () => import("../views/tools/SearchView.vue"),
+  // 函数工具箱：把全部 424 个引擎 action 列表化并可直接调用
+  // （界面模式表只覆盖 371 个，余下 38 个原本没有任何入口）
+  "/tools/toolbox": () => import("../views/tools/ToolboxView.vue"),
   // 账号：与站点（mf-vis-science.cn）的账号接口对接。token 只存宿主，页面读不到。
   // 未登录/断网都不影响任何计算功能（见 docs/ACCOUNT.md）。
   "/account": () => import("../views/account/AccountView.vue"),
   // 教程系统（v1 只有帮助浏览器一个入口，这里教程目录与示例库都在导航里）
   "/tutorial": () => import("../views/tutorial/TutorialCatalogView.vue"),
   "/examples": () => import("../components/tutorial/ExampleLibrary.vue"),
-  // 设置面板：**容器**而非单页，分组按依赖分三批填内容（外观/引擎/组件/存储先做，
-  // 搜索依赖 P1、AI 依赖 P3、更新依赖 P5，先以占位列出并向用户说明依赖）。
+  // 设置面板：**容器**而非单页。9 个分组全部已落地（外观 / 计算与绘图 / 引擎 / 组件 /
+  // AI / 搜索 / 账号 / 更新 / 存储与数据）—— catalog.js 里已无 status != "ready" 的项。
   "/settings": () => import("../views/settings/SettingsView.vue"),
 };
 
@@ -44,6 +58,8 @@ const CALC_ROUTES = [
   "/calc/numerical", "/calc/number-theory", "/calc/probability", "/calc/real-analysis",
   "/calc/sequences", "/calc/complex-analysis", "/calc/functional-analysis",
   "/calc/algebraic-topology", "/calc/measure-theory",
+  // 调和分析：本轮新增的第 14 个学科视图（走同一个 CalcView）
+  "/calc/harmonic-analysis",
 ];
 
 const routes = [
@@ -57,7 +73,7 @@ for (const g of NAV_GROUPS) {
     routes.push({
       path: it.route,
       name: it.route.slice(1).replace(/\//g, "-"),
-      component: real || (isCalc ? CALC_VIEW : PlaceholderView),
+      component: real || (isCalc ? CALC_VIEW : FallbackView),
       props: real || isCalc ? undefined : { name: it.name },
       // grid 用于"极坐标"这类共用同一个视图、只是初始网格不同的入口
       meta: { title: it.name, desc: g.title, calc: isCalc, grid: it.grid },

@@ -1,0 +1,38 @@
+{
+  /* tsconfig.json —— 本轮补上的类型检查（D5）。
+   *
+   * 为什么现在才有：`src/lib/ai/` 下有 7 个 `.ts`（约 1400 行），一直是 Vite/esbuild
+   * 直接转译、**零类型检查** —— esbuild 只做语法剥离，类型写错了不会有任何提示。
+   *
+   * 范围为什么只含 `.ts`：整个前端有大量 `.js`/`.vue`，一次全开会产生上万条噪音，
+   * 而这 7 个文件是唯一声明了类型的部分。`allowJs: true` 让 TS 能顺着 import 读进
+   * `.js`（否则每个 `.js` 依赖都报"找不到声明文件"），但 `checkJs: false` 表示
+   * **不去检查** JS 内部 —— 于是检查面是"TS 与 JS 的边界 + 全部 TS 内部"。
+   */
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitOverride": true,
+
+    "noEmit": true,
+    "isolatedModules": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "forceConsistentCasingInFileNames": true,
+
+    /* 源码里是按显式 `.ts` 后缀 import 的（Vite/esbuild 一直这么解析，构建没问题）。
+     * 打开这个开关让 tsc 也接受这种写法 —— 它要求 noEmit（已满足）。 */
+    "allowImportingTsExtensions": true,
+
+    "allowJs": true,
+    "checkJs": false
+  },
+  "include": ["src/**/*.ts"]
+}

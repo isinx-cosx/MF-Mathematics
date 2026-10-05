@@ -64,9 +64,14 @@ export class HostRelayClient implements ModelClient {
     let sawUsage = false
     let sawDone = false
     let sawFinishReason = false
+    // 这两个要在 try 之前声明：循环后的"零事件"判断要用（见下面那段）
+    let rawHead = ''
+    let parsedChunks = 0
 
     try {
-      const response = await relayPost(CHAT_PATH, this.#body(req, model))
+      // signal 必须一路传到中继 —— 否则"停止"只是改了页面状态，
+      // 宿主连接照旧、这条流照旧读完，工具循环还会继续开新请求（真实 token 花费）。
+      const response = await relayPost(CHAT_PATH, this.#body(req, model), req.signal)
 
       if (response.status < 200 || response.status >= 300) {
         // 非 2xx：错误体很短，读干后作为 http 错误交出去（同原文语义）
@@ -83,7 +88,29 @@ export class HostRelayClient implements ModelClient {
         return
       }
 
-      for await (const sse of parseSSE(response.body)) {
+      // 一边喂 SSE 解析、一边留一份原始文本的开头。
+      // 为什么要留：端点在 **HTTP 200** 下返回普通 JSON 错误体（额度/鉴权/模型名）时，
+      // parseSSE 一个事件都发不出来（它只认 event: / data: 两种字段），
+      // 于是界面上只剩"空白回答 + 一句灰色小字"，真实原因永远看不到、只能抓包。
+      const RAW_HEAD = 4096
+      const tapDecoder = new TextDecoder('utf-8')
+      async function* tappingBody(): AsyncGenerator<Uint8Array> {
+        for await (const chunk of response.body) {
+          if (rawHead.length < RAW_HEAD) {
+            rawHead += tapDecoder.decode(chunk, { stream: true })
+            if (rawHead.length > RAW_HEAD) rawHead = rawHead.slice(0, RAW_HEAD)
+          }
+          yield chunk
+        }
+      }
+
+      for await (const sse of parseSSE(tappingBody())) {
+        // 取消要在**每一片**上生效。中继那条流被 abort 时会抛 RelayError('aborted')，
+        // 但这里再主动看一眼，避免"已经取消却还把剩余分片读完/继续解析"。
+        if (req.signal?.aborted) {
+          yield { type: 'done', reason: 'aborted' }
+          return
+        }
         // 终止标记，不是 JSON
         if (sse.data === '[DONE]') {
           sawDone = true
@@ -99,6 +126,25 @@ export class HostRelayClient implements ModelClient {
             notice: { code: 'bad_sse_data', message: `无法解析的 SSE data：${truncate(sse.data)}` },
           }
           continue
+        }
+
+        parsedChunks += 1
+
+        // ⚠ 200 下的错误分片：`data: {"error":{...}}`。
+        // 原先这段被下面的 `if (!choice) continue` 直接吞掉 ——
+        // 用户看到半截/空白回答，却不知道上游到底说了什么（限流？密钥？模型名？）。
+        const chunkErr = (chunk as unknown as { error?: unknown }).error
+        if (chunkErr) {
+          const msg = (chunkErr as { message?: unknown })?.message
+          yield {
+            type: 'error',
+            error: {
+              kind: 'http',
+              status: response.status,
+              message: msg ? String(msg) : truncate(JSON.stringify(chunkErr), 400),
+            },
+          }
+          return
         }
 
         // usage 尾包的 choices 是空数组，必须在取 choice 之前处理
@@ -163,6 +209,25 @@ export class HostRelayClient implements ModelClient {
       }
       // 流中途失败也是一等事件：上层要能区分「没开始」和「吐了一半」
       yield { type: 'error', error: toModelError(err) }
+      return
+    }
+
+    // 一个事件都没解析出来 —— 这个响应体根本不是 SSE 流。
+    // 最常见的就是"HTTP 200 + JSON 错误体"（限流 / 密钥 / 模型名 / baseUrl 写错）。
+    // 原先这里只发两条灰色 notice 就结束了，用户看到的是空白回答，真实原因永远不可见。
+    if (parsedChunks === 0 && !sawDone) {
+      const detail = rawHead.trim()
+      yield {
+        type: 'error',
+        error: {
+          kind: 'protocol',
+          status: 0,
+          message:
+            'HTTP 200，但响应体不是 SSE 流（零个事件，也没有 [DONE]）。' +
+            '常见原因：端点返回了 JSON 错误体、baseUrl 或路径不对、模型名不被支持。' +
+            (detail ? ` 原文开头：${truncate(detail, 400)}` : ''),
+        },
+      }
       return
     }
 
@@ -282,6 +347,9 @@ function toErrorKind(kind: string): ModelError['kind'] {
     case 'config':
     case 'timeout':
     case 'aborted':
+    // 宿主以 kind:"busy" 拒绝（已有一轮在跑）。原先落到 default → 面板显示
+    // "类别：unknown"，看不出是"上一轮还没结束"，用户只能干等最长 900s。
+    case 'busy':
       return kind
     default:
       return 'unknown'

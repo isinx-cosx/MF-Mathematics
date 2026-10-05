@@ -129,18 +129,37 @@ export const SEARCH_ENGINES = [
   { value: "custom", label: "自定义端点（SearXNG）" },
 ];
 
+/**
+ * 早退也要把原因写进 `searchState.error`。
+ *
+ * 调用方（SearchView.doSearch）是按"失败原因已经进 searchState.error"来写的：
+ *   `const r = runSearch(...); if (!r.ok) return;`
+ * 而这些前置校验原先只 return 一个被丢弃的对象 —— 于是"选了 Wolfram 但没填 App ID"
+ * 时，点搜索 / 按回车 / 深链 `?q=…` 全都毫无反应，界面零变化零报错。
+ */
+function failSearch(message, kind = "config") {
+  searchState.value = {
+    ...searchState.value, running: false,
+    error: { kind, status: 0, message },
+  };
+  return { ok: false, error: message };
+}
+
 /** @returns {{ok:boolean, error?:string, engine?:string}} */
 export function runSearch(query, { engine = "", noCache = false } = {}) {
   const q = String(query || "").trim();
+  // 空输入不算错误：用户只是按了回车，弹一块红色错误反而更吵
   if (!q) return { ok: false, error: "先输入要搜的内容" };
-  if (!isSearchHosted()) return { ok: false, error: "无宿主：联网搜索只在 MFMath.exe 里可用" };
+  if (!isSearchHosted()) {
+    return failSearch("无宿主：联网搜索只在 MFMath.exe 里可用", "config");
+  }
 
   const wantEngine = engine || searchInfo.value.engine || "duckduckgo";
   if (wantEngine === "wolfram" && !searchInfo.value.hasWolframKey) {
-    return { ok: false, error: "Wolfram 需要 App ID：去「设置 → 搜索」填一个，或改用其他引擎" };
+    return failSearch("Wolfram 需要 App ID：去「设置 → 搜索」填一个，或改用其他引擎");
   }
   if (wantEngine === "custom" && !searchInfo.value.customUrl) {
-    return { ok: false, error: "自定义端点还没填：去「设置 → 搜索」写上 SearXNG 的地址" };
+    return failSearch("自定义端点还没填：去「设置 → 搜索」写上 SearXNG 的地址");
   }
 
   searchState.value = {

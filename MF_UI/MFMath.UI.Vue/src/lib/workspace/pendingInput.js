@@ -62,9 +62,16 @@ const MODE_ROUTES = [
   ["搜索", "/tools/search"],
 ];
 
-/** 目前尚未实现、因而无法接收示例的功能 */
-const NOT_YET = [
-  ["AI", "AI 助手尚未实现（方案 P3）"],
+/**
+ * 无法用**路由**表达的模式：功能已实现，但它不是"一个页面"。
+ *
+ * ⚠ 这里原先写的是一句**假话** —— `["AI", "AI 助手尚未实现（方案 P3）"]`。
+ *   AI 助手早已实现（端到端 tests/cdp-ai.mjs 127/0），只是它是顶栏的**抽屉**而不是页面，
+ *   所以 `routeForMode` 无法把它表达成一条 route。用户当时点示例会看到"尚未实现"。
+ *   现在按真实原因说，并给出可执行的动作。
+ */
+const NOT_ROUTABLE = [
+  ["AI", "AI 助手是顶栏的抽屉、不是独立页面：请点顶栏的「AI」把它打开"],
 ];
 
 const SORTED = [...MODE_ROUTES].sort((a, b) => b[0].length - a[0].length);
@@ -77,7 +84,7 @@ export function routeForMode(mode) {
   if (!m) return { ok: false, reason: "该示例没有指定模式" };
   const hit = SORTED.find(([needle]) => m.includes(needle));
   if (hit) return { ok: true, route: hit[1], matched: hit[0] };
-  const ny = NOT_YET.find(([needle]) => m.includes(needle));
+  const ny = NOT_ROUTABLE.find(([needle]) => m.includes(needle));
   if (ny) return { ok: false, reason: ny[1] };
   return { ok: false, reason: `无法把模式「${m}」对应到现有界面（映射表里没有它）` };
 }

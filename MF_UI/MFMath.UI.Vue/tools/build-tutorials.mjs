@@ -52,6 +52,99 @@ const EXPECTED = [
   { order: 18, id: "algebraic-topology", steps: 3, examples: 3, faq: 3 },
 ];
 
+/* ── v2 覆盖表：v1 教程文本里在 v2 不成立的内容 ──────────────────────────────
+ *
+ * 为什么不直接改 YAML 原件：原件是 v1 的留档、也是本脚本的输入，
+ * 既定方针是"沿用 v1 的语义与文本，教程与 YAML 原件都不用改"。
+ * 改这里的好处是**每次重新生成都生效**（`npm run check:ui` 的第一步就是本脚本，
+ * 直接改 tutorials.json 会被覆盖掉），而且只换文字/指向、**不动条数** ——
+ * 所以上面那张 EXPECTED 权威数量表依然成立。
+ *
+ * 目前只有一类需要覆盖：**「AI 加速」**。
+ *   v1 在每个计算块上有那个按钮；v2 **决定不做**（见 docs/OPEN-ITEMS.md 的讨论）：
+ *   · 引擎现在跑 1113 个病态用例只需 4.9 秒、最慢一例 199.6 ms、0 超时
+ *     （docs/stress-scan.json）—— "本地引擎算不动"这个前提基本消失了；
+ *   · 而"让模型直接计算"正是本产品唯一那条硬约束所禁止的：
+ *     **AI 不得成为计算源** —— AI 的所有数值都必须来自 `engine_call`
+ *     （src/lib/ai/tools.ts:310），且有端到端断言（tests/cdp-ai.mjs ⑥）。
+ *   所以原文会让用户去点一个不存在的按钮，还承诺了没有任何实现的配额。
+ *
+ * ⚠ 索引是**数组下标（0 基）**；写错不会静默 —— 下面的"自检 3"会以非零码退出。
+ * ⚠ 已实现但仍指向 ai_accel_button 的步骤必须同时**改指向**，否则
+ *   check-ui.mjs 会因为"目标既无 data-tour 又不在 PENDING 里"而报错。
+ */
+const V2_OVERRIDES = {
+  "basic-calculation": {
+    steps: {
+      5: {
+        target: "toolbar.ai_button",
+        text:
+          "如果表达式特别复杂，可以让 AI 助手帮你选对引擎函数。<br>" +
+          "点顶栏的「AI」打开助手 —— 它通过 engine_call 调本地引擎来算，数值始终由引擎产出。",
+      },
+    },
+  },
+  "ai-steps-accelerate": {
+    title: "步骤推导与 AI 讲解",
+    summary: "学习用 AI 生成详细推导步骤（每一步都由本地引擎算出），以及用 AI 提问、选对引擎函数。",
+    steps: {
+      4: {
+        target: "ai_dialog.input",
+        text:
+          "拿不准一条式子该怎么算时，直接在助手里问它。<br>" +
+          "它会先用 engine_find 找函数、再用 engine_call 让引擎算 —— 数值一律由引擎产出。",
+      },
+    },
+    faq: {
+      0: {
+        q: "「查看步骤」里的数字是 AI 算的吗？",
+        a:
+          "不是。AI 只负责组织与讲解，每一步的数值都由它调用本地引擎（engine_call）算出。" +
+          "这也是本产品的硬约束：AI 不得成为计算源。",
+      },
+      1: {
+        q: "AI 功能有次数限制吗？",
+        a: "按本地计数，配置 API Key 后不受限。注意所有数值计算都在本地引擎完成，不消耗 AI 额度。",
+      },
+    },
+  },
+  "tips-and-tricks": {
+    faq: {
+      2: {
+        q: "计算太慢怎么办？",
+        a:
+          "先确认输入是不是过于极端（例如 (x+1)^80 这种展开量会爆炸的式子）。" +
+          "引擎通常都在毫秒级完成，真正慢的是这类人为极端的输入；数值分析模块里也可以用近似方法。",
+      },
+    },
+  },
+};
+
+/** 记录覆盖表的命中情况，供"自检 3"确认没有写错的索引 */
+const overrideHits = new Set();
+
+/** 把 v2 覆盖表应用到一篇教程上（**就地**改，保持数组引用不变） */
+function applyOverrides(id, doc) {
+  const spec = V2_OVERRIDES[id];
+  if (!spec) return;
+  if (spec.title) { doc.title = spec.title; overrideHits.add(`${id}/title`); }
+  if (spec.summary) { doc.summary = spec.summary; overrideHits.add(`${id}/summary`); }
+  for (const [i, ov] of Object.entries(spec.steps || {})) {
+    const s = doc.steps[Number(i)];
+    if (!s) continue;
+    if (ov.target) s.target = ov.target;
+    if (ov.text) s.text = ov.text;
+    overrideHits.add(`${id}/steps/${i}`);
+  }
+  for (const [i, ov] of Object.entries(spec.faq || {})) {
+    const f = doc.faq[Number(i)];
+    if (!f) continue;
+    if (ov.q) f.q = ov.q;
+    if (ov.a) f.a = ov.a;
+    overrideHits.add(`${id}/faq/${i}`);
+  }
+}
+
 /* ── YAML 子集解析 ──────────────────────────────────────────────────────── */
 
 const indentOf = (l) => l.length - l.trimStart().length;
@@ -219,14 +312,18 @@ function normalize(t, file) {
     description: e.description || "",
   }));
   const faq = (t.faq || []).map((f) => ({ q: f.q || "", a: f.a || "" }));
+  // v2 覆盖（见 V2_OVERRIDES）：必须在算内容指纹**之前**应用，
+  // 否则 version 对应的不是真正发出去的那份内容（store.js 靠它判断"教程变了"）。
+  const v2 = { title: t.title, summary: t.summary || "", steps, faq };
+  applyOverrides(t.id, v2);
   const fingerprint = crypto
     .createHash("sha1")
-    .update(JSON.stringify({ steps, examples, faq }))
+    .update(JSON.stringify({ steps: v2.steps, examples, faq: v2.faq }))
     .digest("hex")
     .slice(0, 8);
   return {
     id: t.id,
-    title: t.title,
+    title: v2.title,
     difficulty: t.difficulty || "beginner",
     difficultyIcon: (DIFFICULTY_LABEL[t.difficulty] || DIFFICULTY_LABEL.beginner).icon,
     difficultyLabel: (DIFFICULTY_LABEL[t.difficulty] || DIFFICULTY_LABEL.beginner).label,
@@ -235,7 +332,7 @@ function normalize(t, file) {
     categoryLabel: (CATEGORY_LABEL[t.category] || CATEGORY_LABEL.general).label,
     duration: t.duration || "",
     order: typeof t.order === "number" ? t.order : 99,
-    summary: t.summary || "",
+    summary: v2.summary,
     // 内容指纹：教程内容一变，进行中的引导进度与"已学"标记就该失效（见 store.js）
     version: fingerprint,
     // prerequisites 在 v1 是死字段且引用了不存在的教程，这里保留原文仅供比对，不参与逻辑
@@ -295,6 +392,19 @@ for (const exp of EXPECTED) {
     if (actual !== want) problems.push(`${exp.id} 的 ${what} = ${actual}，期望 ${want}`);
   }
   if (got.order !== exp.order) problems.push(`${exp.id} 的 order = ${got.order}，期望 ${exp.order}`);
+}
+
+/* 自检 1b：v2 覆盖表必须**全部命中** —— 索引写错时绝不能静默失效
+ * （这个项目反复踩的就是"看起来在跑、其实没生效"这一类）。 */
+for (const [tid, spec] of Object.entries(V2_OVERRIDES)) {
+  if (spec.title && !overrideHits.has(`${tid}/title`)) problems.push(`v2 覆盖表未命中：${tid} 的 title`);
+  if (spec.summary && !overrideHits.has(`${tid}/summary`)) problems.push(`v2 覆盖表未命中：${tid} 的 summary`);
+  for (const i of Object.keys(spec.steps || {})) {
+    if (!overrideHits.has(`${tid}/steps/${i}`)) problems.push(`v2 覆盖表未命中：${tid} 步骤下标 ${i}`);
+  }
+  for (const i of Object.keys(spec.faq || {})) {
+    if (!overrideHits.has(`${tid}/faq/${i}`)) problems.push(`v2 覆盖表未命中：${tid} FAQ 下标 ${i}`);
+  }
 }
 
 /* 自检 2：字段完整性（防止折叠块被解析成空串这类静默损坏） */

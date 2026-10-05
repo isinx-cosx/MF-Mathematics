@@ -116,6 +116,9 @@ onBeforeUnmount(() => {
   uninstallShortcuts?.();
   document.removeEventListener("pointerdown", onDocPointerDown, true);
   document.removeEventListener("keydown", onDocKey);
+  // resize 是 onMounted 里挂的（用快捷键/系统菜单最大化时同步按钮图标）。
+  // 之前漏了摘除：根组件常驻，生产上影响很小，但 HMR 下每热更一次就多一个。
+  window.removeEventListener("resize", syncMaximized);
 });
 
 /* ── 窗口外壳：顶栏本身就是标题栏 ──

@@ -22,6 +22,72 @@ const p1 = { key: "p1", type: "point", opt: false };
 const p2 = { key: "p2", type: "point", opt: false };
 
 export const EXTRA_MAP = {
+  /* ════════ 参数声明与引擎签名不符的模式（本轮修正）════════
+   * ENGINE_MAP = { ...RAW_MAP, ...EXTRA_MAP }，所以这里按同名覆盖即可。
+   * 问题：RAW_MAP 里这些模式的 args **没覆盖引擎的必填参数**，于是界面上永远算不出来
+   * （实测报"对象缺少键: z / z0 / s / initial"，或把 branch_cut 当成了唯一参数）。
+   * 类型取自 src/lib/ai/engine-signatures.json（与引擎逐字一致的那张表）：
+   *   · z / z0 / a..d：引擎自己解析字符串（实测 "1+2i"、"1+1i" 都可以），故用 string / string_or_number。
+   *     这里**不能**用 complex_obj：那个类型的名字有歧义 —— 它指的是"单纯复形"，
+   *     由 complexObjOf 解析 `2:0,1,2|1:0,1` 这种写法（见「贝蒂数（复形）」），不是复数；
+   *     把复数串交给它只会得到 {}。（早期这里写过"是待修的转换缺陷"，那句话是错的。）
+   *   · singularities：引擎要 [[re,im],…] 这种成对数组 → pair_list。
+   *   · initial：引擎要数字数组 → vector。
+   */
+  "复对数": { fn: "log_complex", module: "complex_analysis", args: [{ key: "z", type: "string", opt: false }, { key: "branch_cut", type: "double", opt: true }] },
+  "复平方根": { fn: "sqrt_complex", module: "complex_analysis", args: [{ key: "z", type: "string", opt: false }] },
+  "莫比乌斯变换": { fn: "mobius_transform", module: "complex_analysis", args: [
+    { key: "z", type: "string", opt: false },
+    { key: "a", type: "string_or_number", opt: false },
+    { key: "b", type: "string_or_number", opt: false },
+    { key: "c", type: "string_or_number", opt: false },
+    { key: "d", type: "string_or_number", opt: false },
+  ] },
+  "奇点分类": { fn: "singularity_classify", module: "complex_analysis", args: [{ key: "func", type: "string", opt: false }, { key: "z0", type: "string", opt: false }] },
+  "留数定理": { fn: "residue_theorem", module: "complex_analysis", args: [{ key: "func", type: "string", opt: false }, { key: "singularities", type: "pair_list", opt: false }] },
+  "Zeta 解析延拓": { fn: "analytic_continuation_zeta", module: "complex_analysis", args: [{ key: "s", type: "double", opt: false }] },
+  "Zeta 函数方程": { fn: "functional_equation_zeta", module: "complex_analysis", args: [{ key: "s", type: "double", opt: false }] },
+  "递推数列": { fn: "recurrence_sequence", module: "sequences", args: [
+    { key: "rule", type: "string", opt: false },
+    { key: "n", type: "int", opt: false },
+    { key: "initial", type: "vector", opt: false },
+  ] },
+
+  /* ════════ 复分析三个"围道"模式（本轮从 NOT_EXPOSED 挂回来）════════
+   * 为什么这里**特意重排参数顺序**：声明顺序决定哪个参数吃输入框的第一段
+   * （textArg = 第一个必填的 string 参数，见 calcArgs 的 ①）。引擎签名里是
+   * contour 在前、func 在后，于是 textArg 会被选成 contour —— 用户在输入框里写的
+   * 被积函数会被当成围道。把 func 挪到前面即可对齐。
+   * 键名一个都没改（引擎只按 key 取值），所以重排是安全的。 */
+  "柯西定理": { fn: "cauchy_theorem", module: "complex_analysis", args: [
+    { key: "func", type: "string", opt: false },
+    { key: "contour", type: "string", opt: false },
+  ] },
+  "辐角原理": { fn: "argument_principle", module: "complex_analysis", args: [
+    { key: "func", type: "string", opt: false },
+    { key: "contour", type: "string", opt: false },
+  ] },
+  "Rouche 定理": { fn: "rouche_theorem", module: "complex_analysis", args: [
+    { key: "f", type: "string", opt: false },
+    { key: "contour", type: "string", opt: false },
+    { key: "g", type: "string", opt: false },
+  ] },
+  // 「贝蒂数（复形）」：此前只有 EXTRA_VAR_SPECS、MAP 里没有条目、也不在任何页面 ——
+  // 一条悬空死配置。它与「贝蒂数」用同一个引擎函数，区别只是允许用户写自己的复形。 */
+  "贝蒂数（复形）": { fn: "betti_numbers", module: "at", args: [
+    { key: "complex", type: "complex_obj", opt: true },
+    { key: "max_dim", type: "int", opt: true },
+  ] },
+  /* 「空间完备性」：引擎那边 sequence 是 `std::vector<std::vector<double>>`（二维数组），
+   * 而 RAW_MAP 把它声明成了 `?` → convertArg 落到 default → toEngineExpr → **字符串** →
+   * 引擎报「值不是数组或对象」（实测：["1/n"] 与 {elements:[…]} 都被拒就是这么来的）。
+   * 改成 matrix：写 `[[1,0],[0.5,0],[0.25,0]]` 这种 JSON 即可（走 matrixOf 的 JSON 分支）。
+   * 注意引擎要求**至少 3 行**（"序列长度至少为 3 才能判断收敛趋势"）。 */
+  "空间完备性": { fn: "space_completeness_check", module: "fa", args: [
+    { key: "sequence", type: "matrix", opt: false },
+    { key: "norm", type: "string", opt: true },
+  ] },
+
   /* ════════ 代数拓扑 ════════ */
   // cup_product 是引擎里的"结论型"结果（返回运算的定义与对应关系）
   "杯积": { fn: "cup_product", module: "at", args: [] },
@@ -57,6 +123,39 @@ export const EXTRA_MAP = {
       { key: "x", type: "string", opt: true }, { key: "y", type: "string", opt: true },
       { key: "xa", type: "string_or_number", opt: true }, { key: "xb", type: "string_or_number", opt: true },
       { key: "ya", type: "string_or_number", opt: true }, { key: "yb", type: "string_or_number", opt: true },
+      EXPR,
+    ],
+  },
+  // 不定重积分：与「不定积分 / 定积分」同一套做法 —— 同一个 action，
+  // 区别只在于**不传边界**，引擎按"缺边界即不定"分派（见 calculus_api.cpp）。
+  // 结果形如 `(1/4)*x**2*y**2 + A(x) + B(y)`：积分常数是**任意函数**，不是常数。
+  "不定重积分": {
+    fn: "integrate_double", module: "calculus",
+    args: [
+      { key: "x", type: "string", opt: true }, { key: "y", type: "string", opt: true },
+      EXPR,
+    ],
+  },
+  // 三重积分 ∫∫∫ f(x,y,z) dz dy dx。引擎一直有这个 action，但界面上没有入口
+  // （integrate_triple 在 src 里零引用），所以能力一直是够不着的。
+  "三重积分": {
+    fn: "integrate_triple", module: "calculus",
+    args: [
+      { key: "x", type: "string", opt: true }, { key: "y", type: "string", opt: true },
+      { key: "z", type: "string", opt: true },
+      { key: "xa", type: "string_or_number", opt: true }, { key: "xb", type: "string_or_number", opt: true },
+      { key: "ya", type: "string_or_number", opt: true }, { key: "yb", type: "string_or_number", opt: true },
+      { key: "za", type: "string_or_number", opt: true }, { key: "zb", type: "string_or_number", opt: true },
+      EXPR,
+    ],
+  },
+  // 不定三重积分：同「不定重积分」，不传边界即可。
+  // 逐层引入的任意函数依次是 (x,y)、(x,z)、(y,z) 的函数。
+  "不定三重积分": {
+    fn: "integrate_triple", module: "calculus",
+    args: [
+      { key: "x", type: "string", opt: true }, { key: "y", type: "string", opt: true },
+      { key: "z", type: "string", opt: true },
       EXPR,
     ],
   },
@@ -256,6 +355,9 @@ export const EXTRA_VAR_SPECS = {
   "定积分": [["被积函数（输入框）", ""], ["积分变量", "x"], ["下限", "0"], ["上限", "1"]],
   "广义积分": [["被积函数（输入框）", ""], ["积分变量", "x"], ["下限", "0"], ["上限", "oo"]],
   "重积分": [["被积函数（输入框）", ""], ["积分变量 x", "x"], ["积分变量 y", "y"], ["x 下限", "0"], ["x 上限", "1"], ["y 下限", "0"], ["y 上限", "1"]],
+  "不定重积分": [["被积函数（输入框）", ""], ["积分变量 x", "x"], ["积分变量 y", "y"]],
+  "三重积分": [["被积函数（输入框）", ""], ["积分变量 x", "x"], ["积分变量 y", "y"], ["积分变量 z", "z"], ["x 下限", "0"], ["x 上限", "1"], ["y 下限", "0"], ["y 上限", "1"], ["z 下限", "0"], ["z 上限", "1"]],
+  "不定三重积分": [["被积函数（输入框）", ""], ["积分变量 x", "x"], ["积分变量 y", "y"], ["积分变量 z", "z"]],
   "单侧极限": [["函数（输入框）", ""], ["自变量", "x"], ["趋近值", "0"], ["方向（left/right）", "right"]],
   "无穷极限": [["函数（输入框）", ""], ["自变量", "x"], ["趋近值", "oo"]],
   "连续性判定": [["函数（输入框）", ""], ["自变量", "x"], ["判定点", "0"]],
@@ -343,6 +445,14 @@ export const EXTRA_VAR_SPECS = {
   "相图": [["x 范围 [min,max]（输入框）", "[-1,1]"], ["y 范围 [min,max]", "[-1,1]"], ["dx/dt", "-y"], ["dy/dt", "x"], ["轨迹条数", "9"], ["网格分辨率", "21"]],
   "逆Fourier变换": [["F(ξ)（输入框，引擎用 ξ 作变换变量）", "exp(-xi^2)"], ["使用角频率", "true"]],
   "贝蒂数（复形）": [["复形（写成 2:0,1,2|1:0,1|0:0,1,2）（输入框）", "2:0,1,2|1:0,1|0:0,1,2"], ["最高维数", "3"]],
+  /* 复分析三个围道模式：**弹窗是唯一可用路径**。
+   * 走输入框时，整串会经引擎的 to_engine_expr 补隐式乘号 → `circle(0+0i,1)` 被拆成
+   * `c*i*r*c*l*e*(0+0*i,1)`；而弹窗字段是普通 <input>，转换走 calcArgs 自带的透传版
+   * toEngineExpr，不会拆。这也是它们此前被登记为"暂不可暴露"的原因 —— 现在挂回来。
+   * 字段顺序必须与 EXTRA_MAP 里重排后的 args 一致（第 0 格是输入框的镜像）。 */
+  "柯西定理": [["被积函数（输入框）", "1/z"], ["围道 circle(中心, 半径)", "circle(0+0i,1)"]],
+  "辐角原理": [["被积函数（输入框）", "z"], ["围道 circle(中心, 半径)", "circle(0+0i,1)"]],
+  "Rouche 定理": [["函数 f（输入框）", "z^2"], ["围道 circle(中心, 半径)", "circle(0+0i,1)"], ["函数 g", "1"]],
   "庞加莱对偶": [["流形（S1/S2/S3/T2/RP2/K）（输入框）", "T2"], ["k", "1"]],
   "条件概率": [["概率表 P（键=值; 键=值）（输入框）", "A_and_B=0.2; B=0.5"], ["事件 A", "A"], ["事件 B", "B"]],
   "独立性": [["概率表 P（键=值; 键=值）（输入框）", "A_and_B=0.12; A=0.3; B=0.4"], ["事件 A", "A"], ["事件 B", "B"]],

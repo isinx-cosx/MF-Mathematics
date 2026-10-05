@@ -1,4 +1,4 @@
-# One-click regression: launch host with CDP port, run all verification scripts, summarize.
+﻿# One-click regression: launch host with CDP port, run all verification scripts, summarize.
 # Usage (Windows PowerShell 5.1 or PowerShell 7):
 #   powershell -ExecutionPolicy Bypass -File run-all.ps1
 # Prereq: Vue built (npm run build) and host built (dotnet build -c Release)
@@ -90,6 +90,19 @@ if (-not (Test-Path $hostExe)) {
 }
 
 $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = "--remote-debugging-port=9222"
+# NOTE (ASCII on purpose, see the encoding note below): a leftover WebView2 from the
+# previous run keeps the CDP port 9222 bound. The freshly started host then cannot bind
+# it, while CDP silently attaches to the STALE host -- which never saw the env vars set
+# below. Symptom seen in practice: cdp-search reports "host endpoints are the fake ones"
+# even though this script sets MF_SEARCH_ENDPOINTS, i.e. a false failure that looks like
+# a product bug. Clear the leftovers and wait for the port before launching.
+Get-Process msedgewebview2 -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+$portDeadline = (Get-Date).AddSeconds(10)
+while ((Get-Date) -lt $portDeadline) {
+  $busy = Get-NetTCPConnection -LocalPort 9222 -State Listen -ErrorAction SilentlyContinue
+  if (-not $busy) { break }
+  Start-Sleep -Milliseconds 250
+}
 # Point the search backends at the local fake server for cdp-search. Endpoint overrides live in
 # an environment variable (not in settings) on purpose: if the renderer could change the Wolfram
 # endpoint, it could send the App ID anywhere. cdp-search refuses to run if this is not set.
@@ -118,6 +131,7 @@ $tf = 0
 foreach ($t in $tests) {
   $script = Join-Path $PSScriptRoot "$t.mjs"
   if (-not (Test-Path $script)) { Write-Host "missing script: $t" -ForegroundColor Yellow; continue }
+
   $out = & node $script 2>&1 | Out-String
   $m = [regex]::Match($out, "RESULT\|\S+\|(\d+)\|(\d+)")
   if ($m.Success) {

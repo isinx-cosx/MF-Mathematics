@@ -23,4 +23,6 @@ export const VIEW_SAMPLE = {
   probability: "1,2,3",
   "real-analysis": "1/n",
   sequences: "1/n",
+  // 调和分析（本轮新增的第 14 个视图）：高斯函数是傅里叶变换的经典样本
+  "harmonic-analysis": "exp(-x^2)",
 };

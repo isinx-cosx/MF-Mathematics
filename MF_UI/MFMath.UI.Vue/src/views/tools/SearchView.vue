@@ -18,7 +18,7 @@ import { useRoute, useRouter } from "vue-router";
 import {
   searchInfo, searchState, searchHosted, SEARCH_ENGINES,
   initSearch, refreshSearchInfo, runSearch, cancelSearch,
-  openUrl, extractExpr,
+  searchConfigure, openUrl, extractExpr,
 } from "../../lib/search/bridge.js";
 import { setPending } from "../../lib/workspace/pendingInput.js";
 
@@ -50,6 +50,26 @@ function doSearch(noCache = false) {
 
 function onKeydown(e) {
   if (e.key === "Enter") { e.preventDefault(); doSearch(); }
+}
+
+/**
+ * 引擎下拉框 → 写回宿主配置。
+ *
+ * 原写法 `@change="searchInfo.engine !== engine && null"` 是个**死表达式**：
+ * `&& null` 恒为 null 且没有副作用，所以这个控件的选择**从来没有生效过** ——
+ * 刷新页面后又回到配置里的旧引擎，用户只会觉得"选了没用"。
+ * （宿主 SearchBridge.Configure 确实收 `engine`，见 SearchBridge.cs 的 TryStr("engine")，
+ *  所以不是幽灵字段，纯粹是这行写错了。）
+ */
+function onEngineChange() {
+  const r = searchConfigure({ engine: engine.value });
+  if (r && r.ok === false) {
+    // 写不进去要看得见，别静默
+    searchState.value = {
+      ...searchState.value,
+      error: { kind: "config", status: 0, message: r.error || "引擎设置没保存成功" },
+    };
+  }
 }
 
 const endpointLine = computed(() => searchInfo.value.endpoint || "（未配置）");
@@ -110,7 +130,7 @@ function sendToCalc(expr) {
         <!-- 教程引导的目标名沿用 v1 的语义 ID（search_panel.*） -->
         <input v-model="draft" data-search="input" data-tour="search_panel.input" class="sv-input" type="search"
                placeholder="搜概念、找公式、查定义…（Enter 开始）" @keydown="onKeydown" />
-        <select v-model="engine" data-search="engine" class="sv-select" @change="searchInfo.engine !== engine && null">
+        <select v-model="engine" data-search="engine" class="sv-select" @change="onEngineChange">
           <option v-for="e in SEARCH_ENGINES" :key="e.value" :value="e.value">{{ e.label }}</option>
         </select>
         <button v-if="!searchState.running" class="btn btn-primary" data-search="go" @click="doSearch()">搜索</button>

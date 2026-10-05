@@ -17,6 +17,7 @@
 import { computed, onMounted, ref, watch } from "vue";
 import { CATEGORIES, ALL_KEYS, searchKeys, DEFAULT_RECENT } from "../../lib/math/keypadSymbols.js";
 import { insertLatex, activeField } from "../../lib/math/activeField.js";
+import KeyFace from "./KeyFace.vue";
 
 const activeCat = ref("basic");
 const query = ref("");
@@ -66,10 +67,11 @@ function flash(msg) {
   hintTimer = setTimeout(() => { hint.value = ""; }, 2600);
 }
 
-/** 键面 → 可显示的文本：v1 的 ▢ 占位符在键面上仍按 ▢ 显示（保持肌肉记忆） */
-function faceOf(k) {
-  return k.label;
-}
+/**
+ * 键面渲染交给 KeyFace：模板类键的键面本身是 LaTeX（`\frac{▢}{▢}`、`\begin{pmatrix}`），
+ * 必须排版后才能看；其余键面是 Unicode/函数名，保持纯文本。
+ * （这里以前是 `faceOf(k) { return k.label }`，直接把 LaTeX 源码当文字画出来。）
+ */
 
 function onKey(k) {
   const ok = insertLatex(k.latex, { selectionMode: "placeholder" });
@@ -119,7 +121,7 @@ defineExpose({ activeCat, query, view });
       <div v-if="query.trim()" class="kp-grid">
         <button v-for="k in results" :key="k.cat + k.latex" class="kp-key" tabindex="-1"
                 :title="k.catName + ' · ' + k.latex" @mousedown.prevent @click="onKey(k)">
-          <span class="k-face">{{ faceOf(k) }}</span>
+          <KeyFace class="k-face" :label="k.label" />
           <span class="k-star" :class="{ on: fav.includes(k.latex) }" @click="toggleFav(k, $event)">★</span>
         </button>
         <p v-if="!results.length" class="kp-empty">没有匹配的符号</p>
@@ -129,7 +131,7 @@ defineExpose({ activeCat, query, view });
       <div v-else-if="view === 'recent' || view === 'fav'" class="kp-grid">
         <button v-for="k in (view === 'fav' ? favKeys : recentKeys)" :key="view + k.latex" class="kp-key"
                 tabindex="-1" :title="k.catName + ' · ' + k.latex" @mousedown.prevent @click="onKey(k)">
-          <span class="k-face">{{ faceOf(k) }}</span>
+          <KeyFace class="k-face" :label="k.label" />
           <span class="k-star" :class="{ on: fav.includes(k.latex) }" @click="toggleFav(k, $event)">★</span>
         </button>
         <p v-if="!(view === 'fav' ? favKeys : recentKeys).length" class="kp-empty">
@@ -143,7 +145,7 @@ defineExpose({ activeCat, query, view });
           <button v-for="k in row" :key="String(k[0] ?? k)" class="kp-key" tabindex="-1"
                   :title="(typeof k === 'string' ? k : k[2] ? k[2] + ' · ' + k[1] : k[1])"
                   @mousedown.prevent @click="onKey(typeof k === 'string' ? { label: k, latex: k, catName: current.name } : { label: k[0], latex: k[1], catName: current.name })">
-            <span class="k-face">{{ typeof k === "string" ? k : k[0] }}</span>
+            <KeyFace class="k-face" :label="typeof k === 'string' ? k : k[0]" />
             <span class="k-star"
                   :class="{ on: fav.includes(typeof k === 'string' ? k : k[1]) }"
                   @click="toggleFav({ latex: typeof k === 'string' ? k : k[1] }, $event)">★</span>
@@ -151,7 +153,7 @@ defineExpose({ activeCat, query, view });
         </div>
         <p class="kp-note">
           共 {{ CATEGORIES.reduce((n, c) => n + c.rows.reduce((m, r) => m + r.length, 0), 0) }} 键 ·
-          插入的是 LaTeX，键面保留原字样
+          模板类键面按数学排版显示 · 插入的是 LaTeX
         </p>
       </div>
     </div>
@@ -211,10 +213,15 @@ defineExpose({ activeCat, query, view });
   font: inherit; font-size: 13px; min-width: 40px; height: 30px; padding: 0 8px;
   cursor: pointer; border: 1px solid var(--border); border-radius: var(--r-sm, 6px);
   background: var(--surface-alt); color: var(--text);
+  /* 键面可能是排版后的数学（分数/根式比文字高），居中并允许它在格内收缩 */
+  display: inline-flex; align-items: center; justify-content: center;
 }
 .kp-key:hover { border-color: var(--accent); }
 .kp-key:active { background: var(--accent-soft, #e0ecff); }
 .k-face { pointer-events: none; }
+/* KaTeX 默认按正文大小排版，在 30px 的键格里偏高；略缩小并压紧行高，保证分数/根式完整可见。
+   这里直接选 .katex 而不依赖 class 落在哪一层，避免属性透传的细节影响布局。 */
+.kp-key :deep(.katex) { font-size: 0.88em; line-height: 1; }
 .k-star {
   position: absolute; top: -2px; right: 0; font-size: 10px; line-height: 1;
   color: transparent; cursor: pointer;

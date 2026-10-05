@@ -292,7 +292,11 @@ const clicked = await evalJs(`(() => {
   const el = document.querySelector('math-field');
   if (el) { el.value = ''; el.focus(); }
   const keys = [...document.querySelectorAll('.kp-row .kp-key')];
-  const frac = keys.find((k) => (k.textContent || '').includes('frac'));
+  // 键面现在由 KeyFace 排版渲染（MathKeypad.vue 的 .kp-key 内），LaTeX 只留在 button 的
+  // title 属性上（形如「分类 · frac 模板」），textContent 里不再有 frac 字面量 ——
+  // 只看 textContent 会永远找不到这个键，所以 title 一起看。
+  // 注意：本段位于外层模板字符串内部，注释里也不能出现反引号或美元花括号。
+  const frac = keys.find((k) => ((k.getAttribute('title') || '') + ' ' + (k.textContent || '')).includes('frac'));
   if (!frac) return '找不得 \\\\frac 键';
   frac.click();
   return 'clicked';

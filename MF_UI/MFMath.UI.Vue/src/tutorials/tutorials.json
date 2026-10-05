@@ -121,7 +121,7 @@
       "duration": "5 分钟",
       "order": 2,
       "summary": "学习如何输入表达式、选择计算模式、查看结果。 从多项式化简和求导开始，掌握最基本的计算流程。",
-      "version": "5c10b79c",
+      "version": "7e7fc80b",
       "prerequisites": [],
       "steps": [
         {
@@ -171,8 +171,8 @@
         },
         {
           "index": 6,
-          "target": "calc_block.ai_accel_button",
-          "text": "如果表达式特别复杂，可以点击「AI 加速」让 AI 辅助计算。<br> 注意：需要先配置 API Key。",
+          "target": "toolbar.ai_button",
+          "text": "如果表达式特别复杂，可以让 AI 助手帮你选对引擎函数。<br>点顶栏的「AI」打开助手 —— 它通过 engine_call 调本地引擎来算，数值始终由引擎产出。",
           "highlight": "circle",
           "placement": "top",
           "actionType": "wait",
@@ -454,7 +454,7 @@
     },
     {
       "id": "ai-steps-accelerate",
-      "title": "步骤推导与 AI 加速",
+      "title": "步骤推导与 AI 讲解",
       "difficulty": "intermediate",
       "difficultyIcon": "🟡",
       "difficultyLabel": "进阶",
@@ -463,8 +463,8 @@
       "categoryLabel": "AI 功能",
       "duration": "4 分钟",
       "order": 5,
-      "summary": "学习使用 AI 生成详细推导步骤，以及利用 AI 加速处理复杂计算。",
-      "version": "1026a3e0",
+      "summary": "学习用 AI 生成详细推导步骤（每一步都由本地引擎算出），以及用 AI 提问、选对引擎函数。",
+      "version": "ae4f992f",
       "prerequisites": [],
       "steps": [
         {
@@ -505,8 +505,8 @@
         },
         {
           "index": 5,
-          "target": "calc_block.ai_accel_button",
-          "text": "对于 SymPy 难以处理的高复杂度表达式，<br> 点击「AI 加速」让 AI 直接计算。<br> 每天免费 3 次（配置 API Key 后无限制）。",
+          "target": "ai_dialog.input",
+          "text": "拿不准一条式子该怎么算时，直接在助手里问它。<br>它会先用 engine_find 找函数、再用 engine_call 让引擎算 —— 数值一律由引擎产出。",
           "highlight": "circle",
           "placement": "top",
           "actionType": "wait",
@@ -533,12 +533,12 @@
       ],
       "faq": [
         {
-          "q": "步骤推导和 AI 加速有什么区别？",
-          "a": "步骤推导是解释型的，展示推导过程。AI 加速是计算型的，处理常规引擎无法完成的复杂计算。"
+          "q": "「查看步骤」里的数字是 AI 算的吗？",
+          "a": "不是。AI 只负责组织与讲解，每一步的数值都由它调用本地引擎（engine_call）算出。这也是本产品的硬约束：AI 不得成为计算源。"
         },
         {
-          "q": "每天能用多少次？",
-          "a": "步骤推导 5 次/天，AI 加速 3 次/天。配置 API Key 后无限制。"
+          "q": "AI 功能有次数限制吗？",
+          "a": "按本地计数，配置 API Key 后不受限。注意所有数值计算都在本地引擎完成，不消耗 AI 额度。"
         }
       ],
       "source": "05-ai-steps-accelerate.yaml"
@@ -1221,7 +1221,7 @@
       "duration": "5 分钟",
       "order": 14,
       "summary": "掌握各种效率提升技巧：快捷键、表达式技巧、AI 妙用、 工作区联动、性能优化等。",
-      "version": "f831784f",
+      "version": "52e81dd8",
       "prerequisites": [],
       "steps": [
         {
@@ -1263,7 +1263,7 @@
         },
         {
           "q": "计算太慢怎么办？",
-          "a": "复杂计算可尝试 AI 加速（配置 API Key 后无限制），或在数值分析模块使用近似方法。"
+          "a": "先确认输入是不是过于极端（例如 (x+1)^80 这种展开量会爆炸的式子）。引擎通常都在毫秒级完成，真正慢的是这类人为极端的输入；数值分析模块里也可以用近似方法。"
         },
         {
           "q": "如何报告 Bug 或提出建议？",
