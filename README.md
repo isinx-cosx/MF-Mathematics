@@ -13,7 +13,7 @@
 | --- | --- |
 | `MF_Mathematics/` | 数学库源码：**仅 C++**（`.cpp` / `.h` / `.hpp` + `CMakeLists.txt`），253 个文件 |
 | `MF_Mathematics/build/bin/Release/` | **编译结果**：`mf_mathematics.dll` + 5 个运行时依赖 DLL（共 21.8 MB） |
-| `MF_Mathematics/tests/` | 引擎自带的 C++ 测试与探针源码（13 个测试套件） |
+| `MF_Mathematics/tests/` | 引擎自带的 C++ 测试与探针源码（16 个 CTest 套件 + 3 个探针 = 19 个可执行目标） |
 | `MFMath.Host/` | C# 桌面宿主（WPF + WebView2）：`NativeEngine` 走 P/Invoke 调引擎，`MathBridge` 打通 JS↔C# |
 | `MF_UI/MFMath.UI.Vue/` | Vue 3 + Vite 前端源码（不含 `node_modules`），`dist/` 为已构建产物 |
 
@@ -47,6 +47,24 @@ dotnet build "$V2\MFMath.Host\MFMath.Host.csproj" -c Release --no-incremental
 （`C:/Users/fsafsafsa/vcpkg/installed/x64-windows`），可用 `-DMF_EIGEN_INCLUDE_DIR=` /
 `-DMF_SYMENGINE_ROOT=` 覆盖。
 
+### 引擎的两个目标
+
+| 目标 / 别名 | 类型 | 内容 |
+| --- | --- | --- |
+| `mf_mathematics_core`（别名 `MFMath::engine`） | STATIC | 全部数学实现（103 个 `.cpp`） |
+| `mf_mathematics`（别名 `MFMath::cabi`） | SHARED | 只有 `api.cpp`，导出**恰好两个** C ABI 函数 |
+
+对外导出面就是 `function_exists` 与 `math_call`。域内头文件不使用导出宏，所以
+`std::string` / `std::vector` / `SymEngine::RCP` 都不会出现在 DLL 边界上——内部
+函数签名可以自由重构而不牵动 ABI。要直接调 C++ 函数（例如把准确性套件改写成
+C++ runner），链 `MFMath::engine`。
+
+> ⚠ 若你自己另建一个导出 DLL 并链 `MFMath::engine`，**必须**加 `/WHOLEARCHIVE`。
+> 每个 `*_api.cpp` 靠一个**没有外部引用的全局注册器**注册；不加，链接器会把这些
+> 目标文件整个丢弃 → 注册表为空。这种失效是**静默的**：DLL 照常加载、
+> `function_exists` 照常能调，只是每个 action 都返回"未找到函数"。守门断言是
+> `list_functions` 的 `count == 424`。
+
 ## 运行
 
 ```powershell
@@ -61,9 +79,12 @@ dotnet build "$V2\MFMath.Host\MFMath.Host.csproj" -c Release --no-incremental
 ## 验证
 
 ```powershell
-# 引擎自带 C++ 测试
+# 引擎自带 C++ 测试：先建出全部目标，再用 ctest 跑（16 个套件）
 cmake --build "$V2\MF_Mathematics\build" --config Release
-foreach ($t in Get-ChildItem "$V2\MF_Mathematics\build\bin\Release\test_*.exe") { & $t.FullName }
+ctest --test-dir "$V2\MF_Mathematics\build" -C Release --output-on-failure
+
+# 注册表守门：WHOLEARCHIVE 一旦失效，这个数会掉下来（而导出数依然漂亮）
+& "$V2\MF_Mathematics\build\bin\Release\probe_call.exe" list_functions '{}'   # count 应为 424
 
 # 通用调用探针：不起宿主就能看引擎对某输入的真实返回
 & "$V2\MF_Mathematics\build\bin\Release\probe_call.exe" --list      # 全部已注册函数

@@ -89,6 +89,7 @@ public class AiBridge
         sb.Append(",\"sendResult\":").Append(B(cfg.SendResult));
         sb.Append(",\"sendHistory\":").Append(B(cfg.SendHistory));
         sb.Append(",\"sendCode\":").Append(B(cfg.SendCode));
+        sb.Append(",\"toolsEnabled\":").Append(B(cfg.ToolsEnabled));
         sb.Append(",\"hasKey\":").Append(B(keySource != "none"));
         sb.Append(",\"keySource\":").Append(J(keySource));
         sb.Append(",\"keyPersisted\":").Append(B(!string.IsNullOrEmpty(cfg.ApiKeyProtected)));
@@ -131,7 +132,8 @@ public class AiBridge
             // 属性不能按 ref 传，所以先落到局部变量，最后统一写回
             bool enabled = cfg.Enabled, includeUsage = cfg.IncludeUsage,
                  sendExpr = cfg.SendExpr, sendResult = cfg.SendResult,
-                 sendHistory = cfg.SendHistory, sendCode = cfg.SendCode;
+                 sendHistory = cfg.SendHistory, sendCode = cfg.SendCode,
+                 toolsEnabled = cfg.ToolsEnabled;
             string baseUrl = cfg.BaseUrl, model = cfg.Model;
             int maxTokens = cfg.MaxTokens, timeoutSec = cfg.TimeoutSec, contextWindow = cfg.ContextWindow,
                 historyTurns = cfg.HistoryTurns;
@@ -172,6 +174,10 @@ public class AiBridge
             TryBool("sendResult", ref sendResult);
             TryBool("sendHistory", ref sendHistory);
             TryBool("sendCode", ref sendCode);
+            // 「工具调用」开关。此前界面发它、宿主既不读也不返回它 ——
+            // 于是 refreshAiConfig 的 {...DEFAULT_CFG, ...info} 合并让它恒为 true，
+            // 用户关掉后看到"已保存"、实际关不掉。
+            TryBool("toolsEnabled", ref toolsEnabled);
 
             if (!changed) return "{\"ok\":true,\"changed\":0}";
 
@@ -188,6 +194,7 @@ public class AiBridge
             cfg.SendResult = sendResult;
             cfg.SendHistory = sendHistory;
             cfg.SendCode = sendCode;
+            cfg.ToolsEnabled = toolsEnabled;
 
             AiConfig.Normalize(cfg);
             if (!cfg.Save(out string err)) return Fail("写入配置失败：" + err);

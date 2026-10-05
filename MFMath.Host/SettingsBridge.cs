@@ -331,11 +331,19 @@ public class SettingsBridge
             sb.AppendLine();
             if (Directory.Exists(SettingsDir))
             {
+                // ⚠ 凭据文件名是 ai.json / account.json / search.json —— **一个都不含 "secret"**。
+                // 原先只按"文件名含 secret"跳，等于没跳：API Key、登录态、Wolfram App ID 的
+                // 密文都会被打进诊断包，而界面（StorageGroup.vue）对用户写的是"不含密钥文件"。
+                // 名单与前端 lib/settings/io.js 的 CREDENTIAL_FILES 保持一致；
+                // "secret" 那条保留，作为将来新增文件名的兜底。
+                var credentialFiles = new[] { "ai", "account", "search" };
                 foreach (var f in Directory.EnumerateFiles(SettingsDir, "*.json").OrderBy(x => x))
                 {
                     string n = Path.GetFileName(f);
-                    // 含密钥的文件绝不进诊断包（当前 AI 分组还是占位，但规则先立好）
+                    string stem = Path.GetFileNameWithoutExtension(n);
                     if (n.Contains("secret", StringComparison.OrdinalIgnoreCase)) continue;
+                    if (Array.Exists(credentialFiles,
+                            x => string.Equals(x, stem, StringComparison.OrdinalIgnoreCase))) continue;
                     sb.AppendLine("-- " + n + " --");
                     try { sb.AppendLine(File.ReadAllText(f, Encoding.UTF8)); }
                     catch (Exception e) { sb.AppendLine("(读取失败: " + e.Message + ")"); }
