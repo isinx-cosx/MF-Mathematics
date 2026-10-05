@@ -350,6 +350,34 @@ public class SettingsBridge
                     sb.AppendLine();
                 }
             }
+            sb.AppendLine();
+            // 崩溃排查最需要的就是这两段：最近日志 + 最近一次崩溃的完整现场。
+            // 崩溃日志本身就是"单文件可复盘"的（环境 + 异常链 + 日志尾部），
+            // 所以这里只带最近一个，不把 20 个都塞进诊断包。
+            sb.AppendLine("== 宿主日志（app.log 尾部）==");
+            sb.AppendLine("日志目录: " + Log.Dir);
+            sb.AppendLine(Log.Tail(Path.Combine(Log.Dir, "app.log"), 200));
+            sb.AppendLine();
+            sb.AppendLine("== 最近的崩溃记录 ==");
+            try
+            {
+                string? newest = Directory.Exists(Log.Dir)
+                    ? Directory.EnumerateFiles(Log.Dir, "crash-*.log")
+                        .OrderByDescending(x => Path.GetFileName(x), StringComparer.Ordinal)
+                        .FirstOrDefault()
+                    : null;
+                if (newest is null) sb.AppendLine("(无)");
+                else
+                {
+                    sb.AppendLine("-- " + Path.GetFileName(newest) + " --");
+                    sb.AppendLine(File.ReadAllText(newest, Encoding.UTF8));
+                }
+            }
+            catch (Exception e)
+            {
+                sb.AppendLine("(读取崩溃记录失败: " + e.Message + ")");
+            }
+            sb.AppendLine();
             File.WriteAllText(p, sb.ToString(), new UTF8Encoding(false));
             return "{\"ok\":true,\"path\":" + Json(p) + "}";
         }
