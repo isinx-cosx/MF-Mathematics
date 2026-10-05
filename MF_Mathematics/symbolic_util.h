@@ -29,6 +29,7 @@
 #include <symengine/visitor.h>
 
 #include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <cstddef>
 #include <functional>
@@ -330,6 +331,43 @@ inline void decompose_factors(const SymEngine::RCP<const SymEngine::Basic>& eq,
  * @param policy   见 SolvePolicy
  * @param note_out 非空时写入说明（部分解、通解形式等），调用方应回传给用户
  */
+/** 剥掉所有 `f(...)` 调用片段（配平括号），只留函数调用之外的骨架。
+ *  用途见 safe_solve 里"纯周期三角方程"的判据：剥完之后还能不能找到未知量。 */
+inline std::string strip_transcendental_calls(const std::string& s) {
+  std::string out;
+  out.reserve(s.size());
+  std::size_t i = 0;
+  while (i < s.size()) {
+    const unsigned char c = static_cast<unsigned char>(s[i]);
+    if (std::isalpha(c) || s[i] == '_') {
+      std::size_t j = i;
+      while (j < s.size()) {
+        const unsigned char d = static_cast<unsigned char>(s[j]);
+        if (!std::isalnum(d) && s[j] != '_') break;
+        ++j;
+      }
+      std::size_t k = j;
+      while (k < s.size() && std::isspace(static_cast<unsigned char>(s[k]))) ++k;
+      if (k < s.size() && s[k] == '(') {
+        int depth = 0;
+        std::size_t m = k;
+        for (; m < s.size(); ++m) {
+          if (s[m] == '(') ++depth;
+          else if (s[m] == ')') { --depth; if (depth == 0) break; }
+        }
+        i = (m < s.size()) ? m + 1 : s.size();
+        continue;
+      }
+      out.append(s, i, j - i);
+      i = j;
+      continue;
+    }
+    out.push_back(s[i]);
+    ++i;
+  }
+  return out;
+}
+
 inline SymEngine::RCP<const SymEngine::Set> safe_solve(
     const SymEngine::RCP<const SymEngine::Basic>& eq,
     const SymEngine::RCP<const SymEngine::Symbol>& x,
@@ -363,11 +401,33 @@ inline SymEngine::RCP<const SymEngine::Set> safe_solve(
   //    通用 solve() 会在 sin(20*x)=0 这类上栈溢出，而 solve_trig 正是为此写的。
   //    但它的返回必须过 is_usable_solution：实测它对 x*sin(x) 返回的是
   //    {x | 0 == x*sin(x)}（复述原方程的条件集），当通解报出去等于什么都没说。
-  if (!piecewise && is_trig_head(head)) {
+  //
+  // ⚠⚠ solve_trig 对**纯周期**三角方程会**挂死，而不是抛异常** —— try/catch 拦不住，
+  //    而页面是**同步**调用引擎的，于是整条链冻结到必须杀进程。
+  //    实测证据（宿主桥上计时，不是推测）：
+  //      · local_extrema("sin(10*x)") → 驻点方程 10*cos(10*x)=0 → 2ms 返回（空集）
+  //      · local_extrema("sin(20*x)") → 驻点方程 20*cos(20*x)=0 → 挂死 ≥25s，渲染进程冻结
+  //    即：同一个形状，系数 10 没事、20 失控 —— SymEngine 内部走进了某条发散路径。
+  //
+  //    判据与取舍：剥掉所有函数调用后若找不到未知量，说明未知量**只**出现在三角函数
+  //    自变量里（`c·trig(k·x+b)`），解集必是**无穷周期族**。而 strict 策略下
+  //    allow_infinite == false，下面 is_usable_solution(s_trig, false) 本来就只认有限集
+  //    —— 也就是说对 strict 调用方（local_extrema / 极值 / 单调性那一族全是）而言，
+  //    这里**不可能**得到可用结果，却要付出挂死的代价。所以 strict 下直接跳过。
+  //    （Decompose 策略仍照旧调用，sin(x)=0 这类能给出通解的用例不受影响。）
+  const bool periodic_only =
+      is_trig_head(head) && strip_transcendental_calls(s).find(var) == std::string::npos;
+  const bool allow_infinite = (policy == SolvePolicy::Decompose);
+  if (periodic_only && !allow_infinite) {
+    if (note_out) {
+      *note_out = "该三角方程的解是无穷周期族（未知量只出现在三角函数内部），"
+                  "而本次调用要求确定的有限解集：已跳过符号求解器。"
+                  "请用指定区间上的数值求根，或改用能给出通解形式的接口。";
+    }
+  } else if (!piecewise && is_trig_head(head)) {
     try {
       const auto s_trig = SymEngine::solve_trig(eq, x);
       // strict 只认"确定的有限解"：拿到参数族或空集会让驻点/交点静默漏解
-      const bool allow_infinite = (policy == SolvePolicy::Decompose);
       if (is_usable_solution(s_trig, allow_infinite)) {
         if (note_out && !SymEngine::is_a<SymEngine::FiniteSet>(*s_trig)) {
           *note_out = "该三角方程的解是无穷族（周期通解），以集合形式给出，含整数参数";

@@ -218,6 +218,219 @@ RCP<const Basic> trig_product_integral(bool s1, const RCP<const Basic>& u1,
     return RCP<const Basic>();
 }
 
+// ── 下面几条形状判定只服务本批新增的积分规则（全部只看结构，不做任何"猜"）──
+
+// base 是否形如 c + u²：c 关于 x 是常数、u 关于 x 线性。命中则给出 u 与它的斜率 m。
+// 为什么要它：∫du/(c+u²) 那一族（含最基础的 ∫dx/(1+x²) = atan x）是教科书里
+// 最先遇到的一类，而原来的 Pow 分支只认"底数线性"（(mx+b)^n）—— 二次底数一律 null。
+bool is_c_plus_square(const RCP<const Basic>& base, const RCP<const Symbol>& x,
+                      RCP<const Basic>& u, RCP<const Basic>& m) {
+    if (!SymEngine::is_a<SymEngine::Add>(*base)) return false;
+    const auto args = base->get_args();
+    if (args.size() != 2) return false;
+    for (int i = 0; i < 2; ++i) {
+        const auto& sq = args[i];
+        const auto& other = args[1 - i];
+        if (!is_constant(other, x)) continue;          // 另一项必须是常数
+        if (!SymEngine::is_a<SymEngine::Pow>(*sq)) continue;
+        const auto sa = sq->get_args();
+        if (sa.size() != 2) continue;
+        if (!SymEngine::is_a<SymEngine::Integer>(*sa[1])) continue;
+        if (SymEngine::down_cast<const SymEngine::Integer&>(*sa[1]).as_int() != 2)
+            continue;                                   // 指数必须正好是 2
+        RCP<const Basic> mm, bb;
+        if (!is_linear(sa[0], x, mm, bb)) continue;
+        u = sa[0];
+        m = mm;
+        return true;
+    }
+    return false;
+}
+
+// base 是否形如 u·ln(u)（u 关于 x 线性）→ ∫dx/(u·ln u) = ln(ln u)/m
+bool is_u_log_u(const RCP<const Basic>& base, const RCP<const Symbol>& x,
+                RCP<const Basic>& u, RCP<const Basic>& m) {
+    if (!SymEngine::is_a<SymEngine::Mul>(*base)) return false;
+    const auto args = base->get_args();
+    if (args.size() != 2) return false;
+    for (int i = 0; i < 2; ++i) {
+        if (!SymEngine::is_a<SymEngine::Log>(*args[i])) continue;
+        const auto la = args[i]->get_args();
+        if (la.size() != 1) continue;
+        const auto& cand = args[1 - i];
+        if (!SymEngine::eq(*la[0], *cand)) continue;    // ln 的参数必须**就是**另一个因子
+        RCP<const Basic> mm, bb;
+        if (!is_linear(cand, x, mm, bb)) continue;
+        u = cand;
+        m = mm;
+        return true;
+    }
+    return false;
+}
+
+// base 是否形如 k + x²（k 常数）→ 配合因子 x 得 ∫x dx/(k+x²) = ½ln(k+x²)
+bool is_k_plus_x_squared(const RCP<const Basic>& base,
+                         const RCP<const Symbol>& x) {
+    RCP<const Basic> u, m;
+    if (!is_c_plus_square(base, x, u, m)) return false;
+    return SymEngine::eq(*u, *x);
+}
+
+// 两个因子是否形如 u^(−1) 与 (ln u)^(−1)（u 线性）→ ∫dx/(u·ln u) = ln(ln u)/m
+//
+// 为什么需要它（而不是直接用 Pow 分支）：SymEngine 里 1/(x·ln x) 的**规范形**是
+// `x^(-1) · ln(x)^(-1)`（两个负幂相乘），**不是** `Pow(Mul(x, ln x), -1)`。
+// 所以这条规则必须在 Mul 分支上接；只看 Pow 分支永远匹配不到。
+bool is_inv_u_times_inv_log_u(const RCP<const Basic>& a,
+                              const RCP<const Basic>& b,
+                              const RCP<const Symbol>& x,
+                              RCP<const Basic>& u, RCP<const Basic>& m) {
+    const auto inv_base = [](const RCP<const Basic>& e) -> RCP<const Basic> {
+        if (!SymEngine::is_a<SymEngine::Pow>(*e)) return RCP<const Basic>();
+        const auto args = e->get_args();
+        if (args.size() != 2) return RCP<const Basic>();
+        if (!SymEngine::is_a<SymEngine::Integer>(*args[1]))
+            return RCP<const Basic>();
+        if (SymEngine::down_cast<const SymEngine::Integer&>(*args[1]).as_int() != -1)
+            return RCP<const Basic>();
+        return args[0];
+    };
+    for (int i = 0; i < 2; ++i) {
+        const auto ba = inv_base(i == 0 ? a : b);
+        const auto bb = inv_base(i == 0 ? b : a);
+        if (ba.is_null() || bb.is_null()) continue;
+        if (!SymEngine::is_a<SymEngine::Log>(*bb)) continue;
+        const auto la = bb->get_args();
+        if (la.size() != 1 || !SymEngine::eq(*la[0], *ba)) continue;
+        RCP<const Basic> mm, cc;
+        if (!is_linear(ba, x, mm, cc)) continue;
+        u = ba;
+        m = mm;
+        return true;
+    }
+    return false;
+}
+
+// e 是否 x^p（p 关于 x 常数，且 p ≠ −1）。裸 x 记作 p = 1。
+//
+// 排除 p = −1 是因为分母 (p+1) 会变 0 —— 那一条是 ∫ln x/x = ½ln²x，公式不同。
+// 允许任意常数 p（不只整数）：√x·ln x 就是 p = ½ 的情形。
+bool is_x_pow_const(const RCP<const Basic>& e, const RCP<const Symbol>& x,
+                    RCP<const Basic>& p) {
+    if (SymEngine::is_a<SymEngine::Symbol>(*e) && SymEngine::eq(*e, *x)) {
+        p = SymEngine::integer(1);
+        return true;
+    }
+    if (!SymEngine::is_a<SymEngine::Pow>(*e)) return false;
+    const auto a = e->get_args();
+    if (a.size() != 2) return false;
+    if (!SymEngine::eq(*a[0], *x)) return false;
+    if (SymEngine::has_symbol(*a[1], *x)) return false;   // 指数必须与 x 无关
+    if (SymEngine::eq(*SymEngine::simplify(
+                          SymEngine::add(a[1], SymEngine::integer(1))),
+                      *SymEngine::zero))
+        return false;                                     // p == −1 排除
+    p = a[1];
+    return true;
+}
+
+// base 是否 1 + x² 或 1 − x²。返回 0=不是、+1=1+x²、−1=1−x²。
+// 用于 ∫√(1+x²)（arcsinh 闭式）与 ∫√(1−x²)（arcsin 闭式）。
+int one_pm_x_squared(const RCP<const Basic>& base, const RCP<const Symbol>& x) {
+    if (!SymEngine::is_a<SymEngine::Add>(*base)) return 0;
+    const auto args = base->get_args();
+    if (args.size() != 2) return 0;
+    bool has_one = false;
+    int sign = 0;
+    for (const auto& a : args) {
+        if (SymEngine::eq(*a, *SymEngine::integer(1))) {
+            has_one = true;
+            continue;
+        }
+        if (SymEngine::is_a<SymEngine::Pow>(*a)) {
+            const auto pa = a->get_args();
+            if (pa.size() == 2 && SymEngine::eq(*pa[0], *x) &&
+                SymEngine::eq(*pa[1], *SymEngine::integer(2))) {
+                sign = +1;
+                continue;
+            }
+        }
+        if (SymEngine::is_a<SymEngine::Mul>(*a)) {
+            const auto ma = a->get_args();
+            if (ma.size() == 2) {
+                for (int i = 0; i < 2; ++i) {
+                    if (!SymEngine::eq(*ma[i], *SymEngine::integer(-1))) continue;
+                    if (!SymEngine::is_a<SymEngine::Pow>(*ma[1 - i])) continue;
+                    const auto pa = ma[1 - i]->get_args();
+                    if (pa.size() == 2 && SymEngine::eq(*pa[0], *x) &&
+                        SymEngine::eq(*pa[1], *SymEngine::integer(2)))
+                        sign = -1;
+                }
+            }
+        }
+    }
+    if (!has_one || sign == 0) return 0;
+    return sign;
+}
+
+// base 是否 1 + x⁴（∫dx/(1+x⁴) 的判别）
+bool is_one_plus_x_fourth(const RCP<const Basic>& base,
+                          const RCP<const Symbol>& x) {
+    if (!SymEngine::is_a<SymEngine::Add>(*base)) return false;
+    const auto args = base->get_args();
+    if (args.size() != 2) return false;
+    bool has_one = false, has_x4 = false;
+    for (const auto& a : args) {
+        if (SymEngine::eq(*a, *SymEngine::integer(1))) {
+            has_one = true;
+            continue;
+        }
+        if (!SymEngine::is_a<SymEngine::Pow>(*a)) continue;
+        const auto pa = a->get_args();
+        if (pa.size() == 2 && SymEngine::eq(*pa[0], *x) &&
+            SymEngine::eq(*pa[1], *SymEngine::integer(4)))
+            has_x4 = true;
+    }
+    return has_one && has_x4;
+}
+
+// ∫dx/(1+x⁴) 的标准闭式（1+x⁴ = (x²+√2x+1)(x²−√2x+1) 分解而来）：
+//   (1/(4√2))·ln((x²+√2x+1)/(x²−√2x+1)) + (1/(2√2))·(atan(√2x−1) + atan(√2x+1))
+// 正确性不靠这段注释背书 —— 测试里对它求导再与 1/(1+x⁴) 数值比对。
+RCP<const Basic> antideriv_one_plus_x4(const RCP<const Basic>& x) {
+    const auto one = SymEngine::integer(1);
+    const auto two = SymEngine::integer(2);
+    const auto four = SymEngine::integer(4);
+    const auto x2 = SymEngine::pow(x, two);
+    const auto s2 = SymEngine::sqrt(two);
+    const auto s2x = SymEngine::mul(s2, x);
+    const auto pp = SymEngine::add(SymEngine::add(x2, s2x), one);   // x²+√2x+1
+    const auto mm = SymEngine::add(SymEngine::sub(x2, s2x), one);   // x²−√2x+1
+    const auto log_term = SymEngine::div(
+        SymEngine::log(SymEngine::div(pp, mm)), SymEngine::mul(four, s2));
+    const auto atan_term = SymEngine::div(
+        SymEngine::add(SymEngine::atan(SymEngine::sub(s2x, one)),
+                       SymEngine::atan(SymEngine::add(s2x, one))),
+        SymEngine::mul(two, s2));
+    return SymEngine::add(log_term, atan_term);
+}
+
+// e 是否为 e^(a·x+c)（a≠0、a 与 c 关于 x 常数）→ 给出 u = a·x+c 与 a、c。
+// 用于 ∫e^(a x+c)·sin(b x+d) 那一对闭式（两次分部积分的结果）。
+bool exp_linear_info(const RCP<const Basic>& e, const RCP<const Symbol>& x,
+                     RCP<const Basic>& u, RCP<const Basic>& a,
+                     RCP<const Basic>& c) {
+    if (!SymEngine::is_a<SymEngine::Pow>(*e)) return false;
+    const auto args = e->get_args();
+    if (args.size() != 2) return false;
+    if (!SymEngine::eq(*args[0], *SymEngine::E)) return false;
+    if (!is_linear(args[1], x, a, c)) return false;
+    u = args[1];
+    return true;
+}
+
+// 这里必须保留两行前向声明：antiderivative 与 by_parts 互相递归
+// （by_parts 要调 antiderivative 求 ∫g；antiderivative 的 Mul 分支要调 by_parts）。
 RCP<const Basic> antiderivative(const RCP<const Basic>& e,
                                 const RCP<const Symbol>& x);
 RCP<const Basic> by_parts(const RCP<const Basic>& p, const RCP<const Basic>& g,
@@ -278,6 +491,107 @@ RCP<const Basic> antiderivative(const RCP<const Basic>& e,
             return SymEngine::mul(cc, fv);
         }
         if (vf.size() == 2) {
+            // x/(k+x²) → ½·ln(k+x²)
+            // 自证：d/dx[½ln(k+x²)] = ½·(2x)/(k+x²) = x/(k+x²)
+            // 这条走不到下面的"多项式×{sin,cos,exp}"分支（分母不是三角/指数），
+            // 也不属于积化和差，所以原来直接落到 null。
+            {
+                const RCP<const Basic>* num = &vf[0];
+                const RCP<const Basic>* den = &vf[1];
+                if (!(SymEngine::is_a<SymEngine::Symbol>(**num) &&
+                      SymEngine::eq(**num, *x))) {
+                    num = &vf[1];
+                    den = &vf[0];
+                }
+                if (SymEngine::is_a<SymEngine::Symbol>(**num) &&
+                    SymEngine::eq(**num, *x) &&
+                    SymEngine::is_a<SymEngine::Pow>(**den)) {
+                    const auto da = (*den)->get_args();
+                    if (da.size() == 2 &&
+                        SymEngine::is_a<SymEngine::Integer>(*da[1]) &&
+                        SymEngine::down_cast<const SymEngine::Integer&>(*da[1])
+                                .as_int() == -1 &&
+                        is_k_plus_x_squared(da[0], x)) {
+                        return SymEngine::mul(
+                            cc, SymEngine::div(SymEngine::log(da[0]),
+                                               SymEngine::integer(2)));
+                    }
+                }
+            }
+            // 1/(u·ln u) → ln(ln u)/m（规范形是两个负幂相乘，见 helper 的注释）
+            // 自证：d/dx[ln(ln u)/m] = 1/(u·ln u)
+            {
+                RCP<const Basic> u, mm;
+                if (is_inv_u_times_inv_log_u(vf[0], vf[1], x, u, mm)) {
+                    return SymEngine::mul(
+                        cc, SymEngine::div(
+                                SymEngine::log(SymEngine::log(u)), mm));
+                }
+            }
+            // x^p·ln x（p 常数、p ≠ −1）→ x^(p+1)/(p+1)·ln x − x^(p+1)/(p+1)²
+            // 自证：d/dx = x^p·ln x + x^p − x^p = x^p·ln x
+            //   p=1 → x·ln x；p=1/2 → √x·ln x（同一条公式）
+            //
+            // ⚠ 这条**不能**交给 by_parts：那套是按"多项式 p 反复求导直到常数"设计的，
+            //    而这里要微分的是 ln x —— dp = 1/x → −1/x² → … 永不终止，
+            //    只会一路递归到深度上限、返回 null（实测就是这么失败的）。
+            {
+                RCP<const Basic> pp;
+                const RCP<const Basic>* pw = &vf[0];
+                const RCP<const Basic>* lg = &vf[1];
+                if (!SymEngine::is_a<SymEngine::Log>(**lg)) {
+                    pw = &vf[1];
+                    lg = &vf[0];
+                }
+                if (SymEngine::is_a<SymEngine::Log>(**lg) &&
+                    is_x_pow_const(*pw, x, pp)) {
+                    const auto pp1 = SymEngine::add(pp, SymEngine::integer(1));
+                    const auto xp = SymEngine::pow(x, pp1);
+                    return SymEngine::mul(
+                        cc,
+                        SymEngine::sub(
+                            SymEngine::mul(SymEngine::div(xp, pp1), *lg),
+                            SymEngine::div(
+                                xp, SymEngine::pow(pp1, SymEngine::integer(2)))));
+                }
+            }
+            // e^(a·x+c)·sin(b·x+d) 或 ·cos(b·x+d)：两次分部积分的闭式
+            //   ∫e^u·sin v = e^u·(a·sin v − b·cos v)/(a²+b²)
+            //   ∫e^u·cos v = e^u·(a·cos v + b·sin v)/(a²+b²)
+            // 自证：以 sin 为例，求导 = e^u·a·(a sin−b cos)/D + e^u·(ab cos + b² sin)/D
+            //                       = e^u·(a²+b²)·sin/D = e^u·sin v
+            {
+                RCP<const Basic> ue, ae, ce;
+                const RCP<const Basic>* ex = &vf[0];
+                const RCP<const Basic>* tr = &vf[1];
+                if (!exp_linear_info(*ex, x, ue, ae, ce)) {
+                    ex = &vf[1];
+                    tr = &vf[0];
+                }
+                RCP<const Basic> ue2, ae2, ce2;
+                if (exp_linear_info(*ex, x, ue2, ae2, ce2) &&
+                    (SymEngine::is_a<SymEngine::Sin>(**tr) ||
+                     SymEngine::is_a<SymEngine::Cos>(**tr))) {
+                    const auto v = (*tr)->get_args()[0];
+                    RCP<const Basic> bt, ct;
+                    if (is_linear(v, x, bt, ct)) {
+                        const bool is_sin = SymEngine::is_a<SymEngine::Sin>(**tr);
+                        const auto den = SymEngine::add(
+                            SymEngine::pow(ae2, SymEngine::integer(2)),
+                            SymEngine::pow(bt, SymEngine::integer(2)));
+                        const auto num =
+                            is_sin
+                                ? SymEngine::sub(
+                                      SymEngine::mul(ae2, SymEngine::sin(v)),
+                                      SymEngine::mul(bt, SymEngine::cos(v)))
+                                : SymEngine::add(
+                                      SymEngine::mul(ae2, SymEngine::cos(v)),
+                                      SymEngine::mul(bt, SymEngine::sin(v)));
+                        return SymEngine::mul(
+                            cc, SymEngine::div(SymEngine::mul(*ex, num), den));
+                    }
+                }
+            }
             // 积化和差:两个线性三角因子(sin/cos)
             bool s1, s2;
             RCP<const Basic> u1, u2, m1, b1, m2, b2;
@@ -329,6 +643,91 @@ RCP<const Basic> antiderivative(const RCP<const Basic>& e,
             }
             return RCP<const Basic>();
         }
+        // ── 幂型三角与有理式（本批新增；每条都由 tests 里的"求导自证"保证）──
+        const bool n_is_int = SymEngine::is_a<SymEngine::Integer>(*n);
+        const long n_val = n_is_int
+            ? SymEngine::down_cast<const SymEngine::Integer&>(*n).as_int()
+            : 0;
+        // tan(u)² = sec(u)²−1 → ∫ = tan(u)/m − x
+        // 自证：d/dx[tan(mx+b)/m − x] = sec²(mx+b) − 1 = tan²(mx+b)
+        if (n_is_int && n_val == 2 && SymEngine::is_a<SymEngine::Tan>(*base)) {
+            const auto u = base->get_args()[0];
+            RCP<const Basic> mm, bb;
+            if (is_linear(u, x, mm, bb))
+                return SymEngine::sub(SymEngine::div(SymEngine::tan(u), mm), x);
+        }
+        // sin³/​cos³（奇次幂）：∫sin³u = (−cos u + cos³u/3)/m，∫cos³u = (sin u − sin³u/3)/m
+        // 自证：d/dx[−cos u + cos³u/3] = sin u − cos²u·sin u = sin u(1−cos²u) = sin³u
+        if (n_is_int && n_val == 3 &&
+            (SymEngine::is_a<SymEngine::Sin>(*base) ||
+             SymEngine::is_a<SymEngine::Cos>(*base))) {
+            const bool is_sin = SymEngine::is_a<SymEngine::Sin>(*base);
+            const auto u = base->get_args()[0];
+            RCP<const Basic> mm, bb;
+            if (is_linear(u, x, mm, bb)) {
+                // ∫sin³u = (−cos u + cos³u/3)/m
+                // ∫cos³u = (+sin u − sin³u/3)/m   ← 注意是**减** sin³u/3
+                //   （写错成加号时，本批的求导自证立刻以 maxrel=0.635 抓到 —— 见测试）
+                const auto p3 = SymEngine::div(
+                    SymEngine::pow(is_sin ? SymEngine::cos(u) : SymEngine::sin(u),
+                                   SymEngine::integer(3)),
+                    SymEngine::integer(3));
+                const auto cube = is_sin ? p3 : SymEngine::neg(p3);
+                const auto lead = is_sin ? SymEngine::neg(SymEngine::cos(u))
+                                         : SymEngine::sin(u);
+                return SymEngine::div(SymEngine::add(lead, cube), mm);
+            }
+            return RCP<const Basic>();
+        }
+        // sec³(u)：∫sec³u = ½(sec u·tan u + ln(sec u + tan u))/m
+        // 自证：d/dx[½sec u·tan u] = ½(sec u·tan²u + sec³u)；d/dx[½ln(sec u+tan u)] = ½sec u
+        //       相加 = ½[sec u(tan²u+1) + sec³u] = ½[sec³u + sec³u] = sec³u
+        if (n_is_int && n_val == 3 && SymEngine::is_a<SymEngine::Sec>(*base)) {
+            const auto u = base->get_args()[0];
+            RCP<const Basic> mm, bb;
+            if (is_linear(u, x, mm, bb)) {
+                const auto half = SymEngine::div(
+                    SymEngine::add(
+                        SymEngine::mul(SymEngine::sec(u), SymEngine::tan(u)),
+                        SymEngine::log(SymEngine::add(SymEngine::sec(u),
+                                                      SymEngine::tan(u)))),
+                    SymEngine::integer(2));
+                return SymEngine::div(half, mm);
+            }
+            return RCP<const Basic>();
+        }
+        // √(1+x²) / √(1−x²)：教科书的 arcsinh / arcsin 闭式
+        //   ∫√(1+x²) = (x·√(1+x²) + asinh x)/2
+        //   ∫√(1−x²) = (x·√(1−x²) + asin  x)/2
+        // 自证：两条求导后分别回到 √(1+x²) / √(1−x²)
+        if (SymEngine::eq(*n, *SymEngine::div(SymEngine::integer(1),
+                                              SymEngine::integer(2)))) {
+            const int kind = one_pm_x_squared(base, x);
+            if (kind != 0) {
+                const auto root = SymEngine::sqrt(base);
+                const auto inner =
+                    kind > 0 ? SymEngine::asinh(x) : SymEngine::asin(x);
+                return SymEngine::div(
+                    SymEngine::add(SymEngine::mul(x, root), inner),
+                    SymEngine::integer(2));
+            }
+        }
+        if (n_is_int && n_val == -1) {
+            // 1/(c+u²) → atan(u)/m（u 线性、c 常数；含最基础的 1/(1+x²)）
+            // 自证：d/dx[atan(u)/m] = 1/(1+u²)（u=mx+b 时链式恰好抵消）
+            RCP<const Basic> u, mm;
+            if (is_c_plus_square(base, x, u, mm))
+                return SymEngine::div(SymEngine::atan(u), mm);
+            // 1/(u·ln u) → ln(ln u)/m
+            // 自证：d/dx[ln(ln u)/m] = 1/(u·ln u)
+            RCP<const Basic> u2, m2;
+            if (is_u_log_u(base, x, u2, m2))
+                return SymEngine::div(SymEngine::log(SymEngine::log(u2)), m2);
+            // 1/(1+x⁴)：教科书的经典闭式（见 antideriv_one_plus_x4 的注释）
+            // 自证：求导后回到 1/(1+x⁴)
+            if (is_one_plus_x_fourth(base, x))
+                return antideriv_one_plus_x4(x);
+        }
         RCP<const Basic> m, b;
         if (SymEngine::has_symbol(*base, *x)) {
             // 底数线性:∫(mx+b)^n = (mx+b)^(n+1)/((n+1)·m);n=-1 → ln(mx+b)/m
@@ -369,11 +768,58 @@ RCP<const Basic> antiderivative(const RCP<const Basic>& e,
             return SymEngine::div(SymEngine::sin(u), m);
         return RCP<const Basic>();
     }
+    // tan(u) → −ln(cos(u))/m（u 线性）
+    // 自证：d/dx[−ln cos(mx+b)/m] = −(−sin(mx+b)·m)/(m·cos(mx+b)) = tan(mx+b)
+    if (SymEngine::is_a<SymEngine::Tan>(*e)) {
+        const auto u = e->get_args()[0];
+        RCP<const Basic> m, b;
+        if (is_linear(u, x, m, b))
+            return SymEngine::div(
+                SymEngine::neg(SymEngine::log(SymEngine::cos(u))), m);
+        return RCP<const Basic>();
+    }
+    // sec(u) → ln(sec u + tan u)/m（u 线性）
+    // 自证：d/dx[ln(sec u + tan u)/m] = (sec u·tan u + sec²u)·m /(m·(sec u+tan u)) = sec u
+    if (SymEngine::is_a<SymEngine::Sec>(*e)) {
+        const auto u = e->get_args()[0];
+        RCP<const Basic> m, b;
+        if (is_linear(u, x, m, b))
+            return SymEngine::div(
+                SymEngine::log(SymEngine::add(SymEngine::sec(u),
+                                              SymEngine::tan(u))),
+                m);
+        return RCP<const Basic>();
+    }
     // ln(x) → x·ln(x) - x
     if (SymEngine::is_a<SymEngine::Log>(*e)) {
         const auto u = e->get_args()[0];
         if (SymEngine::eq(*u, *x))
             return SymEngine::sub(SymEngine::mul(x, SymEngine::log(x)), x);
+        return RCP<const Basic>();
+    }
+    // 反三角（自变量正好是 x）：分部积分闭式
+    //   ∫atan x = x·atan x − ½ln(1+x²)
+    //   ∫acos x = x·acos x − √(1−x²)
+    //   ∫asin x = x·asin x + √(1−x²)
+    // 自证：三条分别求导后回到 atan x / acos x / asin x（测试里已固化）。
+    if (SymEngine::is_a<SymEngine::ATan>(*e) || SymEngine::is_a<SymEngine::ACos>(*e) ||
+        SymEngine::is_a<SymEngine::ASin>(*e)) {
+        const auto u = e->get_args()[0];
+        if (SymEngine::eq(*u, *x)) {
+            const auto one = SymEngine::integer(1);
+            const auto root = SymEngine::sqrt(
+                SymEngine::sub(one, SymEngine::pow(x, SymEngine::integer(2))));
+            if (SymEngine::is_a<SymEngine::ATan>(*e))
+                return SymEngine::sub(
+                    SymEngine::mul(x, SymEngine::atan(x)),
+                    SymEngine::div(
+                        SymEngine::log(SymEngine::add(
+                            one, SymEngine::pow(x, SymEngine::integer(2)))),
+                        SymEngine::integer(2)));
+            if (SymEngine::is_a<SymEngine::ACos>(*e))
+                return SymEngine::sub(SymEngine::mul(x, SymEngine::acos(x)), root);
+            return SymEngine::add(SymEngine::mul(x, SymEngine::asin(x)), root);
+        }
         return RCP<const Basic>();
     }
     return RCP<const Basic>();
@@ -768,6 +1214,49 @@ double improper_integral(const std::string& expr, const std::string& var,
 }
 
 // ── 二重/三重积分 ───────────────────────────────────────────────────────────
+
+// 不定二重积分 ∫∫ f(x,y) dy dx:内层对 y、外层对 x 逐次求原函数。
+//
+// ⚠ 这里的"积分常数"**不是常数**：对 y 积分时把 x 当常数，那一层的常数是
+// **x 的任意函数**；再对 x 积分又引入 **y 的任意函数**。所以通解是
+//     H(x,y) + A(x) + B(y)
+// 这里把 A、B 显式写出来，而不是含糊地加一个 "+ C" —— 否则用户会以为它和
+// 单变量不定积分一样只差一个常数。（单变量的 integrate_indefinite 用 "+ C" 是对的。）
+std::string integrate_double_indefinite(const std::string& expr,
+                                        const std::string& x,
+                                        const std::string& y) {
+    const auto xs = SymEngine::symbol(x);
+    const auto ys = SymEngine::symbol(y);
+    const auto e = SymEngine::parse(expr);
+    const auto Fy = antiderivative(e, ys);    // 内层：x 视为常数
+    if (Fy.is_null()) return "未实现";
+    const auto Fx = antiderivative(Fy, xs);   // 外层：y 视为常数
+    if (Fx.is_null()) return "未实现";
+    return SymEngine::str(*SymEngine::simplify(SymEngine::expand(Fx))) +
+           " + A(" + x + ") + B(" + y + ")";
+}
+
+// 不定三重积分 ∫∫∫ f(x,y,z) dz dy dx。
+// 逐层引入的任意函数依次是 (x,y)、(x,z)、(y,z) 的函数 —— 同二重的道理，
+// 每层的积分常数都是"被当作常数的那两个变量"的任意函数。
+std::string integrate_triple_indefinite(const std::string& expr,
+                                        const std::string& x,
+                                        const std::string& y,
+                                        const std::string& z) {
+    const auto xs = SymEngine::symbol(x);
+    const auto ys = SymEngine::symbol(y);
+    const auto zs = SymEngine::symbol(z);
+    const auto e = SymEngine::parse(expr);
+    const auto Fz = antiderivative(e, zs);
+    if (Fz.is_null()) return "未实现";
+    const auto Fy = antiderivative(Fz, ys);
+    if (Fy.is_null()) return "未实现";
+    const auto Fx = antiderivative(Fy, xs);
+    if (Fx.is_null()) return "未实现";
+    return SymEngine::str(*SymEngine::simplify(SymEngine::expand(Fx))) +
+           " + A(" + x + "," + y + ") + B(" + x + "," + z +
+           ") + C(" + y + "," + z + ")";
+}
 
 double integrate_double(const std::string& expr, const std::string& x,
                         const std::string& y, const std::string& xa,

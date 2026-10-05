@@ -271,10 +271,19 @@ endif()
 add_test(NAME functional_analysis COMMAND test_functional_analysis)
 
 add_executable(test_calculus tests/test_calculus.cpp)
-target_link_libraries(test_calculus PRIVATE mf_mathematics mf_mathematics_core)
-target_include_directories(test_calculus PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+# 需要 SymEngine 头/库：本测试里有一条"求导自证" —— 对积分结果求导再与原式数值比对
+# （原函数形式不唯一，比字符串会误判；求导才是"这条积分规则对不对"的直接判据）。
+# 库的链接是 PRIVATE，所以这里必须显式再链一次 symengine/flint/gmp/mpfr。
+target_link_libraries(test_calculus PRIVATE mf_mathematics mf_mathematics_core
+    ${MF_SYMENGINE_ROOT}/lib/symengine.lib
+    ${MF_SYMENGINE_ROOT}/lib/flint.lib
+    ${MF_SYMENGINE_ROOT}/lib/gmp.lib
+    ${MF_SYMENGINE_ROOT}/lib/mpfr.lib)
+target_include_directories(test_calculus PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}
+    ${MF_SYMENGINE_ROOT}/include)
 if(MSVC)
-    target_compile_options(test_calculus PRIVATE /utf-8 /W4)
+    target_compile_options(test_calculus PRIVATE /utf-8 /W4
+        /external:W0 /external:I "${MF_SYMENGINE_ROOT}/include")
 endif()
 add_test(NAME calculus COMMAND test_calculus)
 

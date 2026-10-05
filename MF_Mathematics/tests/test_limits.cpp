@@ -77,6 +77,13 @@ static void test_determinate() {
     expect("2/oo", kInf, "+", 0.0, "常数/∞（表达式内含 ∞ 字面量）");
     expect("exp(-x)", kInf, "+", 0.0, "指数衰减到 0");
     expect("x^2", kInf, "+", kInf, "幂发散（形式确定）");
+    // 有界超越函数在 ∞：教科书事实（本批新增）。原先这三类都判成「函数在 ∞」不定式，
+    // 而 ∞ 归约把 x 换成 1/t 后又回到同一句分类 → 连 lim atan(x) 都解不出，
+    // 直接后果是 y=atan(x) 这类函数的水平渐近线全丢。
+    expect("atan(x)", kInf, "+", std::acos(-1.0) / 2, "atan(x) → π/2（本批新增）");
+    expect("atan(x)", -kInf, "-", -std::acos(-1.0) / 2, "atan(x) → −π/2（本批新增）");
+    expect("tanh(x)", kInf, "+", 1.0, "tanh(x) → 1（本批新增）");
+    expect("erf(x)", kInf, "+", 1.0, "erf(x) → 1（本批新增）");
     expect("exp(x)", kInf, "+", kInf, "指数发散（形式确定）");
     expect("log(x)", 0.0, "+", -kInf, "ln 在 0⁺ → −∞（确定）");
     expect("1/x", kInf, "+", 0.0, "有限/∞ → 0（旧实现给 ∞，属确定形式却算错）");

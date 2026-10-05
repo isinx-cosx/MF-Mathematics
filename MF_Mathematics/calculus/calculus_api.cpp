@@ -109,8 +109,20 @@ void register_all() {
             get_string(args, "expr"), get_string_opt(args, "var", "x"),
             bound(args, "a", "0"), bound(args, "b", "oo")));
     }));
+    // 重积分：四个边界都给 → 定积分；**没给 → 不定重积分**。
+    // 与单变量的 integrate 用同一套约定（见它上面那段），于是前端可以像
+    // 「不定积分 / 定积分」那样，用两个模式指向同一个 action。
+    // 注意此前是"缺边界就静默按 [0,1] 算"—— 那会给出一个看着正常、
+    // 其实不是用户所要区域的数；现在改成缺边界即不定，不再猜区域。
     register_function("integrate_double",
                       make_handler([bound](const Value& args) {
+        const bool has_bounds = args.is_object() && args.has("xa") &&
+                                args.has("xb") && args.has("ya") &&
+                                args.has("yb");
+        if (!has_bounds)
+            return Value(integrate_double_indefinite(
+                get_string(args, "expr"), get_string_opt(args, "x", "x"),
+                get_string_opt(args, "y", "y")));
         return Value(integrate_double(
             get_string(args, "expr"), get_string_opt(args, "x", "x"),
             get_string_opt(args, "y", "y"), bound(args, "xa", "0"),
@@ -119,6 +131,14 @@ void register_all() {
     }));
     register_function("integrate_triple",
                       make_handler([bound](const Value& args) {
+        const bool has_bounds = args.is_object() && args.has("xa") &&
+                                args.has("xb") && args.has("ya") &&
+                                args.has("yb") && args.has("za") &&
+                                args.has("zb");
+        if (!has_bounds)
+            return Value(integrate_triple_indefinite(
+                get_string(args, "expr"), get_string_opt(args, "x", "x"),
+                get_string_opt(args, "y", "y"), get_string_opt(args, "z", "z")));
         return Value(integrate_triple(
             get_string(args, "expr"), get_string_opt(args, "x", "x"),
             get_string_opt(args, "y", "y"), get_string_opt(args, "z", "z"),

@@ -29,6 +29,20 @@ double integrate_numeric(const std::string& expr, const std::string& var,
 double improper_integral(const std::string& expr, const std::string& var,
                                 const std::string& a, const std::string& b);
 
+// 不定二重积分 ∫∫ f(x,y) dy dx:内层对 y、外层对 x 逐次求原函数,
+// 返回 "H(x,y) + A(x) + B(y)"。无法符号积分时返回 "未实现"。
+// ⚠ 与单变量不同,这里的积分常数是**任意函数**(见 .cpp 里的说明),不要加 "+ C"。
+std::string integrate_double_indefinite(const std::string& expr,
+                                               const std::string& x,
+                                               const std::string& y);
+
+// 不定三重积分 ∫∫∫ f(x,y,z) dz dy dx,返回 "K + A(x,y) + B(x,z) + C(y,z)"。
+// 无法符号积分时返回 "未实现"。
+std::string integrate_triple_indefinite(const std::string& expr,
+                                               const std::string& x,
+                                               const std::string& y,
+                                               const std::string& z);
+
 // 二重积分 ∫∫ f(x,y) dy dx,区域 [xa,xb]×[ya,yb]。
 // 边界可为数字或含外层变量的表达式(如 "2*x")。符号积分器失败回退数值。
 double integrate_double(const std::string& expr, const std::string& x,

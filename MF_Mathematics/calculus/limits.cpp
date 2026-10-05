@@ -571,6 +571,17 @@ LimForm lf_classify(const RCP<const Basic>& e, const std::string& var, double po
         const bool trig = SymEngine::is_a<SymEngine::Sin>(*e) || SymEngine::is_a<SymEngine::Cos>(*e) ||
                           SymEngine::is_a<SymEngine::Tan>(*e) || SymEngine::is_a<SymEngine::Cot>(*e) ||
                           SymEngine::is_a<SymEngine::Sec>(*e) || SymEngine::is_a<SymEngine::Csc>(*e);
+        // 有界超越函数在 ±∞ 处有**确定的有限极限** —— 这是教科书事实，不是"猜"：
+        //   atan(±∞) = ±π/2 ; tanh(±∞) = ±1 ; erf(±∞) = ±1
+        // 原先这几类一律落到下面的「函数在 ∞」不定式，而 lf_reduce_inf 把 x 换成 1/t
+        // 之后又回到同一句分类，于是连 lim atan(x) 这种最基本的都解不出 ——
+        // 直接后果是 y=atan(x) 这类函数的**水平渐近线全丢**（tests 里也有对应断言）。
+        if (a.k == LimKind::Inf && a.sign != 0) {
+            const double sg = static_cast<double>(a.sign);
+            if (SymEngine::is_a<SymEngine::ATan>(*e)) return lf_val(sg * std::acos(-1.0) / 2.0);
+            if (SymEngine::is_a<SymEngine::Tanh>(*e)) return lf_val(sg);
+            if (SymEngine::is_a<SymEngine::Erf>(*e)) return lf_val(sg);
+        }
         if (a.k == LimKind::Inf) return trig ? lf_indet("三角函数在 ∞（振荡）") : lf_indet("函数在 ∞");
         try {
             const auto x = SymEngine::symbol(var);

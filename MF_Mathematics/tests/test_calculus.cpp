@@ -2,12 +2,19 @@
 //
 // 期望值取自 Python 版 derivatives self_test() 的断言。
 
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <limits>
 #include <string>
 #include <vector>
+
+#include <symengine/basic.h>
+#include <symengine/derivative.h>
+#include <symengine/parser.h>
+#include <symengine/real_double.h>
+#include <symengine/symbol.h>
 
 #include "api.h"
 #include "json.hpp"
@@ -18,6 +25,39 @@
 #include "calculus/series.h"
 
 namespace calc = mf::calculus;
+
+/**
+ * 求导自证：d/dx(∫f dx) 必须回到 f —— 在若干点上数值一致即算通过。
+ *
+ * 为什么不比字符串：原函数的形式不唯一（∫tan x 写成 −ln cos x 还是 ln sec x 是同一个
+ * 东西），比字符串只会误判。求导再数值比对，才是"这条积分规则对不对"的直接判据；
+ * 规则写错会当场失败，而不是让用户拿到一个**错误的原函数**。
+ */
+static bool antideriv_self_checks_out(const std::string& f, const std::string& var,
+                                      const std::vector<double>& pts) {
+    std::string F = calc::integrate_indefinite(f, var);
+    if (F == "未实现") return false;
+    const std::string suffix = " + C";
+    if (F.size() > suffix.size() &&
+        F.compare(F.size() - suffix.size(), suffix.size(), suffix) == 0)
+        F.erase(F.size() - suffix.size());
+    const auto x = SymEngine::symbol(var);
+    const auto D = SymEngine::diff(SymEngine::parse(F), x);
+    const auto g = SymEngine::parse(f);
+    for (double t : pts) {
+        double a = 0.0, b = 0.0;
+        try {
+            a = SymEngine::eval_double(*D->subs({{x, SymEngine::real_double(t)}}));
+            b = SymEngine::eval_double(*g->subs({{x, SymEngine::real_double(t)}}));
+        } catch (...) {
+            return false;
+        }
+        if (!std::isfinite(a) || !std::isfinite(b)) return false;
+        const double den = (std::max)(1.0, std::abs(b));
+        if (std::abs(a - b) / den > 1e-9) return false;
+    }
+    return true;
+}
 
 static int g_checks = 0;
 static int g_failures = 0;
@@ -56,11 +96,58 @@ static void test_integrals_kernel() {
     // 分部积分:x·sin(x) = -x·cos(x) + sin(x)
     CHECK(calc::integrate_indefinite("x*sin(x)", "x").find("cos") != std::string::npos,
           "∫x·sin(x) 含 -x·cos(x)(分部积分)");
-    // 无法积分 → 返回 "未实现"(不编造)
-    CHECK(calc::integrate_indefinite("tan(x)", "x") == "未实现",
-          "∫tan(x) 未实现");
+    // 无法积分 → 返回 "未实现"(不编造)。
+    // 注意：∫tan(x) 原先也在这里断言"未实现"，本批已实现（见下面的求导自证），
+    // 故改用真正非初等的 x^x 来守这条"不编造"的底线。
     CHECK(calc::integrate_indefinite("x**x", "x") == "未实现",
-          "∫xˣ 未实现");
+          "∫xˣ 未实现（非初等，如实拒绝）");
+
+    // ── 本批新增的不定积分规则：逐条**求导自证** ────────────────────────────
+    // 这些是教科书里最常遇到、而原先一律返回"未实现"的几条。
+    CHECK(antideriv_self_checks_out("1/(1+x**2)", "x", {0.3, 0.7, -1.1}),
+          "∫1/(1+x²) = atan x（求导自证）");
+    CHECK(antideriv_self_checks_out("tan(x)", "x", {0.3, 0.7, -0.9}),
+          "∫tan x = -ln cos x（求导自证）");
+    CHECK(antideriv_self_checks_out("x/(1+x**2)", "x", {0.3, 0.7, -1.1}),
+          "∫x/(1+x²) = ½ln(1+x²)（求导自证）");
+    CHECK(antideriv_self_checks_out("1/(x*ln(x))", "x", {1.7, 2.5, 4.0}),
+          "∫1/(x·ln x) = ln ln x（求导自证）");
+    CHECK(antideriv_self_checks_out("tan(x)**2", "x", {0.3, 0.7, -0.9}),
+          "∫tan²x = tan x − x（求导自证）");
+
+    // ── 第二批：三角/反三角/指数×三角/幂×对数 ────────────────────────────
+    // ∫cos³x 的第一版把 −sin³x/3 写成了 +sin³x/3，**就是这条自证**以
+    // maxrel=0.635 当场抓出来的 —— 它存在的意义就在这里。
+    CHECK(antideriv_self_checks_out("sec(x)", "x", {0.3, 0.7, -0.6}),
+          "∫sec x = ln(sec x + tan x)（求导自证）");
+    CHECK(antideriv_self_checks_out("x*ln(x)", "x", {0.5, 1.7, 3.0}),
+          "∫x·ln x = ½x²ln x − ¼x²（求导自证）");
+    CHECK(antideriv_self_checks_out("exp(x)*sin(x)", "x", {0.3, 0.7, -0.6}),
+          "∫eˣ·sin x = eˣ(sin x − cos x)/2（求导自证）");
+    CHECK(antideriv_self_checks_out("exp(x)*cos(x)", "x", {0.3, 0.7, -0.6}),
+          "∫eˣ·cos x = eˣ(sin x + cos x)/2（求导自证）");
+    CHECK(antideriv_self_checks_out("atan(x)", "x", {0.3, 0.7, -1.1}),
+          "∫atan x = x·atan x − ½ln(1+x²)（求导自证）");
+    CHECK(antideriv_self_checks_out("acos(x)", "x", {0.3, 0.7, -0.6}),
+          "∫acos x = x·acos x − √(1−x²)（求导自证）");
+    CHECK(antideriv_self_checks_out("sin(x)**3", "x", {0.3, 0.7, -0.6}),
+          "∫sin³x = cos³x/3 − cos x（求导自证）");
+    CHECK(antideriv_self_checks_out("cos(x)**3", "x", {0.3, 0.7, -0.6}),
+          "∫cos³x = sin x − sin³x/3（求导自证，符号必须为负）");
+
+    // ── 第三批：根式 / sec³ / 四次分式 / 分数幂×对数 ──────────────────────
+    // 做完这批，26 个教科书积分里只剩**非初等**的那 5 条（x^x、sin x/x、
+    // e^{-x²}、1/ln x、x²e^{-x²}）仍返回"未实现" —— 那拒绝是正确的。
+    CHECK(antideriv_self_checks_out("sqrt(1-x**2)", "x", {0.3, 0.7, -0.6}),
+          "∫√(1−x²) = (x√(1−x²) + asin x)/2（求导自证）");
+    CHECK(antideriv_self_checks_out("sqrt(1+x**2)", "x", {0.3, 0.7, -0.6}),
+          "∫√(1+x²) = (x√(1+x²) + asinh x)/2（求导自证）");
+    CHECK(antideriv_self_checks_out("sec(x)**3", "x", {0.3, 0.7, -0.6}),
+          "∫sec³x = ½(sec x·tan x + ln(sec x+tan x))（求导自证）");
+    CHECK(antideriv_self_checks_out("1/(1+x**4)", "x", {0.3, 0.7, -0.6}),
+          "∫1/(1+x⁴) 四次式闭式（求导自证）");
+    CHECK(antideriv_self_checks_out("sqrt(x)*ln(x)", "x", {0.5, 1.7, 3.0}),
+          "∫√x·ln x = (2/3)x^{3/2}ln x − (4/9)x^{3/2}（求导自证）");
 
     // 定积分(符号原函数 → 精确)
     CHECK(near(calc::integrate_definite("x**2", "x", "0", "1"), 1.0 / 3.0, 1e-9),
@@ -307,6 +394,33 @@ static void test_dispatch() {
     const mf::json::Value trpv = mf::json::Value::parse(trp);
     CHECK(near(trpv["value"].as_double(), 0.125, 1e-9),
           "math_call integrate_triple(x·y·z) ≈ 0.125");
+
+    // 不定重积分：**缺边界**即逐次求原函数（与单变量 integrate 同一套约定）。
+    // 钉住两件事：① 结果是对的原函数；② "常数"写成 A(x)+B(y) 而不是含糊的 "+ C"
+    // —— 对 y 积分时 x 是常数，那层的积分常数是 x 的任意函数，加 "+ C" 是错的。
+    const std::string dbi = call("integrate_double",
+        "{\"expr\":\"x*y\",\"x\":\"x\",\"y\":\"y\"}");
+    CHECK(dbi.find("\"isError\":false") != std::string::npos &&
+              dbi.find("x**2*y**2") != std::string::npos &&
+              dbi.find("A(x)") != std::string::npos &&
+              dbi.find("B(y)") != std::string::npos,
+          "integrate_double 缺边界 → 不定重积分 (1/4)x²y² + A(x) + B(y)");
+    // 缺边界不能再静默按 [0,1] 算出一个看着正常的数
+    CHECK(dbi.find("0.25") == std::string::npos,
+          "integrate_double 缺边界不再静默按 [0,1] 求值");
+    const std::string tbi = call("integrate_triple",
+        "{\"expr\":\"x*y*z\",\"x\":\"x\",\"y\":\"y\",\"z\":\"z\"}");
+    CHECK(tbi.find("\"isError\":false") != std::string::npos &&
+              tbi.find("x**2*y**2*z**2") != std::string::npos &&
+              tbi.find("A(x,y)") != std::string::npos &&
+              tbi.find("C(y,z)") != std::string::npos,
+          "integrate_triple 缺边界 → 不定三重积分含 A(x,y)+B(x,z)+C(y,z)");
+    // 符号积分做不到时必须如实说，不许编
+    const std::string dbr = call("integrate_double",
+        "{\"expr\":\"sin(x*y)\",\"x\":\"x\",\"y\":\"y\"}");
+    CHECK(dbr.find("未实现") != std::string::npos,
+          "integrate_double 无法符号积分 → 未实现（不编造）");
+
     CHECK(function_exists("integrate_complex"), "function_exists(integrate_complex)");
     const std::string cpx = call("integrate_complex",
         "{\"expr\":\"exp(I*2*x)\",\"var\":\"x\",\"a\":0,\"b\":1}");

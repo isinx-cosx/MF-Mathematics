@@ -148,6 +148,21 @@ static void test_homotopy() {
     const at::PathHomotopy ph = at::path_homotopy("S1");
     CHECK(ph.space == "S1" && ph.fundamental_group == "Z",
           "path_homotopy(S1) π1 = Z");
+
+    // 英文别名：circle/torus/disk 这类最自然的写法要给出**真答案**。
+    // 以前它们落到"未知空间"分支、把占位串 π₁(circle) 当结果返回（isError:false）。
+    CHECK(at::fundamental_group("circle") == "Z", "π1(circle) = Z（英文别名）");
+    CHECK(at::fundamental_group("torus") == "Z×Z", "π1(torus) = Z×Z（英文别名）");
+    CHECK(at::fundamental_group("disk") == "0", "π1(disk) = 0（可缩）");
+    CHECK(!at::is_simply_connected("circle"), "circle 非单连通（经别名 → S1）");
+    // 未识别的空间必须**如实报错**，不能返回占位串当答案。
+    bool threw = false;
+    try {
+        at::fundamental_group("blahblah");
+    } catch (const std::exception&) {
+        threw = true;
+    }
+    CHECK(threw, "未知空间如实报错（不再返回 π₁(输入) 占位串）");
 }
 
 static void test_degree_fixedpoint() {
