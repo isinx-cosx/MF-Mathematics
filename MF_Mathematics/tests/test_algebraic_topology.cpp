@@ -163,6 +163,18 @@ static void test_homotopy() {
         threw = true;
     }
     CHECK(threw, "未知空间如实报错（不再返回 π₁(输入) 占位串）");
+
+    /* 空间名别名必须**整组一致**。
+     * 以前别名表只存在于 homotopy.cpp，于是同一个输入在不同模式里行为矛盾：
+     *   fundamental_group("circle") → "Z"        ✓
+     *   homology_group("circle", 1) → 抛「未知空间类型」 ✗
+     * 同一导航分组内对同一输入给出互相矛盾的结论，比不支持还糟 —— 用户会以为是自己写错了。
+     * 现在共用 at_internal.h 的 canonical_space，这几条断言就是防止它再退化。 */
+    CHECK_EQ(at::homology_group("circle", 1).betti, 1LL, "H₁(circle) = Z（经英文别名）");
+    CHECK_EQ(at::homology_group("torus", 1).betti, 2LL, "H₁(torus) = Z²（经英文别名）");
+    CHECK_EQ(at::homology_group("S1", 1).betti, 1LL, "H₁(S1) = Z（规范名不受别名影响）");
+    CHECK_EQ(at::cohomology_group("circle", 1).betti, 1LL, "H¹(circle) = Z（经英文别名）");
+    CHECK_EQ(at::cohomology_group("torus", 2).betti, 1LL, "H²(torus) = Z（经英文别名）");
 }
 
 static void test_degree_fixedpoint() {

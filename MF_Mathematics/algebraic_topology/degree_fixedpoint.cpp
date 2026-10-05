@@ -14,7 +14,7 @@ MappingDegree mapping_degree(long long sphere_dim) {
 
 BrouwerResult brouwer_fixed_point_theorem(const std::string& space_raw) {
     // 维数查表:D1/D2/D3,未知默认 2(与 Python 一致)
-    const std::string space = detail::normalize_space(space_raw);
+    const std::string space = detail::canonical_space(detail::normalize_space(space_raw));
     long long dim = 2;
     if (space == "D1") dim = 1;
     if (space == "D3") dim = 3;

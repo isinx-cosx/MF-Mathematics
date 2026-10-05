@@ -85,7 +85,9 @@ HomologyGroup homology_group(const std::string& space_raw, long long n) {
         {"K", {{0, {1, {}}}, {1, {1, {2}}}, {2, {0, {}}}}},
         {"FIG8", {{0, {1, {}}}, {1, {2, {}}}}},
     };
-    const std::string space = detail::normalize_space(space_raw);
+    // 与 fundamental_group 共用别名表（at_internal.h）：写 circle / torus 等英文名
+    // 在同组各模式里必须得到一致行为，否则用户会以为是自己写错了。
+    const std::string space = detail::canonical_space(detail::normalize_space(space_raw));
     auto space_it = known.find(space);
     if (space_it == known.end())
         throw std::invalid_argument("未知空间类型: " + space_raw);
@@ -117,7 +119,9 @@ std::vector<long long> betti_numbers(const std::string& space_raw) {
         {"POINT", {1}},
         {"RN", {1}},
     };
-    const std::string space = detail::normalize_space(space_raw);
+    // 与 fundamental_group 共用别名表（at_internal.h）：写 circle / torus 等英文名
+    // 在同组各模式里必须得到一致行为，否则用户会以为是自己写错了。
+    const std::string space = detail::canonical_space(detail::normalize_space(space_raw));
     auto it = known.find(space);
     if (it == known.end())
         throw std::invalid_argument("未知空间类型: " + space_raw);

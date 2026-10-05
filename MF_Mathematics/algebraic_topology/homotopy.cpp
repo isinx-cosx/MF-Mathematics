@@ -29,31 +29,12 @@ long long suffix_dim(const std::string& space, char prefix) {
     }
 }
 
-// 常见英文名 → 引擎规范名（输入已由 normalize_space 转成大写、去掉 '^' 与空白）。
-//
-// 为什么要有它：引擎只认 S1/T2/D2 这套（与 homology_group / betti_numbers /
-// poincare_duality 的空间名约定一致），而"圆""环面""圆盘"最自然的写法就是
-// circle / torus / disk。以前写 circle 会落到"未知空间"分支、**把占位串 π₁(circle)
-// 当结果返回**（isError:false）—— 用户完全看不出这不是答案。
-// 别名只在**同伦等价**意义下成立：莫比乌斯带 ≃ S¹（π₁ 相同），故映射到 S1。
-std::string canonical_space(const std::string& s) {
-    if (s == "CIRCLE") return "S1";
-    if (s == "SPHERE") return "S2";
-    if (s == "TORUS") return "T2";
-    if (s == "DISK" || s == "DISC") return "D2";
-    if (s == "BALL") return "D3";
-    if (s == "FIGURE8" || s == "FIGUREEIGHT" || s == "ROSE") return "FIG8";
-    if (s == "MOBIUS" || s == "MOEBIUS" || s == "MOBIUSBAND") return "S1";
-    if (s == "PROJECTIVEPLANE" || s == "REALPROJECTIVEPLANE") return "RP2";
-    if (s == "KLEINBOTTLE") return "K";
-    return s;
-}
-
 }  // namespace
 
 std::string fundamental_group(const std::string& space_raw, long long n) {
-    // 先归一化（大写、去 '^' 与空白），再把 circle/torus/disk 这类英文名换成规范名。
-    const std::string space = canonical_space(detail::normalize_space(space_raw));
+    // 归一化（大写、去 '^' 与空白）后换成规范名；别名表在 at_internal.h 里，
+    // 与同调/上同调/映射度共用同一套，避免同组模式对同一输入行为不一致。
+    const std::string space = detail::canonical_space(detail::normalize_space(space_raw));
     // S^k 的两种等价写法:字面拼写 S2/S3/…(与 homology_group / betti_numbers /
     // poincare_duality 的空间名约定一致)与 "SN" + 参数 n。π₁(S¹)=Z,π₁(S^k)=0(k≥2)。
     {

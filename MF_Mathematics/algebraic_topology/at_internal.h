@@ -38,6 +38,29 @@ inline std::string normalize_space(const std::string& space) {
     return out;
 }
 
+// 常见英文名 → 引擎规范名（输入应已由 normalize_space 处理过）。
+//
+// 为什么放在共享头里：**同一个"空间名"概念必须处处一致**。
+// 原先这张别名表只在 homotopy.cpp 里（当时只修了基本群），于是出现了
+// "写 circle 在「基本群」得到 Z、在「同调群」却报「未知空间类型」"的不一致 ——
+// 同一个导航分组里的模式对同一个输入给出互相矛盾的行为，这比不支持还糟。
+// 现在 homology_group / cohomology_group / mapping_degree / is_simply_connected
+// 与 fundamental_group 共用同一张表。
+//
+// 别名只在**同伦等价**意义下成立：莫比乌斯带 ≃ S¹（π₁ 与同调相同），故映射到 S1。
+inline std::string canonical_space(const std::string& s) {
+    if (s == "CIRCLE") return "S1";
+    if (s == "SPHERE") return "S2";
+    if (s == "TORUS") return "T2";
+    if (s == "DISK" || s == "DISC") return "D2";
+    if (s == "BALL") return "D3";
+    if (s == "FIGURE8" || s == "FIGUREEIGHT" || s == "ROSE") return "FIG8";
+    if (s == "MOBIUS" || s == "MOEBIUS" || s == "MOBIUSBAND") return "S1";
+    if (s == "PROJECTIVEPLANE" || s == "REALPROJECTIVEPLANE") return "RP2";
+    if (s == "KLEINBOTTLE") return "K";
+    return s;
+}
+
 // ── 溢出检测算术(整数秩消元用)──────────────────────────────────────────
 
 // 有符号乘法,溢出返回 false。

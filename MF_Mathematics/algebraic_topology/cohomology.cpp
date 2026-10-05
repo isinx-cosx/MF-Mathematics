@@ -41,7 +41,7 @@ PoincareDuality poincare_duality(const std::string& manifold_raw, long long k) {
         {"S1", 1}, {"S2", 2}, {"S3", 3},
         {"T2", 2}, {"RP2", 2}, {"K", 2},
     };
-    const std::string manifold = detail::normalize_space(manifold_raw);
+    const std::string manifold = detail::canonical_space(detail::normalize_space(manifold_raw));
     auto it = dims.find(manifold);
     if (it == dims.end())
         throw std::invalid_argument("未知流形: " + manifold_raw);
