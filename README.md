@@ -197,8 +197,13 @@ powershell -NoProfile -File MF_UI/MFMath.UI.Vue/tests/run-all.ps1
 - **数学能力边界**：不定积分对非初等函数如实返回"未实现"；部分不定式极限、复变不定积分同理。
   这是设计选择，不是缺陷 —— 详见上文"三条纪律 ①"。
 - **无安装包**：目前只能按上面的三步构建，仓库不提供 `.msi`/`.exe` 安装程序。
-- **无多语言**：界面全中文（未做 i18n）。
-- **无崩溃上报**：崩溃后不会自动留下日志。
+- **多语言只覆盖了一部分**：导航、顶栏、**全部 14 个学科视图**（含 415 个模式名与 184 个参数弹窗字段）
+  已中英双语，可在「设置 → 外观 → 界面语言」切换并记忆；**页面正文（设置面板各行、工具/绘图/帮助页、
+  lib 里的提示文案、教程正文）仍是中文**。迁移路径：把要翻的那处包一层 `t()`，再往
+  `src/lib/i18n/en-*.js` 补译文 —— `npm run check` 会拦住漏译。
+- **崩溃有记录，但不上报**：宿主把崩溃与前端未捕获异常写进
+  `%LOCALAPPDATA%\MFMath\logs\`（`crash-*.log` + `app.log`），并可通过「设置 → 存储与数据 →
+  导出诊断包」一并导出。**不联网上报** —— 数学工具的用户不该因为一次崩溃被上传任何东西。
 - **无 LICENSE（保留所有权利）**：仓库暂未提供许可证，因此依默认版权规则
   **未经作者许可不得复制、修改或分发**。这是有意的 —— 作者保留后续授权方式的选择权。
   若你需要以其它方式使用，请联系作者。
@@ -210,5 +215,11 @@ powershell -NoProfile -File MF_UI/MFMath.UI.Vue/tests/run-all.ps1
 v2.0 从 `Multifunctional系列/Multifunctional-Mathematics/`（v1，约 1.46 GB，混合了旧 Python/Qt 后端、
 旧 JS UI 与多份构建缓存）中只取走了 **Vue 前端与引擎 C++ 源码**，重写为单目录树、单一计算来源的结构。
 
-未纳入：Python 数学后端（v1 的旧应用仍需要它）、`tests/accuracy/`（2180 条准确性用例，
-可对任意引擎 DLL 运行，用环境变量 `MF_ACC_DLL` 指定）、6 个遗留 `.pyd` 扩展、旧 JS/Python UI。
+**v1 作为应用已经不可运行、也不再维护**：它的计算全靠那套 Python 后端，而 v2 把计算全部搬进
+`mf_mathematics.dll`（覆盖同样的功能）。因此 v1 的 Python 后端（277 个 `.py`）与 8 个无法重建的
+二进制（`.pyd` / `inner_product.dll`）**已删除**，删前归档在
+`Multifunctional系列/_archive/v1-python-backend-*.zip`（v1 自己的 git 历史里也还在）。
+
+**唯一有意保留的是 `MF_Mathematics/tests/accuracy/`（28 个 `.py`，2180 条准确性用例）** ——
+它是**测试资产**而不是运行时代码：可以对**任意**引擎 DLL 运行（用环境变量 `MF_ACC_DLL` 指定），
+v2 的引擎也能拿它验一遍，所以没跟着一起清掉。其余旧 JS/Python UI、旧 Python/Qt 应用未纳入。
