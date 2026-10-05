@@ -1,114 +1,212 @@
 # MF-Mathematics v2.0
 
-新 UI、新数学库源码与编译结果同居一处的干净版本。
+**多功能可视化科学计算 —— Windows 桌面应用。**
+C++ 数学引擎 + Vue 3 界面 + C#/WebView2 宿主，三层在同一目录树内，自包含、可离线运行。
 
-- 引擎（C++）与前端（Vue 3）、桌面宿主（C#）在**同一目录树**内，不再跨目录引用。
-- 全部数学计算由 `mf_mathematics.dll` 完成（424 个已注册函数，C ABI：`math_call` / `function_exists`）。
-  宿主与前端只负责界面与编排。
-- 本目录自包含：源码 + 已编译好的引擎 DLL + 已填好的前端产物，`MFMath.exe` 可直接启动。
+微积分、代数、线性代数、概率统计、复分析、实分析、泛函分析、测度论、代数拓扑、数论、数值分析、
+调和分析……**14 个学科视图**，外加 2D/3D/极坐标/复平面/向量场/几何/分形绘图、控制台、联网搜索、
+AI 助手与交互式教程。
+
+> 平台：Windows 10/11（x64） · 宿主：.NET 10 + WPF + WebView2 · 前端：Vue 3 + Vite · 引擎：C++17
+
+---
+
+## 这个项目的三条纪律
+
+不是口号，是代码里有对应机制与测试的：
+
+**① 不编造结果。** 算不出来就说算不出来。例：不定积分 `∫xˣ dx`、`∫sin(x)/x dx`、`∫e^{−x²}dx`
+返回"未实现"而不是硬给一个式子 —— 它们确实不是初等函数；未识别的拓扑空间名会**报错**，
+而不是返回 `π₁(输入)` 这种看着像答案的占位串。
+
+**② AI 不承担计算。** AI 助手能调**全部 424 个引擎函数**（工具表由引擎签名表生成，逐字一致），
+但不允许自己估算数值 —— 端到端用例里有一条专门守这个约束
+（`tests/cdp-ai.mjs`：「AI 不得当计算源」）。
+
+**③ 每个修复都要留下"为什么"和"怎么证明"。** 例如本轮补的 18 条积分规则，每条都配一条
+**求导自证**测试：对结果求导、再与原式数值比对（容差 1e-9）。写 `∫cos³x` 时把 `−sin³x/3`
+写成了 `+`，就是这条自证以 `maxrel=0.635` 当场抓出来的 —— 一个错误的原函数比"未实现"危险得多。
+
+---
+
+## 功能一览
+
+| 分区 | 内容 |
+| --- | --- |
+| **学科计算**（14 视图） | 代数、微积分、线性代数、概率论与数理统计、数值分析、数论、实分析、泛函分析、复分析、代数拓扑、测度论、调和分析、数列、解析几何 |
+| **绘图** | 2D 函数（含隐函数/参数方程/极坐标）、3D 曲面、复平面、向量场、自由几何、分形 |
+| **工具** | 联网搜索、控制台（Python / C++ 跑同一个引擎）、**函数工具箱**（全部 424 个引擎函数可直接调用） |
+| **AI** | 助手抽屉、步骤推导、可调引擎的数学问答（流式输出、可中断） |
+| **学习** | 18 篇交互式教程（带高亮引导）、示例任务库、126 键数学键盘（与 v1 对齐） |
+| **系统** | 9 组设置、工作区保存/还原、结果导出为图片、账号（与站点对接）、更新检查（只提示，安装包交给浏览器）、深浅色主题 |
+
+**离线承诺**：断网后本地计算、绘图、教程、控制台全部照常。只有联网搜索 / 账号 / AI 需要网络。
+
+---
+
+## 架构
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│  MF_UI/MFMath.UI.Vue         Vue 3 + Vite（构建成 wwwroot）    │
+│  界面、路由、工作区、教程、AI 面板、函数工具箱                    │
+└───────────────┬──────────────────────────────────────────────┘
+                │  window.chrome.webview.hostObjects.sync.mf.Dispatch(name, json)
+┌───────────────▼──────────────────────────────────────────────┐
+│  MFMath.Host                 C# / WPF + WebView2              │
+│  窗口、桥（mf/ai/con/search/account/update/sys/win）、          │
+│  凭据只存宿主、HTTP 抓取、组件下载                                │
+└───────────────┬──────────────────────────────────────────────┘
+                │  C ABI：function_exists / math_call（**恰好两个导出**）
+┌───────────────▼──────────────────────────────────────────────┐
+│  MF_Mathematics              C++17（110 个 .cpp）              │
+│  424 个已注册 action；SymEngine + flint + gmp + mpfr + Eigen    │
+│  DLL 边界不暴露 std::string / std::vector / SymEngine::RCP      │
+└──────────────────────────────────────────────────────────────┘
+```
+
+**为什么前端一行数学都不算**：所有数值/符号结果都来自引擎。前端只做参数构造、展示与编排。
+这样"结论"只有一个来源，也才谈得上可复现。
+
+---
+
+## 快速开始
+
+> ⚠ **仓库不含编译产物**（`MF_Mathematics/build/`、`dist/`、`bin/`、`obj/` 都在 `.gitignore` 里）。
+> 克隆后必须走完下面三步，才能运行 `MFMath.exe`。
+
+### 前置依赖
+
+| 用途 | 需要 |
+| --- | --- |
+| 引擎 | CMake ≥ 3.16、Visual Studio（C++ 工具链）、[vcpkg](https://github.com/microsoft/vcpkg) 安装 `symengine` `flint` `gmp` `mpfr` `eigen3` |
+| 前端 | Node.js ≥ 18（`npm`） |
+| 宿主 | .NET SDK 10、WebView2 Runtime（Win11 自带，Win10 需安装） |
+
+### 三步构建（顺序不可颠倒）
+
+```powershell
+git clone https://github.com/isinx-cosx/MF-Mathematics.git
+cd MF-Mathematics
+
+# 1) 引擎：依赖默认取 vcpkg 安装位置，可用 -D 覆盖
+#    生成器 -G 按你本机的 VS 版本改（下面这行是当前使用的版本）
+cmake -S MF_Mathematics -B MF_Mathematics/build -G "Visual Studio 18 2026" -A x64 `
+      -DMF_SYMENGINE_ROOT="$env:VCPKG_ROOT\installed\x64-windows" `
+      -DMF_EIGEN_INCLUDE_DIR="$env:VCPKG_ROOT\installed\x64-windows\include\eigen3"
+cmake --build MF_Mathematics/build --config Release --target mf_mathematics
+
+# 2) 前端
+npm --prefix MF_UI/MFMath.UI.Vue install
+npm --prefix MF_UI/MFMath.UI.Vue run build
+
+# 3) 宿主（--no-incremental 必加：增量构建会掩盖 SDK 不兼容等编译错误）
+dotnet build MFMath.Host/MFMath.Host.csproj -c Release --no-incremental
+```
+
+宿主 csproj 用**相对路径**引用引擎产物与前端 `dist`，`CopyToOutputDirectory=PreserveNewest`
+自动跟随，所以**不会出现"跑的是旧引擎"**；但也因此顺序必须是「引擎 → 前端 → 宿主」。
+
+### 运行
+
+```powershell
+& MFMath.Host\bin\Release\net10.0-windows\MFMath.exe
+```
+
+开发时热更新：先在 `MF_UI/MFMath.UI.Vue` 下 `npm run dev`（Vite，5173），
+再运行 **Debug** 构建的宿主 —— Debug 指向 Vite dev server，不依赖 `wwwroot`。
+
+---
+
+## 验证与测试
+
+四层，全部可在本机跑：
+
+```powershell
+# ① 引擎：16 个 CTest 套件
+cmake --build MF_Mathematics/build --config Release
+ctest --test-dir MF_Mathematics/build -C Release --output-on-failure
+
+# ② 注册表守门：WHOLEARCHIVE 一旦失效，这个数会掉下来（而导出数依然漂亮）
+& MF_Mathematics\build\bin\Release\probe_call.exe list_functions '{}'      # count 应为 424
+
+# ③ 前端：类型检查（strict）+ 构建期自检
+npm --prefix MF_UI/MFMath.UI.Vue run check
+
+# ④ 端到端：46 个 CDP 用例，跑在一个真实的宿主会话里
+powershell -NoProfile -File MF_UI/MFMath.UI.Vue/tests/run-all.ps1
+```
+
+最近一次全量结果：**引擎 16/16 套件；端到端 2118 项检查全通过**；无宿主单元测试 3 组（30/18/13）。
+
+**构建期自检**（`npm run check` 里的 `tools/check-ui.mjs`）会拦下这几类"运行时几乎不可察觉"的问题：
+
+- 教程步骤的目标控件是否真的存在（v1 曾有 34/66 个目标控件根本不存在，却被标记"已完成"）
+- 键盘键数与分类顺序是否与 v1 一致；键面是否把 LaTeX 源码当文字显示
+- 引擎映射表是否有重复键（JS 后者胜，前面会变成"改了没反应"的死条目）
+- **引擎模式可达性**：每个已注册模式要么能在某个页面上选到、要么显式登记进 `NOT_EXPOSED`
+  并写明原因 —— 双向校验（登记了却能选到的报"过时条目"）。这项自检第一次跑就抓出
+  **64 个"引擎有映射、页面根本选不到"的模式**，现已清零。
+
+---
 
 ## 目录结构
 
 | 路径 | 内容 |
 | --- | --- |
-| `MF_Mathematics/` | 数学库源码：**仅 C++**（`.cpp` / `.h` / `.hpp` + `CMakeLists.txt`），253 个文件 |
-| `MF_Mathematics/build/bin/Release/` | **编译结果**：`mf_mathematics.dll` + 5 个运行时依赖 DLL（共 21.8 MB） |
-| `MF_Mathematics/tests/` | 引擎自带的 C++ 测试与探针源码（16 个 CTest 套件 + 3 个探针 = 19 个可执行目标） |
-| `MFMath.Host/` | C# 桌面宿主（WPF + WebView2）：`NativeEngine` 走 P/Invoke 调引擎，`MathBridge` 打通 JS↔C# |
-| `MF_UI/MFMath.UI.Vue/` | Vue 3 + Vite 前端源码（不含 `node_modules`），`dist/` 为已构建产物 |
-
-合计 365 个文件、约 24.5 MB。
-
-## 构建（三步）
-
-```powershell
-$V2 = "C:\Users\fsafsafsa\Desktop\MVS知识库\Multifunctional系列\Multifunctional-Mathematics-v2.0"
-
-# 1) 引擎
-cmake -S "$V2\MF_Mathematics" -B "$V2\MF_Mathematics\build" -G "Visual Studio 18 2026" -A x64
-cmake --build "$V2\MF_Mathematics\build" --config Release --target mf_mathematics
-
-# 2) 前端（首次需 npm install）
-npm install --prefix "$V2\MF_UI\MFMath.UI.Vue"
-npm run build --prefix "$V2\MF_UI\MFMath.UI.Vue"
-
-# 3) 宿主（--no-incremental 必加：增量构建会掩盖 SDK 不兼容等编译错误）
-dotnet build "$V2\MFMath.Host\MFMath.Host.csproj" -c Release --no-incremental
-```
-
-宿主 csproj 用相对路径引用引擎产物与前端 `dist`：
-
-- `..\MF_Mathematics\build\bin\Release\*.dll` → 拷进输出目录（`CopyToOutputDirectory=PreserveNewest`，**自动跟随**，不会出现"跑的是旧引擎"）
-- `..\MF_UI\MFMath.UI.Vue\dist\**` → 拷成输出目录的 `wwwroot`
-
-所以顺序必须是「引擎 → 前端 → 宿主」；只跑前两步不跑第三步，输出目录里还是旧的。
-
-引擎依赖 Eigen 与 SymEngine，默认取 vcpkg 安装位置
-（`C:/Users/fsafsafsa/vcpkg/installed/x64-windows`），可用 `-DMF_EIGEN_INCLUDE_DIR=` /
-`-DMF_SYMENGINE_ROOT=` 覆盖。
+| `MF_Mathematics/` | 引擎源码（仅 C++，110 个 `.cpp`）、`CMakeLists.txt` |
+| `MF_Mathematics/tests/` | 16 个 CTest 套件 + 4 个探针（共 19 个可执行目标；`probe_call` 可不起宿主直调引擎） |
+| `MFMath.Host/` | C# 宿主：窗口 + 各 bridge；凭据只存宿主，渲染进程读不到 |
+| `MF_UI/MFMath.UI.Vue/` | Vue 3 前端：`src/`、`tests/`（46 个 CDP 用例 + fixtures）、`tools/`（构建期自检） |
+| `docs/` | 设计文档与状态记录（见下表） |
 
 ### 引擎的两个目标
 
 | 目标 / 别名 | 类型 | 内容 |
 | --- | --- | --- |
-| `mf_mathematics_core`（别名 `MFMath::engine`） | STATIC | 全部数学实现（103 个 `.cpp`） |
-| `mf_mathematics`（别名 `MFMath::cabi`） | SHARED | 只有 `api.cpp`，导出**恰好两个** C ABI 函数 |
+| `mf_mathematics_core`（`MFMath::engine`） | STATIC | 全部数学实现 |
+| `mf_mathematics`（`MFMath::cabi`） | SHARED | 只有 `api.cpp`，导出恰好两个 C ABI 函数 |
 
-对外导出面就是 `function_exists` 与 `math_call`。域内头文件不使用导出宏，所以
-`std::string` / `std::vector` / `SymEngine::RCP` 都不会出现在 DLL 边界上——内部
-函数签名可以自由重构而不牵动 ABI。要直接调 C++ 函数（例如把准确性套件改写成
-C++ runner），链 `MFMath::engine`。
+> ⚠ 若自己另建导出 DLL 并链 `MFMath::engine`，**必须**加 `/WHOLEARCHIVE`。
+> 每个 `*_api.cpp` 靠一个**没有外部引用的全局注册器**注册；不加，链接器会把这些目标文件
+> 整个丢弃 → 注册表为空。这种失效是**静默的**：DLL 照常加载、`function_exists` 照常能调，
+> 只是每个 action 都返回"未找到函数"。守门断言就是上面的 `count == 424`。
 
-> ⚠ 若你自己另建一个导出 DLL 并链 `MFMath::engine`，**必须**加 `/WHOLEARCHIVE`。
-> 每个 `*_api.cpp` 靠一个**没有外部引用的全局注册器**注册；不加，链接器会把这些
-> 目标文件整个丢弃 → 注册表为空。这种失效是**静默的**：DLL 照常加载、
-> `function_exists` 照常能调，只是每个 action 都返回"未找到函数"。守门断言是
-> `list_functions` 的 `count == 424`。
+---
 
-## 运行
+## 文档
 
-```powershell
-# Release：从 wwwroot 加载已构建的前端
-& "$V2\MFMath.Host\bin\Release\net10.0-windows\MFMath.exe"
-# 或双击 MFMath.Host\启动 MFMath.bat
-```
-
-开发热更新：先在 `MF_UI\MFMath.UI.Vue` 下 `npm run dev`（Vite，端口 5173），
-再运行 Debug 构建的宿主——Debug 指向 Vite dev server，不依赖 `wwwroot`。
-
-## 验证
-
-```powershell
-# 引擎自带 C++ 测试：先建出全部目标，再用 ctest 跑（16 个套件）
-cmake --build "$V2\MF_Mathematics\build" --config Release
-ctest --test-dir "$V2\MF_Mathematics\build" -C Release --output-on-failure
-
-# 注册表守门：WHOLEARCHIVE 一旦失效，这个数会掉下来（而导出数依然漂亮）
-& "$V2\MF_Mathematics\build\bin\Release\probe_call.exe" list_functions '{}'   # count 应为 424
-
-# 通用调用探针：不起宿主就能看引擎对某输入的真实返回
-& "$V2\MF_Mathematics\build\bin\Release\probe_call.exe" --list      # 全部已注册函数
-& "$V2\MF_Mathematics\build\bin\Release\probe_call.exe" --has solve_sym
-```
-
-## 与旧目录的关系
-
-| 旧位置 | 说明 |
+| 文档 | 内容 |
 | --- | --- |
-| `Multifunctional系列\Multifunctional-Mathematics\` | v1，混合了旧 Python/Qt 后端、旧 JS UI、构建缓存与多个产物目录（约 1.46 GB）。v2.0 从它里面只取走了 Vue 前端与引擎 C++ 源码。 |
-| `cppcshap\MF_Mathematics\` | 引擎源码的原权威位置。其 `BUILD_AND_SYNC.md` 曾声明"cppcshap 是唯一权威"；v2.0 建立后权威位置即本目录 `MF_Mathematics\`，那个声明已过期。 |
-| `cppcshap\MFMath.Host\` | 宿主源码原位置，其 csproj 原先跨树指向 `..\..\MVS知识库\...\MFMath.UI.Vue\dist`。 |
+| [`docs/STATUS-and-ROADMAP.md`](docs/STATUS-and-ROADMAP.md) | 现状与路线图 |
+| [`docs/PLAN-feature-completion.md`](docs/PLAN-feature-completion.md) | 功能补齐计划 |
+| [`docs/MIGRATION-GAPS.md`](docs/MIGRATION-GAPS.md) | 从 v1 迁移的差距清单 |
+| [`docs/OPEN-ITEMS.md`](docs/OPEN-ITEMS.md) | 未完成清单（可直接当待办用） |
+| [`docs/AI-ASSISTANT.md`](docs/AI-ASSISTANT.md) | AI 助手（含"不得当计算源"的约束） |
+| [`docs/ONLINE-SEARCH.md`](docs/ONLINE-SEARCH.md) | 联网搜索（宿主抓取/解析/缓存） |
+| [`docs/ACCOUNT.md`](docs/ACCOUNT.md) | 账号系统与离线承诺 |
+| [`docs/UPDATE-CHAIN.md`](docs/UPDATE-CHAIN.md) | 更新链（只提示 + sha256 + 交给浏览器） |
+| [`docs/SETTINGS-BACKUP.md`](docs/SETTINGS-BACKUP.md) | 设置导入导出（凭据不进备份） |
+| [`docs/HANG-OPTIMIZATION.md`](docs/HANG-OPTIMIZATION.md) · [`docs/hang-fix-verification.md`](docs/hang-fix-verification.md) | 卡死问题的定位与验证 |
+| [`docs/FRONTEND-FIXES.md`](docs/FRONTEND-FIXES.md) · [`docs/STEP-VIEW.md`](docs/STEP-VIEW.md) | 前端修复记录、分步显示 |
 
-`cppcshap\MF_Mathematics\tools\sync-engine.ps1` 仍是把引擎 DLL 分发到各处消费方
-（`MFMath.Host`、`MFMath.Test`、`demo_cs_mf`、`math-assistant` 等）的脚本；
-它用自身位置推导引擎根目录，跨目录使用时注意它预设的消费方路径。
+---
 
-## 未纳入 v2.0 的内容
+## 已知边界（如实列出）
 
-- **Python 数学后端**（各域下的 `.py`、`core/registry.py` 等）。旧 Python/Qt 应用与
-  `math_http_service.py` 仍依赖它们，因此这些文件保留在 v1 目录，未删除。
-- **准确性套件**（`tests/accuracy/`，2180 条用例，覆盖 424/424 函数）。按"仅 C++ 部分"
-  的要求未复制进来，仍留在 v1 目录；它可对任意引擎 DLL 运行（用环境变量 `MF_ACC_DLL` 指定）。
-- **6 个遗留 `.pyd` 扩展**（`numerical/*.pyd`、`linear_algebra/inner_product.dll`）属旧
-  Python 混合架构产物，两棵树里都没有对应的构建脚本，未纳入。
-- 旧 JS UI（`MFMath.UI`）、旧 Python/Qt UI、`MFMath.Downloader`、`MFMathShell`（练习脚手架）。
+- **数学能力边界**：不定积分对非初等函数如实返回"未实现"；部分不定式极限、复变不定积分同理。
+  这是设计选择，不是缺陷 —— 详见上文"三条纪律 ①"。
+- **无安装包**：目前只能按上面的三步构建，仓库不提供 `.msi`/`.exe` 安装程序。
+- **无多语言**：界面全中文（未做 i18n）。
+- **无崩溃上报**：崩溃后不会自动留下日志。
+- **无 LICENSE**：作者尚未选定许可证。
+
+---
+
+## 与 v1 的关系
+
+v2.0 从 `Multifunctional系列/Multifunctional-Mathematics/`（v1，约 1.46 GB，混合了旧 Python/Qt 后端、
+旧 JS UI 与多份构建缓存）中只取走了 **Vue 前端与引擎 C++ 源码**，重写为单目录树、单一计算来源的结构。
+
+未纳入：Python 数学后端（v1 的旧应用仍需要它）、`tests/accuracy/`（2180 条准确性用例，
+可对任意引擎 DLL 运行，用环境变量 `MF_ACC_DLL` 指定）、6 个遗留 `.pyd` 扩展、旧 JS/Python UI。
