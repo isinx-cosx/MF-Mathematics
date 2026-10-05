@@ -6,6 +6,7 @@
  */
 import { ref, onMounted, onBeforeUnmount, nextTick } from "vue";
 import { escapeHtml } from "../../lib/engine/resultFormat.js";
+import { t } from "../../lib/i18n/index.js";
 
 const props = defineProps({
   mode: { type: String, required: true },
@@ -51,12 +52,12 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onKeydown));
   <div class="dialog-overlay">
     <div class="dialog">
       <div class="dialog-header">
-        <span>输入参数 — {{ mode }}</span>
+        <span>{{ t('输入参数') }} — {{ t(mode) }}</span>
         <button class="dialog-close" @click="emit('cancel')">✕</button>
       </div>
       <div class="dialog-body">
         <div v-for="(f, i) in fields" :key="i" class="mvar-group">
-          <label class="mvar-label">{{ f[0] }}</label>
+          <label class="mvar-label">{{ t(f[0]) }}</label>
           <input
             :ref="(el) => (inputs[i] = el)"
             v-model="values[i]"
@@ -65,8 +66,8 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onKeydown));
           />
         </div>
         <div class="mvar-actions">
-          <button class="btn btn-ghost" @click="emit('cancel')">取消</button>
-          <button class="btn btn-primary" @click="confirm">计算</button>
+          <button class="btn btn-ghost" @click="emit('cancel')">{{ t('取消') }}</button>
+          <button class="btn btn-primary" @click="confirm">{{ t('计算') }}</button>
         </div>
       </div>
     </div>

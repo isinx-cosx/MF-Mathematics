@@ -1,9 +1,10 @@
 import { ref } from "vue";
 import { EN } from "./en-US.js";
 import { EN_MODES } from "./en-modes.js";
+import { EN_VARS } from "./en-vars.js";
 
-/** 合并译文表：模式名（en-modes）打底，外壳文案（en-US）优先 */
-const DICT = { ...EN_MODES, ...EN };
+/** 合并译文表：模式名/字段标签打底，外壳文案（en-US）优先 */
+const DICT = { ...EN_MODES, ...EN_VARS, ...EN };
 
 /**
  * 国际化（D4）—— 以**中文原文为键**的最小实现。

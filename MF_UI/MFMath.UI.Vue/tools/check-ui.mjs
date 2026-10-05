@@ -21,10 +21,11 @@ import { PENDING, REGISTERED } from "../src/lib/tutorial/targets.js";
 import { ALL_KEYS, KEY_COUNT, V1_KEY_COUNT, CATEGORIES } from "../src/lib/math/keypadSymbols.js";
 import { keyFaceInfo, showsRawLatex } from "../src/lib/math/keyFace.js";
 import { VIEW_CONFIGS } from "../src/lib/engine/viewConfigs.js";
-import { ENGINE_MAP } from "../src/lib/engine/engineMap.js";
+import { ENGINE_MAP, ENGINE_VAR_SPECS } from "../src/lib/engine/engineMap.js";
 import { EXTRA_MAP } from "../src/lib/engine/engineMapExtra.js";
 import { EN } from "../src/lib/i18n/en-US.js";
 import { EN_MODES } from "../src/lib/i18n/en-modes.js";
+import { EN_VARS } from "../src/lib/i18n/en-vars.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SRC = path.resolve(HERE, "..", "src");
@@ -290,6 +291,17 @@ const NOT_EXPOSED = new Map(
     problems.push(`i18n：模式「${m}」在 lib/i18n/en-modes.js 里没有译文（计算页下拉框会显示中文）`);
   }
   console.log(`i18n 模式名          ：${Object.keys(ALL).length} 个模式，缺译文 ${noTr.length} 个`);
+
+  /* 9. 参数弹窗的字段标签同样要全部有译文 —— 同理，t(f[0]) 传的也是变量。 */
+  const labelSet = new Set();
+  for (const fields of Object.values(ENGINE_VAR_SPECS)) {
+    for (const f of fields) labelSet.add(f[0]);
+  }
+  const labelNoTr = [...labelSet].filter((l) => !(l in EN_VARS));
+  for (const l of labelNoTr) {
+    problems.push(`i18n：参数弹窗字段「${l}」在 lib/i18n/en-vars.js 里没有译文`);
+  }
+  console.log(`i18n 弹窗字段        ：${labelSet.size} 条唯一标签，缺译文 ${labelNoTr.length} 条`);
 }
 
 /* ── 输出 ──────────────────────────────────────────────────────────────── */

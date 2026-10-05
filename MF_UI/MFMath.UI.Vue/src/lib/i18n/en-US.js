@@ -89,6 +89,9 @@ export const EN = {
   "计算结果": "Compute",
   "错误": "Error",
   "删除": "Delete",
+  "输入参数": "Parameters",
+  "取消": "Cancel",
+  "计算": "Compute",
   "（未接入引擎）": " (not wired to the engine)",
   "输入表达式，如 x^2+3*x-1": "Enter an expression, e.g. x^2+3*x-1",
 
