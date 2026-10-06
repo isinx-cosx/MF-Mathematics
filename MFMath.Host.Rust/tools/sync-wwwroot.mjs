@@ -47,6 +47,24 @@ try {
   process.exit(1);
 }
 
+/* ── 护栏：目标看起来是"exe 目录"就拒绝 ─────────────────────────────────────
+ * 下面第 50 行会**先删掉整个目标目录**再拷。而 `--dest` 的语义是"wwwroot 目录本身"，
+ * 与 `sync-engine.mjs --dest`（"exe 所在的目录"）**不是一回事** ——
+ * 把同一个目录传给两个脚本，第二个就会把前一个刚拷进去的引擎 DLL（乃至宿主 exe）一起删光。
+ * 这个坑我自己踩过一次（冒烟测试里就是这么写的），代价是整份部署目录被清空。
+ * 所以：目标里只要看得到宿主 exe，就明确拒绝并告诉用户该指到哪儿。 */
+for (const exeName of ["mfmath-host-rust.exe", "MFMath.exe"]) {
+  try {
+    await stat(join(dest, exeName));
+    console.error(`[sync-wwwroot] 拒绝：${dest} 里放着 ${exeName}，看起来是**宿主 exe 目录**。`);
+    console.error(`[sync-wwwroot] 本脚本的 --dest 是「wwwroot 目录本身」，而且会先清空它 ——`);
+    console.error(`[sync-wwwroot] 指错地方会把引擎 DLL 和宿主 exe 一起删掉。请改成：`);
+    console.error(`[sync-wwwroot]   node tools/sync-wwwroot.mjs --exe "<exe 的完整路径>"`);
+    console.error(`[sync-wwwroot] 或明确指到子目录： --dest "<exe 目录>\\wwwroot"`);
+    process.exit(1);
+  } catch { /* 没有 exe 就正常继续 */ }
+}
+
 await rm(dest, { recursive: true, force: true });
 await mkdir(dirname(dest), { recursive: true });
 await cp(distDir, dest, { recursive: true });

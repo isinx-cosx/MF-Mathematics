@@ -84,8 +84,20 @@ cd $H; cargo build
 **缺了第 2 条**：页面退回 Tauri 内嵌资产，URL 变成 `http://tauri.localhost` —— 47 个 CDP 用例
 会当场找不到页面。
 
-手工同步（要放到别的目录时用）：`node tools/sync-engine.mjs --dest <dir>`、
-`node tools/sync-wwwroot.mjs --dest <dir>`。
+手工同步（要放到别的目录时用）—— ⚠ **两个脚本的 `--dest` 不是一回事，别传同一个目录**：
+
+```powershell
+# 引擎：--dest 是「exe 所在的目录」
+node tools/sync-engine.mjs  --dest "<exe 目录>"
+
+# 界面：--exe 指到 exe，wwwroot 自动落到它同目录（推荐这么写）
+node tools/sync-wwwroot.mjs --exe "<exe 目录>\mfmath-host-rust.exe"
+# 或明确写全：--dest "<exe 目录>\wwwroot"
+```
+
+`sync-wwwroot` 的 `--dest` 是"**wwwroot 目录本身**"，而且它**会先清空目标**再拷 ——
+把 exe 目录传给它，引擎 DLL 与宿主 exe 会一起被删掉。脚本现在会检测目标里有没有宿主 exe
+并**直接拒绝**（这条护栏是踩过一次之后加的：我自己就在冒烟测试里把整份部署目录清空了一遍）。
 
 ### 本机开发的三条特殊处理
 
