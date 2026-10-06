@@ -100,6 +100,18 @@ WebView2 的宿主对象代理要靠 **`ITypeInfo`** 才知道一个成员是"�
    cargo build
    ```
    CI / 干净机器上不需要这两条（删掉 `.cargo/config.toml` 即回直连）。
+3. **前端构建时把 `TEMP` 指到仓库内**（只影响"经自动化沙箱执行"的构建）：
+
+   ```powershell
+   $env:TEMP = "<repo>\..\.tmp-build"; $env:TMP = $env:TEMP
+   cd MF_UI/MFMath.UI.Vue; npm run build
+   ```
+
+   现象：`vite build` 走到 `[vite:esbuild-transpile]` 时失败 ——
+   `remove C:\Users\...\AppData\Local\Temp\esbuild-<hash>: Access is denied`。
+   esbuild 在用户的 `%LOCALAPPDATA%\Temp` 里删不掉自己刚建的文件（受限令牌下的
+   重定向临时目录问题），换一个可自由删写的目录即可绕开。
+   **用户自己的终端里不需要这条**（默认 `%TEMP%` 下构建正常，2026-10-06 已验证）。
 
 ## 六、与 C# 宿主共存
 
