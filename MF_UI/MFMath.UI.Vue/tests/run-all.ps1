@@ -1,16 +1,37 @@
-# One-click regression: launch host with CDP port, run all verification scripts, summarize.
+﻿# One-click regression: launch host with CDP port, run all verification scripts, summarize.
 # Usage (Windows PowerShell 5.1 or PowerShell 7):
 #   powershell -ExecutionPolicy Bypass -File run-all.ps1
+#   powershell -ExecutionPolicy Bypass -File run-all.ps1 -NoLaunch      # attach to a host you started
 # Prereq: Vue built (npm run build) and host built (dotnet build -c Release)
+#
+# ⚠ This file MUST keep its UTF-8 BOM. Windows PowerShell 5.1 reads a .ps1 without a BOM as
+#   ANSI; every Chinese comment then gets mis-decoded, and the mangled bytes can swallow the
+#   next line -- which broke this script's own $tests array ("Missing expression after ','")
+#   until the BOM was added. That is the third time this encoding bit us.
 #
 # unit-* 是纯 Node 单元测试（假桥，不需要宿主窗口）；cdp-* 需要上面那个宿主进程。
 # Each test script prints a machine-readable line: RESULT|<name>|<pass>|<fail>
 # (ASCII only, so the summary parses regardless of console encoding.)
 
+param([switch]$NoLaunch)
+
 $ErrorActionPreference = "Continue"
-# v2.0：宿主就在同一棵树里的 ..\..\MFMath.Host（旧版这里指向 cppcshap 的宿主，已改）
-$hostExe = (Resolve-Path (Join-Path $PSScriptRoot "..\..\MFMath.Host\bin\Release\net10.0-windows\MFMath.exe") -ErrorAction SilentlyContinue)
-if (-not $hostExe) { $hostExe = "C:\Users\fsafsafsa\Desktop\MVS知识库\Multifunctional系列\Multifunctional-Mathematics-v2.0\MFMath.Host\bin\Release\net10.0-windows\MFMath.exe" }
+# v2.0：宿主在 v2.0 根下，是 MF_UI 的**兄弟目录**，所以从 tests/ 数上去是**三层**：
+#   tests → MFMath.UI.Vue → MF_UI → Multifunctional-Mathematics-v2.0
+# ⚠ 这里原来写的是两层（`..\..\`），**永远解析不到**，于是靠下面那条写死的本机绝对路径兜住 ——
+#   换台机器就直接 "Host not found"（BUGS.md B8）。是"真跑一次"才把它暴露出来的。
+# 路径优先级：环境变量 MF_HOST_EXE → 三层相对路径；都拿不到就给一句能照着做的提示。
+$hostExe = $env:MF_HOST_EXE
+if (-not $hostExe) {
+  $cand = Join-Path $PSScriptRoot "..\..\..\MFMath.Host\bin\Release\net10.0-windows\MFMath.exe"
+  if (Test-Path $cand) { $hostExe = (Resolve-Path $cand).Path }
+}
+if (-not $hostExe) {
+  Write-Host "Host not found: 期望 <v2.0>\MFMath.Host\bin\Release\net10.0-windows\MFMath.exe" -ForegroundColor Red
+  Write-Host "  先构建它：dotnet build -c Release <v2.0>\MFMath.Host" -ForegroundColor Red
+  Write-Host "  或用环境变量指定：`$env:MF_HOST_EXE = '<...>\MFMath.exe'" -ForegroundColor Red
+  exit 1
+}
 $tests = @(
   "unit-result-model",
   # 协议层的离线单测：SSE 分帧（含"任意字节切分一致"），不需要宿主。TS 层搬过来之后
@@ -18,6 +39,10 @@ $tests = @(
   "unit-sse",
   # markdown 解析（同样是纯逻辑）：重点在"递归不会把自己卡死"与"注入面为零"
   "unit-markdown",
+  # ⚠ 曾漏登记：本用例一直在磁盘上却从未被执行（BUGS.md B7）。它是唯一按**几何判据**
+  #   验证绘图的用例（曲线是否经过已知坐标点、视口内是否连续），与只数像素的其它
+  #   绘图用例互补 —— 漏掉它等于绘图准确性没有回归。放在绘图组里，不放到最后。
+  "cdp-plot-accuracy",
   "cdp-bridge-verify", "cdp-window-shell", "cdp-appearance", "cdp-input-notation", "cdp-font-load", "cdp-plot-verify", "cdp-plot-p3", "cdp-plot-p4",
   "cdp-plot-region", "cdp-plot-p5", "cdp-plot-final", "cdp-plot-asymptote",
   "cdp-plot-extrema", "cdp-plot-extrema-domain", "cdp-plot-3d", "cdp-plot-vector", "cdp-plot-fractal",
@@ -90,25 +115,50 @@ if (-not (Test-Path $hostExe)) {
 }
 
 $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = "--remote-debugging-port=9222"
-# NOTE (ASCII on purpose, see the encoding note below): a leftover WebView2 from the
-# previous run keeps the CDP port 9222 bound. The freshly started host then cannot bind
-# it, while CDP silently attaches to the STALE host -- which never saw the env vars set
-# below. Symptom seen in practice: cdp-search reports "host endpoints are the fake ones"
-# even though this script sets MF_SEARCH_ENDPOINTS, i.e. a false failure that looks like
-# a product bug. Clear the leftovers and wait for the port before launching.
-Get-Process msedgewebview2 -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
-$portDeadline = (Get-Date).AddSeconds(10)
-while ((Get-Date) -lt $portDeadline) {
-  $busy = Get-NetTCPConnection -LocalPort 9222 -State Listen -ErrorAction SilentlyContinue
-  if (-not $busy) { break }
-  Start-Sleep -Milliseconds 250
-}
 # Point the search backends at the local fake server for cdp-search. Endpoint overrides live in
 # an environment variable (not in settings) on purpose: if the renderer could change the Wolfram
 # endpoint, it could send the App ID anywhere. cdp-search refuses to run if this is not set.
+# ⚠ The HOST reads this at startup, so it must be exported before the host starts.
 $env:MF_SEARCH_ENDPOINTS = '{"ddgHtml":"http://127.0.0.1:8792/ddg/html","ddgIa":"http://127.0.0.1:8792/ddg/ia","wolfram":"http://127.0.0.1:8792/wolfram/result"}'
-$proc = Start-Process -FilePath $hostExe -PassThru
-Start-Sleep -Seconds 6
+
+# -NoLaunch : attach to a host that is ALREADY running (started by you), instead of starting one.
+# Why this exists: in some environments this script's own Start-Process cannot create a GUI
+# process at all ("The operation was canceled by the user", i.e. ERROR_CANCELLED) while a
+# shell-mediated launch (`cmd /c start "" "<exe>"`) works fine. Splitting "start the host" from
+# "run the suites" keeps this script usable in both worlds -- and is handy when you want to run
+# the suites against a host you are already debugging by hand.
+# When attaching, YOU are responsible for having exported WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS
+# and MF_SEARCH_ENDPOINTS before starting that host (see the two lines above).
+$noLaunch = $NoLaunch -or ($env:MF_HOST_ALREADY_RUNNING -eq "1")
+
+if ($noLaunch) {
+  $ok = $false
+  try { $ok = @((Invoke-RestMethod "http://127.0.0.1:9222/json/list" -TimeoutSec 4)).Count -gt 0 } catch { $ok = $false }
+  if (-not $ok) {
+    Write-Host "-NoLaunch 给了，但 127.0.0.1:9222 上没有可达的 CDP 端点。" -ForegroundColor Red
+    Write-Host "  请先自己起宿主（注意先设好上面两个环境变量），例如：" -ForegroundColor Red
+    Write-Host "    cmd /c start `"`" `"$hostExe`"" -ForegroundColor Red
+    exit 1
+  }
+  Write-Host "== 附着到已在运行的宿主（-NoLaunch）==" -ForegroundColor DarkGray
+  $proc = $null
+} else {
+  # NOTE (ASCII on purpose, see the encoding note below): a leftover WebView2 from the
+  # previous run keeps the CDP port 9222 bound. The freshly started host then cannot bind
+  # it, while CDP silently attaches to the STALE host -- which never saw the env vars set
+  # above. Symptom seen in practice: cdp-search reports "host endpoints are the fake ones"
+  # even though this script sets MF_SEARCH_ENDPOINTS, i.e. a false failure that looks like
+  # a product bug. Clear the leftovers and wait for the port before launching.
+  Get-Process msedgewebview2 -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+  $portDeadline = (Get-Date).AddSeconds(10)
+  while ((Get-Date) -lt $portDeadline) {
+    $busy = Get-NetTCPConnection -LocalPort 9222 -State Listen -ErrorAction SilentlyContinue
+    if (-not $busy) { break }
+    Start-Sleep -Milliseconds 250
+  }
+  $proc = Start-Process -FilePath $hostExe -PassThru
+  Start-Sleep -Seconds 6
+}
 
 # NOTE (encoding): keep this block ASCII-only on purpose.
 # Windows PowerShell 5.1 reads a .ps1 without a BOM as ANSI. A Chinese comment here gets
@@ -156,7 +206,9 @@ if ($tf -eq 0) {
   Write-Host "==== TOTAL: $tp pass / $tf fail ====" -ForegroundColor Red
 }
 
-if (-not $proc.HasExited) { Stop-Process -Id $proc.Id -Force }
+# Only stop the host if THIS script started it ($proc is $null under -NoLaunch -- never kill
+# a host the caller is running on purpose).
+if ($proc -and -not $proc.HasExited) { Stop-Process -Id $proc.Id -Force }
 Remove-Item Env:\WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS -ErrorAction SilentlyContinue
 Remove-Item Env:\MF_SEARCH_ENDPOINTS -ErrorAction SilentlyContinue
 exit $tf
