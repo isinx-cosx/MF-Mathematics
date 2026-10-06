@@ -19,6 +19,7 @@
 // 看起来就像"程序下面多了一个空窗口"。Tauri 官方模板只在 release 关，这里**无条件**关。
 #![windows_subsystem = "windows"]
 
+mod account;
 mod commands;
 mod dpapi;
 mod engine;
@@ -128,6 +129,29 @@ const UPDATE_SPEC: &[MethodSpec] = &[
     MethodSpec { name: "SelfCheck", params: &[], ret: RetKind::Str },
 ];
 
+/// `account`：用户系统（对照 C# AccountBridge）。token 只在宿主，页面只见脱敏字段。
+const ACCOUNT_SPEC: &[MethodSpec] = &[
+    MethodSpec { name: "Info", params: &[], ret: RetKind::Str },
+    MethodSpec { name: "Configure", params: &["json"], ret: RetKind::Str },
+    MethodSpec { name: "ClearLocal", params: &[], ret: RetKind::Str },
+    MethodSpec { name: "Login", params: &["username", "password"], ret: RetKind::Str },
+    MethodSpec { name: "LoginEx", params: &["json"], ret: RetKind::Str },
+    MethodSpec { name: "Logout", params: &[], ret: RetKind::Str },
+    MethodSpec { name: "RefreshProfile", params: &[], ret: RetKind::Str },
+    MethodSpec { name: "RefreshToken", params: &[], ret: RetKind::Str },
+    MethodSpec { name: "EnsureFresh", params: &["thresholdSec"], ret: RetKind::Bool },
+    MethodSpec { name: "Register", params: &["json"], ret: RetKind::Str },
+    MethodSpec { name: "SendCode", params: &["email"], ret: RetKind::Str },
+    MethodSpec { name: "VerifyCode", params: &["username", "code"], ret: RetKind::Str },
+    MethodSpec { name: "ResendCode", params: &["username", "email"], ret: RetKind::Str },
+    MethodSpec { name: "ChangePassword", params: &["oldPassword", "newPassword"], ret: RetKind::Str },
+    MethodSpec { name: "LoginHistory", params: &[], ret: RetKind::Str },
+    MethodSpec { name: "SiteVersion", params: &[], ret: RetKind::Str },
+    MethodSpec { name: "Busy", params: &[], ret: RetKind::Bool },
+    MethodSpec { name: "CancelAll", params: &[], ret: RetKind::Empty },
+    MethodSpec { name: "SelfCheck", params: &[], ret: RetKind::Str },
+];
+
 /// 要注册的宿主对象。**加一个桥 = 这里加一行 + handlers.rs 加一个分支**，
 /// COM 那一层（hostobject.rs）一行都不用动。
 const HOST_OBJECTS: &[(&str, &[MethodSpec])] = &[
@@ -137,6 +161,7 @@ const HOST_OBJECTS: &[(&str, &[MethodSpec])] = &[
     ("win", WIN_SPEC),
     ("push", PUSH_SPEC),
     ("update", UPDATE_SPEC),
+    ("account", ACCOUNT_SPEC),
 ];
 
 /// 同时写 stderr 与 app.log。

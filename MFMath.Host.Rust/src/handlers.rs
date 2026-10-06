@@ -91,7 +91,41 @@ pub fn call(object: &str, method: &str, args: &[Arg]) -> Ret {
         "win" => win(method, args),
         "push" => push(method, args),
         "update" => update(method, args),
+        "account" => account(method, args),
         other => Ret::Str(err_envelope(&format!("未知宿主对象：{other}"))),
+    }
+}
+
+/// `account` 桥：用户系统（对照 C# `AccountBridge.cs`）。
+/// 纪律：离线优先绝不阻塞、token 只在宿主（DPAPI 密文）、失败不合并、临期静默续期。
+fn account(method: &str, args: &[Arg]) -> Ret {
+    use crate::account as a;
+    match method {
+        "Info" => Ret::Str(a::info()),
+        "Configure" => Ret::Str(a::configure(arg_str(args, 0).unwrap_or(""))),
+        "ClearLocal" => Ret::Str(a::clear_local()),
+        "Login" => Ret::Str(a::login(arg_str(args, 0).unwrap_or(""), arg_str(args, 1).unwrap_or(""))),
+        "LoginEx" => Ret::Str(a::login_ex(arg_str(args, 0).unwrap_or(""))),
+        "Logout" => Ret::Str(a::logout()),
+        "RefreshProfile" => Ret::Str(a::refresh_profile()),
+        "RefreshToken" => Ret::Str(a::refresh_token()),
+        "EnsureFresh" => Ret::Bool(a::ensure_fresh(
+            args.get(0).and_then(|v| match v { Arg::Num(n) => Some(*n as i64), _ => None }).unwrap_or(300),
+        )),
+        "Register" => Ret::Str(a::register(arg_str(args, 0).unwrap_or(""))),
+        "SendCode" => Ret::Str(a::send_code(arg_str(args, 0).unwrap_or(""))),
+        "VerifyCode" => Ret::Str(a::verify_code(arg_str(args, 0).unwrap_or(""), arg_str(args, 1).unwrap_or(""))),
+        "ResendCode" => Ret::Str(a::resend_code(arg_str(args, 0).unwrap_or(""), arg_str(args, 1).unwrap_or(""))),
+        "ChangePassword" => Ret::Str(a::change_password(arg_str(args, 0).unwrap_or(""), arg_str(args, 1).unwrap_or(""))),
+        "LoginHistory" => Ret::Str(a::login_history()),
+        "SiteVersion" => Ret::Str(a::site_version()),
+        "Busy" => Ret::Bool(a::is_busy()),
+        "CancelAll" => {
+            a::cancel_all();
+            Ret::Empty
+        }
+        "SelfCheck" => Ret::Str(a::self_check()),
+        other => Ret::Str(err_envelope(&format!("account 没有这个方法：{other}"))),
     }
 }
 
