@@ -94,7 +94,37 @@ pub fn call(object: &str, method: &str, args: &[Arg]) -> Ret {
         "account" => account(method, args),
         "search" => search(method, args),
         "con" => con(method, args),
+        "ai" => ai(method, args),
         other => Ret::Str(err_envelope(&format!("未知宿主对象：{other}"))),
+    }
+}
+
+/// `ai` 桥：AI 助手 + SSE 中继（对照 C# `AiBridge.cs` / `AiClient.cs` / `AiConfig.cs` /
+/// `AiRelay.cs`；JS 侧是 `hostObjects.sync.ai`）。
+///
+/// 纪律（与 C# 一致的取舍，理由都在 `ai.rs` 的文件头）：
+///   · **密钥只在宿主**（DPAPI 密文落盘），页面只见 `hasKey` / `keySource` / `keyPersisted`；
+///   · **中继只接受相对路径**：绝对地址 / `//host` / `..` 一律拒绝 ——
+///     否则中继就成了"把密钥发到任意地址"的原语；
+///   · **宿主只转发字节**（`ai.http` / `ai.raw` / `ai.rawEnd` / `ai.rawError`），
+///     SSE 分帧与 OpenAI 分片语义只有 TS 里那一份实现，宿主不推 `ai.delta`；
+///   · `Test` / `Begin` **立即返回**（同步等网络会把渲染进程冻住），结果经 push 推回去。
+fn ai(method: &str, args: &[Arg]) -> Ret {
+    use crate::ai as a;
+    match method {
+        "Info" => Ret::Str(a::info()),
+        // Busy 返 Bool（宿主对象的方法表里也是 RetKind::Bool）
+        "Busy" => Ret::Bool(a::is_busy()),
+        "KeySource" => Ret::Str(a::key_source().to_string()),
+        "Configure" => Ret::Str(a::configure(arg_str(args, 0).unwrap_or(""))),
+        "SetKey" => Ret::Str(a::set_key(arg_str(args, 0).unwrap_or(""))),
+        "ClearKey" => Ret::Str(a::clear_key()),
+        "Test" => Ret::Str(a::test()),
+        "Begin" => Ret::Str(a::begin(arg_str(args, 0).unwrap_or(""))),
+        "Cancel" => Ret::Str(a::cancel(arg_str(args, 0).unwrap_or(""))),
+        "CancelAll" => Ret::Str(a::cancel_all()),
+        "SelfCheck" => Ret::Str(a::self_check()),
+        other => Ret::Str(err_envelope(&format!("ai 没有这个方法：{other}"))),
     }
 }
 
