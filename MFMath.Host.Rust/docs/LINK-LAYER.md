@@ -34,6 +34,13 @@
 | 2 | **UI 走 `wwwroot` + 虚拟主机** | `SetVirtualHostNameToFolderMapping("mfmath.local", <exe>/wwwroot)` + `ICoreWebView2::Navigate`，与 C# 宿主的 `MainWindow.xaml.cs:187-192` 逐字一致。新增 `tools/sync-wwwroot.mjs`（默认拷到 `target/debug/wwwroot`，`MF_WWWROOT` 可指到别处） |
 | 3 | **`push` 桥** | `PostWebMessageAsJson` + 信封 `{topic,seq,ts,payload}`。`cdp-push` 从"崩"变成 **14/6**（余下 6 项全在需要 `con` 的两段） |
 | 4 | 验收 | `verify-spike` **10/0**、`cdp-bridge-verify` **7/0**、`cdp-basic-calc` **41/0**、`cdp-window-shell` **25/0**、`cdp-plot-verify` **9/0** |
+| 5 | **共享件**（`dpapi` / `http` / `pack`） | DPAPI 逐字兼容 C#（**不传 entropy**，否则两个宿主的密文互相解不开）；HTTP 用 reqwest+rustls+**ring**；sha256 与 zip（**自带路径穿越防护，整包拒绝**）；新增 `--selftest-common` |
+| 6 | **`update` 桥** | 版本关系判定（1.10.0 > 1.9.9、预发布小于正式版）、信封解析、协议闸门。`cdp-update` **37/0** |
+| 7 | **`account` 桥**（19 方法） | 离线优先（`Info()` 不碰网络）、token 只在宿主、失败不合并、临期静默续期。`cdp-account` **52/0** |
+| 8 | **部署接进构建** | `build.rs` 自动把引擎 DLL 与 `dist`→`wwwroot` 放到 exe 同目录（只在新时拷、缺了只警告） |
+| 9 | **启动失败可观测** | panic 钩子写 `crash-*.log`（含 backtrace + app.log 尾部）；WebView2 起不来给可读原因 + 非阻塞提示框 |
+| 10 | **取包代理的 bug** | `Readable.fromWeb(...).pipe(res)` 不转发错误 → 上游抖一次就**杀掉 Node 进程**，cargo 只看到 `Connection was reset`。改用 `pipeline` + 重试 + 进程兜底 |
+| 11 | **`--selftest-jobs` 竞态** | 第 5 项盲睡 250 ms 后取消，而本机那次 mandelbrot 恰好 ~253 ms 跑完 → 随机红。改成轮询到"真的在跑"再取消，连跑三次 5/5 |
 
 **踩到的坑（都在代码注释里留了原话，别再踩）**
 
@@ -45,15 +52,18 @@
 | **push：假延后** | 以为推迟了，其实没有 | `tauri::AppHandle::run_on_main_thread` 在主线程上会**就地执行**（tauri-runtime-wry `lib.rs:263`） | 从 **worker 线程**调它，才会走 `proxy.send_event` 真排队 |
 | **push：跨公寓** | 编组直接失败 `REGDB_E_IIDNOTREG 0x80040155`；拿裸指针换线程调则宿主当场消失 | `ICoreWebView2` 既非 agile、也没注册 proxy/stub | 放弃跨线程直调；`SetTimer` 也不可靠（挂上了但回调一次都没被调用） |
 | **push：悬垂指针（真元凶）** | 与"重入"**一模一样**：页面卡死、或宿主静默消失（stderr / 崩溃日志 / WER 转储里一条都没有） | 只存了 `core.as_raw() as usize`，而那个引用来自 `with_webview` 闭包，闭包结束就 Release 了 | `CoreHandle` AddRef 一份并由 `OnceLock` 持有到进程结束 |
+| **C 依赖编不过（D8050）** | reqwest 默认后端 `aws-lc-sys`、以及换成 `ring` 之后，都报 `cl.exe D8050：未能将命令行放入调试记录中` | **不是编译器坏** —— 受限令牌下 `%TEMP%` 不可写（与 README §五.3 的 esbuild 同类） | `TEMP`/`TMP` 指到仓库内再编。选 `ring`（`rustls-no-provider` + `install_default()`）避开动辄编一堆 C 的 aws-lc-sys |
+| **工作区内镜像不能写外** | 宿主在 `target/debug` 下跑时，日志/设置/WebView2 数据目录**全静默失败**，用例莫名变红 | 本机沙箱对"镜像位于工作区内"的进程限制写入范围 | 端到端测试把 exe+DLL+wwwroot 拷到工作区外（`%TEMP%\mfhost-run`）再跑 |
+| **旧理由被推翻（Schannel）** | README §三 写"本机 Schannel 不可用，所以用 rustls" | 服务器抓包定案：RST 是**本机发的**，真凶是开发机沙箱的出站阻止规则，只对部分进程生效 | rustls 仍然用，但**理由改成**"不依赖系统 TLS 配置、与 Chromium 那条链一致"；并明确**不要**因为"某台机器连不上"去关系统代理 |
 
 **还没做**
 
-- **引擎 DLL 要放到 exe 同目录**（`mf_mathematics.dll` + 5 个依赖）。C# 宿主靠 csproj 带过去，
-  Rust 宿主**没有任何机制** —— 我这次是手工 `Copy-Item`。需要一个 `tools/sync-engine.mjs` 或构建步骤。
-- `--selftest-jobs` 的**第 5 项是测试自己的竞态**（盲睡 250ms 后取消，而本机 mandelbrot 恰好 ~253ms 跑完）。
+- `search`（进行中）、`con`、`ai` 三个桥。
 - **用例顺序会互相影响**：`cdp-export-image` 紧跟 `cdp-plot-verify` 在同一宿主会话里跑会掉到 **20/13**
   （单独跑是 **43/2**，与改动前一致）。这与 `docs/STATUS-and-ROADMAP.md` 风险台账里 `cdp-plot-p5`
   那条是同一类问题：**成套跑时最好让每个用例独占一个宿主进程**。
+- 一批 edition-2024 的 `unsafe_op_in_unsafe_fn` 警告（`hostobject.rs`，~40 处，纯噪音）、
+  `cstr_lossy`/`stamp_min` 死代码。
 - `apply_dwm_chrome` 保留但仍未被调用（现用系统标题栏时不需要）；要换回无边框就调它，
   值已修对（`DWMNCRP_ENABLED = 2`）。
 - 本机沙箱特性（只影响我这类自动化）：**镜像位于工作区内的进程不能写工作区外**，
