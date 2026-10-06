@@ -845,7 +845,17 @@ watch([expressions, view, gridMode, showGrid, params], () => {
 <style scoped>
 .desmos-layout {
   display: grid;
-  grid-template-columns: 300px 1fr;
+  /* ⚠ 两列都必须能压缩。原来写死 `300px 1fr`：窗口一窄，300px 的侧栏列照占不误，
+   * 第二列（画布）被算成 **0px** —— 画布没有宽度，整幅函数图像就"消失"了
+   * （实测窗口宽 650px 时 canvas.clientWidth === 0，位图里还留着旧像素，所以
+   *   看起来像"图没了"而不是"没画"）。
+   * minmax(0, 300px)：侧栏先让位；minmax(160px, 1fr)：画布永远保留可视宽度。 */
+  grid-template-columns: minmax(0, 300px) minmax(160px, 1fr);
+  /* ⚠ 行高必须由容器决定，不能被内容撑开：侧栏（表达式 + 参数滑块 + 极值列表）
+   * 一旦比可视区高，隐式行就被撑到内容高度（实测 958px / 容器只有 748px），
+   * 画布跟着变成 958px —— 超出部分被裁掉，用户看到的是"图被截断"和一条滚动条。
+   * minmax(0, 1fr) 把行钉在容器高度上，侧栏内部自己滚。 */
+  grid-template-rows: minmax(0, 1fr);
   height: 100%;
   min-height: 520px;
 }
@@ -857,6 +867,26 @@ watch([expressions, view, gridMode, showGrid, params], () => {
   border-right: 1px solid var(--border);
   background: var(--surface-alt);
   overflow-y: auto;
+  /* 侧栏内容（表达式列表/符号栏）自己换行，不要把画布列顶宽；
+   * min-height: 0 让它在行高受限时**内部滚动**，而不是把整行顶高。 */
+  min-width: 0;
+  min-height: 0;
+}
+
+/* 窄窗口：上下排布（表达式列表在上、画布在下占满宽度）。
+ * 桌面外壳自己还有一条导航栏，所以视口 760px 时留给绘图区只有 ~500px，
+ * 继续左右分栏会让画布窄到几乎没法看。 */
+@media (max-width: 760px) {
+  .desmos-layout {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(220px, 1fr);
+    min-height: 320px;
+  }
+  .desmos-side {
+    max-height: 34vh;          /* 侧栏内部滚动，不占满整屏 */
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+  }
 }
 .slider-box {
   padding: 8px;
@@ -874,7 +904,7 @@ watch([expressions, view, gridMode, showGrid, params], () => {
   font-size: 11.5px;
   color: var(--text-subtle);
 }
-.desmos-main { position: relative; min-width: 0; }
+.desmos-main { position: relative; min-width: 0; min-height: 0; }
 .view-controls {
   position: absolute;
   top: 12px;
