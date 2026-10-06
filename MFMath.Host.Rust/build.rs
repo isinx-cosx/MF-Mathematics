@@ -80,12 +80,16 @@ fn sync_runtime_assets() {
         println!("cargo:warning=取不到 exe 输出目录（OUT_DIR 结构变了？），跳过引擎/UI 同步");
         return;
     };
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().map(Path::to_path_buf);
+    // 一次解析成 owned 值：下面三处同步都用它，别再 Option 化（否则 clone/unwrap 很容易搬错）
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .map(Path::to_path_buf)
+        .unwrap_or_default();
 
     /* ── 引擎 DLL ───────────────────────────────────────────────────────── */
     let engine_src = std::env::var_os("MF_ENGINE_BIN")
         .map(PathBuf::from)
-        .unwrap_or_else(|| root.clone().unwrap_or_default().join("MF_Mathematics/build/bin/Release"));
+        .unwrap_or_else(|| root.join("MF_Mathematics/build/bin/Release"));
     if engine_src.join(ENGINE_DLLS[0]).is_file() {
         let mut copied = 0;
         for dll in ENGINE_DLLS {
@@ -107,12 +111,10 @@ fn sync_runtime_assets() {
     println!("cargo:rerun-if-changed={}", engine_src.display());
 
     /* ── 前端 wwwroot ───────────────────────────────────────────────────── */
-    let dist = root
-        .unwrap_or_default()
-        .join("MF_UI/MFMath.UI.Vue/dist");
+    let dist = root.join("MF_UI/MFMath.UI.Vue/dist");
     if dist.join("index.html").is_file() {
         let wwwroot = profile.join("wwwroot");
-        if let Err(e) = copy_tree(&dist, &wwwroot) {
+        if let Err(e) = copy_tree(&dist, &wwwroot, "前端（wwwroot）") {
             println!("cargo:warning=同步 wwwroot 失败：{e}");
         }
     } else {
@@ -122,10 +124,34 @@ fn sync_runtime_assets() {
         );
     }
     println!("cargo:rerun-if-changed={}", dist.display());
+
+    /* ── 控制台门面（python/ 与 cpp/）──────────────────────────────────────
+     * 组件安装时要把它们拷进组件目录（见 `src/con.rs`）：
+     *   · Python 侧靠 `mfmath.py`（ctypes → mf_mathematics.dll）；
+     *   · C++ 侧靠 `mfmath.hpp` + `mfmath_autorun.hpp`（`#include` 起引擎）。
+     * 少了它们，控制台能起、组件却装不上（报"应用目录缺少 python\mfmath.py"）。
+     *
+     * ⚠ 来源是 **C# 宿主项目目录**：这三个文件在仓库里只有那一份，两个宿主共用，
+     * 它们本身就是"用户代码怎么调到引擎"的对外契约 —— 要改就两边一起想。
+     */
+    for (src_rel, dst_rel) in [("MFMath.Host/python", "python"), ("MFMath.Host/cpp", "cpp")] {
+        let src = root.join(src_rel);
+        if src.is_dir() {
+            if let Err(e) = copy_tree(&src, &profile.join(dst_rel), &format!("控制台门面（{dst_rel}/）")) {
+                println!("cargo:warning=同步 {dst_rel}/ 失败：{e}");
+            }
+        } else {
+            println!(
+                "cargo:warning=找不到控制台门面 {}（控制台能起，但组件安装会失败）",
+                src.display()
+            );
+        }
+        println!("cargo:rerun-if-changed={}", src.display());
+    }
 }
 
 /// 把 dist 整棵树镜像到 wwwroot（删掉目标里多出来的文件，避免旧版本残留）
-fn copy_tree(src: &Path, dst: &Path) -> std::io::Result<()> {
+fn copy_tree(src: &Path, dst: &Path, label: &str) -> std::io::Result<()> {
     let mut copied = 0usize;
     let mut stack = vec![(src.to_path_buf(), dst.to_path_buf())];
     while let Some((s, d)) = stack.pop() {
@@ -145,7 +171,7 @@ fn copy_tree(src: &Path, dst: &Path) -> std::io::Result<()> {
         }
     }
     if copied > 0 {
-        println!("cargo:warning=前端已同步到 wwwroot（{copied} 个文件）");
+        println!("cargo:warning={label} 已同步（{copied} 个文件）");
     }
     Ok(())
 }
