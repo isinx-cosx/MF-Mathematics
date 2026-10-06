@@ -344,21 +344,31 @@ function drawCurves() {
     ctx.lineCap = "round";
     ctx.beginPath();
     let drawing = false;
-    let lastPx = null, lastPy = null;
+    let lastY = null;
+    const spanY = Math.abs(viewH(v)) || 1;
+    // "远离视口"的阈值：超过视口高度的若干倍才算 ∞ 那一侧
+    const far = (t) => Math.abs(t) > spanY * 4;
     for (const p of pts) {
       // 断点（域外 / 未定义 / 引擎返回 null）：断开路径，绝不跨过去连线
       // （Number(null) === 0，直接换算会画出假的 y=0 段）
-      if (!p) { drawing = false; continue; }
+      if (!p) { drawing = false; lastY = null; continue; }
       const [x, y] = p;
-      if (!Number.isFinite(x) || !Number.isFinite(y)) { drawing = false; continue; }
+      if (!Number.isFinite(x) || !Number.isFinite(y)) { drawing = false; lastY = null; continue; }
       const px = mapX(v, cssW, x), py = mapY(v, cssH, y);
-      // 断点：屏幕跳变过大（渐近线）时断开
-      if (drawing && lastPx !== null) {
-        if (Math.abs(py - lastPy) > cssH * 1.6) { drawing = false; }
+      /* 断点判定：只有**真的跨过渐近线**才断开。
+       *
+       * ⚠ 判据必须用**世界坐标**（符号翻转且两侧都远离视口），不能用屏幕像素跳变。
+       * 原实现是 `Math.abs(py - lastPy) > cssH * 1.6`，本意是"别在渐近线两侧画假连线"，
+       * 但它会把**陡而连续**的曲线整段丢掉：e^x 在默认视口下每对相邻采样点的屏幕跳变
+       * 都超过 1.6×画布高度 → 每个点都走 `moveTo` 分支 → **一段都没画**。
+       * 实测：e^x 只画到视口上沿（y≈10.46、x≈2.3）就没了，右侧整段缺失；
+       * 而 1/x、tan x 这类真渐近线的两侧是 **+∞ → −∞ 符号翻转**，用下面的判据照样断开。 */
+      if (drawing && lastY !== null && far(lastY) && far(y) && Math.sign(lastY) !== Math.sign(y)) {
+        drawing = false;
       }
       if (!drawing) { ctx.moveTo(px, py); drawing = true; }
       else ctx.lineTo(px, py);
-      lastPx = px; lastPy = py;
+      lastY = y;
     }
     ctx.stroke();
   }

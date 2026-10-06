@@ -1,4 +1,4 @@
-﻿# One-click regression: launch host with CDP port, run all verification scripts, summarize.
+# One-click regression: launch host with CDP port, run all verification scripts, summarize.
 # Usage (Windows PowerShell 5.1 or PowerShell 7):
 #   powershell -ExecutionPolicy Bypass -File run-all.ps1
 # Prereq: Vue built (npm run build) and host built (dotnet build -c Release)
