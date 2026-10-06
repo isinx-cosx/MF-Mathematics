@@ -23,18 +23,19 @@ const FallbackView = {
 const REAL_VIEWS = {
   // 基础运算：计算器视图（旧版是空壳，这里经引擎真算）
   "/calc/basic": () => import("../views/calc/BasicCalcView.vue"),
-  // 2D 函数绘图 / 极坐标：**已改用 React 实现**，经 ReactPlotView 嵌在 Vue 外壳里。
+  // 绘图页（整组）：**已改用 React 实现**，经 ReactPlotView 嵌在 Vue 外壳里。
   // 逻辑层仍是同一份 src/lib（@shared 别名），所以引擎桥与表达式解析不会漂移。
-  // Vue 版 views/plot/PlotView.vue 保留在树上（不删）：要回退就把这两行改回它。
+  // Vue 版各页保留在树上（不删）：要回退就把对应这行改回 ../views/plot/XXX.vue。
   "/plot/2d": () => import("../components/plot-react/ReactPlotView.vue"),
   // 极坐标：原版是独立入口（i18n.py 的 get_plot_modes 第 2 项），
   // 能力早就在 plotMath 里，缺的只是入口；grid 经 meta 传给页面。
   "/plot/polar": () => import("../components/plot-react/ReactPlotView.vue"),
-  "/plot/3d": () => import("../views/plot/Plot3DView.vue"),
-  "/plot/vector": () => import("../views/plot/PlotVectorView.vue"),
-  "/plot/fractal": () => import("../views/plot/PlotFractalView.vue"),
-  "/plot/complex": () => import("../views/plot/PlotComplexView.vue"),
-  "/plot/geometry": () => import("../views/plot/PlotGeometryView.vue"),
+  // 绘图组整组迁到 React（自由几何是最后一片）
+  "/plot/vector": () => import("../components/plot-react/ReactPlotView.vue"),
+  "/plot/fractal": () => import("../components/plot-react/ReactPlotView.vue"),
+  "/plot/3d": () => import("../components/plot-react/ReactPlotView.vue"),
+  "/plot/complex": () => import("../components/plot-react/ReactPlotView.vue"),
+  "/plot/geometry": () => import("../components/plot-react/ReactPlotView.vue"),
   // 控制台：在应用里写 Python/C++ 小程序，两条语言都通过 mfmath 调同一个 C++ 引擎
   "/tools/console": () => import("../views/tools/ConsoleView.vue"),
   // 联网搜索：抓取与解析在宿主（C#），凭据不进渲染进程；这里是一个页面
@@ -54,8 +55,19 @@ const REAL_VIEWS = {
   "/settings": () => import("../views/settings/SettingsView.vue"),
 };
 
-/** 学科计算视图统一走 CalcView（按路由末段读取 VIEW_CONFIGS 的配置） */
-const CALC_VIEW = () => import("../views/calc/CalcView.vue");
+/** 已迁到 React 的绘图页：路由 → ReactPlotView 里注册的页面键。
+ *  ReactPlotView 按这个键**动态 import** 对应 React 组件（各自独立分块，不拖累首屏）。 */
+const REACT_PAGES = {
+  "/plot/2d": "2d",
+  "/plot/polar": "polar",
+  "/plot/vector": "vector",
+  "/plot/fractal": "fractal",
+  "/plot/3d": "3d",
+  "/plot/complex": "complex",
+  "/plot/geometry": "geometry",
+};
+
+/** 学科计算视图统一走 CalcView（按路由末段读取 VIEW_CONFIGS 的配置） */const CALC_VIEW = () => import("../views/calc/CalcView.vue");
 const CALC_ROUTES = [
   "/calc/algebra", "/calc/calculus", "/calc/analytic-geometry", "/calc/linear-algebra",
   "/calc/numerical", "/calc/number-theory", "/calc/probability", "/calc/real-analysis",
@@ -79,7 +91,8 @@ for (const g of NAV_GROUPS) {
       component: real || (isCalc ? CALC_VIEW : FallbackView),
       props: real || isCalc ? undefined : { name: it.name },
       // grid 用于"极坐标"这类共用同一个视图、只是初始网格不同的入口
-      meta: { title: it.name, desc: g.title, calc: isCalc, grid: it.grid },
+      // reactPage 非空 = 这一页由 ReactPlotView 承载（键见 REACT_PAGES）
+      meta: { title: it.name, desc: g.title, calc: isCalc, grid: it.grid, reactPage: REACT_PAGES[it.route] },
     });
   }
 }

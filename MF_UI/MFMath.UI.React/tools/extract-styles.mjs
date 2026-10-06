@@ -20,6 +20,12 @@ const JOBS = [
   { from: "components/plot/VectorFieldCanvas.vue", to: "plot-vector.css" },
   { from: "views/plot/Plot3DView.vue",  to: "plot-3d.css" },
   { from: "views/plot/PlotComplexView.vue", to: "plot-complex.css" },
+  // 其余绘图页（逐页迁 React 时逐个打开）
+  { from: "views/plot/PlotVectorView.vue", to: "plot-vector-view.css" },
+  { from: "views/plot/PlotFractalView.vue", to: "plot-fractal.css" },
+  { from: "views/plot/PlotGeometryView.vue", to: "plot-geometry.css" },
+  { from: "components/plot/SurfaceCanvas.vue", to: "surface-canvas.css" },
+  { from: "components/plot/GeometryCanvas.vue", to: "geometry-canvas.css" },
 ];
 
 fs.mkdirSync(outRoot, { recursive: true });
