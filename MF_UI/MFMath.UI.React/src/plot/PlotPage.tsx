@@ -9,8 +9,33 @@ import { colorAt } from "@shared/plot/colors.js";
 import { engineCall, isHosted } from "@shared/bridge.js";
 import { defaultView, fitBounds } from "@shared/plot/view.js";
 import { exportCanvas } from "@shared/plot/exportImage.js";
-import { prettyNum } from "../lib/plotText";
+import { prettyNum, textLatex } from "../lib/plotText";
+import MathLatex from "../components/MathLatex";
 import "../styles/plot-view.css";
+
+/* ── 符号驻点的展示辅助（与 Vue 版 PlotView 的 branchLabel / branchClass 逐字一致）──
+ * 引擎返回的 kind 是英文字段名，界面必须给中文；否则用户看到的是 "outside-domain"
+ * 这种内部词。未知 kind 原样返回，不猜（不静默变成空白）。 */
+function branchLabel(kind?: string): string {
+  switch (kind) {
+    case "maximum": return "极大值";
+    case "minimum": return "极小值";
+    case "degenerate": return "退化(二阶导为0)";
+    case "no-real-value": return "无实驻点";
+    case "no-critical-point": return "无极值点";
+    case "outside-domain": return "无极值点(驻点在定义域外)";
+    default: return String(kind || "");
+  }
+}
+function branchClass(kind?: string): string {
+  if (kind === "maximum") return "max";
+  if (kind === "minimum") return "min";
+  return "na";
+}
+
+/** extrema_sym 返回的 branches 形状（只声明用到的字段） */
+type SymBranch = { assume?: string; kind?: string; note?: string; exists?: boolean; f_value?: string };
+type SymPoint = { x: string; branches?: SymBranch[] };
 
 type SymbolicExtremum = {
   expr: string;
@@ -186,6 +211,32 @@ export default function PlotPage({
     computeSymbolicExtrema();
   }, [computeIntersections, computeExtrema, computeSymbolicExtrema]);
 
+  /* 含参曲线的驻点：按**参数取值**分组（先看参数在哪一段，再看该段下各驻点）。
+   * 与 Vue 版 symbolicGroups 同构：key = branch.assume，行内去重按 (x, kind, note)。 */
+  const symbolicGroups = useMemo(() => {
+    const groups: { assume: string; rows: { x: string; kind?: string; note: string; exists?: boolean; fvalue?: string }[] }[] = [];
+    const byAssume = new Map<string, (typeof groups)[number]>();
+    for (const s of symbolicExtrema) {
+      for (const p of (s.points || []) as SymPoint[]) {
+        for (const b of p.branches || []) {
+          const key = b.assume || "";
+          let g = byAssume.get(key);
+          if (!g) {
+            g = { assume: key, rows: [] };
+            byAssume.set(key, g);
+            groups.push(g);
+          }
+          const note = b.note || "";
+          const dup = g.rows.some((r) => r.x === p.x && r.kind === b.kind && r.note === note);
+          if (!dup) {
+            g.rows.push({ x: p.x, kind: b.kind, note, exists: b.exists, fvalue: b.f_value });
+          }
+        }
+      }
+    }
+    return groups;
+  }, [symbolicExtrema]);
+
   const zoomBy = (factor: number) => {
     const cv = canvasRef.current;
     const w = cv?.clientWidth ?? size.w, h = cv?.clientHeight ?? size.h;
@@ -335,9 +386,32 @@ export default function PlotPage({
                 )}
               </div>
             ))}
-            {/* 待办：含参曲线的「按参数取值分组」块（Vue 模板 .pt-sym / .branch-head /
-                .pt-branch + MathLatex 排版）尚未移植，数据已在 symbolicExtrema.points 里。
-                这里不放空块、也不静默降级。 */}
+            {/* 含参曲线：按参数取值分组（块结构 .pt-sym / .branch-head / .pt-branch
+                必须与 Vue 版一致 —— 教程引导与端到端用例都按这些类名定位）。
+                驻点是符号解（-sqrt(a)、a/2…）：用 KaTeX 排版（MathLatex 带 data-tex），
+                而不是把 ASCII 原样贴出来。 */}
+            {symbolicGroups.map((g, gi) => (
+              <div key={"g" + gi} className="pt-sym">
+                <div className="branch-head">
+                  <span className="branch-tag strong">{g.assume}</span>
+                </div>
+                {g.rows.map((r, ri) => (
+                  <div key={"r" + ri} className="pt-branch">
+                    <span className="branch-x">
+                      x = <MathLatex latex={textLatex(r.x)} fallback={r.x} />
+                    </span>
+                    <span className={"branch-kind " + branchClass(r.kind)}>{branchLabel(r.kind)}</span>
+                    {r.exists !== true ? (
+                      <span className="branch-note">{r.note}</span>
+                    ) : r.fvalue && r.fvalue !== "—" ? (
+                      <span className="branch-value">
+                        f = <MathLatex latex={textLatex(r.fvalue)} fallback={r.fvalue} />
+                      </span>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            ))}
           </div>
         )}
 
