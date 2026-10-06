@@ -17,6 +17,11 @@ public partial class MainWindow : Window
     private const int DWMWCP_ROUND = 2;
     private const int DWMNCRP_ENABLED = 2;
 
+    /// <summary>WebView2 的用户数据目录（构造时确定）。
+    /// 之所以要存成字段：初始化失败时必须能把它写进日志/提示里 ——
+    /// "目录不可写" 与 "有另一个进程占着它" 是两类最常见的原因，只说"WebView 失败"等于没说。</summary>
+    private readonly string _webViewUserData = "";
+
     [DllImport("dwmapi.dll", PreserveSig = true)]
     private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int value, int size);
 
@@ -35,16 +40,31 @@ public partial class MainWindow : Window
         // 而且和组件缓存（components\）在同一处，卸载时按用户处理有统一说法。
         // 用户数据目录可以用 MF_WEBVIEW2_DIR 覆盖：多个宿主实例并行跑自动化测试时，
         // WebView2 不允许两个进程共用同一个用户数据目录，各给一个临时目录即可互不干扰。
-        string userData = Environment.GetEnvironmentVariable("MF_WEBVIEW2_DIR") is { Length: > 0 } ov
+        _webViewUserData = Environment.GetEnvironmentVariable("MF_WEBVIEW2_DIR") is { Length: > 0 } ov
             ? ov
             : Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
                 "MFMath", "WebView2");
-        Directory.CreateDirectory(userData);
+        // 这一步也会失败（目录被占用 / 无写权限 / 路径被写成了文件），
+        // 而它失败时 WebView2 连初始化都不会开始 —— 同样必须留下记录，不能再静默。
+        try
+        {
+            Directory.CreateDirectory(_webViewUserData);
+        }
+        catch (Exception e)
+        {
+            Log.Crash("WebView2 用户数据目录", e);
+            Log.Error("无法创建 WebView2 用户数据目录：" + _webViewUserData + " → " + e.GetType().Name + ": " + e.Message);
+            MessageBox.Show(
+                "无法创建 WebView2 的用户数据目录，界面将无法加载。\n\n"
+                + _webViewUserData + "\n\n" + e.GetType().Name + ": " + e.Message,
+                "MF-Mathematics 界面无法加载", MessageBoxButton.OK, MessageBoxImage.Error);
+            return;
+        }
         // 写全名：这个类是 WPF 专用类型，在 Microsoft.Web.WebView2.Wpf 命名空间下
         Browser.CreationProperties = new Microsoft.Web.WebView2.Wpf.CoreWebView2CreationProperties
         {
-            UserDataFolder = userData,
+            UserDataFolder = _webViewUserData,
         };
 
         Browser.CoreWebView2InitializationCompleted += OnWebViewReady;
@@ -83,7 +103,39 @@ public partial class MainWindow : Window
 
     private void OnWebViewReady(object? sender, CoreWebView2InitializationCompletedEventArgs e)
     {
-        if (!e.IsSuccess) return;
+        /* ⚠ 原实现只有一句 `if (!e.IsSuccess) return;` —— 初始化失败被**静默吞掉**：
+         * 用户看到"窗口一片空白、日志里一行都没有"，而 WebView2 的真实原因
+         * （Runtime 缺失 / 用户数据目录不可写或损坏 / WebView2Loader.dll 位数不符 /
+         *   有另一个 MFMath·msedgewebview2 进程占着同一个用户数据目录）
+         * 全在 e.InitializationException 里。这里再不记，就等于把唯一的线索扔掉。 */
+        if (!e.IsSuccess)
+        {
+            Exception ex = e.InitializationException
+                           ?? new InvalidOperationException("WebView2 初始化失败（未提供异常对象）");
+            string? crashPath = Log.Crash("WebView2 初始化", ex);
+            Log.Error("WebView2 初始化失败；用户数据目录 " + _webViewUserData
+                      + "；" + ex.GetType().Name + ": " + ex.Message);
+            try
+            {
+                MessageBox.Show(
+                    "WebView2 初始化失败，界面无法加载。\n\n"
+                    + ex.GetType().Name + ": " + ex.Message
+                    + "\n\n用户数据目录：\n" + _webViewUserData
+                    + "\n\n崩溃日志：" + (crashPath ?? "写入失败（请检查磁盘权限）")
+                    + "\n\n常见原因：\n"
+                    + "① 有另一个 MFMath.exe / msedgewebview2.exe 占着同一个用户数据目录"
+                    + "（WebView2 不允许两个进程共用）：把进程全部结束后重开；\n"
+                    + "② 该目录不可写或已损坏（可改名或删除后重启，数据目录会重建）；\n"
+                    + "③ 缺 WebView2 Runtime，或 WebView2Loader.dll 与进程位数不符。",
+                    "MF-Mathematics 界面无法加载", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            catch { /* 连弹窗都失败就算了（例如窗口还不可用） */ }
+            return;
+        }
+        // 成功也记一行：这样"日志里有没有这一行"就能直接区分
+        // 「WebView 起来了但页面空」和「WebView 根本没起来」——这两类问题的排查方向完全不同。
+        Log.Info("WebView2 就绪：" + Browser.CoreWebView2.Environment.BrowserVersionString
+                 + "；用户数据目录 " + _webViewUserData);
 
         // 引擎桥（数学计算）、窗口桥（外壳控制）、控制台桥（跑用户代码）、设置桥（文件与系统信息）
         // 分开注册：JS 侧分别是 hostObjects.sync.mf / .win / .con / .sys。
