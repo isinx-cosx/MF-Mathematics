@@ -72,7 +72,7 @@ let syncWorkspace = false;
 /* ── 可拖动点（Desmos：点击曲线创建，可沿曲线拖动）── */
 const points = ref([]);          // [{id, curveId, x, y, color}]
 let pointId = 1;
-const showIntersections = ref(true);
+const showIntersections = ref(false);
 const intersectionList = ref([]); // [{x, y, xLabel, yLabel, exact}]
 // 引擎给出的实根性结论（可能恒定，也可能依赖参数取值）——原样展示，不做二次解读
 const intersectionNotice = ref("");
@@ -436,7 +436,7 @@ function clearPoints() {
 /** 自动求交点（引擎：符号精确解优先，超越方程走数值回退） */
 function computeIntersections() {
   intersectionNotice.value = "";
-  if (!showIntersections.value || !hosted) { intersectionList.value = []; return; }
+  if (!hosted) { intersectionList.value = []; return; }   // 计算不受"是否画到画布上"影响
   const v = view.value;
   const vis = curves.value.filter((c) => c.visible && c.parsed?.valid && c.parsed.type === "explicit");
   const out = [];
@@ -486,10 +486,12 @@ watch([expressions, params], () => {
 /* ── 极值标注（用引擎的符号能力求精确驻点）── */
 const extremaList = ref([]);      // 无参曲线：[{x, y, kind:'max'|'min', curveId}]
 const symbolicExtrema = ref([]);  // 含参曲线：extrema_sym 的符号驻点 + 参数分支
-const showExtrema = ref(true);
+// 极值标注**默认关闭**：点必须由用户自己添加，不自动往画布上画（Desmos 的做法）。
+// 手动入口是点击曲线（PlotCanvas 的 pick-point）。
+const showExtrema = ref(false);
 
 function computeExtrema() {
-  if (!showExtrema.value || !hosted) { extremaList.value = []; return; }
+  if (!hosted) { extremaList.value = []; return; }        // 同上：算出来给侧栏用
   const out = [];
   for (const c of curves.value) {
     if (!c.visible || c.parsed?.type !== "explicit") continue;
@@ -509,7 +511,7 @@ function computeExtrema() {
 
 /** 含参曲线：求符号驻点 + 参数分类讨论（展示在侧栏，不做图上定位） */
 function computeSymbolicExtrema() {
-  if (!showExtrema.value || !hosted) { symbolicExtrema.value = []; return; }
+  if (!hosted) { symbolicExtrema.value = []; return; }
   const out = [];
   for (const c of curves.value) {
     if (!c.visible || c.parsed?.type !== "explicit") continue;
@@ -810,8 +812,8 @@ watch([expressions, view, gridMode, showGrid, params], () => {
         :samples="samples"
         :grids="gridsRef"
         :points="points"
-        :intersections="intersectionList"
-        :extrema="extremaList"
+        :intersections="showIntersections ? intersectionList : []"
+        :extrema="showExtrema ? extremaList : []"
         :grid-mode="gridMode"
         :show-grid="showGrid"
         @pick-point="handlePickPoint"

@@ -537,17 +537,22 @@ function drawInequalities() {
     ctx.lineCap = "round";
     ctx.beginPath();
     let drawing = false;
-    let lastPx = null, lastPy = null;
+    let lastY = null;
+    /* 与 drawCurves 同一套断点判据：按**世界坐标的符号翻转**判真渐近线，
+     * 不用屏幕像素跳变（那会把陡而连续的曲线整段丢掉）。两处必须一致 ——
+     * 曾经只改了 drawCurves，隐式曲线这边漏改。 */
+    const spanY = Math.abs(viewH(v)) || 1;
+    const far = (t) => Math.abs(t) > spanY * 4;
     for (const p of pts) {
       // 断点（域外 / 未定义 / 引擎返回 null）：断开路径，绝不跨过去连线
       // （Number(null) === 0，直接换算会画出假的 y=0 段）
-      if (!p) { drawing = false; continue; }
+      if (!p) { drawing = false; lastY = null; continue; }
       const [x, y] = p;
-      if (!Number.isFinite(x) || !Number.isFinite(y)) { drawing = false; continue; }
+      if (!Number.isFinite(x) || !Number.isFinite(y)) { drawing = false; lastY = null; continue; }
       const px = mapX(v, cssW, x), py = mapY(v, cssH, y);
-      if (drawing && lastPx !== null && Math.abs(py - lastPy) > cssH * 1.6) drawing = false;
+      if (drawing && lastY !== null && far(lastY) && far(y) && Math.sign(lastY) !== Math.sign(y)) drawing = false;
       if (!drawing) { ctx.moveTo(px, py); drawing = true; } else ctx.lineTo(px, py);
-      lastPx = px; lastPy = py;
+      lastY = y;
     }
     ctx.stroke();
   }
@@ -680,6 +685,11 @@ function draw() {
   const dpr = window.devicePixelRatio || 1;
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   const g = gridFor(effectiveTheme.value);
+  /* 每帧先铺底色。原实现**只有 resize 时**才铺（ResizeObserver 那段），draw() 自己不清屏 ——
+   * 于是平移、缩放、改表达式之后，上一帧的网格线与曲线会残留成"鬼影"。
+   * 这是渲染逻辑的真实缺陷，不是观感问题：残影会让用户以为曲线画错了地方。 */
+  ctx.fillStyle = g.bg;
+  ctx.fillRect(0, 0, cssW, cssH);
   // 分步绘制并隔离异常：某一步出错不应让整块画布停止绘制（同时把错误暴露出来）
   const steps = [
     ["grid", () => drawGrid(g)],

@@ -95,8 +95,13 @@ check("极大值为 (-1, 2)", st1.rows.some(r => r.includes("极大") && r.inclu
 check("极小值为 (1, -2)", st1.rows.some(r => r.includes("极小") && r.includes("1") && r.includes("-2")), "");
 check("标记为「精确」", st1.rows.every(r => r.includes("精确")), JSON.stringify(st1.rows));
 
-/* ── ② 画布上确实绘制了菱形标记（紫色 #7c3aed / 青色 #0891b2）── */
-console.log("\n── 画布菱形标记像素 ──");
+/* ── ② 画布上**不应该**自动出现菱形标记 ──
+ *
+ * 规则（用户定的）：**点必须由用户自己添加，不能自动往画布上画** —— Desmos 也是如此，
+ * 极值/交点不会自己冒出来。所以这里断言的是"默认没有标记"，而不是"有标记"。
+ * 分析本身照旧（上面的 st1.rows 仍要求算出极大/极小且标「精确」）—— 数据进侧栏，
+ * 不进画布。用户要看点，自己点曲线（PlotCanvas 的 pick-point）。 */
+console.log("\n── 画布菱形标记像素（应为 0：不自动标注）──");
 const px = await evalJs(`(function(){
   const cv = document.querySelector('canvas');
   const d = cv.getContext('2d').getImageData(0,0,cv.width,cv.height).data;
@@ -110,8 +115,9 @@ const px = await evalJs(`(function(){
   return { purple, cyan };
 })()`);
 console.log("   紫色像素(极大):", px.purple, "| 青色像素(极小):", px.cyan);
-check("画布绘制了极大值标记", px.purple > 50, String(px.purple));
-check("画布绘制了极小值标记", px.cyan > 50, String(px.cyan));
+// 一枚菱形约 200+ 像素；用 <10 容忍抗锯齿/其它元素的零星同色像素
+check("不自动画极大值标记（点须用户自己添加）", px.purple < 10, String(px.purple));
+check("不自动画极小值标记（点须用户自己添加）", px.cyan < 10, String(px.cyan));
 
 /* ── ③ 无参数时不应有符号分支列表 ── */
 const sym1 = await evalJs(`document.querySelectorAll('.pt-sym').length`);
