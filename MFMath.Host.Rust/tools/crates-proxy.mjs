@@ -26,6 +26,7 @@
  */
 import http from "node:http";
 import { Readable } from "node:stream";
+import { pipeline } from "node:stream/promises";
 
 const PORT = Number(process.env.PORT || 8432);
 const HOST = "127.0.0.1";
@@ -39,9 +40,29 @@ function log(...a) {
   console.log(`[${t}]`, ...a);
 }
 
+/**
+ * 取上游，**失败重试**。
+ * 为什么要重试：上游偶尔会在长响应中途重置连接（tauri 那个 2 MB 的索引条目最容易），
+ * 单次失败就让 cargo 整个报错，代价太大。
+ */
+async function fetchUpstream(url, attempts = 3) {
+  let last;
+  for (let i = 1; i <= attempts; i++) {
+    try {
+      const r = await fetch(url, { redirect: "follow" });
+      if (r.ok || i === attempts) return r;
+      last = `HTTP ${r.status}`;
+    } catch (e) {
+      last = e?.message || e;
+    }
+    await new Promise((r) => setTimeout(r, 300 * i));
+  }
+  throw new Error(`上游取不到 ${url}：${last}`);
+}
+
 /** 上游取回 → 直接写回给 cargo；只透传必要头 */
 async function pipe(url, res, rewrite) {
-  const upstream = await fetch(url, { redirect: "follow" });
+  const upstream = await fetchUpstream(url);
   if (!upstream.ok) {
     res.writeHead(upstream.status, { "content-type": "text/plain" });
     res.end(`upstream ${upstream.status} for ${url}`);
@@ -54,9 +75,24 @@ async function pipe(url, res, rewrite) {
     res.end(text);
     return;
   }
-  res.writeHead(200, { "content-type": type });
-  Readable.fromWeb(upstream.body).pipe(res);
+  /* ⚠ 这里**必须**用 pipeline 而不是 `stream.pipe(res)`：
+   * `.pipe()` 不转发错误，上游一旦中途重置就会冒出**未处理的 'error' 事件**，
+   * 在 Node 上等于**直接杀进程** —— 用户看到的是 cargo 报
+   * "Failure when receiving data from the peer (Connection was reset)"，
+   * 而代理自己已经没了（2026-10-07 排查 `cargo build` 反复失败时找到的）。 */
+  try {
+    res.writeHead(200, { "content-type": type });
+    await pipeline(Readable.fromWeb(upstream.body), res);
+  } catch (e) {
+    log("pipe 中断", url, e?.message || e);
+    try { res.destroy(); } catch { /* 已经断了 */ }
+  }
 }
+
+/* 进程级兜底：**任何**漏网的异步异常都不许把代理带走 ——
+ * 代理一死，cargo 就会看到 "Connection was reset"，而错误信息里完全看不出是代理挂了。 */
+process.on("uncaughtException", (e) => log("uncaughtException（继续运行）", e?.message || e));
+process.on("unhandledRejection", (e) => log("unhandledRejection（继续运行）", e?.message || e));
 
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, self);
