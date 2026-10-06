@@ -29,8 +29,17 @@ use webview2_com::Microsoft::Web::WebView2::Win32::{
 use windows::core::{w, Interface, PCWSTR};
 use wry::{WebViewBuilder, WebViewBuilderExtWindows, WebViewExtWindows};
 
-/// 前端 `lib/bridge.js` 实际会调用的方法（C# 版 MathBridge 的另外 7 个符号封装前端从未调用）
-const MF_METHODS: &[&str] = &["Dispatch", "Ready", "Version", "FunctionExists"];
+use hostobject::{MethodSpec, RetKind};
+
+/// `mf` 桥的方法表：**这既是 GetIDsOfNames/Invoke 的依据，也是 ITypeInfo 的依据**
+/// （WebView2 靠类型信息区分"方法/属性"，缺了它 `mf.Dispatch` 会被当属性读成字符串）。
+/// 只列前端 `lib/bridge.js` 真正会调的方法；C# 版 MathBridge 另外 7 个符号封装前端从未调用。
+const MF_SPEC: &[MethodSpec] = &[
+    MethodSpec { name: "Dispatch", params: &["name", "argsJson"], ret: RetKind::Str },
+    MethodSpec { name: "Ready", params: &[], ret: RetKind::Bool },
+    MethodSpec { name: "Version", params: &[], ret: RetKind::Str },
+    MethodSpec { name: "FunctionExists", params: &["name"], ret: RetKind::Bool },
+];
 
 fn exe_dir() -> PathBuf {
     std::env::current_exe()
@@ -81,8 +90,23 @@ fn run() -> anyhow::Result<()> {
         .with_inner_size(LogicalSize::new(1280.0, 840.0))
         .build(&event_loop)?;
 
+    // WebView2 的用户数据目录：与 C# 宿主同名开关 MF_WEBVIEW2_DIR。
+    // 为什么必须有：C# 版那段注释写得很清楚 —— 多个宿主实例不能共用同一个数据目录；
+    // 另外在受限上下文里 %LOCALAPPDATA% 不可写时，指到可写目录是唯一的出路。
+    let mut web_context = match std::env::var("MF_WEBVIEW2_DIR") {
+        Ok(d) if !d.trim().is_empty() => {
+            let p = PathBuf::from(d.trim());
+            let _ = std::fs::create_dir_all(&p);
+            println!("[rust-host] WebView2 用户数据目录：{}", p.display());
+            wry::WebContext::new(Some(p))
+        }
+        _ => wry::WebContext::new(None),
+    };
+    // 让出一份 'static：单窗口宿主里数据目录要活到进程结束
+    let web_context: &'static mut wry::WebContext = Box::leak(Box::new(web_context));
+
     // 与 C# Release 版同样的浏览器参数（wry 的默认值要自己带上，见其文档）
-    let webview = WebViewBuilder::new()
+    let webview = WebViewBuilder::new_with_web_context(web_context)
         .with_url("about:blank")
         .with_additional_browser_args(
             "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection \
@@ -106,7 +130,8 @@ fn run() -> anyhow::Result<()> {
     }
 
     // ② 同步宿主对象：前端 window.chrome.webview.hostObjects.sync.mf.*
-    hostobject::register(&core, "mf", MF_METHODS)?;
+    //    方法表 + 由它造出的 ITypeInfo 都在 hostobject.rs
+    hostobject::register(&core, "mf", MF_SPEC)?;
 
     // ③ 导航（与 C# 的发布模式一致）
     unsafe { core.Navigate(w!("https://mfmath.local/index.html"))? };
