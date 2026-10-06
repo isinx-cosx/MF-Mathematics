@@ -43,20 +43,23 @@ COM 那一层只有一份通用实现（`src/hostobject.rs`：手写 7 个 vtabl
 
 页面 URL 因此与 C# 宿主逐字相同：`https://mfmath.local/index.html`。
 
-### 已实现 / 待实现
+### 已实现 / 待实现（10 个宿主对象，**9 个已落地**）
+
+> 逐项现状、验收数字与踩过的坑见 [`docs/LINK-LAYER.md`](docs/LINK-LAYER.md) 的 §0.1/§0.2。
+
 
 | 宿主对象 | 状态 | 验收用例 |
 | --- | --- | --- |
 | `mf`（引擎，16 方法，含异步 job 通道） | ✅ | `cdp-basic-calc` 41/0、`cdp-bridge-verify` 7/0、绘图各组 |
 | `win`（窗口 + 文件对话框，10 方法） | ✅ | `cdp-window-shell` 25/0 |
-| `sys`（设置/存储，8 方法） | ✅ | `cdp-settings` 40/3（余 3 项需 con/search） |
+| `sys`（设置/存储，8 方法） | ✅ | `cdp-settings` **43/0**（另两项由 `con` 落地转绿） |
 | `diag`（前端异常入 app.log） | ✅ | 前端异常确实落进 `app.log` |
-| `push`（宿主 → 页面 推送，3 方法） | ✅ | `cdp-push` 14/6（余 6 项需 con） |
+| `push`（宿主 → 页面 推送，3 方法） | ✅ | `cdp-push` **20/0**（另六项由 `con` 落地转绿） |
 | `update`（更新链，6 方法） | ✅ | `cdp-update` **37/0** |
 | `account`（用户系统，19 方法） | ✅ | `cdp-account` **52/0** |
-| `search`（联网搜索） | 🚧 进行中 | `cdp-search` |
-| `con`（控制台/组件下载，~1000 行） | ⬜ | `cdp-console*`、`cdp-push` ③④ |
-| `ai`（AI 助手 + SSE 中继，~860 行） | ⬜ | `cdp-ai` |
+| `search`（联网搜索，12 方法） | ✅ | `cdp-search` **55/0**、`cdp-history-search` **21/0** |
+| `con`（控制台 + 组件下载，10 方法） | ✅ | `cdp-console` **66/0**、`cdp-console-sci` **8/0** |
+| `ai`（AI 助手 + SSE 中继，11 方法） | 🚧 进行中 | `cdp-ai` |
 
 ---
 
