@@ -2,3 +2,6 @@
 target/
 # 本机取包代理的缓存（在仓库根目录，见 README 第五节）
 ../.cargo-home/
+
+# Tauri 在构建期生成的 schema（tauri-build 每次都会重建，不该进版本库）
+gen/schemas/

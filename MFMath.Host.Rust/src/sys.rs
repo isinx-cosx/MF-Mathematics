@@ -81,7 +81,7 @@ pub fn info() -> String {
         "settingsDir": settings_dir().to_string_lossy(),
         "appDir": exe_dir().to_string_lossy(),
         "hostVersion": format!("{} (Rust 宿主)", env!("CARGO_PKG_VERSION")),
-        "runtime": "rust (wry / WebView2)",
+        "runtime": "rust (Tauri v2 / WebView2)",
         "os": logging::os_string(),
         "arch": std::env::consts::ARCH,
         "is64": cfg!(target_pointer_width = "64"),

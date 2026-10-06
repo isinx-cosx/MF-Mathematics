@@ -88,7 +88,60 @@ pub fn call(object: &str, method: &str, args: &[Arg]) -> Ret {
         "mf" => mf(method, args),
         "sys" => sys(method, args),
         "diag" => diag(method, args),
+        "win" => win(method, args),
+        "push" => push(method, args),
         other => Ret::Str(err_envelope(&format!("未知宿主对象：{other}"))),
+    }
+}
+
+/// `push` 桥：**宿主 → 页面**的下行通道（对照 C# `PushHub.cs` + `PushBridge.cs`）。
+/// 它不是业务入口：真实推送由各桥在事件里发（组件进度、控制台结束、AI 流式…），
+/// 这里只暴露诊断与自测（设置面板的"发一条测试消息"、端到端用例的往返断言）。
+fn push(method: &str, args: &[Arg]) -> Ret {
+    use crate::push as p;
+    match method {
+        "Info" => Ret::Str(p::info()),
+        "Ready" => Ret::Bool(p::ready()),
+        "Emit" => Ret::Str(p::emit(arg_str(args, 0).unwrap_or(""), arg_str(args, 1).unwrap_or(""))),
+        other => Ret::Str(err_envelope(&format!("push 没有这个方法：{other}"))),
+    }
+}
+
+/// `win` 桥：窗口操作 + 文件对话框（对照 C# `WindowBridge.cs`）。
+/// 文件对话框那两个方法**同步**返回（要拿到用户的即时选择），与 C# 的取舍一致。
+fn win(method: &str, args: &[Arg]) -> Ret {
+    use crate::winbridge as w;
+    match method {
+        "Minimize" => { w::minimize(); Ret::Empty }
+        "ToggleMaximize" => { w::toggle_maximize(); Ret::Empty }
+        "Restore" => { w::restore(); Ret::Empty }
+        "IsMaximized" => Ret::Bool(w::is_maximized()),
+        "Close" => { w::close(); Ret::Empty }
+        "StartDrag" => { w::start_drag(); Ret::Empty }
+        "SetChromeBackground" => {
+            w::set_chrome_background(arg_str(args, 0).unwrap_or(""));
+            Ret::Empty
+        }
+        "SaveTextFile" => Ret::Str(w::save_text_file(
+            arg_str(args, 0).unwrap_or(""),
+            arg_str(args, 1).unwrap_or(""),
+            arg_str(args, 2).unwrap_or(""),
+            arg_str(args, 3).unwrap_or(""),
+            arg_str(args, 4).unwrap_or(""),
+        )),
+        "OpenTextFile" => Ret::Str(w::open_text_file(
+            arg_str(args, 0).unwrap_or(""),
+            arg_str(args, 1).unwrap_or(""),
+            arg_str(args, 2).unwrap_or(""),
+        )),
+        "SaveBinaryFile" => Ret::Str(w::save_binary_file(
+            arg_str(args, 0).unwrap_or(""),
+            arg_str(args, 1).unwrap_or(""),
+            arg_str(args, 2).unwrap_or(""),
+            arg_str(args, 3).unwrap_or(""),
+            arg_str(args, 4).unwrap_or(""),
+        )),
+        other => Ret::Str(err_envelope(&format!("win 没有这个方法：{other}"))),
     }
 }
 
@@ -139,7 +192,7 @@ fn diag(method: &str, args: &[Arg]) -> Ret {
 fn mf(method: &str, args: &[Arg]) -> Ret {
     match method {
         "Ready" => Ret::Bool(true),
-        "Version" => Ret::Str("mf_mathematics (Rust 宿主 · wry/WebView2)".to_string()),
+        "Version" => Ret::Str("mf_mathematics (Rust 宿主 · Tauri v2)".to_string()),
         // 通用透传：与 C# 版一样，引擎新增 action 不需要改宿主
         "Dispatch" => {
             let Some(fn_name) = arg_str(args, 0) else {
@@ -161,6 +214,23 @@ fn mf(method: &str, args: &[Arg]) -> Ret {
             },
             None => Ret::Bool(false),
         },
+        // ── 异步通道（重活）───────────────────────────────────────────────
+        // 派活：入队即返回 jobId，**不等引擎** —— 界面因此不会白屏
+        "DispatchJob" => {
+            let Some(fn_name) = arg_str(args, 0) else {
+                return Ret::Str(err_envelope("DispatchJob 缺少函数名"));
+            };
+            Ret::Str(crate::jobs::dispatch_job(fn_name, arg_str(args, 1).unwrap_or("{}")))
+        }
+        "PollJob" => match arg_str(args, 0) {
+            Some(id) => Ret::Str(crate::jobs::poll_job(id)),
+            None => Ret::Str(err_envelope("PollJob 缺少 jobId")),
+        },
+        "CancelJob" => match arg_str(args, 0) {
+            Some(id) => Ret::Str(crate::jobs::cancel_job(id)),
+            None => Ret::Str(err_envelope("CancelJob 缺少 jobId")),
+        },
+        "JobStats" => Ret::Str(crate::jobs::stats()),
         // C# 的具名符号封装：名字 → (action, 参数名)
         other => {
             if let Some((_, action, params)) = SYMBOLIC_ALIASES.iter().find(|(n, _, _)| *n == other) {
