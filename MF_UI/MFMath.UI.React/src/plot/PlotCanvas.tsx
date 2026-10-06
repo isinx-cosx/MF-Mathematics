@@ -44,6 +44,24 @@ type Props = {
 
 const fmt = (n: number) => (Math.abs(n) < 1e-10 ? "0" : String(Math.round(n * 1e4) / 1e4));
 
+/* ── 画布坐标安全钳制 ────────────────────────────────────────────────────────
+ * Canvas 2D 内部用 float32 存路径点。世界坐标换算到屏幕后一旦到 1e38 量级
+ * （更别说溢出成 Infinity），**Skia 会把整条路径全部丢掉** —— 不是画到画外，
+ * 而是这一段路径一个像素都不出。
+ *
+ * 实测（y=e^x，窗口 620x560，画布 346x252）：
+ *   视图 [-61.59, 61.47]×[-44.72, 44.91] → 采样上界 x=92.23 → e^92.23≈1.14e40
+ *   → 屏幕 y ≈ -3.2e40（float32 溢出）→ 网格照画（非背景 37441 px）、
+ *     曲线 0 px、无任何异常；视图再缩回去才恢复。
+ * 前 12 档缩小（屏幕 y 到 2.19e35）都正常。
+ *
+ * 钳到 ±1e6：约画布尺寸（~1000px）的 1000 倍，远超可视区，
+ * 而相对于 1e40 的真值又微不足道 —— 可见部分的几何变化远小于 1 像素。 */
+const PX_LIMIT = 1e6;
+function clampPx(v: number): number {
+  return v > PX_LIMIT ? PX_LIMIT : v < -PX_LIMIT ? -PX_LIMIT : v;
+}
+
 /* ── 网格与坐标轴（与 Vue 版 PlotCanvas 的 drawGrid 同一套参数）───────────── */
 function drawGrid(
   ctx: CanvasRenderingContext2D, w: number, h: number, view: View,
@@ -186,7 +204,9 @@ function drawCurves(
       if (!p) { drawing = false; lastY = null; continue; }
       const [x, y] = p;
       if (!Number.isFinite(x) || !Number.isFinite(y)) { drawing = false; lastY = null; continue; }
-      const px = mapX(view, w, x), py = mapY(view, h, y);
+      /* ⚠ 必须钳制：不钳的话，像 e^x 这种"采样范围里有一段天文数字"的曲线，
+       * 屏幕坐标会到 1e38 量级/溢出 float32，Skia 直接丢掉整条路径（曲线凭空消失）。 */
+      const px = clampPx(mapX(view, w, x)), py = clampPx(mapY(view, h, y));
       if (drawing && lastY !== null && far(lastY) && far(y) && Math.sign(lastY) !== Math.sign(y)) {
         drawing = false;
       }
@@ -253,8 +273,8 @@ function drawImplicit(
   if (nx < 2 || ny < 2) return;
 
   const sx = new Array<number>(nx), sy = new Array<number>(ny);
-  for (let i = 0; i < nx; i++) sx[i] = mapX(view, w, g.xs[i]);
-  for (let j = 0; j < ny; j++) sy[j] = mapY(view, h, g.ys[j]);
+  for (let i = 0; i < nx; i++) sx[i] = clampPx(mapX(view, w, g.xs[i]));
+  for (let j = 0; j < ny; j++) sy[j] = clampPx(mapY(view, h, g.ys[j]));
 
   ctx.strokeStyle = color;
   ctx.lineWidth = emphasis ? 3 : 2.2;
@@ -358,7 +378,7 @@ function drawInequalities(
       }
       if (started) {
         const last = [...pts].reverse().find(valid);
-        if (last) ctx.lineTo(mapX(view, w, last[0]), edge);
+        if (last) ctx.lineTo(clampPx(mapX(view, w, last[0])), edge);
         ctx.closePath();
         ctx.fill();
       }
@@ -379,7 +399,7 @@ function drawInequalities(
       }
       if (started) {
         const last = [...pts].reverse().find(valid);
-        if (last) ctx.lineTo(edge, mapY(view, h, last[1]));
+        if (last) ctx.lineTo(edge, clampPx(mapY(view, h, last[1])));
         ctx.closePath();
         ctx.fill();
       }
@@ -398,7 +418,7 @@ function drawInequalities(
     for (const q of pts) {
       if (!valid(q)) { drawing = false; lastY = null; continue; }
       const [x, y] = q;
-      const px = mapX(view, w, x), py = mapY(view, h, y);
+      const px = clampPx(mapX(view, w, x)), py = clampPx(mapY(view, h, y));
       if (drawing && lastY !== null && far(lastY) && far(y) && Math.sign(lastY) !== Math.sign(y)) {
         drawing = false;
       }
@@ -417,7 +437,7 @@ function drawTrace(
   trace: { x: number; y: number; color: string } | null
 ) {
   if (!trace) return;
-  const sx = mapX(view, w, trace.x), sy = mapY(view, h, trace.y);
+  const sx = clampPx(mapX(view, w, trace.x)), sy = clampPx(mapY(view, h, trace.y));
   ctx.beginPath();
   ctx.arc(sx, sy, 5, 0, Math.PI * 2);
   ctx.fillStyle = trace.color;
@@ -441,7 +461,7 @@ function drawTrace(
   ctx.textBaseline = "bottom";
   for (const e of extrema) {
     if (!Number.isFinite(e.x) || !Number.isFinite(e.y)) continue;
-    const px = mapX(view, w, e.x), py = mapY(view, h, e.y);
+    const px = clampPx(mapX(view, w, e.x)), py = clampPx(mapY(view, h, e.y));
     const isMax = e.kind === "max";
     const color = isMax ? "#7c3aed" : "#0891b2";
     const r = 4;
@@ -466,7 +486,7 @@ function drawIntersections(
   ctx.textAlign = "left";
   ctx.textBaseline = "bottom";
   for (const it of its) {
-    const px = mapX(view, w, it.x), py = mapY(view, h, it.y);
+    const px = clampPx(mapX(view, w, it.x)), py = clampPx(mapY(view, h, it.y));
     ctx.beginPath();
     ctx.arc(px, py, 4.5, 0, Math.PI * 2);
     ctx.fillStyle = "#0891b2";
@@ -486,7 +506,7 @@ function drawUserPoints(
   ctx.textBaseline = "bottom";
   for (const p of points) {
     if (!Number.isFinite(p.x) || !Number.isFinite(p.y)) continue;
-    const px = mapX(view, w, p.x), py = mapY(view, h, p.y);
+    const px = clampPx(mapX(view, w, p.x)), py = clampPx(mapY(view, h, p.y));
     ctx.beginPath();
     ctx.arc(px, py, 5.5, 0, Math.PI * 2);
     ctx.fillStyle = "#fff";
