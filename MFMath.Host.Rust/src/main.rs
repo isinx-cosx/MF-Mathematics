@@ -33,12 +33,23 @@ use hostobject::{MethodSpec, RetKind};
 
 /// `mf` 桥的方法表：**这既是 GetIDsOfNames/Invoke 的依据，也是 ITypeInfo 的依据**
 /// （WebView2 靠类型信息区分"方法/属性"，缺了它 `mf.Dispatch` 会被当属性读成字符串）。
-/// 只列前端 `lib/bridge.js` 真正会调的方法；C# 版 MathBridge 另外 7 个符号封装前端从未调用。
+/// 前四个是前端 `lib/bridge.js` 真正会调的；后面八个是 C# `MathBridge` 的具名符号封装 ——
+/// 前端不走它们，但项目自带的端到端用例直接调（cdp-plot-extrema-domain 等），
+/// 而且它们是 C# 宿主的公开 API：少了就是宿主能力缩水。
 const MF_SPEC: &[MethodSpec] = &[
     MethodSpec { name: "Dispatch", params: &["name", "argsJson"], ret: RetKind::Str },
     MethodSpec { name: "Ready", params: &[], ret: RetKind::Bool },
     MethodSpec { name: "Version", params: &[], ret: RetKind::Str },
     MethodSpec { name: "FunctionExists", params: &["name"], ret: RetKind::Bool },
+    // ↓ C# MathBridge 的薄包装（参数默认值也照抄：var 缺省 "x"）
+    MethodSpec { name: "SolveSymbolic", params: &["expr", "var"], ret: RetKind::Str },
+    MethodSpec { name: "DiscriminantSymbolic", params: &["expr", "var"], ret: RetKind::Str },
+    MethodSpec { name: "FactorSymbolic", params: &["expr", "var"], ret: RetKind::Str },
+    MethodSpec { name: "CompareExpr", params: &["a", "b"], ret: RetKind::Str },
+    MethodSpec { name: "SimplifySymbolic", params: &["expr"], ret: RetKind::Str },
+    MethodSpec { name: "ExtremaSymbolic", params: &["expr", "var"], ret: RetKind::Str },
+    MethodSpec { name: "FreeSymbols", params: &["expr"], ret: RetKind::Str },
+    MethodSpec { name: "Differentiate", params: &["expr", "var"], ret: RetKind::Str },
 ];
 
 fn exe_dir() -> PathBuf {

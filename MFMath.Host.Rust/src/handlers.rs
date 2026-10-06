@@ -3,9 +3,8 @@
 //! 这是"一个通用 IDispatch 服务 10 个桥"的落点：新增一个桥 = 在这里加一个 `match` 分支，
 //! COM 那一层（hostobject.rs）一行都不用动。
 //!
-//! 当前 spike 只实现 `mf`（引擎桥），且只实现前端**真正会调**的四个方法
-//! （`lib/bridge.js` 只用 Dispatch / Ready / Version / FunctionExists；
-//! C# 版 `MathBridge` 里另外 7 个符号封装方法前端从未调用，故不迁移）。
+//! `mf`（引擎桥）：四个走前端的通用方法（`lib/bridge.js` 只用 Dispatch / Ready /
+//! Version / FunctionExists）+ C# `MathBridge` 的八个具名符号封装（见 SYMBOLIC_ALIASES）。
 
 use std::sync::OnceLock;
 
@@ -40,9 +39,16 @@ fn engine() -> Result<&'static Engine, String> {
 
 /// 与 C# `MathBridge.Dispatch` 的异常信封逐字一致，前端 `parse()` 那层才不用区分实现
 fn err_envelope(msg: &str) -> String {
-    // 手拼 JSON：这里的 msg 来自引擎/我们自己的固定文案，仍按 JSON 规则转义
-    let mut out = String::from("{\"isError\":true,\"value\":\"");
-    for ch in msg.chars() {
+    let mut out = String::from("{\"isError\":true,\"value\":");
+    push_json_str(&mut out, msg);
+    out.push('}');
+    out
+}
+
+/// 按 JSON 字符串规则转义并**带引号**追加（手拼 JSON 用；不引第三方库）
+fn push_json_str(out: &mut String, s: &str) {
+    out.push('"');
+    for ch in s.chars() {
         match ch {
             '"' => out.push_str("\\\""),
             '\\' => out.push_str("\\\\"),
@@ -53,9 +59,22 @@ fn err_envelope(msg: &str) -> String {
             c => out.push(c),
         }
     }
-    out.push_str("\"}");
-    out
+    out.push('"');
 }
+
+/// C# `MathBridge` 的具名符号封装 → 引擎 action（以及参数的默认值）。
+/// 全是**薄包装**：把位置参数拼成 JSON 后走同一条 Dispatch 通路，返回信封逐字一致。
+/// 前端不走这些名字，但项目自带的端到端用例直接调，而且它们是 C# 宿主的公开 API。
+const SYMBOLIC_ALIASES: &[(&str, &str, &[&str])] = &[
+    ("SolveSymbolic", "solve_sym", &["expr", "var"]),
+    ("DiscriminantSymbolic", "discriminant_sym", &["expr", "var"]),
+    ("FactorSymbolic", "factor_sym", &["expr", "var"]),
+    ("CompareExpr", "compare_expr", &["a", "b"]),
+    ("SimplifySymbolic", "simplify_sym", &["expr"]),
+    ("ExtremaSymbolic", "extrema_sym", &["expr", "var"]),
+    ("FreeSymbols", "free_symbols_of", &["expr"]),
+    ("Differentiate", "diff", &["expr", "var"]),
+];
 
 fn arg_str(args: &[Arg], i: usize) -> Option<&str> {
     match args.get(i) {
@@ -96,7 +115,44 @@ fn mf(method: &str, args: &[Arg]) -> Ret {
             },
             None => Ret::Bool(false),
         },
-        other => Ret::Str(err_envelope(&format!("mf 没有这个方法：{other}"))),
+        // C# 的具名符号封装：名字 → (action, 参数名)
+        other => {
+            if let Some((_, action, params)) = SYMBOLIC_ALIASES.iter().find(|(n, _, _)| *n == other) {
+                alias_call(action, params, args)
+            } else {
+                Ret::Str(err_envelope(&format!("mf 没有这个方法：{other}")))
+            }
+        }
+    }
+}
+
+/// 具名封装的共同实现：位置参数 → JSON（缺省 `var` 补 "x"，与 C# 默认参数一致），
+/// 然后走与 `Dispatch` 完全相同的引擎调用与错误信封。
+fn alias_call(action: &str, params: &[&str], args: &[Arg]) -> Ret {
+    let mut json = String::from("{");
+    for (i, p) in params.iter().enumerate() {
+        if i > 0 {
+            json.push(',');
+        }
+        push_json_str(&mut json, p);
+        json.push(':');
+        match args.get(i) {
+            // 数值/布尔按字面量给（引擎侧自己解析），字符串按 JSON 字符串给
+            Some(Arg::Num(n)) => json.push_str(&n.to_string()),
+            Some(Arg::Bool(b)) => json.push_str(if *b { "true" } else { "false" }),
+            Some(Arg::Str(s)) => push_json_str(&mut json, s),
+            // 缺省：var 默认 "x"（C# 的默认参数），其余给空串
+            _ => push_json_str(&mut json, if *p == "var" { "x" } else { "" }),
+        }
+    }
+    json.push('}');
+
+    match engine() {
+        Ok(e) => match e.call_json(action, &json) {
+            Ok(j) => Ret::Str(j),
+            Err(msg) => Ret::Str(err_envelope(&msg)),
+        },
+        Err(msg) => Ret::Str(err_envelope(&msg)),
     }
 }
 
