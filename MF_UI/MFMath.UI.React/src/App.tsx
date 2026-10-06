@@ -5,7 +5,17 @@ import {
   windowControlsAvailable, winMinimize, winToggleMaximize, winClose, winIsMaximized, winStartDrag,
 } from "@shared/bridge.js";
 import PlotPage from "./plot/PlotPage";
+import { safe } from "./lib/hostSafe";
 import "./styles/app.css";
+
+/* 外观兜底：宿主对象未就绪时 currentAppearance() 可能抛错，退回默认值 */
+const DEFAULT_APPEARANCE = {
+  theme: "glass-light",
+  shape: "glass",
+  density: "cozy",
+  font: "sans",
+  followSystem: false,
+} as { theme: string; shape: string; density: string; font: string; followSystem: boolean };
 
 /**
  * 导航数据：**与 Vue 版 src/router/registry.js 逐字一致**（分组、名称、路由、顺序）。
@@ -82,21 +92,26 @@ export default function App() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [groupCollapsed, setGroupCollapsed] = useState<Record<string, boolean>>({});
   const [showAppearance, setShowAppearance] = useState(false);
-  const [appearance, setAppearance] = useState(() => currentAppearance());
+  /* ⚠ 一律用 safe() 包住：宿主对象（chrome.webview.hostObjects.sync.*）在首帧可能还没挂上，
+   * 访问不存在的成员会抛 0x80070057，直接让整页渲染失败（白屏、且日志无痕）。 */
+  const [appearance, setAppearance] = useState(() => safe(() => currentAppearance(), DEFAULT_APPEARANCE));
   const [keypadVisible, setKeypadVisible] = useState(false);
-  const [isMaximized, setIsMaximized] = useState(() => winIsMaximized());
+  const [isMaximized, setIsMaximized] = useState(false);
+  // 这两项也**不在首帧取**：放到挂载后的 effect 里
+  const [canControlWindow, setCanControlWindow] = useState(false);
   const [statusText, setStatusText] = useState("");
-  const canControlWindow = useMemo(() => windowControlsAvailable(), []);
   const rootRef = useRef<HTMLDivElement>(null);
 
-  /* 主题与外观：与 Vue 版同一套 bridge API */
+  /* 主题与外观：与 Vue 版同一套 bridge API；宿主未就绪时全部兜底 */
   useEffect(() => {
-    initTheme();
-    const off = watchSystemTheme?.();
-    const onApp = () => setAppearance(currentAppearance());
+    safe(() => initTheme(), undefined);
+    setCanControlWindow(safe(() => windowControlsAvailable(), false));
+    setIsMaximized(safe(() => winIsMaximized(), false));
+    const off = safe(() => watchSystemTheme?.(), undefined);
+    const onApp = () => setAppearance(safe(() => currentAppearance(), DEFAULT_APPEARANCE));
     window.addEventListener("mf-appearance", onApp);
     return () => {
-      if (typeof off === "function") off();
+      if (typeof off === "function") (off as () => void)();
       window.removeEventListener("mf-appearance", onApp);
     };
   }, []);
@@ -119,7 +134,7 @@ export default function App() {
     <div className="app-shell" ref={rootRef}>
       {/* ── 左侧导航（可收放）── */}
       <aside id="sidebar" className={sidebarCollapsed ? "collapsed" : ""}>
-        <div className="sidebar-head" onMouseDown={() => canControlWindow && winStartDrag()}>
+        <div className="sidebar-head" onMouseDown={() => { if (canControlWindow) safe(() => winStartDrag(), undefined); }}>
           <div className="logo">
             <span className="logo-badge">M</span>
             <span className="logo-text">MF-Mathematics</span>
@@ -164,7 +179,7 @@ export default function App() {
             aria-expanded={showAppearance}
             onClick={() => setShowAppearance((v) => !v)}
           >
-            <span>◐ 外观 · {themeLabel(appearance.theme)}</span>
+            <span>◐ 外观 · {safe(() => themeLabel(appearance.theme), appearance.theme)}</span>
           </button>
 
           {showAppearance && (
@@ -183,7 +198,7 @@ export default function App() {
                     data-theme={t.id}
                     data-shape={appearance.shape}
                     title={t.desc}
-                    onClick={() => applyAppearance({ theme: t.id, followSystem: false })}
+                    onClick={() => safe(() => applyAppearance({ theme: t.id, followSystem: false }), undefined)}
                   >
                     <span className="tp-preview">
                       <span className="tp-side" />
@@ -203,7 +218,7 @@ export default function App() {
               <div className="ap-row">
                 {SHAPE_LIST.map((s: { id: string; label: string; desc: string }) => (
                   <button key={s.id} className={"ap-seg" + (appearance.shape === s.id ? " on" : "")}
-                          title={s.desc} onClick={() => applyAppearance({ shape: s.id })}>{s.label}</button>
+                          title={s.desc} onClick={() => safe(() => applyAppearance({ shape: s.id }), undefined)}>{s.label}</button>
                 ))}
               </div>
 
@@ -211,7 +226,7 @@ export default function App() {
               <div className="ap-row">
                 {DENSITY_LIST.map((d: { id: string; label: string; desc: string }) => (
                   <button key={d.id} className={"ap-seg" + (appearance.density === d.id ? " on" : "")}
-                          title={d.desc} onClick={() => applyAppearance({ density: d.id })}>{d.label}</button>
+                          title={d.desc} onClick={() => safe(() => applyAppearance({ density: d.id }), undefined)}>{d.label}</button>
                 ))}
               </div>
 
@@ -219,13 +234,13 @@ export default function App() {
               <div className="ap-row">
                 {FONT_LIST.map((f: { id: string; label: string; desc: string }) => (
                   <button key={f.id} className={"ap-seg" + (appearance.font === f.id ? " on" : "")}
-                          title={f.desc} onClick={() => applyAppearance({ font: f.id })}>{f.label}</button>
+                          title={f.desc} onClick={() => safe(() => applyAppearance({ font: f.id }), undefined)}>{f.label}</button>
                 ))}
               </div>
 
               <label className="ap-follow">
                 <input type="checkbox" checked={!!appearance.followSystem}
-                       onChange={(e) => applyAppearance({ followSystem: e.target.checked })} />
+                       onChange={(e) => safe(() => applyAppearance({ followSystem: e.target.checked }), undefined)} />
                 <span>跟随系统深浅色</span>
               </label>
               <p className="ap-hint">公式与代码始终等宽，不受界面字体影响。</p>
@@ -242,8 +257,8 @@ export default function App() {
       <main id="main">
         <header
           id="topbar"
-          onMouseDown={() => canControlWindow && winStartDrag()}
-          onDoubleClick={() => canControlWindow && winToggleMaximize()}
+          onMouseDown={() => { if (canControlWindow) safe(() => winStartDrag(), undefined); }}
+          onDoubleClick={() => { if (canControlWindow) safe(() => winToggleMaximize(), undefined); }}
         >
           <div className="topbar-title">
             <span id="modeTitle">{modeTitle}</span>
@@ -267,15 +282,15 @@ export default function App() {
             <button className="btn btn-ghost">关于</button>
             {canControlWindow && (
               <span className="win-controls">
-                <button className="win-btn" title="最小化" onClick={() => winMinimize()}>─</button>
+                <button className="win-btn" title="最小化" onClick={() => safe(() => winMinimize(), undefined)}>─</button>
                 <button
                   className="win-btn"
                   title={isMaximized ? "还原" : "最大化"}
-                  onClick={() => { winToggleMaximize(); setIsMaximized(winIsMaximized()); }}
+                  onClick={() => { safe(() => winToggleMaximize(), undefined); setIsMaximized(safe(() => winIsMaximized(), false)); }}
                 >
                   {isMaximized ? "❐" : "□"}
                 </button>
-                <button className="win-btn win-close" title="关闭" onClick={() => winClose()}>✕</button>
+                <button className="win-btn win-close" title="关闭" onClick={() => safe(() => winClose(), undefined)}>✕</button>
               </span>
             )}
           </div>
