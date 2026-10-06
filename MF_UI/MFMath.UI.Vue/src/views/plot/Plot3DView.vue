@@ -221,11 +221,26 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
-.plot3d-layout { display: grid; grid-template-columns: 300px 1fr; height: 100%; min-height: 520px; }
+/* 两列都必须能压缩、行高必须受容器约束 —— 与 PlotView.vue 同款问题：
+ * 原来写死 `300px 1fr`，窗口一窄第二列（画布）就被算成 0px ——
+ * 实测窗口 560x520 时画布宽度 = 0，整幅图"消失"（位图里还留着旧像素）。 */
+.plot3d-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 300px) minmax(160px, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  height: 100%;
+  min-height: 520px;
+}
+/* 窄窗口：上下排布（控制面板在上、画布在下占满宽度） */
+@media (max-width: 760px) {
+  .plot3d-layout { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(220px, 1fr); min-height: 320px; }
+  .plot3d-side { max-height: 34vh; border-right: none; border-bottom: 1px solid var(--border); }
+}
 .plot3d-side {
   display: flex; flex-direction: column; gap: 12px;
   padding: 12px; border-right: 1px solid var(--border);
   background: var(--surface-alt); overflow-y: auto;
+  min-width: 0; min-height: 0;
 }
 .field { display: flex; flex-direction: column; gap: 5px; }
 .field > label { font-size: 11.5px; color: var(--text-muted); }
@@ -238,7 +253,7 @@ onBeforeUnmount(() => {
 }
 .slider-title { font-size: 11.5px; color: var(--text-subtle); margin-bottom: 4px; }
 .status { margin-top: auto; font-size: 11.5px; color: var(--text-subtle); }
-.plot3d-main { position: relative; min-width: 0; }
+.plot3d-main { position: relative; min-width: 0; min-height: 0; }
 .view-controls { position: absolute; top: 12px; right: 12px; display: flex; flex-direction: column; gap: 4px; }
 .vc-btn {
   width: 32px; height: 32px; border: 1px solid var(--border); border-radius: 8px;

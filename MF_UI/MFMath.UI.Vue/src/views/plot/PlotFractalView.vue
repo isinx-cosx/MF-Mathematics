@@ -372,11 +372,24 @@ watch(() => [view.value.xmin, view.value.xmax, view.value.ymin, view.value.ymax]
 </template>
 
 <style scoped>
-.frac-layout { display: grid; grid-template-columns: 300px 1fr; height: 100%; min-height: 520px; }
+/* 两列都必须能压缩、行高必须受容器约束（与 PlotView.vue 同款问题）：
+ * 写死 `300px 1fr` 时窗口一窄画布列就被算成 0px，整幅图"消失"。 */
+.frac-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 300px) minmax(160px, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  height: 100%;
+  min-height: 520px;
+}
+@media (max-width: 760px) {
+  .frac-layout { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(220px, 1fr); min-height: 320px; }
+  .frac-side { max-height: 34vh; border-right: none; border-bottom: 1px solid var(--border); }
+}
 .frac-side {
   display: flex; flex-direction: column; gap: 12px;
   padding: 12px; border-right: 1px solid var(--border);
   background: var(--surface-alt); overflow-y: auto;
+  min-width: 0; min-height: 0;
 }
 .field { display: flex; flex-direction: column; gap: 5px; }
 .field > label { font-size: 11.5px; color: var(--text-muted); }
@@ -391,7 +404,7 @@ watch(() => [view.value.xmin, view.value.xmax, view.value.ymin, view.value.ymax]
 .region-btn:hover { border-color: var(--accent); color: var(--accent); }
 .hints { font-size: 11.5px; color: var(--text-subtle); gap: 3px; }
 .status { margin-top: auto; font-size: 11.5px; color: var(--text-subtle); }
-.frac-main { position: relative; min-width: 0; }
+.frac-main { position: relative; min-width: 0; min-height: 0; }
 .frac-canvas { display: block; width: 100%; height: 100%; touch-action: none; }
 .view-controls { position: absolute; top: 32px; right: 12px; }
 .vc-btn {

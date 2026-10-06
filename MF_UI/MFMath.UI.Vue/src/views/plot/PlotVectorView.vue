@@ -231,11 +231,24 @@ onMounted(() => requestAnimationFrame(() => sampleField()));
 </template>
 
 <style scoped>
-.vf-layout { display: grid; grid-template-columns: 300px 1fr; height: 100%; min-height: 520px; }
+/* 两列都必须能压缩、行高必须受容器约束（与 PlotView.vue 同款问题）：
+ * 写死 `300px 1fr` 时窗口一窄画布列就被算成 0px，整幅图"消失"。 */
+.vf-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 300px) minmax(160px, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  height: 100%;
+  min-height: 520px;
+}
+@media (max-width: 760px) {
+  .vf-layout { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(220px, 1fr); min-height: 320px; }
+  .vf-side { max-height: 34vh; border-right: none; border-bottom: 1px solid var(--border); }
+}
 .vf-side {
   display: flex; flex-direction: column; gap: 12px;
   padding: 12px; border-right: 1px solid var(--border);
   background: var(--surface-alt); overflow-y: auto;
+  min-width: 0; min-height: 0;
 }
 .field { display: flex; flex-direction: column; gap: 5px; }
 .field > label { font-size: 11.5px; color: var(--text-muted); }
@@ -252,7 +265,7 @@ onMounted(() => requestAnimationFrame(() => sampleField()));
 .slider-box { padding: 8px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); }
 .slider-title { font-size: 11.5px; color: var(--text-subtle); margin-bottom: 4px; }
 .status { margin-top: auto; font-size: 11.5px; color: var(--text-subtle); }
-.vf-main { position: relative; min-width: 0; }
+.vf-main { position: relative; min-width: 0; min-height: 0; }
 .view-controls { position: absolute; top: 12px; right: 12px; }
 .vc-btn {
   width: 32px; height: 32px; border: 1px solid var(--border); border-radius: 8px;

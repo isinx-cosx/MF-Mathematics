@@ -237,11 +237,24 @@ function shapeSummary(s) {
 </template>
 
 <style scoped>
-.geo-layout { display: grid; grid-template-columns: 320px 1fr; height: 100%; min-height: 520px; }
+/* 两列都必须能压缩、行高必须受容器约束（与 PlotView.vue 同款问题）：
+ * 写死 `320px 1fr` 时窗口一窄画布列就被算成 0px，整幅图"消失"。 */
+.geo-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 320px) minmax(160px, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  height: 100%;
+  min-height: 520px;
+}
+@media (max-width: 760px) {
+  .geo-layout { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(220px, 1fr); min-height: 320px; }
+  .geo-side { max-height: 34vh; border-right: none; border-bottom: 1px solid var(--border); }
+}
 .geo-side {
   display: flex; flex-direction: column; gap: 12px;
   padding: 12px; border-right: 1px solid var(--border);
   background: var(--surface-alt); overflow-y: auto;
+  min-width: 0; min-height: 0;
 }
 .field { display: flex; flex-direction: column; gap: 5px; }
 .field > label { font-size: 11.5px; color: var(--text-muted); }
@@ -287,7 +300,7 @@ function shapeSummary(s) {
 }
 .shape-btn.del:hover { color: var(--danger); }
 .status { margin-top: auto; font-size: 11.5px; color: var(--text-subtle); }
-.geo-main { position: relative; min-width: 0; }
+.geo-main { position: relative; min-width: 0; min-height: 0; }
 .view-controls { position: absolute; top: 12px; right: 12px; }
 .vc-btn {
   width: 32px; height: 32px; border: 1px solid var(--border); border-radius: 8px;
