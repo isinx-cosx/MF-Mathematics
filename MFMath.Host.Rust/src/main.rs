@@ -30,7 +30,10 @@ mod logging;
 mod pack;
 mod push;
 mod selftest;
+mod shellopen;
+mod site;
 mod sys;
+mod update;
 mod winbridge;
 
 use raw_window_handle::HasWindowHandle;
@@ -114,6 +117,17 @@ const PUSH_SPEC: &[MethodSpec] = &[
     MethodSpec { name: "Ready", params: &[], ret: RetKind::Bool },
 ];
 
+/// `update`：更新链（对照 C# UpdateBridge）。
+/// 只有提示与"把下载交给浏览器"，**没有**任何自动下载/执行安装包的入口。
+const UPDATE_SPEC: &[MethodSpec] = &[
+    MethodSpec { name: "Info", params: &[], ret: RetKind::Str },
+    MethodSpec { name: "Check", params: &[], ret: RetKind::Str },
+    MethodSpec { name: "OpenDownloadPage", params: &["url"], ret: RetKind::Str },
+    MethodSpec { name: "PreviewDownloadUrl", params: &["url"], ret: RetKind::Str },
+    MethodSpec { name: "CancelAll", params: &[], ret: RetKind::Empty },
+    MethodSpec { name: "SelfCheck", params: &[], ret: RetKind::Str },
+];
+
 /// 要注册的宿主对象。**加一个桥 = 这里加一行 + handlers.rs 加一个分支**，
 /// COM 那一层（hostobject.rs）一行都不用动。
 const HOST_OBJECTS: &[(&str, &[MethodSpec])] = &[
@@ -122,6 +136,7 @@ const HOST_OBJECTS: &[(&str, &[MethodSpec])] = &[
     ("diag", DIAG_SPEC),
     ("win", WIN_SPEC),
     ("push", PUSH_SPEC),
+    ("update", UPDATE_SPEC),
 ];
 
 /// 同时写 stderr 与 app.log。

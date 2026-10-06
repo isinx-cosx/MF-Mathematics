@@ -90,7 +90,26 @@ pub fn call(object: &str, method: &str, args: &[Arg]) -> Ret {
         "diag" => diag(method, args),
         "win" => win(method, args),
         "push" => push(method, args),
+        "update" => update(method, args),
         other => Ret::Str(err_envelope(&format!("未知宿主对象：{other}"))),
+    }
+}
+
+/// `update` 桥：更新链（只提示 + 显示校验值 + 把下载交给浏览器，**不自动下载或执行安装包**）。
+/// 对照 C# `UpdateBridge.cs`。
+fn update(method: &str, args: &[Arg]) -> Ret {
+    use crate::update as u;
+    match method {
+        "Info" => Ret::Str(u::info()),
+        "Check" => Ret::Str(u::check()),
+        "OpenDownloadPage" => Ret::Str(u::open_download_page(arg_str(args, 0).unwrap_or(""))),
+        "PreviewDownloadUrl" => Ret::Str(u::preview_download_url(arg_str(args, 0).unwrap_or(""))),
+        "CancelAll" => {
+            u::cancel_all();
+            Ret::Empty
+        }
+        "SelfCheck" => Ret::Str(u::self_check()),
+        other => Ret::Str(err_envelope(&format!("update 没有这个方法：{other}"))),
     }
 }
 

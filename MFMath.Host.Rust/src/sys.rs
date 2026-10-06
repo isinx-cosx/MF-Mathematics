@@ -173,6 +173,16 @@ pub fn store_read(name: &str) -> String {
     }
 }
 
+/// 直接读一个设置文件的 JSON 值（给别的模块用：`site.rs` 读 `account.json` 的站点地址）。
+/// 读不到 / 坏掉一律返回 None —— **调用方必须能容忍它**（离线也要能起来）。
+pub fn store_read_value(name: &str) -> Option<serde_json::Value> {
+    if !valid_name(name) {
+        return None;
+    }
+    let text = fs::read_to_string(settings_dir().join(format!("{name}.json"))).ok()?;
+    serde_json::from_str(&text).ok()
+}
+
 /// 写设置文件：先校验 JSON，再备份旧文件，最后**原子替换**（临时文件 + rename）。
 /// 半途崩溃也不会留下半截 JSON —— v1 的工作区保存就是直接 open(path,"w")，
 /// 写一半崩溃后下次读必然 JSONDecodeError。
