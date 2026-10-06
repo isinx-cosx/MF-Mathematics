@@ -287,6 +287,31 @@ fn wait_final(id: &str, timeout_ms: u64) -> serde_json::Value {
     }
 }
 
+/// 等到任务进入某个状态（默认等到 `running`）。
+///
+/// ⚠ 为什么不能"睡一会儿再看"：**这个自检原先就是那么写的，而且会随机失败**。
+/// 原来自检 ⑤ 是「派一个 600×600 mandelbrot → 睡 250 ms → 取消，
+/// 期望拿到"停止等待"」。而本机这个活只要 **~253 ms** 就跑完了（实测），
+/// 于是取消打在"已完成"上，note 变成"已作废"、final 变成 done —— 用例红了，
+/// 但产品一点问题都没有（**测试自己制造的竞态**）。
+/// 改成"轮询到真的在跑再取消"，与机器快慢无关。
+fn wait_running(id: &str, timeout_ms: u64) -> serde_json::Value {
+    let t0 = std::time::Instant::now();
+    loop {
+        let st = poll_json(id);
+        match st["state"].as_str() {
+            Some("running") => return st,
+            // 已经跑完/出错/被取消：没法再等"运行中"了，如实返回
+            Some("done") | Some("error") | Some("canceled") => return st,
+            _ => {}
+        }
+        if t0.elapsed().as_millis() as u64 > timeout_ms {
+            return st;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+}
+
 fn selftest_line(ok: bool, name: &str, detail: String) -> (bool, String) {
     (ok, format!("{} {:<30} {}", if ok { "[PASS]" } else { "[FAIL]" }, name, detail))
 }
@@ -316,8 +341,8 @@ pub fn selftest() {
     // ② 重活 + 串行：第二个必须还在排队（引擎调用串行化）
     let id2 = jid(&dispatch_job("mandelbrot", heavy));
     let id3 = jid(&dispatch_job("mandelbrot", light));
-    std::thread::sleep(std::time::Duration::from_millis(200));
-    let s2 = poll_json(&id2);
+    // 等到 id2 **真的在跑**再看 id3：不能靠"睡一会儿"（见 wait_running 的注释）
+    let s2 = wait_running(&id2, 10_000);
     let s3 = poll_json(&id3);
     let (o, l) = selftest_line(
         s2["state"] == "running" && s3["state"] == "queued",
@@ -353,15 +378,18 @@ pub fn selftest() {
 
     // ⑤ 取消"运行中"的任务：状态如实说明"停止等待"，且结果不再交付
     let id4 = jid(&dispatch_job("mandelbrot", heavy));
-    std::thread::sleep(std::time::Duration::from_millis(250));
+    // 轮询到**真的在跑**再取消 —— 原实现是盲睡 250 ms，而本机这个活恰好 ~253 ms 跑完，
+    // 于是取消打在"已完成"上、用例随机变红（产品没问题，是测试自己造的竞态）
+    let s4_before = wait_running(&id4, 10_000);
     let c4: serde_json::Value = serde_json::from_str(&cancel_job(&id4)).unwrap_or_else(|_| json!({}));
     let s4 = wait_final(&id4, 120_000);
     let (o, l) = selftest_line(
-        c4["note"].as_str().unwrap_or("").contains("停止等待")
+        s4_before["state"] == "running"
+            && c4["note"].as_str().unwrap_or("").contains("停止等待")
             && s4["state"] == "canceled"
             && s4["result"].as_str().unwrap_or("").is_empty(),
         "取消运行中的任务（如实说明 + 丢弃结果）",
-        format!("note={} final={}", c4["note"], s4["state"]),
+        format!("before={} note={} final={}", s4_before["state"], c4["note"], s4["state"]),
     );
     ok &= o;
     out.push(l);
