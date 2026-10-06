@@ -86,7 +86,53 @@ fn arg_str(args: &[Arg], i: usize) -> Option<&str> {
 pub fn call(object: &str, method: &str, args: &[Arg]) -> Ret {
     match object {
         "mf" => mf(method, args),
+        "sys" => sys(method, args),
+        "diag" => diag(method, args),
         other => Ret::Str(err_envelope(&format!("未知宿主对象：{other}"))),
+    }
+}
+
+/// `sys` 桥（设置面板）：对照 C# `SettingsBridge.cs`。
+/// 参数与返回都按 C# 的签名来 —— 前端 `lib/settings/bridge.js` 收到的是 JSON 字符串。
+fn sys(method: &str, args: &[Arg]) -> Ret {
+    use crate::sys as s;
+    match method {
+        "Info" => Ret::Str(s::info()),
+        "EngineReport" => Ret::Str(s::engine_report()),
+        "StoreList" => Ret::Str(s::store_list()),
+        "StoreRead" => match arg_str(args, 0) {
+            Some(name) => Ret::Str(s::store_read(name)),
+            None => Ret::Str(err_envelope("StoreRead 缺少文件名")),
+        },
+        "StoreWrite" => match (arg_str(args, 0), arg_str(args, 1)) {
+            (Some(name), Some(json)) => Ret::Str(s::store_write(name, json)),
+            _ => Ret::Str(err_envelope("StoreWrite 需要 (文件名, JSON)")),
+        },
+        "StoreDelete" => match arg_str(args, 0) {
+            Some(name) => Ret::Str(s::store_delete(name)),
+            None => Ret::Str(err_envelope("StoreDelete 缺少文件名")),
+        },
+        "OpenPath" => match arg_str(args, 0) {
+            Some(path) => Ret::Str(s::open_path(path)),
+            None => Ret::Str(err_envelope("OpenPath 缺少路径")),
+        },
+        "ExportDiagnostics" => Ret::Str(s::export_diagnostics()),
+        other => Ret::Str(err_envelope(&format!("sys 没有这个方法：{other}"))),
+    }
+}
+
+/// `diag` 桥：只做一件事 —— 把前端传来的一行文本写进**同一个** app.log。
+/// 宿主侧异常本来就有记录，但 WebView2 里的 JS 异常宿主看不到；
+/// 没有它，用户那边只是"点了没反应"，日志里一条线索都没有。
+fn diag(method: &str, args: &[Arg]) -> Ret {
+    match method {
+        "Front" => {
+            let level = arg_str(args, 0).unwrap_or("");
+            let message = arg_str(args, 1).unwrap_or("");
+            crate::logging::front(level, message);
+            Ret::Empty
+        }
+        other => Ret::Str(err_envelope(&format!("diag 没有这个方法：{other}"))),
     }
 }
 

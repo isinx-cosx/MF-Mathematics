@@ -16,5 +16,6 @@ windows = { version = "0.62.2", features = [
     "Win32_System_Variant",       # VARIANT / VT_* / VARENUM
     "Win32_System_LibraryLoader", # LoadLibraryW / GetProcAddress（引擎 FFI）
     "Win32_Security_Cryptography",# DPAPI（后续 ai/account/search 桥要用）
+    "Win32_System_SystemInformation", # GetLocalTime（日志时间戳/文件命名）、RtlGetVersion（系统版本）
 ] }
 wry = "0.57.0"

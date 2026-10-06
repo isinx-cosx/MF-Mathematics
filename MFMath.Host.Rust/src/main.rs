@@ -16,6 +16,8 @@
 mod engine;
 mod handlers;
 mod hostobject;
+mod logging;
+mod sys;
 
 use std::path::PathBuf;
 
@@ -52,6 +54,22 @@ const MF_SPEC: &[MethodSpec] = &[
     MethodSpec { name: "Differentiate", params: &["expr", "var"], ret: RetKind::Str },
 ];
 
+/// `sys` 桥（设置面板）：对照 C# `SettingsBridge.cs` 的 8 个公开方法，一个不少。
+/// 返回都是 JSON 字符串（前端 `lib/settings/bridge.js` 自己 parse）。
+const SYS_SPEC: &[MethodSpec] = &[
+    MethodSpec { name: "Info", params: &[], ret: RetKind::Str },
+    MethodSpec { name: "EngineReport", params: &[], ret: RetKind::Str },
+    MethodSpec { name: "StoreList", params: &[], ret: RetKind::Str },
+    MethodSpec { name: "StoreRead", params: &["name"], ret: RetKind::Str },
+    MethodSpec { name: "StoreWrite", params: &["name", "json"], ret: RetKind::Str },
+    MethodSpec { name: "StoreDelete", params: &["name"], ret: RetKind::Str },
+    MethodSpec { name: "OpenPath", params: &["path"], ret: RetKind::Str },
+    MethodSpec { name: "ExportDiagnostics", params: &[], ret: RetKind::Str },
+];
+
+/// `diag` 桥（前端异常 → 宿主日志）：对照 C# `LogBridge.cs`，只有一件事、一个方法。
+const DIAG_SPEC: &[MethodSpec] = &[MethodSpec { name: "Front", params: &["level", "message"], ret: RetKind::Empty }];
+
 fn exe_dir() -> PathBuf {
     std::env::current_exe()
         .ok()
@@ -74,6 +92,11 @@ fn main() {
     if let Err(e) = run() {
         let msg = format!("{e:#}");
         eprintln!("[rust-host] 启动失败：{msg}");
+        // ① 完整崩溃记录（环境 + 异常 + app.log 尾部），单文件即可复盘
+        if let Some(p) = logging::crash("启动失败", &msg) {
+            eprintln!("[rust-host] 崩溃记录：{p}");
+        }
+        // ② 同目录再放一份：双击启动时 stderr 看不到，这一份是留给用户的最近线索
         let _ = std::fs::write(
             exe_dir().join("rust-host-error.log"),
             format!("MFMath Rust 宿主启动失败：\n{msg}\n"),
@@ -142,11 +165,14 @@ fn run() -> anyhow::Result<()> {
 
     // ② 同步宿主对象：前端 window.chrome.webview.hostObjects.sync.mf.*
     //    方法表 + 由它造出的 ITypeInfo 都在 hostobject.rs
+    //    一个通用 IDispatch 服务所有桥：加一个桥 = 这里加一行 + handlers.rs 加一个分支
     hostobject::register(&core, "mf", MF_SPEC)?;
+    hostobject::register(&core, "sys", SYS_SPEC)?;
+    hostobject::register(&core, "diag", DIAG_SPEC)?;
 
     // ③ 导航（与 C# 的发布模式一致）
     unsafe { core.Navigate(w!("https://mfmath.local/index.html"))? };
-    println!("[rust-host] WebView2 就绪；宿主对象 mf 已注册；CDP 端口 9222");
+    println!("[rust-host] WebView2 就绪；宿主对象 mf / sys / diag 已注册；CDP 端口 9222");
 
     event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Wait;
