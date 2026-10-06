@@ -18,7 +18,7 @@ export type Curve = {
   visible: boolean;
   emphasis?: boolean;
 };
-export type UserPoint = { id: number; x: number; y: number; color?: string };
+export type UserPoint = { id: number; x: number; y: number; color?: string; curveId?: number };
 export type Intersection = { x: number; y: number; xLabel?: string; yLabel?: string };
 export type Extremum = { x: number; y: number; kind: "max" | "min" };
 
@@ -36,7 +36,9 @@ type Props = {
   showGrid?: boolean;
   theme?: string;
   onSizeChange?: (w: number, h: number) => void;
-  onPickPoint?: (x: number, y: number) => void;
+  onPickPoint?: (x: number, y: number, curveId: number) => void;
+  /** 拖动已有点：把光标的世界坐标交给父组件，由它按曲线类型吸附 */
+  onDragPoint?: (id: number, world: [number, number]) => void;
   canvasRef?: RefObject<HTMLCanvasElement | null>;
 };
 
@@ -407,6 +409,29 @@ function drawInequalities(
   }
 }
 
+/** 悬停追踪：命中曲线时在**曲线上的点**画实心圆 + 白圈 + 坐标（Desmos 行为）。
+ * 与 Vue 版 drawTrace 同一实现；不是"角落里的坐标读数"——那个看不出对应曲线上的哪个点。 */
+function drawTrace(
+  ctx: CanvasRenderingContext2D, w: number, h: number, view: View,
+  g: ReturnType<typeof gridFor>,
+  trace: { x: number; y: number; color: string } | null
+) {
+  if (!trace) return;
+  const sx = mapX(view, w, trace.x), sy = mapY(view, h, trace.y);
+  ctx.beginPath();
+  ctx.arc(sx, sy, 5, 0, Math.PI * 2);
+  ctx.fillStyle = trace.color;
+  ctx.fill();
+  ctx.strokeStyle = "#fff";
+  ctx.lineWidth = 1.6;
+  ctx.stroke();
+  ctx.fillStyle = g.axisLabel;
+  ctx.font = "12px -apple-system, Segoe UI, sans-serif";
+  ctx.textAlign = "left";
+  ctx.textBaseline = "bottom";
+  ctx.fillText(`(${fmt(trace.x)}, ${fmt(trace.y)})`, sx + 9, sy - 7);
+}
+
 /** 极值菱形（紫色极大 / 青色极小）。画在曲线**之前**，曲线不会被标记切断。 */function drawExtrema(
   ctx: CanvasRenderingContext2D, w: number, h: number, view: View, extrema: Extremum[]
 ) {
@@ -494,16 +519,33 @@ function findCurvePointAt(
   return best;
 }
 
+/** 命中用户点（拖动用）：屏幕距离 < tolPx 的最近一个点 */
+function hitUserPoint(
+  w: number, h: number, view: View, points: UserPoint[], px: number, py: number, tolPx = 10
+): UserPoint | null {
+  let best: UserPoint | null = null;
+  let bestD = tolPx;
+  for (const p of points) {
+    const d = Math.hypot(mapX(view, w, p.x) - px, mapY(view, h, p.y) - py);
+    if (d < bestD) { bestD = d; best = p; }
+  }
+  return best;
+}
+
 export default function PlotCanvas({
   view, onViewChange, curves, samples, grids = {}, points = [], intersections = [], extrema = [],
-  gridMode = "rect", showGrid = true, theme, onSizeChange, onPickPoint, canvasRef,
+  gridMode = "rect", showGrid = true, theme, onSizeChange, onPickPoint, onDragPoint, canvasRef,
 }: Props) {
   const innerRef = useRef<HTMLCanvasElement | null>(null);
   const ctxRef = useRef<CanvasRenderingContext2D | null>(null);
   const sizeRef = useRef({ w: 0, h: 0 });
   const [mode, setMode] = useState(() => plotMode(theme));
   const [hover, setHover] = useState<[number, number] | null>(null);
+  /* 悬停命中曲线时记录"曲线上的那个点"（画追踪标记）；没命中则 null */
+  const [trace, setTrace] = useState<{ x: number; y: number; color: string } | null>(null);
   const drag = useRef<{ x: number; y: number; moved: boolean } | null>(null);
+  /** 正在拖动的用户点 id（拖动时不平移视图） */
+  const dragPt = useRef<number | null>(null);
   const viewRef = useRef(view);
   viewRef.current = view;
 
@@ -537,7 +579,8 @@ export default function PlotCanvas({
     drawCurves(ctx, w, h, view, curves, samples);
     drawImplicits(ctx, w, h, view, curves, grids);
     drawUserPoints(ctx, w, h, view, points);
-  }, [view, curves, samples, grids, points, intersections, extrema, gridMode, showGrid, mode, hover]);
+    drawTrace(ctx, w, h, view, g, trace);   // 追踪标记画在最上层（与 Vue 版一致）
+  }, [view, curves, samples, grids, points, intersections, extrema, gridMode, showGrid, mode, hover, trace]);
 
   useEffect(() => {
     const cv = innerRef.current;
@@ -579,10 +622,22 @@ export default function PlotCanvas({
         const { w, h } = sizeRef.current;
         onViewChange(zoomAt(viewRef.current, w, h, px, py, e.deltaY > 0 ? 1.15 : 1 / 1.15));
       }}
-      onMouseDown={(e) => { const { px, py } = pos(e); drag.current = { x: px, y: py, moved: false }; }}
+      onMouseDown={(e) => {
+        const { px, py } = pos(e);
+        const { w, h } = sizeRef.current;
+        /* 拖点优先于平移：光标压在已有点上时，这一拖是"沿曲线滑点"，不是挪视图 */
+        const hitPt = hitUserPoint(w, h, viewRef.current, points, px, py);
+        if (hitPt) { dragPt.current = hitPt.id; return; }
+        drag.current = { x: px, y: py, moved: false };
+      }}
       onMouseMove={(e) => {
         const { px, py } = pos(e);
         const { w, h } = sizeRef.current;
+        const v = viewRef.current;
+        if (dragPt.current !== null) {
+          onDragPoint?.(dragPt.current, [unmapX(v, w, px), unmapY(v, h, py)]);
+          return;
+        }
         if (drag.current) {
           const dx = px - drag.current.x, dy = py - drag.current.y;
           if (Math.abs(dx) + Math.abs(dy) > 2) drag.current.moved = true;
@@ -590,19 +645,24 @@ export default function PlotCanvas({
           if (drag.current.moved) onViewChange(panBy(viewRef.current, w, h, dx, dy));
           return;
         }
-        const v = viewRef.current;
         setHover([unmapX(v, w, px), unmapY(v, h, py)]);
+        /* 悬停追踪：命中曲线就记下曲线上的那个点（画标记），否则清掉 */
+        const hit = findCurvePointAt(w, h, v, curves, samples, px, py, 12);
+        setTrace(hit
+          ? { x: hit.x, y: hit.y, color: curves.find((c) => c.id === hit.curveId)?.color ?? "#c74440" }
+          : null);
       }}
       onMouseUp={(e) => {
+        if (dragPt.current !== null) { dragPt.current = null; return; }   // 松手：不当作"点选加点"
         const wasDrag = drag.current?.moved;
         drag.current = null;
         if (wasDrag) return;
         const { px, py } = pos(e);
         const { w, h } = sizeRef.current;
         const hit = findCurvePointAt(w, h, viewRef.current, curves, samples, px, py, 12);
-        if (hit) onPickPoint?.(hit.x, hit.y);
+        if (hit) onPickPoint?.(hit.x, hit.y, hit.curveId);
       }}
-      onMouseLeave={() => { drag.current = null; setHover(null); }}
+      onMouseLeave={() => { drag.current = null; dragPt.current = null; setHover(null); setTrace(null); }}
     />
   );
 }

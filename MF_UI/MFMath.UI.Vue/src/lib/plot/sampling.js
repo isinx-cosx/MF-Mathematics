@@ -51,10 +51,21 @@ export function adaptiveSample(evalPoints, t0, t1, toScreen, opt = {}) {
     let needed = 0;
     for (let i = 0; i < midTs.length; i++) {
       const A = world[i], B = world[i + 1], M = midWorld[i];
-      if (!A || !B || !M) continue;
-      const a = toScreen(A), b = toScreen(B), m = toScreen(M);
-      // 端点或中点不可绘制：在断点/渐近线附近也加密，让断点边界更准确
+      if (!A || !B) continue;
+      const a = toScreen(A), b = toScreen(B);
+      // 端点不可绘制：在断点/渐近线附近也加密，让断点边界更准确
       if (!isFinite(a[0]) || !isFinite(a[1]) || !isFinite(b[0]) || !isFinite(b[1])) continue;
+      /* 中点不可绘制（域外 / 未定义，如 1/x 在 x=0、ln x 在 x≤0）：
+       * 这一格正是曲线**进出定义域**的地方，必须把中点本身插进数组 —— 它是 null，
+       * 绘制时会在那里断开。以前这里直接 continue 跳过，于是端点被当成相邻点连线：
+       * 实测 y=1/x 会连出一条贯穿画布的竖线（同 x 的 ±0.05 两点，y=∓19.9，
+       * 而断点判据的 far 阈值是 4×视野=81.3，够不着 → 不判定为渐近线）。
+       * 只有端点屏幕上确实跨得开才插，否则每个域外点都插会让点数爆炸。 */
+      if (!M) {
+        if (Math.hypot(b[0] - a[0], b[1] - a[1]) > tolPx) { keep[i] = true; needed++; }
+        continue;
+      }
+      const m = toScreen(M);
       if (!isFinite(m[0]) || !isFinite(m[1])) { keep[i] = true; needed++; continue; }
       const lx = (a[0] + b[0]) / 2, ly = (a[1] + b[1]) / 2;
       const dev = Math.hypot(m[0] - lx, m[1] - ly);

@@ -212,12 +212,18 @@ export function usePlotSampling(
     return () => { if (timer.current) window.clearTimeout(timer.current); };
   }, [sampleAll]);
 
-  /** 用户点击曲线加点（点必须用户自己添加，渲染层不自动造点） */
-  const addUserPoint = useCallback((x: number, y: number, color: string) => {
+  /** 用户点击曲线加点（点必须用户自己添加，渲染层不自动造点）
+   * curveId 记下"这个点属于哪条曲线"——拖动时要沿着它吸附回去。 */
+  const addUserPoint = useCallback((x: number, y: number, color: string, curveId?: number) => {
     setUserPoints((prev) => [
       ...prev.filter((p) => !(Math.abs(p.x - x) < 1e-9 && Math.abs(p.y - y) < 1e-9)),
-      { id: -Date.now(), x, y, color },
+      { id: -Date.now(), x, y, color, curveId },
     ]);
+  }, []);
+
+  /** 拖动改点位置（父组件已按曲线类型吸附好坐标） */
+  const moveUserPoint = useCallback((id: number, x: number, y: number) => {
+    setUserPoints((prev) => prev.map((p) => (p.id === id ? { ...p, x, y } : p)));
   }, []);
 
   const removeUserPoint = useCallback((id: number) => {
@@ -226,5 +232,5 @@ export function usePlotSampling(
 
   const clearUserPoints = useCallback(() => setUserPoints([]), []);
 
-  return { samples, userPoints, status, errors, grids, addUserPoint, removeUserPoint, clearUserPoints, resample: sampleAll };
+  return { samples, userPoints, status, errors, grids, addUserPoint, moveUserPoint, removeUserPoint, clearUserPoints, resample: sampleAll };
 }

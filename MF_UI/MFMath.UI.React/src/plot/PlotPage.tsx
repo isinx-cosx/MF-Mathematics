@@ -4,7 +4,7 @@ import type { Curve, Intersection, Sample, UserPoint, View } from "./PlotCanvas"
 import ExpressionList, { type Expr } from "./ExpressionList";
 import ParamSlider from "./ParamSlider";
 import { usePlotSampling } from "./usePlotSampling";
-import { parseExpr, extractParams } from "@shared/plot/plotMath.js";
+import { parseExpr, validate } from "@shared/plot/plotMath.js";
 import { colorAt } from "@shared/plot/colors.js";
 import { engineCall, isHosted } from "@shared/bridge.js";
 import { defaultView, fitBounds } from "@shared/plot/view.js";
@@ -79,11 +79,17 @@ export default function PlotPage({
   const [showIntersections] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
-  /* 参数：从各行表达式提取自由参数，生成滑块 */
+  /* 参数：从各行表达式的**解析结果**里取自由符号（与 Vue 版同一来源）。
+   * ⚠ 不能用 extractParams(text, [...]) 那种"按名字排除"的做法：极坐标 r=f(θ) 里的
+   * r 是**因变量**、不是参数，按名字排除会把它当成滑块（cdp-plot-p4 就是这么挂的）；
+   * parseExpr 知道表达式类型，才能正确区分。 */
   const paramNames = useMemo(() => {
     const set = new Set<string>();
-    for (const r of rows) for (const n of extractParams(r.text, ["x", "y", "t", "theta"])) set.add(n);
-    return [...set];
+    for (const r of rows) {
+      const p = parseExpr(r.text);
+      for (const n of (p.params || [])) set.add(n);
+    }
+    return [...set].sort();
   }, [rows]);
 
   const params = useMemo(() => {
@@ -97,7 +103,7 @@ export default function PlotPage({
     [rows]
   );
 
-  const { samples, userPoints, status, grids, addUserPoint, clearUserPoints } =
+  const { samples, userPoints, status, grids, addUserPoint, moveUserPoint, clearUserPoints } =
     usePlotSampling(rows, view, params, size);
 
   /* 画布真实尺寸一到就按它重设视野 —— 对齐 Vue 版 PlotView.onMounted 的那一步。
@@ -128,7 +134,31 @@ export default function PlotPage({
     );
   }, []);
 
-  useEffect(() => { validateAll(); }, [rows.length, validateAll]);
+  /* 行内校验：任何一次表达式改动都要重算（Vue 版是 watch(expressions, deep)）。
+   * ⚠ 原来只在 rows.length 变化时跑，而且是从 ExpressionList 的 onChange() 里调——
+   * 那一刻父组件的 rows 还是**改之前**的，于是"括号不匹配"这类错误永远晚一拍、
+   * 界面上根本不显示。这里改成对 rows 变化做校验，并且**无变化时返回原数组**，
+   * 既不会多渲染一次，也不会自激成死循环。 */
+  useEffect(() => {
+    setRows((prev) => {
+      let changed = false;
+      const next = prev.map((r) => {
+        let err: string | null = null;
+        if (r.text.trim()) {
+          /* 先做语法体检（括号配对等），再问解析器 —— 与 Vue 版 validateAll 同一顺序：
+           * parseExpr 对"y=(x+1" 这类输入是宽容的，只靠它会一声不响。 */
+          err = validate(r.text);
+          if (!err) {
+            const p = parseExpr(r.text);
+            if (!p.valid) err = p.error || "表达式无法解析";
+          }
+        }
+        if (err !== r.error) { changed = true; return { ...r, error: err }; }
+        return r;
+      });
+      return changed ? next : prev;
+    });
+  }, [rows]);
 
   /** 求交点（引擎：符号精确解优先，超越方程走数值回退） */
   const computeIntersections = useCallback(() => {
@@ -255,10 +285,30 @@ export default function PlotPage({
   };
 
   const zoomFit = () => {
-    const all: [number, number][] = Object.values(samples).flat().filter(Boolean) as [number, number][];
-    if (!all.length) return;
+    /* 只喂"当前视图里看得见"的点（Vue 版同一策略，也是实测 bug 的修法）：
+     * 采样范围是视图的 1.5 倍，里面的离群值（e^x 在 x=15 处 y≈3.3e6）会把范围算爆，
+     * 等比修正再把量级搬到另一轴 —— 点「缩放到适应」后 x0 变成 -2.7e6、
+     * 整条曲线塌成一条线（cdp-plot-truth 的"适应后曲线仍然可见/仍有横向展开"两条）。 */
+    const v = view.value;
+    const padX = viewW(v) * 0.02, padY = viewH(v) * 0.02;
+    const all: [number, number][] = [];
+    const inside: [number, number][] = [];
+    for (const [id, list] of Object.entries(samples)) {
+      const row = rows.find((r) => String(r.id) === String(id));
+      if (row && row.visible === false) continue;
+      for (const p of list) {
+        if (!p) continue;
+        const [x, y] = p;
+        if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+        all.push([x, y]);
+        if (x >= v.x0 - padX && x <= v.x1 + padX && y >= v.y0 - padY && y <= v.y1 + padY) inside.push([x, y]);
+      }
+    }
     const cv = canvasRef.current;
-    setView(fitBounds(all, cv?.clientWidth ?? size.w, cv?.clientHeight ?? size.h));
+    const w = cv?.clientWidth ?? size.w, h = cv?.clientHeight ?? size.h;
+    // 视图内的点太少（例如刚进页面就点适应）时退回全部有限点
+    const fit = fitBounds(inside.length >= 2 ? inside : all, w, h);
+    if (fit) setView(fit);   // 视图一变，采样 effect 会自动重采
   };
 
   const resetView = () => {
@@ -272,8 +322,40 @@ export default function PlotPage({
     exportCanvas(cv, { routePath: "#/plot/2d", defaultName: "plot" });
   };
 
-  const handlePickPoint = (x: number, y: number) => {
-    addUserPoint(x, y, rows[0]?.color ?? "#c74440");
+  /** 曲线在给定自变量取值处的函数值（引擎求值，带参数）—— 拖动点吸附用 */
+  const curveValueAt = (curveId: number, t: number, axis: "x" | "y"): number | null => {
+    const row = rows.find((r) => r.id === curveId);
+    if (!row) return null;
+    const p = parseExpr(row.text);
+    if (!p || !p.valid) return null;
+    const r = engineCall("expr_eval_vars", { expr: p.body, var: axis, x: t, vars: params });
+    const v = r && !r.isError ? Number(r.value) : NaN;
+    return Number.isFinite(v) ? v : null;
+  };
+
+  /** 点击曲线加点：把"属于哪条曲线"一起记下来（拖动时要沿它吸附） */
+  const handlePickPoint = (x: number, y: number, curveId: number) => {
+    addUserPoint(x, y, rows.find((r) => r.id === curveId)?.color ?? rows[0]?.color ?? "#c74440", curveId);
+  };
+
+  /** 拖动已有点：沿它所属的曲线滑动（对齐 Vue 版 handleDragPoint）
+   * —— 显式曲线跟 x、竖直曲线跟 y，其它类型不动。绝不把点拖到曲线外。 */
+  const handleDragPoint = (id: number, world: [number, number]) => {
+    const pt = userPoints.find((p) => p.id === id);
+    if (!pt || pt.curveId == null) return;
+    const row = rows.find((r) => r.id === pt.curveId);
+    if (!row) return;
+    const type = parseExpr(row.text)?.type;
+    const [wx, wy] = world;
+    if (type === "explicit") {
+      const y = curveValueAt(pt.curveId, wx, "x");
+      if (y === null) return;
+      moveUserPoint(id, wx, y);
+    } else if (type === "vertical") {
+      const x = curveValueAt(pt.curveId, wy, "y");
+      if (x === null) return;
+      moveUserPoint(id, x, wy);
+    }
   };
 
   const addRow = (index: number) => {
@@ -433,6 +515,7 @@ export default function PlotPage({
           showGrid={showGrid}
           onSizeChange={(w, h) => setSize({ w, h })}
           onPickPoint={handlePickPoint}
+          onDragPoint={handleDragPoint}
           canvasRef={canvasRef}
         />
         <div className="view-controls">

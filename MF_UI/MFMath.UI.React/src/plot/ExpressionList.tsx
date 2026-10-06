@@ -54,7 +54,16 @@ const ExpressionList = forwardRef<{ focusRow: (id: number) => void }, Props>(fun
    * 会因为 props 更新是异步的而互相覆盖（第一次的修改被第二次用旧 props 冲掉）。
    */
   const [local, setLocal] = useState<Expr[]>(() => rows.map((r) => ({ ...r })));
-  useEffect(() => { setLocal(rows); }, [rows]);
+  /* ⚠ 光有影子副本还不够：**同一个 tick 内改多行**时，三次 update 会读到同一份旧
+   * `local`（闭包快照），于是最后一次覆盖前两次 —— 表现是"一次性写入多行表达式，
+   * 只有最后一行生效"（粘贴/载入多行、以及端到端用例批量设表达式都会中招）。
+   * 所以再拿一个 ref 记住**最新**数组，update 从它出发。 */
+  const localRef = useRef<Expr[]>(local);
+  localRef.current = local;
+  useEffect(() => {
+    setLocal(rows);
+    localRef.current = rows;
+  }, [rows]);
 
   const [paletteFor, setPaletteFor] = useState<number | null>(null);
   const [focusedId, setFocusedId] = useState<number | null>(null);
@@ -65,7 +74,8 @@ const ExpressionList = forwardRef<{ focusRow: (id: number) => void }, Props>(fun
   }), []);
 
   function update(id: number, patch: Partial<Expr>) {
-    const next = local.map((r) => (r.id === id ? { ...r, ...patch } : r));
+    const next = localRef.current.map((r) => (r.id === id ? { ...r, ...patch } : r));
+    localRef.current = next;   // 立刻生效：同一 tick 里的后续修改能看见它
     setLocal(next);
     onRowsChange(next);
     onChange();
