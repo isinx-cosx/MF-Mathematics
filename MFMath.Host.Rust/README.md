@@ -43,9 +43,10 @@ COM 那一层只有一份通用实现（`src/hostobject.rs`：手写 7 个 vtabl
 
 页面 URL 因此与 C# 宿主逐字相同：`https://mfmath.local/index.html`。
 
-### 已实现 / 待实现（10 个宿主对象，**9 个已落地**）
+### 已实现（10 个宿主对象**全部落地**）
 
 > 逐项现状、验收数字与踩过的坑见 [`docs/LINK-LAYER.md`](docs/LINK-LAYER.md) 的 §0.1/§0.2。
+> 编译**零警告**；`--selftest-jobs` 5/5、`--selftest-common` 10/0 两条无头自检。
 
 
 | 宿主对象 | 状态 | 验收用例 |
@@ -59,7 +60,18 @@ COM 那一层只有一份通用实现（`src/hostobject.rs`：手写 7 个 vtabl
 | `account`（用户系统，19 方法） | ✅ | `cdp-account` **52/0** |
 | `search`（联网搜索，12 方法） | ✅ | `cdp-search` **55/0**、`cdp-history-search` **21/0** |
 | `con`（控制台 + 组件下载，10 方法） | ✅ | `cdp-console` **66/0**、`cdp-console-sci` **8/0** |
-| `ai`（AI 助手 + SSE 中继，11 方法） | 🚧 进行中 | `cdp-ai` |
+| `ai`（AI 助手 + SSE 中继，11 方法） | ✅ | `cdp-ai` **127/0** |
+
+**跑全套**（仓库自带的跑批脚本，把宿主换成 Rust 那份即可 —— 它本来就认 `MF_HOST_EXE`）：
+
+```powershell
+$env:MF_HOST_EXE = "$env:TEMP\mfhost-run\mfmath-host-rust.exe"   # 见上面"宿主 exe 要放到工作区外"
+powershell -ExecutionPolicy Bypass -File <仓库>\MF_UI\MFMath.UI.Vue\tests\run-all.ps1
+```
+
+⚠ 必须用 **`pwsh`(7)** 或给脚本补上 UTF-8 BOM 后再用 `powershell`(5.1)：该脚本满是中文注释却
+原本没有 BOM，5.1 会按 ANSI 读、直接解析失败（`Missing expression after ','` 那一串，一行用例都跑不了）。
+本目录已顺手给它加了 BOM（见提交 `3ba3447`）。
 
 ---
 

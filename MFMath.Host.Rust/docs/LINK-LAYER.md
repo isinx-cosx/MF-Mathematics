@@ -18,11 +18,11 @@
 **接缝形状已经落地：同步宿主对象在 Tauri 下跑通了**（路线 A）。前端那 15 处访问器与 47 个 CDP
 用例**一行都没改**，`mf.Dispatch` 是同步函数、返回字符串、引擎真的在算。
 
-- 已实现 **9/10** 个宿主对象：`mf`（16 个方法，含 job 通道）、`win`（10）、`sys`（8）、`diag`（1）、
-  `push`（3）、`update`（6）、`account`（19）、**`search`（12）**、**`con`（10）**；
-- 页面 URL 恢复成 **`https://mfmath.local/index.html`**（读 exe 同目录的 `wwwroot`，与 C# 宿主同一份）
+- **10/10 个宿主对象全部落地**：`mf`（16 个方法，含 job 通道）、`win`（10）、`sys`（8）、`diag`（1）、
+  `push`（3）、`update`（6）、`account`（19）、`search`（12）、`con`（10）、`ai`（11）；
+- 页面 URL 是 **`https://mfmath.local/index.html`**（读 exe 同目录的 `wwwroot`，与 C# 宿主同一份）
   —— 47 个用例的取页正则不用动；
-- 只剩 `ai`。
+- 编译**零警告**；`--selftest-jobs` 5/5、`--selftest-common` 10/0。
 
 ### 0.1 当前验收基线（2026-10-07，**已提交版本**）
 
@@ -35,6 +35,7 @@
 | `cdp-settings` | **43/0** | 由 40/3 随 `con` 落地转绿 |
 | `cdp-push` | **20/0** | 由 14/6 随 `con` 落地转绿 |
 | `cdp-history-search` | **21/0** | 由 18/3 随 `search` 落地转绿 |
+| `cdp-ai` | **127/0** | — |
 | `cdp-export-image` | 43/2 | 导出状态行文案（**改动前就有的 2 项**，与链接层无关） |
 | `cdp-workspace` | 20/5 | **绘图页自己的载荷采集没触发**（见下，已证明不是链接层） |
 
@@ -70,6 +71,8 @@
 | 12 | **`search` 桥**（12 方法） | 三条后端 / 缓存（键含引擎）/ 六类失败分类 / App ID 只在宿主。子代理首交付即 `cdp-search` **55/0**；我复审时补了它标注的保真度缺口：**C# 给 DDG 发的是浏览器 UA**，而共享客户端发的是 `MF-Mathematics/<版本>` —— 假端点不挑 UA，这个差异只会在用户机器上表现成"搜索没结果"，所以加 `BROWSER_UA` 与 `get_ua()`，并用**专门记 UA 的小端点**实测两路请求发出的都是那句 Chrome UA |
 | 13 | **`con` 桥**（10 方法：控制台运行 + 组件下载） | 断点续传（Range/206/416/服务端忽略 Range）、整包 SHA-256、**解包只用 `pack::unzip_to`**、MinGW 的 `dlltool` 导入库、Python 的 `_run.py` 引导、进程树用 `taskkill /T /F`。`cdp-console` **66/0**、`cdp-console-sci` **8/0**，并让 `cdp-settings` 41/2→**43/0**、`cdp-push` 14/6→**20/0** |
 | 14 | **部署补控制台门面** | `build.rs` 原来只同步引擎 DLL 与 `wwwroot`，漏了 `python\mfmath.py` 与 `cpp\*.hpp` —— 少了它们组件装不上。现在两个目录也走 `copy_tree`（来源是 C# 宿主目录：这三个文件仓库里只有那一份） |
+| 15 | **`ai` 桥**（11 方法：AI 助手 + SSE 中继） | **宿主只转发字节、不理解 SSE**（`ai.http`/`ai.raw`/`ai.rawEnd`/`ai.rawError`/`ai.test`），分帧留在 TS —— 这条我独立对过两侧：C# `AiRelay` 推的就是这五个 topic 且注释写着"不做任何分帧"，TS `relay.ts:104` 也只收 `ai.http` 与 `ai.raw*`。关键取舍：**刻意不用 `site::normalize_base_url`**（它遇到不认识的地址会退回我们自己的站点 = 把用户 API Key 发到 `mf-vis-science.cn`，隐私事故）；显式 `Accept-Encoding: identity`（C# 刻意不压缩，否则压缩层攒块会让增量推送顿住）。`cdp-ai` **127/0** |
+| 16 | **零警告** | 42 → 0：删掉真死代码（`cstr_lossy`/`stamp_min`/`SiteConfig::url`/两处多余 `mut`）；`hostobject.rs` 的 37 条 `unsafe_op_in_unsafe_fn` 选择在该文件内显式关掉 lint 并写明理由（每个 `unsafe fn` 的函数体本身就是不安全操作，逐条加块只是重复 37 遍并给 7 个 vtable 槽位多套一层缩进） |
 
 **踩到的坑（都在代码注释里留了原话，别再踩）**
 
@@ -86,16 +89,21 @@
 | **旧理由被推翻（Schannel）** | README §三 写"本机 Schannel 不可用，所以用 rustls" | 服务器抓包定案：RST 是**本机发的**，真凶是开发机沙箱的出站阻止规则，只对部分进程生效 | rustls 仍然用，但**理由改成**"不依赖系统 TLS 配置、与 Chromium 那条链一致"；并明确**不要**因为"某台机器连不上"去关系统代理 |
 | **`con.rs` 进不了版本库** | `git add src/con.rs` 报 `open("src/con.rs"): No such file or directory`，而文件明明在磁盘上、`cargo` 也照常编译；`git hash-object` 同样读不了 | **`con` 是 Windows 保留设备名**（跟 `aux`/`nul`/`prn`/`com1` 一类），git 在 Windows 上索引不了这种名字 | 模块文件改名 `src/console.rs`（**注册给页面的宿主对象名仍是 `con`** —— 那是前端契约，只改 Rust 侧文件名） |
 
-**还没做**
+**还没做（链接层本身已无缺口，下面是留给真机/真站点与前端的事）**
 
-- `ai` 桥（最后一块）。
 - **`cdp-workspace` 的 5 项是前端问题**（详见 §0.1 末尾的定案）：绘图页 `watch` 没触发 →
   载荷没进工作区；失败路径上没有宿主调用。
-- **`con` 的几处未验证面**（子代理标注、我在本机测不出来，留给真机/真站点）：
+- **`export-image` 的 2 项**：导出**文件真的写出来了**（`点了就真的写出文件`/`是合法 PNG`/
+  `背景不透明` 全过），失败的是"界面说明了导出到哪里"那条状态文案 —— 与 `workspace` 同一类：
+  失败路径上没有宿主调用。
+- **`ai` 的几处未验证面**（子代理标注、本机测不出来）：`Accept-Encoding: identity` 对真实
+  中转网关的影响；两个宿主共用一份 `ai.json` 的密文互读（字段与 DPAPI 都已对齐，
+  但没做过真实对照）；`Cancel` 对超过 64 条之外的旧 id 会返回 `ok:false`（C# 恒 ok）。
+- **`con` 的几处未验证面**（同上）：
   1. `taskkill` 在被白名单限制的环境里可能不可用（兜底只杀直接子进程）；
   2. 共享客户端开了 `gzip/brotli` 自动解压 —— 若站点对 `.zip` 也做 gzip，字节数会对不上，
      表现为"下载不完整"重试；本机假服务器不发 `Content-Encoding`，测不出来。
-     真站点若出现，加 `Accept-Encoding: identity` 即可（现在没加，避免无谓分叉）；
+     真站点若出现，加 `Accept-Encoding: identity` 即可（`ai.rs` 已经这么做了，`con` 没加）；
   3. `SetDownloadBase` 与 C# 一样**没有闸门**（理由：包必过 SHA-256 才进解压；
      且 `cdp-console` 正是用 `127.0.0.1` 镜像验真续传的）。
 - **`search` 的两处已知差异**（都有意为之，但只会在用户机器上显形，先记着）：
