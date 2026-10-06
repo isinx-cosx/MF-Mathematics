@@ -9,11 +9,37 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 anyhow = "1.0.104"
+# 共享件的依赖（search/account/update/ai/con 都用）——版本都挑依赖树里**已经有**的，
+# 避免同一个 crate 被编译两份。
+#   · reqwest 用 rustls：理由不是"Schannel 坏了"（那个归因已被服务器抓包推翻，
+#     真凶是本机沙箱的出站阻止规则，见 src/http.rs 文件头），而是不依赖系统 TLS 配置、
+#     与 Chromium 那条链一致；
+#   · blocking：宿主对象是同步调用，网络一律在自己起的线程上等（见 http.rs 的用法约定）。
+base64 = "0.22"
 raw-window-handle = "0.6"
+reqwest = { version = "0.13", default-features = false, features = [
+    "blocking",
+    # ⚠ 用 `rustls-no-provider` 而不是 `rustls`：后者的默认后端是 **aws-lc-sys**，
+    # 它要现场编一大堆 C（本机实测直接失败：cl.exe 的 D8050「命令行太长」），
+    # 而 ring 后端小而稳。加密后端由 src/http.rs 在启动时装一次
+    #（`rustls::crypto::ring::default_provider().install_default()`）。
+    "rustls-no-provider",
+    "rustls-native-certs", # 用**系统信任库**：企业环境常注入自己的根证书，内置 roots 会连不上
+    "system-proxy",        # 跟随系统代理：本产品用户里大量需要代理才能访问 AI 端点
+    "json",
+    "gzip",
+    "brotli",
+] }
+# rustls 本体（只为 ring 后端与 install_default）
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12", "logging"] }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.151"
-# Tauri v2 —— 换掉 wry/tao 那一层 WebView。宿主对象注入（AddHostObjectToScript）在 Tauri
-# 里没有对应物，前端的同步桥改为走 `invoke` 命令（见 src/commands.rs 的通用 call）。
+sha2 = "0.10"
+zip = { version = "2", default-features = false, features = ["deflate"] }
+# Tauri v2 —— 换掉 wry/tao 那一层 WebView。**注意**：宿主对象注入（AddHostObjectToScript）
+# 在 Tauri 里并没有"官方对应物"，但 `with_webview()` 能把底层 ICoreWebView2 交出来，
+# 所以同步桥仍然保住了（见 src/main.rs 与 src/hostobject.rs）；命令层（src/commands.rs）
+# 只在 wwwroot 之外的源下才可用，见 docs/LINK-LAYER.md 的说明。
 tauri = { version = "2", features = [] }
 # 宿主对象（AddHostObjectToScript）走的是 WebView2 的 COM 接口。
 # 必须与 Tauri 依赖的 webview2-com **同版本**：`PlatformWebview::controller()` 返回的就是
@@ -26,9 +52,10 @@ windows = { version = "0.62.2", features = [
     "Win32_System_Ole",           # VARIANT 的 Default 实现需要它
     "Win32_System_Variant",       # VARIANT / VT_* / VARENUM
     "Win32_System_LibraryLoader", # LoadLibraryW / GetProcAddress（引擎 FFI）
-    "Win32_Security_Cryptography",# DPAPI（后续 ai/account/search 桥要用）
+    "Win32_Security_Cryptography",# DPAPI（CryptProtectData / CryptUnprotectData）
+    "Win32_System_Registry",      # 读 Internet Settings（只写日志的网络环境取证）
     "Win32_System_SystemInformation", # GetLocalTime（日志时间戳/文件命名）、系统版本自取
-    "Win32_UI_WindowsAndMessaging",   # 窗口操作：ShowWindow / IsZoomed / PostMessage / SendMessage
+    "Win32_UI_WindowsAndMessaging",   # 窗口操作：ShowWindow / IsZoomed / PostMessage / MessageBoxW
     "Win32_UI_Input_KeyboardAndMouse",# ReleaseCapture（无边框窗口拖拽）
     "Win32_UI_Controls_Dialogs",      # GetSaveFileNameW / GetOpenFileNameW（文件对话框）
     "Win32_Graphics_Gdi",             # CreateSolidBrush（窗口背景色）

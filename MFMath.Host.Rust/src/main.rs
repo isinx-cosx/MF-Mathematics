@@ -20,12 +20,16 @@
 #![windows_subsystem = "windows"]
 
 mod commands;
+mod dpapi;
 mod engine;
 mod handlers;
 mod hostobject;
+mod http;
 mod jobs;
 mod logging;
+mod pack;
 mod push;
+mod selftest;
 mod sys;
 mod winbridge;
 
@@ -213,6 +217,18 @@ fn main() {
     if std::env::args().any(|a| a == "--selftest-jobs") {
         jobs::selftest();
         return;
+    }
+
+    // 无头自检：共享件（DPAPI / sha256 / zip / HTTP 环境）。
+    // `--selftest-common --unprotect <base64>` 用来验"另一侧写的密文能不能解开"。
+    if std::env::args().any(|a| a == "--selftest-common") {
+        let args: Vec<String> = std::env::args().collect();
+        let ext = args
+            .iter()
+            .position(|a| a == "--unprotect")
+            .and_then(|i| args.get(i + 1))
+            .map(|s| s.as_str());
+        selftest::run(ext);
     }
 
     // 异步 job 通道的常驻工作线程：先起好，界面第一次派活就没有额外延迟
