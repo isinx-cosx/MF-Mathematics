@@ -151,9 +151,13 @@ export function usePlotSampling(
     // 用户手动加的点保留；表达式里的 (a,b) 点也画出来
     const kept = userPointsRef.current.filter((up) => rows.some((r) => r.id === up.id));
     setUserPoints([...kept, ...pts]);
+    /* 状态行必须带当前视野范围，格式与 Vue 版逐字一致（`范围 [x0, x1] × [y0, y1]`）：
+     * 端到端用例（cdp-plot-p3 / cdp-plot-final）就是从 `.side-status` 里正则抠这一段，
+     * 再据此把世界坐标换算成屏幕像素的 —— 少了它，它们连坐标都算不出来。 */
+    const rangeTxt = `范围 [${view.x0.toFixed(2)}, ${view.x1.toFixed(2)}] × [${view.y0.toFixed(2)}, ${view.y1.toFixed(2)}]`;
     setStatus({
       okCount, errCount, totalPts,
-      text: `引擎采样 ${okCount} 条曲线${errCount ? `，${errCount} 条失败` : ""} · ${totalPts} 点`,
+      text: `引擎采样 ${okCount} 条曲线${errCount ? `，${errCount} 条失败` : ""} · ${totalPts} 点 · ${rangeTxt}`,
     });
   }, [rows, view, params, size.w, size.h]);
 
