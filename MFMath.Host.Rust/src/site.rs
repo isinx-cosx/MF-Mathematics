@@ -104,13 +104,19 @@ impl ApiCall {
     }
 }
 
-/// GET 一个站内路径
+/// GET 一个站内路径（宿主自己的 UA）
 pub fn get(base_url: &str, path: &str, token: Option<&str>, timeout_sec: i64) -> ApiCall {
+    get_ua(base_url, path, token, timeout_sec, None)
+}
+
+/// GET 一个站内路径，并**指定 User-Agent**（搜索专用：DDG 挑 UA，见 `http::BROWSER_UA`）。
+/// 其余行为与 `get` 完全一致 —— 尤其是错误分类，别在这里分叉。
+pub fn get_ua(base_url: &str, path: &str, token: Option<&str>, timeout_sec: i64, ua: Option<&str>) -> ApiCall {
     if is_cancelled() {
         return ApiCall::err(0, String::new(), "aborted", "已取消".into());
     }
     let url = format!("{}{}", normalize_base_url(base_url).trim_end_matches('/'), path);
-    let client = http::client_with_timeout(timeout_sec);
+    let client = http::client_with_timeout_ua(timeout_sec, ua);
     let mut req = client.get(&url);
     if let Some(t) = token.filter(|t| !t.is_empty()) {
         req = req.header("Authorization", format!("Bearer {t}"));

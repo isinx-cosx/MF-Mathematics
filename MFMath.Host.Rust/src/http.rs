@@ -30,6 +30,19 @@ use std::time::Duration;
 /// 共享客户端（内部有连接池，构造一次即可）
 static CLIENT: std::sync::OnceLock<reqwest::blocking::Client> = std::sync::OnceLock::new();
 
+/// 搜索用的浏览器 UA —— 与 C# `SearchBackend.UserAgent` **逐字一致**。
+///
+/// ⚠ 为什么必须带它：DuckDuckGo 的 HTML 端点对非常规 UA 很不友好（反爬页或直接 403）。
+/// C# 一直发的是这句 Chrome UA，而假端点不挑 UA —— **这个差异在本机测不出来**，
+/// 只会在用户机器上表现为"搜索没结果"。所以宁可多养一个客户端，也不省这一句。
+pub const BROWSER_UA: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36";
+
+/// 走浏览器 UA 的客户端（只有搜索用它）。**每次新建**，理由同 `client_with_timeout`：
+/// 搜索的超时是用户可配的，缓存一个固定超时的客户端迟早会用错超时。
+pub fn client_with_timeout_ua(timeout_secs: i64, ua: Option<&str>) -> reqwest::blocking::Client {
+    build_with_ua(if timeout_secs <= 0 { 30 } else { timeout_secs }, ua)
+}
+
 /// 装一次 rustls 的加密后端。
 ///
 /// 为什么需要它：`Cargo.toml` 里 reqwest 用的是 `rustls-no-provider` —— 默认后端
@@ -58,11 +71,19 @@ pub fn client_with_timeout(timeout_secs: i64) -> reqwest::blocking::Client {
 }
 
 fn build(timeout_secs: i64) -> reqwest::blocking::Client {
+    build_with_ua(timeout_secs, None)
+}
+
+/// `ua: None` = 宿主自己的 UA（`MF-Mathematics/<版本>`）；`Some(s)` = 指定 UA（搜索用浏览器 UA）
+fn build_with_ua(timeout_secs: i64, ua: Option<&str>) -> reqwest::blocking::Client {
     ensure_crypto();
     reqwest::blocking::Client::builder()
         // 跟随系统代理：产品用户里大量需要代理才能访问 AI 端点（见文件头的告诫）
         .timeout(Duration::from_secs(timeout_secs as u64))
-        .user_agent(concat!("MF-Mathematics/", env!("CARGO_PKG_VERSION")))
+        .user_agent(match ua {
+            Some(s) => s.to_string(),
+            None => concat!("MF-Mathematics/", env!("CARGO_PKG_VERSION")).to_string(),
+        })
         // 重定向交给 reqwest，但限制次数：站点契约里不该出现长链跳转
         .redirect(reqwest::redirect::Policy::limited(5))
         .build()

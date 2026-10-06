@@ -30,6 +30,7 @@ mod jobs;
 mod logging;
 mod pack;
 mod push;
+mod search;
 mod selftest;
 mod shellopen;
 mod site;
@@ -152,6 +153,27 @@ const ACCOUNT_SPEC: &[MethodSpec] = &[
     MethodSpec { name: "SelfCheck", params: &[], ret: RetKind::Str },
 ];
 
+/// `search`：联网搜索（对照 C# `SearchBridge.cs`）。
+/// App ID 只在宿主（DPAPI 密文），页面只见 hasWolframKey；结果经 push 推回
+///（搜索是慢活，同步返回会把渲染进程冻住几秒）。
+/// 方法名与参数个数照前端 `lib/search/bridge.js` 的 `call("XXX", …)` 调用点：
+/// `Info Configure SetWolframKey ClearWolframKey SelfCheck CacheStats ClearCache
+///  OpenUrl Start Cancel`（另补 C# 桥面里的 `CancelAll` / `Busy`）。
+const SEARCH_SPEC: &[MethodSpec] = &[
+    MethodSpec { name: "Info", params: &[], ret: RetKind::Str },
+    MethodSpec { name: "Configure", params: &["json"], ret: RetKind::Str },
+    MethodSpec { name: "SetWolframKey", params: &["key"], ret: RetKind::Str },
+    MethodSpec { name: "ClearWolframKey", params: &[], ret: RetKind::Str },
+    MethodSpec { name: "Start", params: &["json"], ret: RetKind::Str },
+    MethodSpec { name: "Cancel", params: &["requestId"], ret: RetKind::Str },
+    MethodSpec { name: "CancelAll", params: &[], ret: RetKind::Str },
+    MethodSpec { name: "Busy", params: &[], ret: RetKind::Bool },
+    MethodSpec { name: "OpenUrl", params: &["url"], ret: RetKind::Str },
+    MethodSpec { name: "CacheStats", params: &[], ret: RetKind::Str },
+    MethodSpec { name: "ClearCache", params: &[], ret: RetKind::Str },
+    MethodSpec { name: "SelfCheck", params: &[], ret: RetKind::Str },
+];
+
 /// 要注册的宿主对象。**加一个桥 = 这里加一行 + handlers.rs 加一个分支**，
 /// COM 那一层（hostobject.rs）一行都不用动。
 const HOST_OBJECTS: &[(&str, &[MethodSpec])] = &[
@@ -162,6 +184,7 @@ const HOST_OBJECTS: &[(&str, &[MethodSpec])] = &[
     ("push", PUSH_SPEC),
     ("update", UPDATE_SPEC),
     ("account", ACCOUNT_SPEC),
+    ("search", SEARCH_SPEC),
 ];
 
 /// 同时写 stderr 与 app.log。

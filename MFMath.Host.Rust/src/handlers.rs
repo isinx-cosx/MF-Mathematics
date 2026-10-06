@@ -92,7 +92,31 @@ pub fn call(object: &str, method: &str, args: &[Arg]) -> Ret {
         "push" => push(method, args),
         "update" => update(method, args),
         "account" => account(method, args),
+        "search" => search(method, args),
         other => Ret::Str(err_envelope(&format!("未知宿主对象：{other}"))),
+    }
+}
+
+/// `search` 桥：联网搜索（对照 C# `SearchBridge.cs`）。
+/// 纪律：App ID 只在宿主（DPAPI 密文，绝不进渲染进程）、查询不写日志、
+/// `Start` 立即返回而结果经 push 推回（同步等网络会把渲染进程冻住几秒）、
+/// 失败分类要能指导下一步（config/network/http/parse/timeout/aborted）。
+fn search(method: &str, args: &[Arg]) -> Ret {
+    use crate::search as s;
+    match method {
+        "Info" => Ret::Str(s::info()),
+        "Configure" => Ret::Str(s::configure(arg_str(args, 0).unwrap_or(""))),
+        "SetWolframKey" => Ret::Str(s::set_wolfram_key(arg_str(args, 0).unwrap_or(""))),
+        "ClearWolframKey" => Ret::Str(s::clear_wolfram_key()),
+        "Start" => Ret::Str(s::start(arg_str(args, 0).unwrap_or(""))),
+        "Cancel" => Ret::Str(s::cancel(arg_str(args, 0).unwrap_or(""))),
+        "CancelAll" => Ret::Str(s::cancel_all()),
+        "Busy" => Ret::Bool(s::is_busy()),
+        "OpenUrl" => Ret::Str(s::open_url(arg_str(args, 0).unwrap_or(""))),
+        "CacheStats" => Ret::Str(s::cache_stats()),
+        "ClearCache" => Ret::Str(s::clear_cache()),
+        "SelfCheck" => Ret::Str(s::self_check()),
+        other => Ret::Str(err_envelope(&format!("search 没有这个方法：{other}"))),
     }
 }
 
