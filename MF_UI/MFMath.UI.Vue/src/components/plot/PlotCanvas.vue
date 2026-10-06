@@ -398,7 +398,10 @@ function drawExtrema() {
     const isMax = e.kind === "max";
     const color = isMax ? "#7c3aed" : "#0891b2";
     // 菱形标记（区别于交点圆点、用户点空心圆）
-    const r = 5;
+    // ⚠ 不要给它加白色描边：那圈白边会把底下的曲线"切断"，在平坦的极值点处看起来
+    //   就像"曲线画不出来"（这正是用户报的那个问题）。标记现在画在曲线**之前**，
+    //   所以只需要一个实心菱形；曲线压在上面，两侧仍然看得见标记。
+    const r = 4;
     ctx.beginPath();
     ctx.moveTo(px, py - r);
     ctx.lineTo(px + r, py);
@@ -407,9 +410,6 @@ function drawExtrema() {
     ctx.closePath();
     ctx.fillStyle = color;
     ctx.fill();
-    ctx.strokeStyle = "#fff";
-    ctx.lineWidth = 1.4;
-    ctx.stroke();
     ctx.fillStyle = color;
     ctx.fillText(`${isMax ? "极大" : "极小"} (${fmt(e.x)}, ${fmt(e.y)})`, px + 8, py - 6);
   }
@@ -675,10 +675,16 @@ function draw() {
     ["grid", () => drawGrid(g)],
     ["regions", () => drawRegions()],
     ["inequalities", () => drawInequalities()],
+    /* ⚠ 标记（极值/交点）必须画在**曲线之前**：它们是不透明的实心块（菱形/圆点），
+     * 画在曲线之后就会把曲线盖掉一截。在**平坦的极值点**上后果最明显 ——
+     * 用户看到的是"曲线在贴着 x 轴的地方断开了"（一个 10px 的标记在顶点处能遮掉很宽一段 x），
+     * 而实际上采样与绘制完全正常（引擎在 x=0 返回的就是 0，没有任何 null）。
+     * 顺序改成"标记在下、曲线在上"后，曲线始终连续，标记仍然露在曲线两侧。 */
+    ["extrema", () => drawExtrema()],
+    ["intersections", () => drawIntersections()],
     ["curves", () => drawCurves()],
     ["implicits", () => drawImplicits()],
-    ["intersections", () => drawIntersections()],
-    ["extrema", () => drawExtrema()],
+    // 用户自己创建的点仍画在最上面（空心圆的样式是刻意的，且要能拖动/命中）
     ["points", () => drawPoints()],
     ["trace", () => drawTrace(g)],
   ];

@@ -260,6 +260,25 @@ const catNames = await evalJs(`[...document.querySelectorAll('.kp-tab')].map((b)
 check("6 个分类且名称顺序与 v1 一致",
   catNames === "基础运算,微积分,线性代数,希腊字母,概率统计,常用模板", catNames);
 
+/* 页脚那行带 `{n}` 参数（"共 {n} 键 · …"）。曾经的真实 bug：`t()` 的中文分支
+ * 直接 return key、**跳过了参数替换**，于是中文界面上字面显示 "共 {n} 键" ——
+ * 而英文界面正常，所以只跑英文根本看不出来（当时是靠给键盘截图才发现的）。
+ * 这条断言就是把"参数必须被替换"钉住：既要有数字，也不能残留花括号。 */
+const kpNote = await evalJs(`(document.querySelector('.kp-note') || {}).textContent || ''`);
+check("键盘页脚不含未替换的占位符（{n} 已代入）",
+  !kpNote.includes("{") && /\d/.test(kpNote), JSON.stringify(kpNote.trim().slice(0, 60)));
+
+/* 模板键的键面用真字母（`\frac{a}{b}` 而不是 v1 的 ▢ 空位）—— 只检查"排出来了、
+ * 且不是原样的 LaTeX 源码"，不钉死具体字样（字号/换行都会影响 textContent 顺序）。 */
+const tmplFaces = await evalJs(`(() => {
+  for (const b of document.querySelectorAll('.kp-tab')) if (b.textContent.trim() === '常用模板') { b.click(); break; }
+  return null;
+})()`);
+await sleep(300);
+const faces = await evalJs(`[...document.querySelectorAll('.kp-row .kp-key .k-face')].map((x) => x.textContent.trim()).join('|')`);
+check("模板键面是排版结果而非 LaTeX 源码", !faces.includes("\\\\") && !faces.includes("▢") && faces.length > 0,
+  faces.slice(0, 80));
+
 // 当前分类页签是**持久化**的（mf_kb_tab，这是本轮的改进：v1 每次都回到第一页），
 // 所以先显式切回"基础运算"，不能假设初始值。
 await evalJs(`(() => {

@@ -2,9 +2,10 @@ import { ref } from "vue";
 import { EN } from "./en-US.js";
 import { EN_MODES } from "./en-modes.js";
 import { EN_VARS } from "./en-vars.js";
+import { EN_RESULTS } from "./en-results.js";
 
-/** 合并译文表：模式名/字段标签打底，外壳文案（en-US）优先 */
-const DICT = { ...EN_MODES, ...EN_VARS, ...EN };
+/** 合并译文表：模式名/字段标签/结果标签打底，外壳文案（en-US）优先 */
+const DICT = { ...EN_MODES, ...EN_VARS, ...EN_RESULTS, ...EN };
 
 /**
  * 国际化（D4）—— 以**中文原文为键**的最小实现。
@@ -61,8 +62,12 @@ export function setLocale(id) {
  * 在模板里直接调用即可获得响应式：函数内部读了 `locale.value`。
  */
 export function t(key, params) {
-  if (locale.value === "zh-CN") return key;
-  let s = Object.prototype.hasOwnProperty.call(DICT, key) ? DICT[key] : key;
+  /* ⚠ 参数替换必须在**两个分支都做**：原先中文分支直接 `return key` 就跳过了替换，
+   * 于是中文界面上出现过字面的 `共 {n} 键` —— 而英文界面正常，所以只跑英文探针
+   * 根本发现不了（是靠给键盘截图才看出来的）。 */
+  let s = locale.value === "zh-CN"
+    ? key
+    : (Object.prototype.hasOwnProperty.call(DICT, key) ? DICT[key] : key);
   if (params) {
     for (const [k, v] of Object.entries(params)) s = s.split("{" + k + "}").join(String(v));
   }

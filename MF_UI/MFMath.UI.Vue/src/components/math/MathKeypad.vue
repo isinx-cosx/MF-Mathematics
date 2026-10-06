@@ -16,6 +16,7 @@
  */
 import { computed, onMounted, ref, watch } from "vue";
 import { CATEGORIES, ALL_KEYS, searchKeys, DEFAULT_RECENT } from "../../lib/math/keypadSymbols.js";
+import { t } from "../../lib/i18n/index.js";
 import { insertLatex, activeField } from "../../lib/math/activeField.js";
 import KeyFace from "./KeyFace.vue";
 
@@ -93,49 +94,49 @@ defineExpose({ activeCat, query, view });
 </script>
 
 <template>
-  <section class="keypad" data-tour="math_keyboard.panel" aria-label="数学键盘">
+  <section class="keypad" data-tour="math_keyboard.panel" :aria-label="t('数学键盘')">
     <header class="kp-head" data-tour="math_keyboard.titlebar">
-      <span class="kp-title">⌨ 数学键盘</span>
+      <span class="kp-title">⌨ {{ t('数学键盘') }}</span>
 
       <div class="kp-tabs" role="tablist">
         <button v-for="c in CATEGORIES" :key="c.id" class="kp-tab" role="tab"
                 :class="{ on: activeCat === c.id && view === 'keys' }"
                 :aria-selected="activeCat === c.id && view === 'keys'"
-                @click="view = 'keys'; activeCat = c.id">{{ c.name }}</button>
+                @click="view = 'keys'; activeCat = c.id">{{ t(c.name) }}</button>
       </div>
 
       <div class="kp-tools">
-        <button class="kp-mini" :class="{ on: view === 'recent' }" title="最近使用" @click="view = view === 'recent' ? 'keys' : 'recent'">最近</button>
-        <button class="kp-mini" :class="{ on: view === 'fav' }" title="收藏" @click="view = view === 'fav' ? 'keys' : 'fav'">★ 收藏</button>
-        <input v-model="query" class="kp-search" type="search" placeholder="搜索符号（如 积分 / sqrt / alpha）" />
+        <button class="kp-mini" :class="{ on: view === 'recent' }" :title="t('最近使用')" @click="view = view === 'recent' ? 'keys' : 'recent'">{{ t('最近') }}</button>
+        <button class="kp-mini" :class="{ on: view === 'fav' }" :title="t('收藏')" @click="view = view === 'fav' ? 'keys' : 'fav'">★ {{ t('收藏') }}</button>
+        <input v-model="query" class="kp-search" type="search" :placeholder="t('搜索符号（如 积分 / sqrt / alpha）')" />
       </div>
     </header>
 
     <p v-if="hint" class="kp-hint">{{ hint }}</p>
     <p v-else-if="!activeField()" class="kp-hint quiet">
-      未选中输入框 —— 点一下计算或绘图里的输入格，再点符号即可插入
+      {{ t('未选中输入框 —— 点一下计算或绘图里的输入格，再点符号即可插入') }}
     </p>
 
     <div class="kp-body">
       <!-- 搜索结果 -->
       <div v-if="query.trim()" class="kp-grid">
         <button v-for="k in results" :key="k.cat + k.latex" class="kp-key" tabindex="-1"
-                :title="k.catName + ' · ' + k.latex" @mousedown.prevent @click="onKey(k)">
+                :title="t(k.catName) + ' · ' + k.latex" @mousedown.prevent @click="onKey(k)">
           <KeyFace class="k-face" :label="k.label" />
           <span class="k-star" :class="{ on: fav.includes(k.latex) }" @click="toggleFav(k, $event)">★</span>
         </button>
-        <p v-if="!results.length" class="kp-empty">没有匹配的符号</p>
+        <p v-if="!results.length" class="kp-empty">{{ t('没有匹配的符号') }}</p>
       </div>
 
       <!-- 最近使用 / 收藏 -->
       <div v-else-if="view === 'recent' || view === 'fav'" class="kp-grid">
         <button v-for="k in (view === 'fav' ? favKeys : recentKeys)" :key="view + k.latex" class="kp-key"
-                tabindex="-1" :title="k.catName + ' · ' + k.latex" @mousedown.prevent @click="onKey(k)">
+                tabindex="-1" :title="t(k.catName) + ' · ' + k.latex" @mousedown.prevent @click="onKey(k)">
           <KeyFace class="k-face" :label="k.label" />
           <span class="k-star" :class="{ on: fav.includes(k.latex) }" @click="toggleFav(k, $event)">★</span>
         </button>
         <p v-if="!(view === 'fav' ? favKeys : recentKeys).length" class="kp-empty">
-          {{ view === "fav" ? "还没有收藏。点键位右上角的 ★ 即可收藏。" : "还没有使用记录。" }}
+          {{ view === "fav" ? t("还没有收藏。点键位右上角的 ★ 即可收藏。") : t("还没有使用记录。") }}
         </p>
       </div>
 
@@ -152,8 +153,8 @@ defineExpose({ activeCat, query, view });
           </button>
         </div>
         <p class="kp-note">
-          共 {{ CATEGORIES.reduce((n, c) => n + c.rows.reduce((m, r) => m + r.length, 0), 0) }} 键 ·
-          模板类键面按数学排版显示 · 插入的是 LaTeX
+          {{ t("共 {n} 键 ·", { n: CATEGORIES.reduce((n, c) => n + c.rows.reduce((m, r) => m + r.length, 0), 0) }) }}
+          {{ t("模板类键面按数学排版显示 · 插入的是 LaTeX") }}
         </p>
       </div>
     </div>

@@ -95,6 +95,24 @@ export const EN = {
   "（未接入引擎）": " (not wired to the engine)",
   "输入表达式，如 x^2+3*x-1": "Enter an expression, e.g. x^2+3*x-1",
 
+  /* ── 数学键盘（6 个分类名里 4 个与导航同名，已在上面的导航条目里）── */
+  "希腊字母": "Greek Letters",
+  "概率统计": "Probability & Statistics",
+  "常用模板": "Common Templates",
+  "数学键盘": "Math Keypad",
+  "最近使用": "Recently used",
+  "最近": "Recent",
+  "收藏": "Favorites",
+  "搜索符号（如 积分 / sqrt / alpha）": "Search symbols (e.g. integral / sqrt / alpha)",
+  "未选中输入框 —— 点一下计算或绘图里的输入格，再点符号即可插入":
+    "No input field selected — click a field in a calculation or plot first, then tap a symbol",
+  "没有匹配的符号": "No matching symbols",
+  "还没有收藏。点键位右上角的 ★ 即可收藏。": "No favorites yet. Tap the ★ in a key's top-right corner to add one.",
+  "还没有使用记录。": "No recent keys yet.",
+  "共 {n} 键 ·": "{n} keys ·",
+  "模板类键面按数学排版显示 · 插入的是 LaTeX":
+    "Template keys are typeset as math · inserting LaTeX",
+
   /* ── 计算页：视图描述 ──
    * 视图**标题**与导航条目同名，已被上面的导航译文覆盖；这里只需要描述。 */
   "包含：表达式化简、求导、积分、极限、级数展开、复数运算等":

@@ -1,9 +1,16 @@
-// 把外观清回默认值 —— 供 run-all.ps1 在任何套件之前跑一次。
+// 把外观与语言清回默认值 —— 供 run-all.ps1 在任何套件之前跑一次。
 //
-// 为什么需要：外观选择（配色/圆角/疏密/字体）存在 localStorage 里，
+// 为什么需要：外观选择（配色/圆角/疏密/字体）**与界面语言**都存在 localStorage 里，
 // 而 WebView2 的用户数据目录是跨次运行复用的。于是上一轮跑测试时留下的
 // 深色配色会粘到这一轮，而绘图类套件是按浅色画布数像素的——会出现
 // "单跑能过、整套跑失败"这种最难查的假失败。
+//
+// ⚠ 语言同理，而且后果更猛：绝大多数用例是按**中文界面**写的断言（`标题为「代数计算」`、
+//   `结果行的键名已中文化`、`6 个分类名称与 v1 一致`…）。只要有一轮调试把语言切成英文
+//   留在 localStorage 里，下一次整套会**一次性掉 52 条**——而每一条看起来都像"功能坏了"，
+//   实则只是语言状态残留。实测就发生过一次（见本文件改动的那次提交）。
+//   所以语言必须和外观一起归零。
+//
 // 这里显式归零，让整套回归从确定的状态出发。
 //
 // 用法: node reset-appearance.mjs   （宿主需带 --remote-debugging-port=9222 启动）
@@ -60,9 +67,11 @@ const before = await evalJs("document.documentElement.dataset.theme");
 //   在进入绘图组前**只重载一次页面**能让这 15 条全部转绿，但那会打破后面一大批
 //   用例（audit-modes 一族出现 `未知方法: c*e*n*t*r*a*l` 之类的参数错乱），
 //   所以那个做法已回退，留待单独处理。
+// ⚠ 注意 `mf.lang` 也在这一批里：语言与外观共用同一个"跨次运行复用"的存储，
+//   留下英文会让按中文写的用例成片失败（实测一次掉 52 条）。
 await evalJs(`(function(){
   try {
-    ['mf_theme','mf_shape','mf_density','mf_font','mf_theme_follow'].forEach((k) => localStorage.removeItem(k));
+    ['mf_theme','mf_shape','mf_density','mf_font','mf_theme_follow','mf.lang'].forEach((k) => localStorage.removeItem(k));
   } catch (e) {}
   return 1;})()`);
 // 重新加载让 initTheme 走"没有存档"的分支，落到默认值
@@ -76,6 +85,12 @@ const after = await evalJs(`(function(){
 const expect = "glass-light/glass/cozy/sans/light";
 const ok = after === expect;
 console.log(`  ${ok ? "[OK]" : "[FAIL]"} 外观已归零   ${before} → ${after}   (期望 ${expect})`);
-console.log(`RESULT|reset-appearance|${ok ? 1 : 0}|${ok ? 0 : 1}`);
+
+// 语言单独报一条：它是"成片假失败"的开关，必须能一眼看出是否已归零
+const lang = await evalJs(`document.documentElement.lang`);
+const langOk = lang === "zh-CN";
+console.log(`  ${langOk ? "[OK]" : "[FAIL]"} 语言已归零   ${lang}   (期望 zh-CN)`);
+
+console.log(`RESULT|reset-appearance|${ok && langOk ? 2 : 0}|${ok && langOk ? 0 : 1}`);
 ws.close();
-process.exit(ok ? 0 : 1);
+process.exit(ok && langOk ? 0 : 1);

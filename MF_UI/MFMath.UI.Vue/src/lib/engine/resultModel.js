@@ -44,6 +44,8 @@ export const PLAIN_KEYS = new Set([
  * 这里只做**显示层**的翻译，不改任何计算结果；没收录的键原样显示（宁可见到英文，
  * 也不要猜错含义）。
  */
+import { t } from "../i18n/index.js";
+
 export const FIELD_LABELS = {
   delta: "判别式 Δ",
   deltaSign: "判别式符号",
@@ -129,7 +131,11 @@ export const FIELD_LABELS = {
 
 /** 取字段的中文标签；没有收录就原样返回键名。 */
 export function labelOf(key) {
-  return FIELD_LABELS[key] || String(key ?? "");
+  const label = FIELD_LABELS[key];
+  if (!label) return String(key ?? "");
+  /* 字段标签也走 i18n。**翻译放在这里**（唯一出口，3 个调用方共用），
+   * FIELD_LABELS 里的中文仍是查表键 —— 别去翻它，`labelOf` 就是按它查找的。 */
+  return t(label);
 }
 
 /**

@@ -26,9 +26,14 @@ import { EXTRA_MAP } from "../src/lib/engine/engineMapExtra.js";
 import { EN } from "../src/lib/i18n/en-US.js";
 import { EN_MODES } from "../src/lib/i18n/en-modes.js";
 import { EN_VARS } from "../src/lib/i18n/en-vars.js";
+import { EN_RESULTS } from "../src/lib/i18n/en-results.js";
+import { FIELD_LABELS } from "../src/lib/engine/resultModel.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SRC = path.resolve(HERE, "..", "src");
+
+/* 与 src/lib/i18n/index.js 保持同款的合并顺序（en-US 优先） */
+const DICT = { ...EN_MODES, ...EN_VARS, ...EN_RESULTS, ...EN };
 
 const problems = [];
 const warnings = [];
@@ -302,6 +307,20 @@ const NOT_EXPOSED = new Map(
     problems.push(`i18n：参数弹窗字段「${l}」在 lib/i18n/en-vars.js 里没有译文`);
   }
   console.log(`i18n 弹窗字段        ：${labelSet.size} 条唯一标签，缺译文 ${labelNoTr.length} 条`);
+
+  /* 10. 结果面板的字段标签（resultModel.js 的 FIELD_LABELS）。
+   *     渲染出口只有 labelOf() 一处，但那里传的也是**变量**，字面量自检看不见 → 同样按表对账。 */
+  const resNoTr = Object.values(FIELD_LABELS).filter((l) => !(l in EN_RESULTS));
+  for (const l of resNoTr) {
+    problems.push(`i18n：结果字段标签「${l}」在 lib/i18n/en-results.js 里没有译文`);
+  }
+  console.log(`i18n 结果标签        ：${Object.keys(FIELD_LABELS).length} 个字段，缺译文 ${resNoTr.length} 个`);
+
+  /* 11. 数学键盘的分类名（6 个，渲染在 kp-tab 上）。分类名不翻译键面 —— 键面必须保持
+   *     v1 的字样（keyFace.js 还要按数学排版它，改了会同时弄坏显示与肌肉记忆）。 */
+  const catNoTr = CATEGORIES.map((c) => c.name).filter((n) => !(n in DICT));
+  for (const n of catNoTr) problems.push(`i18n：键盘分类名「${n}」没有译文`);
+  console.log(`i18n 键盘分类        ：${CATEGORIES.length} 个分类，缺译文 ${catNoTr.length} 个`);
 }
 
 /* ── 输出 ──────────────────────────────────────────────────────────────── */
