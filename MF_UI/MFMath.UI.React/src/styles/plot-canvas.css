@@ -1,0 +1,11 @@
+/* 自动抽取自 components/plot/PlotCanvas.vue 的 <style>，请勿手改。
+ * 重新生成: node tools/extract-styles.mjs
+ * 目的：React 版沿用 Vue 版同一份样式，保证界面不走样。 */
+
+.plot-canvas-desmos {
+  display: block;
+  width: 100%;
+  height: 100%;
+  cursor: crosshair;
+  touch-action: none;
+}

@@ -1,0 +1,60 @@
+/* 自动抽取自 components/math/MathField.vue 的 <style>，请勿手改。
+ * 重新生成: node tools/extract-styles.mjs
+ * 目的：React 版沿用 Vue 版同一份样式，保证界面不走样。 */
+
+/* ── 输入框外观的**唯一出处** ──────────────────────────────────────────
+ * 这里故意不写 scoped：几何、字号、以及 shadow DOM 里的角标按钮都必须
+ * 作用在 <math-field> 元素本身。选择器用 `math-field.mathfield`（0,1,1），
+ * 压过宿主页里的单类规则（.input 0,1,0、.mono 0,1,0）——
+ * 但压不过 `[data-v-x]` 的两类选择器，所以各调用处不再自己写
+ * height / padding / font-size（见 ExpressionList、CalcView）。
+ */
+math-field.mathfield {
+  display: block;              /* 覆盖 MathLive 的 :host{display:block}，也避免被写成 flex */
+  width: 100%;
+  min-width: 0;                /* 作为 flex/grid 子项时允许收缩，不撑破行 */
+  max-width: 100%;
+  /* ↓ 高度自适应：只给下界，不给 height */
+  height: auto;
+  min-height: 60px;
+  box-sizing: border-box;
+  /* 上下留一点内边距，并让行盒在框内垂直居中（align-content 作用于块容器，
+   * Chromium 123+ 支持；不支持时只是回落到顶对齐，不影响排版）。
+   * 横向：内部 .ML__container 自带 4px，叠加 8px = 12px，与 .input 的 12px 对齐。 */
+  padding: 7px 8px;
+  align-content: center;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--surface-alt);
+  color: var(--text);
+  font-size: 22px;             /* 数学排版尺寸，直接决定 LaTeX 看得清不清 */
+  font-family: 'Cambria Math', 'Latin Modern Math', Georgia, serif;
+  outline: none;
+  transition: border-color .12s, background .12s, box-shadow .12s;
+  /* MathLive 的配色跟随主题 */
+  --hue: 216;
+  --caret-color: var(--accent);
+  --selection-background-color: var(--accent-soft);
+  --contains-highlight-background-color: transparent;
+  --smart-fence-color: var(--accent);
+  --highlight-text: var(--accent);
+  --placeholder-color: var(--text-subtle);
+}
+math-field.mathfield:focus,
+math-field.mathfield:focus-within {
+  border-color: var(--accent);
+  background: var(--surface);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+/* 去掉右下角自带的两个角标按钮：软键盘 + 菜单。
+ * 这是 MathLive 官方文档给的隐藏方式（math-field::part(menu-toggle)）；
+ * !important 只是保证不被内部 .ML__menu-toggle 的 display 压回来。 */
+math-field.mathfield::part(virtual-keyboard-toggle),
+math-field.mathfield::part(menu-toggle) {
+  display: none !important;
+}
+/* 占位提示走 shadow DOM 里的 [part=placeholder] */
+math-field.mathfield::part(placeholder) {
+  color: var(--text-subtle);
+  opacity: 1;
+}

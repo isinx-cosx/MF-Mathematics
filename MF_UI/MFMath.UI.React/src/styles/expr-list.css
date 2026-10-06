@@ -1,0 +1,110 @@
+/* 自动抽取自 components/plot/ExpressionList.vue 的 <style>，请勿手改。
+ * 重新生成: node tools/extract-styles.mjs
+ * 目的：React 版沿用 Vue 版同一份样式，保证界面不走样。 */
+
+.expr-list { display: flex; flex-direction: column; gap: 6px; }
+
+/* 符号面板：紧凑单行，可横向滚动 */
+.symbol-bar {
+  display: flex; flex-wrap: wrap; gap: 3px;
+  padding-bottom: 2px;
+}
+.symbol-btn {
+  min-width: 26px; height: 22px; padding: 0 5px;
+  border: 1px solid var(--border); border-radius: 5px;
+  background: var(--surface); color: var(--text-muted);
+  cursor: pointer; font-size: 12px; line-height: 1;
+  font-family: 'Cambria Math', 'Latin Modern Math', Georgia, serif;
+}
+.symbol-btn:hover { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); box-shadow: var(--shadow-1); }
+.symbol-btn:active { transform: translateY(1px); }
+
+.expr-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: 16px 22px 18px 1fr auto;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px;
+  border-radius: var(--r-md);
+  border: 1px solid transparent;
+  background: var(--surface);
+  transition: background .12s, border-color .12s;
+}
+.expr-row:hover { background: var(--surface-alt); box-shadow: var(--shadow-1); }
+.expr-row.active { border-color: var(--accent); background: var(--accent-soft); }
+/* 输入框的框体/字号/高度统一由 MathField.vue 决定（math-field.mathfield）。
+ * 这里只保留"这一行自己的状态"：隐藏行淡出。
+ * 曾经这里写死 height:30px + font-size:15px，
+ * 比 MathLive 内部容器（内容自适应）矮，分数会被压到下一行。 */
+.expr-row.hidden .expr-input { opacity: .45; text-decoration: line-through; }
+
+.row-no {
+  font-size: 11px;
+  color: var(--text-subtle);
+  text-align: right;
+  user-select: none;
+  font-variant-numeric: tabular-nums;
+}
+
+.vis-btn { background: none; border: none; padding: 0; cursor: pointer; display: grid; place-items: center; }
+.vis-ring {
+  width: 13px; height: 13px; border-radius: 50%;
+  border: 2px solid var(--text-subtle);
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.vis-ring.off { background: transparent; border-color: var(--text-subtle); }
+
+.color-dot {
+  width: 16px; height: 16px; border-radius: 50%;
+  border: 2px solid rgba(0,0,0,.12); cursor: pointer; padding: 0;
+}
+.palette {
+  position: absolute; top: 32px; left: 24px; z-index: 20;
+  display: flex; gap: 4px; padding: 6px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r-md); box-shadow: var(--shadow);
+}
+.palette-swatch {
+  width: 18px; height: 18px; border-radius: 50%;
+  border: 2px solid transparent; cursor: pointer; padding: 0;
+}
+.palette-swatch.picked { border-color: var(--text); }
+
+.del-btn {
+  background: none; border: none; color: var(--text-subtle);
+  cursor: pointer; font-size: 12px; padding: 2px 4px; opacity: 0;
+}
+.expr-row:hover .del-btn { opacity: 1; }
+.del-btn:hover { color: var(--danger); }
+
+/* 预览行：紧贴输入框下方，弱化成辅助信息 */
+.expr-preview {
+  grid-column: 3 / -1;
+  display: flex; align-items: baseline; gap: 8px;
+  padding: 1px 4px 2px;
+  min-height: 18px;
+  font-size: 12px;
+  color: var(--text-muted);
+  overflow-x: auto;
+}
+.preview-note { font-size: 11px; color: var(--text-subtle); white-space: nowrap; }
+.preview-note code {
+  font-family: 'Cascadia Code', Consolas, monospace;
+  background: var(--surface-alt); border-radius: 3px; padding: 0 3px;
+}
+
+.expr-error {
+  grid-column: 3 / -1;
+  font-size: 11.5px; color: var(--danger);
+  padding-left: 4px; margin-top: 2px;
+}
+
+.add-row {
+  margin-top: 2px; height: 30px;
+  border: 1px dashed var(--border); border-radius: 8px;
+  background: transparent; color: var(--text-subtle);
+  cursor: pointer; font-size: 12.5px;
+}
+.add-row:hover { color: var(--accent); border-color: var(--accent); }

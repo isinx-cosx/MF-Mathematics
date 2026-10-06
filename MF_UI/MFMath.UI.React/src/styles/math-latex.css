@@ -1,0 +1,12 @@
+/* 自动抽取自 components/math/MathLatex.vue 的 <style>，请勿手改。
+ * 重新生成: node tools/extract-styles.mjs
+ * 目的：React 版沿用 Vue 版同一份样式，保证界面不走样。 */
+
+.math-latex { display: inline-block; line-height: 1.2; }
+/* KaTeX 默认字号偏大，这里跟随父级上下文 */
+.math-latex :deep(.katex) { font-size: 1.02em; }
+.math-plain {
+  font-family: 'Cambria Math', 'Latin Modern Math', Georgia, serif;
+  color: inherit;
+  white-space: pre-wrap;
+}

@@ -1,0 +1,157 @@
+/* 自动抽取自 views/plot/PlotView.vue 的 <style>，请勿手改。
+ * 重新生成: node tools/extract-styles.mjs
+ * 目的：React 版沿用 Vue 版同一份样式，保证界面不走样。 */
+
+.desmos-layout {
+  display: grid;
+  grid-template-columns: 300px 1fr;
+  height: 100%;
+  min-height: 520px;
+}
+.desmos-side {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px;
+  border-right: 1px solid var(--border);
+  background: var(--surface-alt);
+  overflow-y: auto;
+}
+.slider-box {
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+}
+.slider-title {
+  font-size: 11.5px;
+  color: var(--text-subtle);
+  margin-bottom: 4px;
+}
+.side-status {
+  margin-top: auto;
+  font-size: 11.5px;
+  color: var(--text-subtle);
+}
+.desmos-main { position: relative; min-width: 0; }
+.view-controls {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.vc-btn {
+  width: 32px; height: 32px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--glass);
+  backdrop-filter: blur(8px);
+  color: var(--text);
+  font-size: 15px;
+  cursor: pointer;
+  transition: background .12s, border-color .12s;
+}
+.vc-btn:hover { background: var(--surface); border-color: var(--accent); color: var(--accent); }
+.vc-btn.on {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 700;
+}
+
+/* 交点 / 点 列表 */
+.pt-count {
+  display: inline-block; margin-left: 4px; padding: 0 6px;
+  background: var(--accent-soft); color: var(--accent);
+  border-radius: 999px; font-size: 10.5px;
+}
+.pt-row {
+  display: grid;
+  grid-template-columns: 14px 1fr auto;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 2px;
+  font-size: 12px;
+}
+.pt-dot {
+  width: 9px; height: 9px; border-radius: 50%;
+  background: #1e293b;
+  justify-self: center;
+}
+.pt-dot.hollow { background: #fff; border: 2px solid #c74440; }
+.pt-text {
+  font-family: 'Cascadia Code', Consolas, monospace;
+  color: var(--text);
+}
+.pt-badge {
+  font-size: 10px; padding: 0 5px; border-radius: 999px;
+}
+.pt-badge.exact { background: #dcfce7; color: #15803d; }
+.pt-badge.num { background: #f1f5f9; color: #64748b; }
+.link-btn {
+  float: right; background: none; border: none;
+  color: var(--text-subtle); font-size: 11px; cursor: pointer;
+}
+.link-btn:hover { color: var(--danger); }
+
+/* 极值标记与参数分支 */
+.pt-dot.diamond {
+  width: 10px; height: 10px; border-radius: 2px;
+  transform: rotate(45deg);
+}
+.pt-dot.diamond.max { background: #7c3aed; }
+.pt-dot.diamond.min { background: #0891b2; }
+.pt-sym {
+  padding: 4px 2px 2px;
+  border-top: 1px dashed var(--border);
+  margin-top: 3px;
+}
+.pt-branch { display: flex; align-items: center; gap: 6px; padding: 1px 0 1px 10px; font-size: 11.5px; flex-wrap: wrap; }
+/* 参数情形标题：一块对应一个参数取值区间（如 a>0） */
+.branch-head { display: flex; align-items: center; gap: 6px; padding: 2px 0 1px; }
+.branch-tag.strong {
+  font-weight: 600;
+  color: var(--text);
+  background: var(--hover, rgba(127, 127, 127, 0.12));
+  border-radius: 4px;
+  padding: 0 5px;
+}
+/* 按参数分组后，行首是驻点表达式而非假设条件 */
+.branch-x {
+  font-family: 'Cascadia Code', Consolas, monospace;
+  color: var(--text-muted);
+  min-width: 92px;
+}
+.branch-tag {
+  font-family: 'Cascadia Code', Consolas, monospace;
+  color: var(--text-muted);
+  min-width: 52px;
+}
+.branch-kind { font-size: 11px; }
+.branch-kind.max { color: #7c3aed; }
+.branch-kind.min { color: #0891b2; }
+.branch-kind.na { color: var(--text-subtle); }
+.branch-value {
+  font-family: 'Cascadia Code', Consolas, monospace;
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-left: auto;
+}
+/* 驻点不存在/在定义域外时的原因说明（如 "驻点 x = -1 落在定义域之外"） */
+.branch-note {
+  font-size: 10.5px;
+  color: var(--text-subtle);
+  margin-left: auto;
+  text-align: right;
+}
+/* 含参交点的实根性提示：Δ 符号随参数变化时交点数并非恒定 */
+.ix-note {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px dashed var(--border);
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}

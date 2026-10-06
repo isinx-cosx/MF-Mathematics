@@ -1,0 +1,26 @@
+{
+  "name": "mfmath-ui-react-plot",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "MF-Mathematics 绘图页面（React 版）——只做绘图：2D 函数/极坐标/复数/向量场/3D 曲面/几何/分形。计算与绘图逻辑复用 MFMath.UI.Vue/src/lib（纯 JS，与框架无关）。",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "check:types": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "katex": "^0.16.11",
+    "mathlive": "^0.110.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@vitejs/plugin-react": "^4.3.3",
+    "typescript": "^5.9.3",
+    "vite": "^6.0.7"
+  }
+}
