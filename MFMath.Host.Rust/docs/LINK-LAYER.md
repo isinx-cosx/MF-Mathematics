@@ -18,13 +18,28 @@
 **接缝形状已经落地：同步宿主对象在 Tauri 下跑通了**（路线 A）。前端那 15 处访问器与 47 个 CDP
 用例**一行都没改**，`mf.Dispatch` 是同步函数、返回字符串、引擎真的在算。
 
-- 已实现 **5/10** 个宿主对象：`mf`（16 个方法，含 job 通道）、`win`（10）、`sys`（8）、`diag`（1）、
-  **`push`（3，本轮新补）**；
+- 已实现 **7/10** 个宿主对象：`mf`（16 个方法，含 job 通道）、`win`（10）、`sys`（8）、`diag`（1）、
+  `push`（3）、**`update`（6）**、**`account`（19）**；
 - 页面 URL 恢复成 **`https://mfmath.local/index.html`**（读 exe 同目录的 `wwwroot`，与 C# 宿主同一份）
   —— 47 个用例的取页正则不用动；
-- 剩余 5 个：`con`（控制台/组件，最重）、`search`、`account`、`update`、`ai`。
+- 剩余 3 个：`search`、`con`（控制台/组件，最重）、`ai`。
 
-### 0.1 本轮实测记录（2026-10-07）
+### 0.1 当前验收基线（2026-10-07，11 组用例，**已提交版本**）
+
+| 套件 | 结果 | 失败项归属 |
+| --- | --- | --- |
+| `cdp-basic-calc` / `cdp-bridge-verify` / `cdp-window-shell` / `cdp-plot-verify` | 41/0 · 7/0 · 25/0 · 9/0 | — |
+| `cdp-account` / `cdp-update` | **52/0 · 37/0** | — |
+| `cdp-export-image` | 43/2 | 导出状态行文案（**改动前就有的 2 项**，与链接层无关） |
+| `cdp-settings` | 40/3 | `con`×2 · `search`×1 |
+| `cdp-workspace` | 20/5 | `con`（控制台页载荷）+ React 绘图页自身的载荷 |
+| `cdp-history-search` | 18/3 | `search` |
+| `cdp-push` | 14/6 | `con`（控制台运行 / 组件安装两段） |
+
+**19 项失败全部能追到 `con` / `search`** —— 也就是剩下要补的两个桥。
+（另有 `verify-spike` 10/0、`--selftest-jobs` 5/5、`--selftest-common` 10/0 三条无头验收。）
+
+### 0.2 本轮实测记录（2026-10-07）
 
 **做成了什么**
 
