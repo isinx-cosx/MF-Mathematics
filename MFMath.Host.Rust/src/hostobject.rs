@@ -26,6 +26,14 @@
 //!
 //! 生命周期：对象与类型信息都故意 `Box::leak` —— 宿主进程活着，它们就该活着。
 
+// edition 2024 的 `unsafe_op_in_unsafe_fn`：本文件里每个 `unsafe fn` 的函数体**本身就是**
+// 不安全操作（裸指针解引用、`VARIANT` 的 union 字段访问、COM 调用），一共 37 处。
+// 逐处在函数体里套一层 `unsafe { }` 不会让审阅更容易 —— 它只是把"这个函数整体不安全"
+// 这件事重复 37 遍，并给 7 个 vtable 槽位的实现各多套一层缩进（那 7 个函数是全文件最不能
+// 改出细枝末节的地方）。所以这里**显式关掉这一条 lint**，而不是假装每处都单独审过。
+// 想恢复逐条检查时删掉这一行即可，警告会原样回来。
+#![allow(unsafe_op_in_unsafe_fn)]
+
 use std::ffi::c_void;
 use std::mem::ManuallyDrop;
 use std::sync::atomic::{AtomicU32, Ordering};

@@ -60,12 +60,6 @@ pub fn stamp_full() -> String {
     format!("{y:04}-{mo:02}-{d:02} {h:02}:{mi:02}:{s:02}.{ms:03}")
 }
 
-/// `yyyy-MM-dd HH:mm`（文件列表与依赖清单的 mtime 用）
-pub fn stamp_min() -> String {
-    let (y, mo, d, h, mi, _, _) = local_parts();
-    format!("{y:04}-{mo:02}-{d:02} {h:02}:{mi:02}")
-}
-
 /// 把文件的修改时间按**本地时区**格式化成 `yyyy-MM-dd HH:mm`。
 /// Rust 标准库只给 UTC 时间戳，所以自己算一次当前本地偏移再用民用历算法换算。
 pub fn stamp_of(t: std::time::SystemTime) -> String {

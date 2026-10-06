@@ -12,7 +12,7 @@
 //! 常规调用 4 MB 够用，而复网格那种整块数据（600×600 的 re/im 约 12 MB JSON）
 //! 会被顶掉，于是逐级扩容重试 —— 而不是给所有调用一律开 64 MB 白占内存。
 
-use std::ffi::{c_char, c_int, CStr, CString};
+use std::ffi::{c_char, c_int, CString};
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 
@@ -120,12 +120,4 @@ impl Engine {
             BUF_SIZES[BUF_SIZES.len() - 1] / (1024 * 1024)
         ))
     }
-}
-
-/// 引擎返回的裸值（给需要直接拿字符串的调用方）
-pub fn cstr_lossy(p: *const c_char) -> String {
-    if p.is_null() {
-        return String::new();
-    }
-    unsafe { CStr::from_ptr(p) }.to_string_lossy().into_owned()
 }

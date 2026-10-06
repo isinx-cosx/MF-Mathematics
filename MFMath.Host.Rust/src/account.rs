@@ -778,7 +778,7 @@ pub fn cancel_all() {
 pub fn self_check() -> String {
     let mut checks: Vec<Value> = Vec::new();
     let mut all = true;
-    let mut add = |name: &str, ok: bool, detail: String, checks: &mut Vec<Value>| {
+    let add = |name: &str, ok: bool, detail: String, checks: &mut Vec<Value>| {
         checks.push(json!({ "name": name, "ok": ok, "detail": detail }));
     };
 

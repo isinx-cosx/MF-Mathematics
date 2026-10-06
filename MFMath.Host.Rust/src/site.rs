@@ -63,10 +63,6 @@ impl SiteConfig {
         }
     }
 
-    /// 拼一个站内路径（`path` 以 `/` 开头）
-    pub fn url(&self, path: &str) -> String {
-        format!("{}{}", self.base_url.trim_end_matches('/'), path)
-    }
 }
 
 /// 站点地址规范化：只接受 http/https，且不能带查询串/片段/用户信息
@@ -89,18 +85,20 @@ pub fn normalize_base_url(url: &str) -> String {
 /// 一次请求的结果（与 C# `AccountCall` 同形）
 pub struct ApiCall {
     pub ok: bool,
-    pub status: i32,
     pub body: String,
     pub kind: &'static str,
     pub error: String,
+    /// HTTP 状态码（0 = 没到服务器：网络/超时/取消）。
+    /// 搜索要拿它区分语义（如 Wolfram 的 501 = 没理解查询），所以不能只留错误文案。
+    pub status: i32,
 }
 
 impl ApiCall {
     fn ok(status: i32, body: String) -> Self {
-        ApiCall { ok: true, status, body, kind: "", error: String::new() }
+        ApiCall { ok: true, body, kind: "", error: String::new(), status }
     }
     fn err(status: i32, body: String, kind: &'static str, error: String) -> Self {
-        ApiCall { ok: false, status, body, kind, error }
+        ApiCall { ok: false, body, kind, error, status }
     }
 }
 
