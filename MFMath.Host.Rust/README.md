@@ -1,132 +1,153 @@
-# MFMath.Host.Rust —— 宿主由 C# 换到 Rust（迁移中）
+# MFMath.Host.Rust —— Rust/Tauri 宿主
 
-> 状态：**spike 阶段**。当前目录只有工程骨架与方案，尚未能替代 `MFMath.Host`（C#）。
-> 引擎（C++ `mf_mathematics.dll`）与前端（`MF_UI/MFMath.UI.Vue`）**都不动**。
+> 状态：**可用**（不是 spike 了）。链接层 10 个宿主对象已落地 **7 个**，前端与 47 个 CDP 用例
+> **一行未改**；引擎、前端都不动。
+>
+> 逐项的现状、踩过的坑与验收方式在 **[`docs/LINK-LAYER.md`](docs/LINK-LAYER.md)**——
+> 那份文档是这件事的唯一依据，本 README 只讲"这是什么、怎么构建、怎么测"。
 
 ---
 
-## 一、为什么换，以及不换什么
+## 一、这是什么
 
-- **换的是宿主**：窗口 + WebView2 + 那 10 个桥（DPAPI、HTTP、组件下载、控制台子进程…），
-  C# 侧共 **30 文件 / 5,663 行**。
-- **不换引擎**：`mf_mathematics.dll` 已经是一个只有两个 C ABI 导出的干净边界
-  （`math_call` / `function_exists`），任何语言接它都只是 `libloading` + JSON。
-- **不换前端**：`MF_UI/MFMath.UI.Vue` 的 30,149 行一行不改（理由见下）。
+同一套产品的第二个宿主：把 C# WPF + WebView2 换成 **Rust + Tauri v2**。
+引擎（C++ `mf_mathematics.dll`）与前端（`MF_UI/MFMath.UI.Vue`）都不动。
 
-## 二、硬约束：**必须保住同步的宿主对象接缝**
+| 层 | 位置 | 说明 |
+| --- | --- | --- |
+| 引擎 | `MF_Mathematics/` | 两个 C ABI：`math_call` / `function_exists`，424 个 action |
+| 宿主 | `MFMath.Host/`（C#，现役） · **`MFMath.Host.Rust/`（本目录）** | 窗口 + WebView + **10 个宿主对象** |
+| 前端 | `MF_UI/MFMath.UI.Vue/` | Vue 外壳 + React 绘图页，共用 `src/lib/**` |
 
-前端现在的调用形状是 WebView2 的**同步** COM 宿主对象：
+### 链接层：同步宿主对象，不是 `invoke`
+
+前端的调用形状是 WebView2 的**同步** COM 宿主对象，而且用在采样热循环里：
 
 ```js
 window.chrome.webview.hostObjects.sync.mf.Dispatch("expr_eval_vars_batch", "{…}")
 ```
 
-这条接缝是**同步**的，而且用在热循环里 —— `lib/plot/sampling.js` 的 `adaptiveSample()`
-每轮对几百个点做一次批量求值，`engineCall` 是同步返回的。整棵树里共有
-**10 个宿主对象、约 45 处 `call("Method", …)` 调用点**（`engineCall` 更是遍布绘图各页）。
-
-因此：
-
-| 方案 | 结论 |
-| --- | --- |
-| **wry + `ICoreWebView2::AddHostObjectToScript`**（本目录采用） | 前端**零改动**；Rust 侧要自己实现 `IDispatch`，但**只需实现一个通用版**，10 个桥共用 |
-| Tauri 2 的 `invoke()` | ❌ 它是 **async**（返回 Promise）→ `engineCall` 变异步 → `adaptiveSample`、PlotView/3D/Vector/Complex/Geometry 的采样链路全部重写。这不是"换宿主"，是"换前端架构" |
-| 自定义协议 + `fetch` | ❌ 同样异步；同步 XHR 在主线程做几百次批量求值不可接受 |
-
-**做法**：Rust 侧实现**一个**通用 `IDispatch`，内部是一张 `(对象名, 方法名) → 处理函数`
-的注册表；每个宿主对象都用它注册一遍。方法的返回是 JSON 字符串，和现在
-`MathBridge.Dispatch` 的契约逐字一致 —— 前端的 `parse()` 那一层不用动。
-
-## 三、桥清单（迁移映射）
-
-| 宿主对象 | C# 源 | 大约行数 | Rust 侧要点 | 状态 |
-| --- | --- | --- | --- | --- |
-| `mf` | `MathBridge.cs` + `NativeEngine.cs` | 190 | `libloading` 载入 DLL，调两个 C ABI；分级缓冲（4/16/64 MB） | spike 目标 |
-| `win` | `WindowBridge.cs` | 200 | 无边框 + DWM 圆角/投影、拖动、最大/最小、文件对话框（`rfd`） | 待做 |
-| `sys` | `SettingsBridge.cs` | 365 | 设置 JSON 读写（含 `.bak`）、依赖 DLL 体检、导出诊断包、打开目录 | 待做 |
-| `diag` | `LogBridge.cs` | 90 | 前端异常写进同一份 `app.log` | 待做 |
-| `push` | `PushBridge.cs` + `PushHub.cs` | 130 | `PostWebMessageAsJson` 单向下行（组件进度、控制台结束、AI 流式） | 待做 |
-| `con` | `ConsoleBridge.cs` | **824** | CPython/MinGW 组件的下载（Range 续传 + SHA-256 + zip 解包）、启动/停止子进程、stdin/stdout 管道 | 最重，最后做 |
-| `ai` | `AiBridge.cs` + `AiRelay.cs` + `AiClient.cs` | 345 | `reqwest`(**rustls**) + SSE 中继；密钥 DPAPI 密文 | 待做 |
-| `search` | `SearchBridge.cs` + `SearchBackend.cs` + `SearchCache.cs` | 411 + 323 | 三个后端 + 四个解析器 + 缓存（键含引擎） | 待做 |
-| `account` | `AccountBridge.cs` + `AccountApi.cs` + `AccountConfig.cs` | 484 | 站点契约、令牌 DPAPI、401 自动登出 | 待做 |
-| `update` | `UpdateBridge.cs` | 304 | 版本关系判定、sha256、把下载交给浏览器 | 待做 |
-
-> `reqwest` 一律用 **rustls**（不是 native-tls/Schannel）：宿主自己的 HTTP 从此不再依赖
-> Schannel —— 这台机器上那个 `SEC_E_NO_CREDENTIALS` 就是 Schannel 路径的问题。
-
-## 四、Spike 验收（做完这三步再谈全量）
-
-| 步骤 | 内容 | 验收方式（用现成用例，不新写测试） | 实测结果（2026-10-06） |
-| --- | --- | --- | --- |
-| **S1** | wry 窗口 + `SetVirtualHostNameToFolderMapping("mfmath.local", wwwroot)` + 打开 CDP 9222 | 宿主起来后页面能加载；用 CDP 断言 `#app` 有内容、路由可用 | ✅ **全过**：页面在 `https://mfmath.local/index.html#/`，Vue 已挂载，12 个导航元素 |
-| **S2** | 通用 `IDispatch` + `mf` 对象（`Dispatch` / `Ready` / `Version` / `FunctionExists`） | `node tools/verify-spike.mjs`（它只依赖 `mf.Dispatch`） | ⚠ **5/5**：`hostObjects.sync` 存在、`mf` 可见，但 **`typeof mf.Dispatch === "string"`** —— 见下 |
-| **S3** | `win` 对象（无边框/拖动/文件对话框）+ `sys` 的读写 | `node tests/cdp-workspace.mjs` 的"另存为/从文件打开"段通过 | 未开始 |
-
-### S2 卡在哪，为什么
-
-实测输出：
+Tauri 没有 `AddHostObjectToScript` 的官方对应物，但有 `with_webview()` ——
+它把底层的 `ICoreWebView2Controller` 交出来，于是这条路**保住了**：
 
 ```
-{"hasSync":true,"names":[],"hasMf":true}
-{"t":"string","err":"mf.Dispatch is not a function"}
+WebviewWindow::with_webview() → PlatformWebview::controller() → ICoreWebView2
+   ├─ AddHostObjectToScript("mf"/"win"/"sys"/"diag"/"push"/"update"/"account"/…)
+   ├─ SetVirtualHostNameToFolderMapping("mfmath.local", <exe>/wwwroot)
+   └─ PostWebMessageAsJson（宿主 → 页面 的推送通道）
 ```
 
-`mf` 在同步命名空间里**可见**（说明 `GetIDsOfNames` 通了），但读 `mf.Dispatch` 拿到的是**字符串**：
-WebView2 的宿主对象代理要靠 **`ITypeInfo`** 才知道一个成员是"方法"还是"属性"。没有类型信息时
-它按属性处理 —— 读 `Dispatch` 就发一次 `DISPATCH_PROPERTYGET`（无参），我们的处理函数返回了
-"缺少函数名"的错误 JSON，于是 `mf.Dispatch` 变成了字符串，后面调用自然"不是函数"。
+COM 那一层只有一份通用实现（`src/hostobject.rs`：手写 7 个 vtable 槽位 + 由
+`CreateDispTypeInfo` 造出的 `ITypeInfo`）；**加一个桥 = `src/handlers.rs` 加一个分支
++ `src/main.rs` 的方法表加一段**，COM 代码一行不用动。
 
-**试过但已回退的路**：把整套 IDispatch 换成 Windows 的 `CreateDispTypeInfo` + `CreateStdDispatch`
-（VB6/ATL 的 dispinterface 标准机）。结果**宿主起不来了**——注意窗口是在 `event_loop.run()` 才显示的，
-所以 `register()` 一旦失败，表现就是"窗口根本没出现"，而不是报错。已回退。
+页面 URL 因此与 C# 宿主逐字相同：`https://mfmath.local/index.html`。
 
-**下一步（更小的增量）**：保留这个**已被证明能响应** GetIDsOfNames/Invoke 的手写 IDispatch，
-只把缺失的那一半补上 —— `GetTypeInfoCount` 返回 1，`GetTypeInfo` 返回一个由
-`CreateDispTypeInfo` 从同一张方法表造出的 `ITypeInfo`（dispid 与 `GetIDsOfNames` 保持一致）。
-即"只加类型信息，不换调度机制"。
+### 已实现 / 待实现
 
-## 五、本机开发的两条特殊处理（只在这台机器上需要）
+| 宿主对象 | 状态 | 验收用例 |
+| --- | --- | --- |
+| `mf`（引擎，16 方法，含异步 job 通道） | ✅ | `cdp-basic-calc` 41/0、`cdp-bridge-verify` 7/0、绘图各组 |
+| `win`（窗口 + 文件对话框，10 方法） | ✅ | `cdp-window-shell` 25/0 |
+| `sys`（设置/存储，8 方法） | ✅ | `cdp-settings` 40/3（余 3 项需 con/search） |
+| `diag`（前端异常入 app.log） | ✅ | 前端异常确实落进 `app.log` |
+| `push`（宿主 → 页面 推送，3 方法） | ✅ | `cdp-push` 14/6（余 6 项需 con） |
+| `update`（更新链，6 方法） | ✅ | `cdp-update` **37/0** |
+| `account`（用户系统，19 方法） | ✅ | `cdp-account` **52/0** |
+| `search`（联网搜索） | 🚧 进行中 | `cdp-search` |
+| `con`（控制台/组件下载，~1000 行） | ⬜ | `cdp-console*`、`cdp-push` ③④ |
+| `ai`（AI 助手 + SSE 中继，~860 行） | ⬜ | `cdp-ai` |
 
-1. **`CARGO_HOME` 放在仓库内**（`.cargo-home/`）：本会话的沙箱只允许写工作区，
-   写 `~/.cargo` 会被拒。构建时设：`$env:CARGO_HOME = "<repo>\.cargo-home"`。
-2. **crates 走本地明文代理**（`.cargo/config.toml` + `tools/crates-proxy.mjs`）：
-   这台机器的 Schannel 在受限令牌下不可用（`AcquireCredentialsHandle failed:
-   SEC_E_NO_CREDENTIALS`），cargo/curl 取不了包，而 Node 可以。于是让 Node 去 HTTPS 取、
-   cargo 只走 127.0.0.1 明文：
-   ```powershell
-   node MFMath.Host.Rust/tools/crates-proxy.mjs      # 127.0.0.1:8432
-   $env:CARGO_HOME = "<repo>\.cargo-home"
-   cargo build
-   ```
-   CI / 干净机器上不需要这两条（删掉 `.cargo/config.toml` 即回直连）。
-3. **前端构建时把 `TEMP` 指到仓库内**（只影响"经自动化沙箱执行"的构建）：
+---
 
-   ```powershell
-   $env:TEMP = "<repo>\..\.tmp-build"; $env:TMP = $env:TEMP
-   cd MF_UI/MFMath.UI.Vue; npm run build
-   ```
+## 二、构建
 
-   现象：`vite build` 走到 `[vite:esbuild-transpile]` 时失败 ——
-   `remove C:\Users\...\AppData\Local\Temp\esbuild-<hash>: Access is denied`。
-   esbuild 在用户的 `%LOCALAPPDATA%\Temp` 里删不掉自己刚建的文件（受限令牌下的
-   重定向临时目录问题），换一个可自由删写的目录即可绕开。
-   **用户自己的终端里不需要这条**（默认 `%TEMP%` 下构建正常，2026-10-06 已验证）。
+```powershell
+$repo = "<仓库根>\Multifunctional-Mathematics-v2.0"
+$H    = "$repo\MFMath.Host.Rust"
 
-## 六、与 C# 宿主共存
+# 本机（受沙箱限制）需要两条：
+$env:TEMP = "$repo\.tmp-build"; $env:TMP = $env:TEMP   # ① 见下面"坑一"
+$env:CARGO_HOME = "$repo\.cargo-home"                  # ② 见下面"坑二"
+node "$H\tools\crates-proxy.mjs"                       # ③ 取包代理，见下面"坑三"
+
+cd $H; cargo build
+```
+
+`cargo build` 会顺手做三件事（`build.rs`，**只在新的时候拷、缺了只警告**）：
+
+1. 引擎产物（`mf_mathematics.dll` + 5 个依赖）→ exe 同目录；
+2. `MF_UI/MFMath.UI.Vue/dist` → `<exe 同目录>/wwwroot`；
+3. 图标检查。
+
+**缺了第 1 条**：界面照常打开，但启动自检会写「引擎未加载：找不到数学引擎…」，一次都算不了。
+**缺了第 2 条**：页面退回 Tauri 内嵌资产，URL 变成 `http://tauri.localhost` —— 47 个 CDP 用例
+会当场找不到页面。
+
+手工同步（要放到别的目录时用）：`node tools/sync-engine.mjs --dest <dir>`、
+`node tools/sync-wwwroot.mjs --dest <dir>`。
+
+### 本机开发的三条特殊处理
+
+1. **`TEMP` 必须指到仓库内**（经自动化沙箱构建时）：受限令牌下 `%TEMP%` 不可写，
+   编任何 C 依赖（`ring` / `aws-lc-sys`）都会报
+   `cl.exe D8050 未能将命令行放入调试记录中` —— 看起来像编译器坏了，其实是临时目录写不了。
+   **用户自己的终端里不需要这条。**
+2. **`CARGO_HOME` 放在仓库内**（`<repo>\.cargo-home`）：同理，写 `~/.cargo` 会被拒。
+3. **crates 走本地明文代理**（`.cargo/config.toml` + `tools/crates-proxy.mjs`）：
+   本机取不到包时用它 —— Node 走 HTTPS 取、cargo 只走 127.0.0.1 明文。
+   CI / 干净机器不需要这三条（删掉 `.cargo/config.toml` 即回直连）。
+
+---
+
+## 三、跑与测
+
+```powershell
+# 起宿主（会自己开 CDP 9222）
+& "$H\target\debug\mfmath-host-rust.exe"
+
+# 无头自检（不需要 WebView2，受限环境里也能跑）
+& "$H\target\debug\mfmath-host-rust.exe" --selftest-jobs     # 异步任务通道，5 项
+& "$H\target\debug\mfmath-host-rust.exe" --selftest-common   # DPAPI/sha256/zip/HTTP 环境
+
+# 端到端（与 C# 宿主共用同一批用例）
+node "$repo\MF_UI\MFMath.UI.Vue\tests\cdp-basic-calc.mjs"
+```
+
+### ⚠ 经自动化沙箱跑用例时：宿主 exe 要放到工作区**外面**
+
+沙箱会限制"**镜像位于工作区内**的进程写工作区外"：宿主在 `target/debug` 下跑时写不了
+`%LOCALAPPDATA%\MFMath`（日志、设置、WebView2 数据目录全部静默失败），用例会莫名其妙地红。
+把 exe + DLL + wwwroot 拷到工作区外再跑即可：
+
+```powershell
+$run = "$env:TEMP\mfhost-run"
+Copy-Item "$H\target\debug\mfmath-host-rust.exe" $run -Force
+Copy-Item "$H\target\debug\*.dll" $run -Force
+Copy-Item "$H\target\debug\wwwroot" $run -Recurse -Force
+& "$run\mfmath-host-rust.exe"
+```
+
+（`MF_WEBVIEW2_DIR` 可指定 WebView2 用户数据目录，**与 C# 宿主同名开关** ——
+两个宿主同时跑时必须指到不同目录，否则第二个会撞 `0x800700AA`。）
+
+---
+
+## 四、与 C# 宿主共存
 
 两者可以并存、互不干扰，切换成本为零：
 
-- **前端共用**：Release 的 `wwwroot` 是 `MF_UI/MFMath.UI.Vue/dist` 的拷贝，Rust 宿主读同一份；
-- **数据目录共用**：`%LOCALAPPDATA%\MFMath\`（settings / logs / components / WebView2）；
-  迁移期两边都写同一份 JSON（格式不变），谁的实现先跑通就用谁；
-- **端到端用例共用**：47 个 `cdp-*.mjs` 走的是 CDP，跟宿主用什么语言无关。
+- **前端共用**：`wwwroot` 都是 `MF_UI/MFMath.UI.Vue/dist` 的拷贝，两边读同一份；
+- **数据目录共用**：`%LOCALAPPDATA%\MFMath\`（settings / logs / components / WebView2），
+  设置 JSON 的字段名两边**逐字一致**；凭据是 DPAPI 密文（base64 blob，**不传 entropy**），
+  Rust 侧已实测能解开 C# 侧写的密文、反之亦然；
+- **端到端用例共用**：47 个 `cdp-*.mjs` 走 CDP，与宿主用什么语言无关；
+- **行为对齐**：窗口尺寸/最小尺寸/数据目录/CDP 端口/页面 URL 都按 C# 宿主抄。
 
-## 七、已知风险
+---
 
-| 风险 | 说明 | 对策 |
-| --- | --- | --- |
-| Rust 侧 `IDispatch` 实现 | 需要 unsafe COM/VARIANT 处理，是本迁移唯一"可能翻车"的点 | S2 先做它；只写一份通用实现 |
-| 控制台桥（824 行） | 子进程 + 管道 + 组件下载 = 最多细节 | 放到最后；C# 版继续可用直到搬完 |
-| 两份宿主的行为漂移 | 迁移期两边都在 | 同一批 CDP 用例同时对着两边跑，谁红修谁 |
-| 本机 Schannel | 影响取包，不影响产物 | 见第五节；或用另一台机器/CI 构建 |
+## 五、已知缺口
+
+看 `docs/LINK-LAYER.md` 的 §0.1 与 §7（那里是清单，修完就删）。
+当前主要是：`search` / `con` / `ai` 三个桥，以及一批 edition-2024 的
+`unsafe_op_in_unsafe_fn` 警告（`hostobject.rs`，纯噪音不影响功能）。
