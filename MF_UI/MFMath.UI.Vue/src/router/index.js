@@ -23,10 +23,13 @@ const FallbackView = {
 const REAL_VIEWS = {
   // 基础运算：计算器视图（旧版是空壳，这里经引擎真算）
   "/calc/basic": () => import("../views/calc/BasicCalcView.vue"),
-  "/plot/2d": () => import("../views/plot/PlotView.vue"),
+  // 2D 函数绘图 / 极坐标：**已改用 React 实现**，经 ReactPlotView 嵌在 Vue 外壳里。
+  // 逻辑层仍是同一份 src/lib（@shared 别名），所以引擎桥与表达式解析不会漂移。
+  // Vue 版 views/plot/PlotView.vue 保留在树上（不删）：要回退就把这两行改回它。
+  "/plot/2d": () => import("../components/plot-react/ReactPlotView.vue"),
   // 极坐标：原版是独立入口（i18n.py 的 get_plot_modes 第 2 项），
-  // 能力早就在 plotMath/PlotView 里，缺的只是入口；grid 经 meta 传给 PlotView。
-  "/plot/polar": () => import("../views/plot/PlotView.vue"),
+  // 能力早就在 plotMath 里，缺的只是入口；grid 经 meta 传给页面。
+  "/plot/polar": () => import("../components/plot-react/ReactPlotView.vue"),
   "/plot/3d": () => import("../views/plot/Plot3DView.vue"),
   "/plot/vector": () => import("../views/plot/PlotVectorView.vue"),
   "/plot/fractal": () => import("../views/plot/PlotFractalView.vue"),

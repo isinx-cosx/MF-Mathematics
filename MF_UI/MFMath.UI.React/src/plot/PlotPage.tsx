@@ -75,6 +75,20 @@ export default function PlotPage({
   const { samples, userPoints, status, addUserPoint, clearUserPoints } =
     usePlotSampling(rows, view, params, size);
 
+  /* 画布真实尺寸一到就按它重设视野 —— 对齐 Vue 版 PlotView.onMounted 的那一步。
+   *
+   * 为什么必须有：`defaultView(800,600)` 只是**占位**（世界 y 只有 ±7.5），真实的
+   * 视野要由画布的宽高比决定（x∈[-10,10]，y 跨度 = 10 · h/w，世界 1:1）。
+   * 少了这一步，画布是竖的而视野还是按 4:3 算的 —— 表现为"曲线贴不上坐标、
+   * 上下两边大片空白"，几何类断言（cdp-plot-accuracy / truth / extrema-domain）会成片失败。
+   * 只在第一次拿到真实尺寸时设，之后用户平移缩放不再被覆盖。 */
+  const sizedRef = useRef(false);
+  useEffect(() => {
+    if (sizedRef.current || size.w <= 0 || size.h <= 0) return;
+    sizedRef.current = true;
+    setView(defaultView(size.w, size.h));
+  }, [size.w, size.h]);
+
   /* 采样状态 → 外壳状态栏 */
   useEffect(() => { onStatusText?.(status.text); }, [status.text, onStatusText]);
 
