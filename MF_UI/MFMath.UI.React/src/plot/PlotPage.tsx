@@ -97,7 +97,7 @@ export default function PlotPage({
     [rows]
   );
 
-  const { samples, userPoints, status, addUserPoint, clearUserPoints } =
+  const { samples, userPoints, status, grids, addUserPoint, clearUserPoints } =
     usePlotSampling(rows, view, params, size);
 
   /* 画布真实尺寸一到就按它重设视野 —— 对齐 Vue 版 PlotView.onMounted 的那一步。
@@ -425,6 +425,7 @@ export default function PlotPage({
           onViewChange={setView}
           curves={curves}
           samples={samples as Record<number, Sample[]>}
+          grids={grids}
           points={userPoints}
           intersections={showIntersections ? intersectionList : []}
           extrema={showExtrema ? extremaList : []}

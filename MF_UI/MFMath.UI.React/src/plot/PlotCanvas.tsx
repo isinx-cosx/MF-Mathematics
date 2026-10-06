@@ -6,6 +6,7 @@ import {
 } from "@shared/plot/view.js";
 import { gridFor } from "@shared/plot/colors.js";
 import { drawPolarGrid } from "@shared/plot/cartesian.js";
+import { parseExpr } from "@shared/plot/plotMath.js";
 import "../styles/plot-canvas.css";
 
 export type View = { x0: number; x1: number; y0: number; y1: number };
@@ -26,8 +27,8 @@ type Props = {
   onViewChange: (v: View) => void;
   curves: Curve[];
   samples: Record<number, Sample[]>;
-  /** 隐式方程网格：React 版尚未移植 marching squares，暂不绘制（行内会报"未迁移"） */
-  grids?: Record<number, unknown>;
+  /** 二元网格（隐式方程等值线 / 二元区域）：由 expr_eval_grid 采样后传进来 */
+  grids?: Record<number, GridData>;
   points?: UserPoint[];
   intersections?: Intersection[];
   extrema?: Extremum[];
@@ -194,8 +195,219 @@ function drawCurves(
   }
 }
 
-/** 极值菱形（紫色极大 / 青色极小）。画在曲线**之前**，曲线不会被标记切断。 */
-function drawExtrema(
+/* ── 二元网格：区域填充 / 隐式等值线（移植自 Vue 版 PlotCanvas）────────────────
+ * 数据来自引擎 `expr_eval_grid`（行优先，nx×ny），由 usePlotSampling 采样后传进来。
+ * 这几段必须与 Vue 版逐字对应：判据、颜色透明度、marching squares 的鞍点分支
+ * 任何一处不同，同一份数据在两个版本上就会画出不同的图。 */
+type GridData = { xs: number[]; ys: number[]; values: number[] };
+
+/** 十六进制色 → rgba（半透明区域填充；与 Vue 版 PlotCanvas.withAlpha 同一实现） */
+function withAlpha(hex: string, a: number): string {
+  const h = String(hex || "#c74440").replace("#", "");
+  const n = h.length === 3 ? h.split("").map((c) => c + c).join("") : h.padEnd(6, "0").slice(0, 6);
+  const r = parseInt(n.slice(0, 2), 16), g = parseInt(n.slice(2, 4), 16), b = parseInt(n.slice(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${a})`;
+}
+
+/** 二元区域填充（如 x²+y²<4）：逐格判定格心符号是否满足不等式 */
+function drawRegions(
+  ctx: CanvasRenderingContext2D, w: number, h: number, view: View,
+  curves: Curve[], grids: Record<number, GridData>
+) {
+  for (const c of curves) {
+    if (c.visible === false) continue;
+    const p = parseExpr(c.text);
+    if (!p || p.type !== "region" || !p.valid) continue;
+    const g = grids[c.id];
+    if (!g || !g.values) continue;
+
+    const nx = g.xs.length, ny = g.ys.length;
+    if (nx < 2 || ny < 2) continue;
+    const cellW = w / (nx - 1), cellH = h / (ny - 1);
+    ctx.fillStyle = withAlpha(c.color, c.emphasis ? 0.22 : 0.16);
+
+    for (let j = 0; j + 1 < ny; j++) {
+      for (let i = 0; i + 1 < nx; i++) {
+        const a = g.values[j * nx + i];
+        const b = g.values[j * nx + i + 1];
+        const d = g.values[(j + 1) * nx + i];
+        const e = g.values[(j + 1) * nx + i + 1];
+        if (![a, b, d, e].every((t) => typeof t === "number" && isFinite(t))) continue;
+        const mean = (a + b + d + e) / 4;
+        const inside = p.op === ">" || p.op === "≥" ? mean > 0 : mean < 0;
+        if (!inside) continue;
+        ctx.fillRect(mapX(view, w, g.xs[i]), mapY(view, h, g.ys[j + 1]), cellW + 1, cellH + 1);
+      }
+    }
+  }
+}
+
+/** 隐式方程等值线（如 x²+y²=4）—— marching squares */
+function drawImplicit(
+  ctx: CanvasRenderingContext2D, w: number, h: number, view: View,
+  g: GridData, color: string, emphasis?: boolean
+) {
+  const nx = g.xs.length, ny = g.ys.length;
+  if (nx < 2 || ny < 2) return;
+
+  const sx = new Array<number>(nx), sy = new Array<number>(ny);
+  for (let i = 0; i < nx; i++) sx[i] = mapX(view, w, g.xs[i]);
+  for (let j = 0; j < ny; j++) sy[j] = mapY(view, h, g.ys[j]);
+
+  ctx.strokeStyle = color;
+  ctx.lineWidth = emphasis ? 3 : 2.2;
+  ctx.lineJoin = "round";
+  ctx.lineCap = "round";
+  ctx.beginPath();
+
+  /** 两点间线性插值出 f=0 的位置（返回 0..1） */
+  const lerp = (fa: number, fb: number) => {
+    const denom = fa - fb;
+    if (Math.abs(denom) < 1e-12) return 0.5;
+    return Math.max(0, Math.min(1, fa / denom));
+  };
+
+  for (let j = 0; j + 1 < ny; j++) {
+    for (let i = 0; i + 1 < nx; i++) {
+      const f00 = g.values[j * nx + i];
+      const f10 = g.values[j * nx + i + 1];
+      const f01 = g.values[(j + 1) * nx + i];
+      const f11 = g.values[(j + 1) * nx + i + 1];
+      if (![f00, f10, f01, f11].every((t) => typeof t === "number" && isFinite(t))) continue;
+
+      let idx = 0;
+      if (f00 > 0) idx |= 1;
+      if (f10 > 0) idx |= 2;
+      if (f11 > 0) idx |= 4;
+      if (f01 > 0) idx |= 8;
+      if (idx === 0 || idx === 15) continue;
+
+      const bx = sx[i] + (sx[i + 1] - sx[i]) * lerp(f00, f10), by = sy[j];
+      const rx = sx[i + 1], ry = sy[j] + (sy[j + 1] - sy[j]) * lerp(f10, f11);
+      const tx = sx[i] + (sx[i + 1] - sx[i]) * lerp(f01, f11), ty = sy[j + 1];
+      const lx = sx[i], ly = sy[j] + (sy[j + 1] - sy[j]) * lerp(f00, f01);
+
+      const seg = (x1: number, y1: number, x2: number, y2: number) => {
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x2, y2);
+      };
+      switch (idx) {
+        case 1: case 14: seg(lx, ly, bx, by); break;
+        case 2: case 13: seg(bx, by, rx, ry); break;
+        case 3: case 12: seg(lx, ly, rx, ry); break;
+        case 4: case 11: seg(rx, ry, tx, ty); break;
+        case 5: seg(lx, ly, tx, ty); seg(bx, by, rx, ry); break; // 鞍点
+        case 6: case 9: seg(bx, by, tx, ty); break;
+        case 7: case 8: seg(lx, ly, tx, ty); break;
+        case 10: seg(lx, ly, bx, by); seg(rx, ry, tx, ty); break; // 鞍点
+        default: break;
+      }
+    }
+  }
+  ctx.stroke();
+}
+
+function drawImplicits(
+  ctx: CanvasRenderingContext2D, w: number, h: number, view: View,
+  curves: Curve[], grids: Record<number, GridData>
+) {
+  for (const c of curves) {
+    if (c.visible === false) continue;
+    const p = parseExpr(c.text);
+    if (!p || p.type !== "implicit" || !p.valid) continue;
+    const g = grids[c.id];
+    if (!g) continue;
+    drawImplicit(ctx, w, h, view, g, c.color, c.emphasis);
+  }
+}
+
+/** 不等式区域填充（对齐 Desmos：半透明色块 + 实线边界）
+ * 支持 y ≷ f(x)（上下界）与 x ≷ g(y)（左右界）；边界曲线已由采样阶段给出。 */
+function drawInequalities(
+  ctx: CanvasRenderingContext2D, w: number, h: number, view: View,
+  curves: Curve[], samples: Record<number, Sample[]>
+) {
+  for (const c of curves) {
+    if (c.visible === false) continue;
+    const p = parseExpr(c.text);
+    if (!p || p.type !== "inequality" || !p.valid) continue;
+    const pts = samples[c.id];
+    if (!pts || pts.length < 2) continue;
+
+    ctx.fillStyle = withAlpha(c.color, c.emphasis ? 0.22 : 0.16);
+
+    const valid = (q: Sample): q is [number, number] =>
+      !!q && Number.isFinite(q[0]) && Number.isFinite(q[1]);
+
+    if (p.axis === "y") {
+      const upper = p.op === ">" || p.op === "≥";
+      const edge = upper ? 0 : h;
+      ctx.beginPath();
+      let started = false;
+      for (const q of pts) {
+        if (!valid(q)) continue;                       // 断点：不参与填充
+        const px = mapX(view, w, q[0]);
+        const py = Math.max(-h, Math.min(2 * h, mapY(view, h, q[1])));  // 钳制，避免巨值路径
+        if (!started) {
+          ctx.moveTo(px, edge);
+          ctx.lineTo(px, py);
+          started = true;
+        } else ctx.lineTo(px, py);
+      }
+      if (started) {
+        const last = [...pts].reverse().find(valid);
+        if (last) ctx.lineTo(mapX(view, w, last[0]), edge);
+        ctx.closePath();
+        ctx.fill();
+      }
+    } else if (p.axis === "x") {
+      const right = p.op === ">" || p.op === "≥";
+      const edge = right ? w : 0;
+      ctx.beginPath();
+      let started = false;
+      for (const q of pts) {
+        if (!valid(q)) continue;
+        const px = Math.max(-w, Math.min(2 * w, mapX(view, w, q[0])));
+        const py = mapY(view, h, q[1]);
+        if (!started) {
+          ctx.moveTo(edge, py);
+          ctx.lineTo(px, py);
+          started = true;
+        } else ctx.lineTo(px, py);
+      }
+      if (started) {
+        const last = [...pts].reverse().find(valid);
+        if (last) ctx.lineTo(edge, mapY(view, h, last[1]));
+        ctx.closePath();
+        ctx.fill();
+      }
+    }
+
+    // 边界线（Desmos 的区域边界用实线）——断点判据与 drawCurves 完全一致
+    ctx.strokeStyle = c.color;
+    ctx.lineWidth = c.emphasis ? 3 : 2;
+    ctx.lineJoin = "round";
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    let drawing = false;
+    let lastY: number | null = null;
+    const spanY = Math.abs(viewH(view)) || 1;
+    const far = (t: number) => Math.abs(t) > spanY * 4;
+    for (const q of pts) {
+      if (!valid(q)) { drawing = false; lastY = null; continue; }
+      const [x, y] = q;
+      const px = mapX(view, w, x), py = mapY(view, h, y);
+      if (drawing && lastY !== null && far(lastY) && far(y) && Math.sign(lastY) !== Math.sign(y)) {
+        drawing = false;
+      }
+      if (!drawing) { ctx.moveTo(px, py); drawing = true; } else ctx.lineTo(px, py);
+      lastY = y;
+    }
+    ctx.stroke();
+  }
+}
+
+/** 极值菱形（紫色极大 / 青色极小）。画在曲线**之前**，曲线不会被标记切断。 */function drawExtrema(
   ctx: CanvasRenderingContext2D, w: number, h: number, view: View, extrema: Extremum[]
 ) {
   if (!extrema.length) return;
@@ -283,7 +495,7 @@ function findCurvePointAt(
 }
 
 export default function PlotCanvas({
-  view, onViewChange, curves, samples, points = [], intersections = [], extrema = [],
+  view, onViewChange, curves, samples, grids = {}, points = [], intersections = [], extrema = [],
   gridMode = "rect", showGrid = true, theme, onSizeChange, onPickPoint, canvasRef,
 }: Props) {
   const innerRef = useRef<HTMLCanvasElement | null>(null);
@@ -315,11 +527,17 @@ export default function PlotCanvas({
     if (w <= 0 || h <= 0) return;
     const g = gridFor(mode);
     drawGrid(ctx, w, h, view, g, gridMode, showGrid, hover);
+    /* 绘制顺序与 Vue 版一致：网格 → 区域 → 不等式 → 标记 → 曲线 → 隐式等值线 → 用户点。
+     * 标记必须在曲线之前（不透明的菱形画在曲线之后会把曲线盖掉一截，
+     * 在平坦极值点处看起来就像"曲线断了"）。 */
+    drawRegions(ctx, w, h, view, curves, grids);
+    drawInequalities(ctx, w, h, view, curves, samples);
     drawExtrema(ctx, w, h, view, extrema);
     drawIntersections(ctx, w, h, view, intersections);
     drawCurves(ctx, w, h, view, curves, samples);
+    drawImplicits(ctx, w, h, view, curves, grids);
     drawUserPoints(ctx, w, h, view, points);
-  }, [view, curves, samples, points, intersections, extrema, gridMode, showGrid, mode, hover]);
+  }, [view, curves, samples, grids, points, intersections, extrema, gridMode, showGrid, mode, hover]);
 
   useEffect(() => {
     const cv = innerRef.current;

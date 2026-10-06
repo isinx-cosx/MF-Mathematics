@@ -16,8 +16,14 @@ export type ExprRow = {
 
 export type PlotStatus = { okCount: number; errCount: number; totalPts: number; text: string };
 
+/** 二元网格（隐式方程等值线 / 二元不等式区域）：引擎 expr_eval_grid 的结果，行优先 */
+export type PlotGrid = { xs: number[]; ys: number[]; values: number[] };
+
 /** 采样范围取视口的 1.5 倍（左右各外扩 25%）：小幅平移时曲线不断裂 */
 const PAD = 0.25;
+
+/** 二元网格每轴点数（与 Vue 版一致：180×180 = 32400，一次引擎调用） */
+const GRID_N = 180;
 
 function linspace(a: number, b: number, n: number) {
   const out = new Array(n);
@@ -35,10 +41,14 @@ function batchEval(
   return r.value as number[];
 }
 
-/** 非有限值一律留 null 表示"这里断开"（Number(null) === 0 会画出假的 y=0 段） */
+/** 非有限值一律留 null 表示"这里断开"。
+ *
+ * ⚠ 这里**不能**先做 `Number(x)` 再判：`Number(null) === 0`，于是引擎对域外点
+ * 返回的 null 会变成合法的 y=0 —— ln(x) 在 x<0 会画出一条假的地平线、
+ * 1/x 会横跨渐近线连成一条线（cdp-plot-truth 的左半轴 / 假连线两条断言就是这么挂的）。
+ * 直接对原值用 `Number.isFinite`：它对 null/undefined/字符串一律为 false。 */
 function pt(x: unknown, y: unknown): Sample {
-  const nx = Number(x), ny = Number(y);
-  return Number.isFinite(nx) && Number.isFinite(ny) ? [nx, ny] : null;
+  return Number.isFinite(x) && Number.isFinite(y) ? [x as number, y as number] : null;
 }
 
 /**
@@ -51,6 +61,9 @@ export function usePlotSampling(
   const [samples, setSamples] = useState<Record<number, Sample[]>>({});
   const [userPoints, setUserPoints] = useState<UserPoint[]>([]);
   const [status, setStatus] = useState<PlotStatus>({ okCount: 0, errCount: 0, totalPts: 0, text: "" });
+  /* 二元网格（隐式方程 / 二元区域）与一元曲线分开走：前者由 expr_eval_grid 出整块数据，
+   * 后者由 expr_eval_vars_batch 出点列（与 Vue 版 sampleAll / sampleGrids 的分工一致）。 */
+  const [grids, setGrids] = useState<Record<number, PlotGrid>>({});
   const [errors, setErrors] = useState<Record<number, string>>({});
   const timer = useRef<number | null>(null);
   const seq = useRef(0);
@@ -75,6 +88,8 @@ export function usePlotSampling(
     const next: Record<number, Sample[]> = {};
     const nextErr: Record<number, string> = {};
     const pts: UserPoint[] = [];
+    /* 二元网格的行（隐式方程 / 二元区域）——循环里只登记，采完曲线后统一求值 */
+    const gridRows: { id: number; body: string }[] = [];
     let okCount = 0, errCount = 0, totalPts = 0;
 
     for (const row of rows) {
@@ -128,9 +143,22 @@ export function usePlotSampling(
             const vs = batchEval(p.body, "x", tt, params);
             return vs ? tt.map((t, i) => pt(t, vs[i])) : null!;
           }, sx0, sx1, toScreen, opts);
+      } else if (p.type === "inequality") {
+        /* 不等式 y ≷ f(x) / x ≷ g(y)：**采的是边界曲线**（与 Vue 版同一策略），
+         * 所以它计入"引擎采样 N 条曲线"；填充由画布用这批点做（drawInequalities）。 */
+        const isY = p.axis === "y";
+        const a0 = isY ? sx0 : sy0, a1 = isY ? sx1 : sy1;
+        got = adaptiveSample(
+          (tt: number[]) => {
+            const vals = batchEval(p.boundary!, isY ? "x" : "y", tt, params);
+            return vals ? tt.map((t, i) => (isY ? pt(t, vals[i]) : pt(vals[i], t))) : null!;
+          }, a0, a1, toScreen, opts);
+      } else if (p.type === "implicit" || p.type === "region") {
+        /* 二元网格：不在这里采，循环后统一走 expr_eval_grid。
+         * 也**不计入曲线数**（Vue 版的 okCount 只数一元曲线）。 */
+        gridRows.push({ id: row.id, body: p.body });
+        continue;
       } else {
-        /* implicit / region / inequality：Vue 版走 expr_eval_grid + marching squares，
-         * React 版尚未移植 —— 明确报"未迁移"，不静默画错。 */
         nextErr[row.id] = `React 绘图版暂未支持该类型（${p.type}）`;
         errCount++;
         continue;
@@ -145,6 +173,21 @@ export function usePlotSampling(
         errCount++;
       }
     }
+
+    /* 二元网格：隐式方程等值线 + 二元不等式区域（Vue 版 sampleGrids 的等价物）。
+     * 180×180 = 32400 点，一次引擎调用拿回整块数据。 */
+    const grids: Record<number, PlotGrid> = {};
+    for (const g of gridRows) {
+      const xs = linspace(view.x0, view.x1, GRID_N);
+      const ys = linspace(view.y0, view.y1, GRID_N);
+      const r = engineCall("expr_eval_grid", { expr: g.body, xs, ys, vars: params });
+      if (r && !r.isError && Array.isArray(r.value) && r.value.length === GRID_N * GRID_N) {
+        grids[g.id] = { xs, ys, values: r.value as number[] };
+      } else {
+        nextErr[g.id] = String(r && r.isError ? r.value : "二元网格求值失败").slice(0, 80);
+      }
+    }
+    setGrids(grids);
 
     setSamples(next);
     setErrors(nextErr);
@@ -183,5 +226,5 @@ export function usePlotSampling(
 
   const clearUserPoints = useCallback(() => setUserPoints([]), []);
 
-  return { samples, userPoints, status, errors, addUserPoint, removeUserPoint, clearUserPoints, resample: sampleAll };
+  return { samples, userPoints, status, errors, grids, addUserPoint, removeUserPoint, clearUserPoints, resample: sampleAll };
 }
