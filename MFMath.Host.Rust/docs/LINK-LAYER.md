@@ -18,26 +18,37 @@
 **接缝形状已经落地：同步宿主对象在 Tauri 下跑通了**（路线 A）。前端那 15 处访问器与 47 个 CDP
 用例**一行都没改**，`mf.Dispatch` 是同步函数、返回字符串、引擎真的在算。
 
-- 已实现 **7/10** 个宿主对象：`mf`（16 个方法，含 job 通道）、`win`（10）、`sys`（8）、`diag`（1）、
-  `push`（3）、**`update`（6）**、**`account`（19）**；
+- 已实现 **9/10** 个宿主对象：`mf`（16 个方法，含 job 通道）、`win`（10）、`sys`（8）、`diag`（1）、
+  `push`（3）、`update`（6）、`account`（19）、**`search`（12）**、**`con`（10）**；
 - 页面 URL 恢复成 **`https://mfmath.local/index.html`**（读 exe 同目录的 `wwwroot`，与 C# 宿主同一份）
   —— 47 个用例的取页正则不用动；
-- 剩余 3 个：`search`、`con`（控制台/组件，最重）、`ai`。
+- 只剩 `ai`。
 
-### 0.1 当前验收基线（2026-10-07，11 组用例，**已提交版本**）
+### 0.1 当前验收基线（2026-10-07，**已提交版本**）
 
-| 套件 | 结果 | 失败项归属 |
+| 套件 | 结果 | 说明 |
 | --- | --- | --- |
 | `cdp-basic-calc` / `cdp-bridge-verify` / `cdp-window-shell` / `cdp-plot-verify` | 41/0 · 7/0 · 25/0 · 9/0 | — |
-| `cdp-account` / `cdp-update` | **52/0 · 37/0** | — |
+| `cdp-account` / `cdp-update` | 52/0 · 37/0 | — |
+| `cdp-search` | **55/0** | — |
+| `cdp-console` / `cdp-console-sci` | **66/0 · 8/0** | — |
+| `cdp-settings` | **43/0** | 由 40/3 随 `con` 落地转绿 |
+| `cdp-push` | **20/0** | 由 14/6 随 `con` 落地转绿 |
+| `cdp-history-search` | **21/0** | 由 18/3 随 `search` 落地转绿 |
 | `cdp-export-image` | 43/2 | 导出状态行文案（**改动前就有的 2 项**，与链接层无关） |
-| `cdp-settings` | 40/3 | `con`×2 · `search`×1 |
-| `cdp-workspace` | 20/5 | `con`（控制台页载荷）+ React 绘图页自身的载荷 |
-| `cdp-history-search` | 18/3 | `search` |
-| `cdp-push` | 14/6 | `con`（控制台运行 / 组件安装两段） |
+| `cdp-workspace` | 20/5 | **绘图页自己的载荷采集没触发**（见下，已证明不是链接层） |
 
-**19 项失败全部能追到 `con` / `search`** —— 也就是剩下要补的两个桥。
 （另有 `verify-spike` 10/0、`--selftest-jobs` 5/5、`--selftest-common` 10/0 三条无头验收。）
+
+**`cdp-workspace` 那 5 项的定案 —— 不是链接层缺口，是绘图页的载荷采集没触发**：
+失败项全部指向 `/plot/2d` 没把自己的载荷写进工作区（该页仍留着默认 `y=x^2`）。
+带异常捕获的探测结论：
+① 合成 `input` 事件与**真实按键**都让输入框的值变成了 `y=sin(x)`，且**没有任何异常**；
+② 工作区里仍然没有这一页 —— 该页那个"变化后写回"的 `watch` 根本没跑；
+③ 直接调 `window.__mfWorkspace.setPage('/plot/2d', …)` **能正常注册**，
+   证明 store 与宿主这条通路是好的，失败路径上**没有一次宿主调用**。
+（`docs/MIGRATION-GAPS.md` 记着 C# 宿主曾 25/0，但那份记录早于当前 UI；本会话内 C# 宿主
+起不来 —— 它的清单要求提权，非交互会话下被系统拒绝，所以无法 A/B。）
 
 ### 0.2 本轮实测记录（2026-10-07）
 
@@ -56,6 +67,9 @@
 | 9 | **启动失败可观测** | panic 钩子写 `crash-*.log`（含 backtrace + app.log 尾部）；WebView2 起不来给可读原因 + 非阻塞提示框 |
 | 10 | **取包代理的 bug** | `Readable.fromWeb(...).pipe(res)` 不转发错误 → 上游抖一次就**杀掉 Node 进程**，cargo 只看到 `Connection was reset`。改用 `pipeline` + 重试 + 进程兜底 |
 | 11 | **`--selftest-jobs` 竞态** | 第 5 项盲睡 250 ms 后取消，而本机那次 mandelbrot 恰好 ~253 ms 跑完 → 随机红。改成轮询到"真的在跑"再取消，连跑三次 5/5 |
+| 12 | **`search` 桥**（12 方法） | 三条后端 / 缓存（键含引擎）/ 六类失败分类 / App ID 只在宿主。子代理首交付即 `cdp-search` **55/0**；我复审时补了它标注的保真度缺口：**C# 给 DDG 发的是浏览器 UA**，而共享客户端发的是 `MF-Mathematics/<版本>` —— 假端点不挑 UA，这个差异只会在用户机器上表现成"搜索没结果"，所以加 `BROWSER_UA` 与 `get_ua()`，并用**专门记 UA 的小端点**实测两路请求发出的都是那句 Chrome UA |
+| 13 | **`con` 桥**（10 方法：控制台运行 + 组件下载） | 断点续传（Range/206/416/服务端忽略 Range）、整包 SHA-256、**解包只用 `pack::unzip_to`**、MinGW 的 `dlltool` 导入库、Python 的 `_run.py` 引导、进程树用 `taskkill /T /F`。`cdp-console` **66/0**、`cdp-console-sci` **8/0**，并让 `cdp-settings` 41/2→**43/0**、`cdp-push` 14/6→**20/0** |
+| 14 | **部署补控制台门面** | `build.rs` 原来只同步引擎 DLL 与 `wwwroot`，漏了 `python\mfmath.py` 与 `cpp\*.hpp` —— 少了它们组件装不上。现在两个目录也走 `copy_tree`（来源是 C# 宿主目录：这三个文件仓库里只有那一份） |
 
 **踩到的坑（都在代码注释里留了原话，别再踩）**
 
@@ -70,10 +84,20 @@
 | **C 依赖编不过（D8050）** | reqwest 默认后端 `aws-lc-sys`、以及换成 `ring` 之后，都报 `cl.exe D8050：未能将命令行放入调试记录中` | **不是编译器坏** —— 受限令牌下 `%TEMP%` 不可写（与 README §五.3 的 esbuild 同类） | `TEMP`/`TMP` 指到仓库内再编。选 `ring`（`rustls-no-provider` + `install_default()`）避开动辄编一堆 C 的 aws-lc-sys |
 | **工作区内镜像不能写外** | 宿主在 `target/debug` 下跑时，日志/设置/WebView2 数据目录**全静默失败**，用例莫名变红 | 本机沙箱对"镜像位于工作区内"的进程限制写入范围 | 端到端测试把 exe+DLL+wwwroot 拷到工作区外（`%TEMP%\mfhost-run`）再跑 |
 | **旧理由被推翻（Schannel）** | README §三 写"本机 Schannel 不可用，所以用 rustls" | 服务器抓包定案：RST 是**本机发的**，真凶是开发机沙箱的出站阻止规则，只对部分进程生效 | rustls 仍然用，但**理由改成**"不依赖系统 TLS 配置、与 Chromium 那条链一致"；并明确**不要**因为"某台机器连不上"去关系统代理 |
+| **`con.rs` 进不了版本库** | `git add src/con.rs` 报 `open("src/con.rs"): No such file or directory`，而文件明明在磁盘上、`cargo` 也照常编译；`git hash-object` 同样读不了 | **`con` 是 Windows 保留设备名**（跟 `aux`/`nul`/`prn`/`com1` 一类），git 在 Windows 上索引不了这种名字 | 模块文件改名 `src/console.rs`（**注册给页面的宿主对象名仍是 `con`** —— 那是前端契约，只改 Rust 侧文件名） |
 
 **还没做**
 
-- `con`、`ai` 两个桥。
+- `ai` 桥（最后一块）。
+- **`cdp-workspace` 的 5 项是前端问题**（详见 §0.1 末尾的定案）：绘图页 `watch` 没触发 →
+  载荷没进工作区；失败路径上没有宿主调用。
+- **`con` 的几处未验证面**（子代理标注、我在本机测不出来，留给真机/真站点）：
+  1. `taskkill` 在被白名单限制的环境里可能不可用（兜底只杀直接子进程）；
+  2. 共享客户端开了 `gzip/brotli` 自动解压 —— 若站点对 `.zip` 也做 gzip，字节数会对不上，
+     表现为"下载不完整"重试；本机假服务器不发 `Content-Encoding`，测不出来。
+     真站点若出现，加 `Accept-Encoding: identity` 即可（现在没加，避免无谓分叉）；
+  3. `SetDownloadBase` 与 C# 一样**没有闸门**（理由：包必过 SHA-256 才进解压；
+     且 `cdp-console` 正是用 `127.0.0.1` 镜像验真续传的）。
 - **`search` 的两处已知差异**（都有意为之，但只会在用户机器上显形，先记着）：
   1. **解析器没用正则**：C# 用 `Regex` 抓 DDG 结果页/IA JSON；Rust 侧为不动 `Cargo.toml`
      手写了等价的元素扫描（`<a`/`<div` + marker + 最近的闭合标签）与 HTML4 实体表子集。
