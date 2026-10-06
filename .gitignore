@@ -20,6 +20,12 @@ bin/
 obj/
 *.user
 
+# ── Rust 宿主（MFMath.Host.Rust）──
+# target/ 由该目录自己的 .gitignore 管；这里管的是**放在仓库根的 cargo 缓存**：
+# 本机 Schannel 在受限令牌下不可用（见 MFMath.Host.Rust/README.md 第五节），
+# 于是把 CARGO_HOME 指到仓库内、并用本地明文代理取包。这是本机开发产物，不是源码。
+.cargo-home/
+
 # ── IDE / OS ──
 .vs/
 .vscode/

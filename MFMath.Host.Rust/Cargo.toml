@@ -1,0 +1,20 @@
+[package]
+name = "mfmath-host-rust"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow = "1.0.104"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.151"
+tao = "0.37.1"
+webview2-com = "0.39.1"
+windows = { version = "0.62.2", features = [
+    "Win32_Foundation",
+    "Win32_System_Com",
+    "Win32_System_Ole",           # VARIANT 的 Default 实现需要它
+    "Win32_System_Variant",       # VARIANT / VT_* / VARENUM
+    "Win32_System_LibraryLoader", # LoadLibraryW / GetProcAddress（引擎 FFI）
+    "Win32_Security_Cryptography",# DPAPI（后续 ai/account/search 桥要用）
+] }
+wry = "0.57.0"

@@ -1,0 +1,19 @@
+# MFMath.Host.Rust 的 cargo 配置（**开发机专用**）
+#
+# 目的：本机 Schannel 在受限令牌下不可用（SEC_E_NO_CREDENTIALS），cargo/cURL 取不了包。
+# 这里把 crates-io 换成"本地明文 HTTP 稀疏索引"，由 tools/crates-proxy.mjs 用 Node
+# 走 HTTPS 去取上游。启动方式：
+#
+#   node tools/crates-proxy.mjs        # 127.0.0.1:8432
+#
+# 发布/CI 上不需要这个文件（那里 Schannel 正常）。要临时恢复直连：
+#   CARGO_SOURCE_CRATES_IO_REPLACE_WITH=  （或删掉本文件）
+
+[source.crates-io]
+replace-with = "local-http"
+
+[source.local-http]
+registry = "sparse+http://127.0.0.1:8432/index/"
+
+[net]
+retry = 2
