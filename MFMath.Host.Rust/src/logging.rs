@@ -182,6 +182,45 @@ pub fn error(msg: &str) {
     write_line("ERROR", msg);
 }
 
+/// 装一个 panic 钩子：**任何** panic 都要留下崩溃文件。
+///
+/// 为什么必须有它：宿主是 GUI 子系统（`#![windows_subsystem = "windows"]`），
+/// **双击运行时 stderr 根本没人看得到**；而 Tauri 在 setup 失败时是**直接 panic** 的
+/// （`tauri-2.12.1/src/app.rs:1444`：`Failed to setup app: …`）。
+/// 两者叠在一起，用户看到的就是"窗口没出来、日志里一行都没有"—— 本轮实测
+/// WebView2 撞车（`0x800700AA`）时正是这个现象，只能靠猜。
+///
+/// 钩子里做三件事：写 `crash-*.log`（含 backtrace 与最近日志尾部）、把同一句话写进
+/// app.log、再把默认钩子跑一遍（重定向时 stderr 仍可见）。
+pub fn install_panic_hook() {
+    static ONCE: std::sync::Once = std::sync::Once::new();
+    ONCE.call_once(|| {
+        let default = std::panic::take_hook();
+        std::panic::set_hook(Box::new(move |info| {
+            let payload = info
+                .payload()
+                .downcast_ref::<&str>()
+                .map(|s| (*s).to_string())
+                .or_else(|| info.payload().downcast_ref::<String>().cloned())
+                .unwrap_or_else(|| "（无法描述的 panic）".to_string());
+            let loc = info
+                .location()
+                .map(|l| format!("{}:{}:{}", l.file(), l.line(), l.column()))
+                .unwrap_or_else(|| "（位置未知）".into());
+            // force_capture：不依赖 RUST_BACKTRACE，用户机器上也能拿到栈
+            let bt = std::backtrace::Backtrace::force_capture();
+            let detail = format!("panic @ {loc}\n{payload}\n\n== backtrace ==\n{bt}");
+            error(&format!("panic @ {loc}：{payload}"));
+            if let Some(p) = crash("panic", &detail) {
+                eprintln!("[rust-host] 崩溃记录：{p}");
+            } else {
+                eprintln!("[rust-host] panic（崩溃文件写不出来，日志目录不可写？）：{detail}");
+            }
+            default(info);
+        }));
+    });
+}
+
 /// `diag.Front(level, msg)` 的落点：前端异常写进同一个 app.log（前缀标明来源）
 pub fn front(level: &str, message: &str) {
     let text = format!("[前端] {message}");
@@ -231,7 +270,7 @@ pub fn crash(source: &str, detail: &str) -> Option<String> {
     s.push_str(&format!("时间    : {}\r\n", stamp_full()));
     s.push_str(&format!("来源    : {source}\r\n"));
     s.push_str(&format!("版本    : {}\r\n", env!("CARGO_PKG_VERSION")));
-    s.push_str(&format!("系统    : {} / Rust 宿主 (wry/WebView2)\r\n", os_string()));
+    s.push_str(&format!("系统    : {} / Rust 宿主 (Tauri v2)\r\n", os_string()));
     s.push_str(&format!("程序目录: {}\r\n", exe_dir.display()));
     s.push_str(&format!("日志目录: {}\r\n\r\n", dir().display()));
     s.push_str("== 异常 ==\r\n");

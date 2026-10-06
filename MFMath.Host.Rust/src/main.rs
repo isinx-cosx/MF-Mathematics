@@ -1,49 +1,67 @@
-//! main.rs —— MFMath Rust 宿主（spike）
+//! main.rs —— MFMath Rust 宿主（**Tauri v2**）
 //!
-//! 目标（S1 + S2）：窗口 + WebView2 加载 `wwwroot`（虚拟主机 `mfmath.local`，
-//! 与 C# 宿主完全一致）+ 注册**同步**宿主对象 `mf`，使前端那 45 处
-//! `window.chrome.webview.hostObjects.sync.*` **一行都不用改**。
+//! 从 wry/tao 换到 Tauri：窗口、资产（`frontendDist` 在编译期嵌进 exe）、前端↔宿主
+//! 通道全部改由 Tauri 提供。
 //!
-//! 与 C# 宿主的对应关系：
-//!   MainWindow.xaml.cs 的 `SetVirtualHostNameToFolderMapping` + `AddHostObjectToScript`
-//!   → 本文件同样的两步；`MathBridge.Dispatch` → handlers.rs 的 `mf`。
+//! **换壳时唯一真正的取舍**：Tauri 没有 `AddHostObjectToScript`，
+//! 前端那套 `window.chrome.webview.hostObjects.sync.<对象>.<方法>` **同步**桥在 Tauri 里
+//! 不存在对应物 —— 只有 Promise 式的 `invoke`。所以：
+//!   · 前端 lib/*/bridge.js 那一层把"取宿主对象"改成"发一条 invoke"（见各 bridge 的 hostObj）；
+//!   · 引擎重活本来就已经走异步 job 通道（jobs.rs），换壳不受影响；
+//!   · 命令层只有一个通用 `call(object, method, args)`，复用 handlers.rs 里那张
+//!     已经跑通全量用例的注册表 —— 10 个桥的逻辑一行都不用动。
+//!
+//! 与 C# 宿主的对外行为保持逐条对齐：无边框窗口（标题栏由页面自绘）、尺寸 1240×820、
+//! 最小 980×640、DWM 圆角/投影、`%LOCALAPPDATA%\MFMath` 数据目录、CDP 调试端口 9222。
 
-// 这是一个 FFI / COM vtable 层：hostobject.rs 里每个 `unsafe extern "system"` 函数体
-// 本质上全是 unsafe 操作。edition 2024 要求逐块标注，这里统一关闭 —— 但**不安全边界
-// 仍然是有意的**：vtable 的槽位顺序、VARIANT 的联合字段、BSTR 的所有权都按 COM 规则手写。
-#![allow(unsafe_op_in_unsafe_fn)]
+// 必须是 GUI 子系统：Rust 的 bin target 在 Windows 上默认按**控制台**子系统链接，
+// 会额外冒出一个空白控制台窗口（输出被重定向时它是空的、标题是 exe 全路径），
+// 看起来就像"程序下面多了一个空窗口"。Tauri 官方模板只在 release 关，这里**无条件**关。
+#![windows_subsystem = "windows"]
 
+mod commands;
 mod engine;
 mod handlers;
 mod hostobject;
+mod jobs;
 mod logging;
+mod push;
 mod sys;
+mod winbridge;
 
-use std::path::PathBuf;
-
-use tao::dpi::LogicalSize;
-use tao::event::{Event, WindowEvent};
-use tao::event_loop::{ControlFlow, EventLoopBuilder};
-use tao::window::WindowBuilder;
+use raw_window_handle::HasWindowHandle;
 use webview2_com::Microsoft::Web::WebView2::Win32::{
-    COREWEBVIEW2_HOST_RESOURCE_ACCESS_KIND_ALLOW, ICoreWebView2_3,
+    COREWEBVIEW2_COLOR, COREWEBVIEW2_HOST_RESOURCE_ACCESS_KIND_ALLOW, ICoreWebView2_3,
+    ICoreWebView2Controller2,
 };
-use windows::core::{w, Interface, PCWSTR};
-use wry::{WebViewBuilder, WebViewBuilderExtWindows, WebViewExtWindows};
+use windows::core::{Interface, PCWSTR};
 
 use hostobject::{MethodSpec, RetKind};
 
-/// `mf` 桥的方法表：**这既是 GetIDsOfNames/Invoke 的依据，也是 ITypeInfo 的依据**
-/// （WebView2 靠类型信息区分"方法/属性"，缺了它 `mf.Dispatch` 会被当属性读成字符串）。
-/// 前四个是前端 `lib/bridge.js` 真正会调的；后面八个是 C# `MathBridge` 的具名符号封装 ——
-/// 前端不走它们，但项目自带的端到端用例直接调（cdp-plot-extrema-domain 等），
-/// 而且它们是 C# 宿主的公开 API：少了就是宿主能力缩水。
+/* ── 宿主对象的方法表 ────────────────────────────────────────────────────────
+ *
+ * 这张表有两个用途，必须**同时**正确，否则前端拿到的不是函数：
+ *   ① `GetIDsOfNames` 按它给 dispid（下标 + 1）；
+ *   ② `CreateDispTypeInfo` 按它造 ITypeInfo —— WebView2 的**同步**代理靠类型信息
+ *      区分"方法/属性"；没有它，读 `mf.Dispatch` 会被当成取属性（返回一个字符串），
+ *      于是 `mf.Dispatch is not a function`（README §四 S2 卡的就是这个）。
+ *
+ * 参数类型一律 VT_BSTR（前端宿主对象调用本来就只传字符串），返回类型见 RetKind。
+ * 这里列出的方法必须与 handlers.rs 的 match 分支一一对应 —— 表里有、handlers 没有的，
+ * 调用时会拿到"没有这个方法"的错误信封。
+ */
+
+/// `mf`：与 C# MathBridge 对齐，另加 Rust 侧的异步 job 通道四个方法
+/// （`lib/bridge.js` 的 engineCallAsync 靠 DispatchJob 是否存在决定走异步还是退回同步）。
 const MF_SPEC: &[MethodSpec] = &[
     MethodSpec { name: "Dispatch", params: &["name", "argsJson"], ret: RetKind::Str },
     MethodSpec { name: "Ready", params: &[], ret: RetKind::Bool },
     MethodSpec { name: "Version", params: &[], ret: RetKind::Str },
     MethodSpec { name: "FunctionExists", params: &["name"], ret: RetKind::Bool },
-    // ↓ C# MathBridge 的薄包装（参数默认值也照抄：var 缺省 "x"）
+    MethodSpec { name: "DispatchJob", params: &["name", "argsJson"], ret: RetKind::Str },
+    MethodSpec { name: "PollJob", params: &["jobId"], ret: RetKind::Str },
+    MethodSpec { name: "CancelJob", params: &["jobId"], ret: RetKind::Str },
+    MethodSpec { name: "JobStats", params: &[], ret: RetKind::Str },
     MethodSpec { name: "SolveSymbolic", params: &["expr", "var"], ret: RetKind::Str },
     MethodSpec { name: "DiscriminantSymbolic", params: &["expr", "var"], ret: RetKind::Str },
     MethodSpec { name: "FactorSymbolic", params: &["expr", "var"], ret: RetKind::Str },
@@ -54,8 +72,7 @@ const MF_SPEC: &[MethodSpec] = &[
     MethodSpec { name: "Differentiate", params: &["expr", "var"], ret: RetKind::Str },
 ];
 
-/// `sys` 桥（设置面板）：对照 C# `SettingsBridge.cs` 的 8 个公开方法，一个不少。
-/// 返回都是 JSON 字符串（前端 `lib/settings/bridge.js` 自己 parse）。
+/// `sys`：设置面板（对照 C# SettingsBridge）
 const SYS_SPEC: &[MethodSpec] = &[
     MethodSpec { name: "Info", params: &[], ret: RetKind::Str },
     MethodSpec { name: "EngineReport", params: &[], ret: RetKind::Str },
@@ -67,122 +84,335 @@ const SYS_SPEC: &[MethodSpec] = &[
     MethodSpec { name: "ExportDiagnostics", params: &[], ret: RetKind::Str },
 ];
 
-/// `diag` 桥（前端异常 → 宿主日志）：对照 C# `LogBridge.cs`，只有一件事、一个方法。
-const DIAG_SPEC: &[MethodSpec] = &[MethodSpec { name: "Front", params: &["level", "message"], ret: RetKind::Empty }];
+/// `diag`：前端异常入宿主日志（对照 C# LogBridge）
+const DIAG_SPEC: &[MethodSpec] =
+    &[MethodSpec { name: "Front", params: &["level", "message"], ret: RetKind::Empty }];
 
-fn exe_dir() -> PathBuf {
+/// `win`：窗口操作 + 文件对话框（对照 C# WindowBridge，10 个方法一个不少）
+const WIN_SPEC: &[MethodSpec] = &[
+    MethodSpec { name: "Minimize", params: &[], ret: RetKind::Empty },
+    MethodSpec { name: "ToggleMaximize", params: &[], ret: RetKind::Empty },
+    MethodSpec { name: "Restore", params: &[], ret: RetKind::Empty },
+    MethodSpec { name: "IsMaximized", params: &[], ret: RetKind::Bool },
+    MethodSpec { name: "Close", params: &[], ret: RetKind::Empty },
+    MethodSpec { name: "StartDrag", params: &[], ret: RetKind::Empty },
+    MethodSpec { name: "SetChromeBackground", params: &["color"], ret: RetKind::Empty },
+    MethodSpec { name: "SaveTextFile", params: &["title", "defaultName", "filter", "content", "path"], ret: RetKind::Str },
+    MethodSpec { name: "OpenTextFile", params: &["title", "filter", "path"], ret: RetKind::Str },
+    MethodSpec { name: "SaveBinaryFile", params: &["title", "defaultName", "filter", "base64", "path"], ret: RetKind::Str },
+];
+
+/// `push`：宿主 → 页面 的推送通道（对照 C# PushHub/PushBridge）。
+/// 页面侧就不必再问"是宿主没发还是我没收到"——`Info()` 给出宿主侧计数。
+const PUSH_SPEC: &[MethodSpec] = &[
+    MethodSpec { name: "Info", params: &[], ret: RetKind::Str },
+    MethodSpec { name: "Emit", params: &["topic", "payloadJson"], ret: RetKind::Str },
+    MethodSpec { name: "Ready", params: &[], ret: RetKind::Bool },
+];
+
+/// 要注册的宿主对象。**加一个桥 = 这里加一行 + handlers.rs 加一个分支**，
+/// COM 那一层（hostobject.rs）一行都不用动。
+const HOST_OBJECTS: &[(&str, &[MethodSpec])] = &[
+    ("mf", MF_SPEC),
+    ("sys", SYS_SPEC),
+    ("diag", DIAG_SPEC),
+    ("win", WIN_SPEC),
+    ("push", PUSH_SPEC),
+];
+
+/// 同时写 stderr 与 app.log。
+/// GUI 子系统下 stdout 不再连终端，所以启动信息不能只靠 println!（重定向时 stderr 仍可见）。
+fn note(msg: &str) {
+    println!("[rust-host] {msg}");
+    logging::info(msg);
+}
+
+/// WebView2 用户数据目录。
+/// `MF_WEBVIEW2_DIR` 优先（**与 C# 宿主同名开关**，用于"多个宿主实例不能共用同一数据目录"
+/// 以及受限上下文里指到可写目录），默认 `%LOCALAPPDATA%\MFMath\webview2`（与 C# 同默认值）。
+fn webview_data_dir() -> std::path::PathBuf {
+    std::env::var("MF_WEBVIEW2_DIR")
+        .ok()
+        .filter(|s| !s.trim().is_empty())
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|| logging::data_dir().join("webview2"))
+}
+
+/// 宿主 exe 所在目录（引擎 DLL、wwwroot 都按它找）
+fn exe_dir() -> std::path::PathBuf {
     std::env::current_exe()
         .ok()
         .and_then(|p| p.parent().map(|d| d.to_path_buf()))
-        .unwrap_or_else(|| PathBuf::from("."))
+        .unwrap_or_else(|| std::path::PathBuf::from("."))
 }
 
-fn wide(s: &str) -> Vec<u16> {
-    s.encode_utf16().chain(std::iter::once(0)).collect()
-}
-
-/// 启动失败的**留痕**包装。
+/// UI 目录：**与 C# 宿主读同一份**（README §六 的原话："Release 的 `wwwroot` 是
+/// `MF_UI/MFMath.UI.Vue/dist` 的拷贝，Rust 宿主读同一份"）。
 ///
-/// 为什么需要它：窗口是在 `event_loop.run()` 才被显示的，所以 `register()` / 导航
-/// 一旦失败，用户看到的就是"双击没反应/打不开"，**没有任何信息**。
-/// 这与 C# 宿主那次"WebView2 初始化失败被 `if (!e.IsSuccess) return;` 吞掉、
-/// 只剩白屏"是同一类问题 —— 失败必须留下可读的证据。
-/// 这里同时写 stderr 和 exe 同目录的 `rust-host-error.log`（前者在双击时看不到）。
+/// 为什么不直接用 Tauri 的 `frontendDist`（把 dist 嵌进 exe）：那样页面 URL 会变成
+/// `http://tauri.localhost/`，而 47 个 CDP 用例、C# 宿主、以及"改了前端只要重拷 dist"
+/// 这条工作流，全都以 `https://mfmath.local/` 为准。嵌进去的资产仍然保留，只是当兜底 ——
+/// 没有 `wwwroot` 时（比如直接跑 `cargo run` 没同步过 UI）仍然能起来。
+fn wwwroot_dir() -> std::path::PathBuf {
+    std::env::var("MF_WWWROOT")
+        .ok()
+        .filter(|s| !s.trim().is_empty())
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|| exe_dir().join("wwwroot"))
+}
+
+/// 虚拟主机名与首页地址（与 C# 宿主逐字一致：`MainWindow.xaml.cs:187-192`）
+const UI_HOST: &str = "mfmath.local";
+const UI_URL: &str = "https://mfmath.local/index.html";
+
+/// WebView2 起不来时的**可读**收场：日志 + 崩溃文件 + 一个不阻塞过久的提示框。
+///
+/// 为什么不能让它走到 Tauri 的 panic：宿主是 GUI 子系统，双击运行时 stderr 没人看得到，
+/// 用户只会觉得"点了没反应"，而日志里一行都没有（C# 宿主 commit 7bc5632 修的就是这个）。
+fn fail_with_reason(stage: &str, err: &str) -> ! {
+    let hint = if err.contains("0x800700AA") {
+        "\n\n提示：这个错误码是「请求的资源在使用中」——多半是**另一个宿主实例正占着同一个 WebView2 数据目录**。\n\
+         关掉另一个实例，或用环境变量 MF_WEBVIEW2_DIR 指到别的目录再试。"
+    } else {
+        ""
+    };
+    let detail = format!(
+        "{stage} 失败\n{err}{hint}\n\nexe     : {}\n数据目录: {}",
+        exe_dir().display(),
+        webview_data_dir().display()
+    );
+    eprintln!("[rust-host] {detail}");
+    logging::error(&detail);
+    let crash = logging::crash(stage, &detail).unwrap_or_else(|| "（崩溃文件写不出来）".into());
+
+    // 提示框放在线程里 + 最多等 20 秒：用户能看到原因，自动化跑批也不会被永久挂住
+    let text = format!("MF-Mathematics 启动失败\n\n{err}{hint}\n\n崩溃记录：{crash}");
+    let (tx, rx) = std::sync::mpsc::channel::<()>();
+    let _ = std::thread::Builder::new().name("mf-alert".into()).spawn(move || {
+        use windows::core::HSTRING;
+        use windows::Win32::UI::WindowsAndMessaging::{MessageBoxW, MB_ICONERROR, MB_OK};
+        unsafe {
+            let _ = MessageBoxW(
+                None,
+                &HSTRING::from(text),
+                &HSTRING::from("MF-Mathematics 启动失败"),
+                MB_OK | MB_ICONERROR,
+            );
+        }
+        let _ = tx.send(());
+    });
+    let _ = rx.recv_timeout(std::time::Duration::from_secs(20));
+    std::process::exit(1);
+}
+
 fn main() {
-    if let Err(e) = run() {
+    // 最先装 panic 钩子：GUI 子系统下 stderr 没人看得到，panic 必须留下崩溃文件
+    logging::install_panic_hook();
+
+    // 无头自检：只验后台任务通道，不需要 WebView2（受限环境里也能跑）
+    if std::env::args().any(|a| a == "--selftest-jobs") {
+        jobs::selftest();
+        return;
+    }
+
+    // 异步 job 通道的常驻工作线程：先起好，界面第一次派活就没有额外延迟
+    jobs::start();
+
+    // 端到端用例靠 CDP 驱动界面。WebView2 用这个环境变量追加浏览器参数 ——
+    // 换到 Tauri 后依然有效（Tauri 底下还是 WebView2），所以测试链路不用改。
+    // SAFETY: 单线程启动阶段、Tauri 初始化之前设置；没有并发读者
+    unsafe {
+        if std::env::var_os("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS").is_none() {
+            std::env::set_var("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS", "--remote-debugging-port=9222");
+        }
+    }
+
+    note(&format!("引擎自检：{}", handlers::engine_selfcheck()));
+
+    let run = tauri::Builder::default()
+        .setup(|app| {
+            /* 窗口**手工创建**，而不是让 Tauri 按配置建（所以 tauri.conf.json 里是 `create: false`）。
+             *
+             * 为什么非得这样：Tauri 在 Windows 上会强制给 WebView2 一个数据目录 ——
+             * `tauri-2.12.1/src/manager/webview.rs:559-576`：
+             *     if data_directory.is_none() { data_directory = app_local_data_dir() }
+             *     if !dir.exists() { create_dir_all(dir)? }      ← 失败就是 "os error 5 拒绝访问"
+             * 而 `app_local_data_dir()` 走的是 **known-folder API（SHGetKnownFolderPath）**，
+             * **不读 LOCALAPPDATA 环境变量** —— 所以"重定向 LOCALAPPDATA"对它无效，
+             * 在受限上下文里就必然撞上 access denied，连窗口都建不出来。
+             * Tauri 那句注释 "but we do respect user-specification" 正是留的口子：
+             * 我们自己指定数据目录，它就用我们的。 */
+            let data_dir = webview_data_dir();
+            let _ = std::fs::create_dir_all(&data_dir);
+
+            /* UI 从哪来：优先 exe 同目录的 `wwwroot`（= dist 的拷贝，与 C# 宿主同一份），
+             * 没有才退回 Tauri 嵌进 exe 的那份资产。
+             *
+             * 走 wwwroot 时窗口先开在 `about:blank`：映射虚拟主机与注册宿主对象都在
+             * `with_webview` 里做，做完**由我们自己** `Navigate` 到首页 —— 顺序完全确定，
+             * 不依赖"注册消息是否跑在页面首帧之前"。 */
+            let wwwroot = wwwroot_dir();
+            let use_folder = wwwroot.join("index.html").is_file();
+            if use_folder {
+                note(&format!("UI 目录：{}（虚拟主机 {UI_HOST}）", wwwroot.display()));
+            } else {
+                note(&format!(
+                    "UI 目录 {} 里没有 index.html，改用 Tauri 内嵌资产（页面 URL 会是 tauri.localhost）",
+                    wwwroot.display()
+                ));
+            }
+
+            let start_url = if use_folder {
+                tauri::WebviewUrl::External("about:blank".parse()?)
+            } else {
+                tauri::WebviewUrl::default()
+            };
+            let win = tauri::WebviewWindowBuilder::new(app, "main", start_url)
+                .title("MF-Mathematics")
+                .inner_size(1240.0, 820.0)
+                .min_inner_size(980.0, 640.0)
+                .decorations(false)
+                /* ⚠ 先**不显示**。为什么：`about:blank` 的底色是**纯白**，窗口一建出来就露给用户 ——
+                 * 实测 0.2 / 0.45 / 0.8 秒三帧都是一整块白窗口（到 1.3 秒才出界面），
+                 * 看起来就是"一个空白的、WinForm 味的老式窗口"，很丑。
+                 * 显示时机见下面的 on_page_load：**应用页面加载完成**才露出来。 */
+                .visible(false)
+                .on_page_load(|w, payload| {
+                    if matches!(payload.event(), tauri::webview::PageLoadEvent::Finished) {
+                        // about:blank 那一轮不算（它只是我们"先注册桥、再导航"用的占位页）
+                        if !payload.url().as_str().starts_with("about:") {
+                            let _ = w.show();
+                        }
+                    }
+                })
+                .data_directory(data_dir.clone())
+                .build();
+            let win = match win {
+                Ok(w) => w,
+                Err(e) => fail_with_reason("WebView2 窗口创建", &format!("{e}")),
+            };
+            note(&format!("WebView2 用户数据目录：{}", data_dir.display()));
+
+            /* 兜底：万一页面永远加载不完（wwwroot 缺文件、虚拟主机映射失败…），窗口不能一直藏着 ——
+             * 那样用户会以为程序根本没启动。6 秒后强行显示。 */
+            {
+                let w = win.clone();
+                let _ = std::thread::Builder::new().name("mf-show-watchdog".into()).spawn(move || {
+                    std::thread::sleep(std::time::Duration::from_secs(6));
+                    if !w.is_visible().unwrap_or(true) {
+                        let _ = w.show();
+                        logging::warn("页面 6 秒仍未加载完成，先把窗口显示出来（否则看起来像没启动）");
+                    }
+                });
+            }
+
+            /* 宿主对象（同步桥）：这是换壳时唯一真正取舍过的接缝。
+             *
+             * 取 ICoreWebView2 的路子：Tauri 把底层 WebView2 控制器交出来
+             * （`PlatformWebview::controller()` → `ICoreWebView2Controller`），
+             * 再由它拿 `ICoreWebView2` —— `AddHostObjectToScript` 与
+             * `PostWebMessageAsJson`（推送通道）都在这个接口上。
+             *
+             * `with_webview` 只是往事件循环**投递**一条消息（tauri-runtime-wry
+             * `lib.rs:1552` → `send_user_message`，不阻塞），闭包在主线程上执行。
+             * 闭包要求 `Send + 'static`，所以 `&App` 不能直接捕进来 —— 克隆一个 AppHandle。 */
+            let app_handle = app.handle().clone();
+            win.with_webview(move |pw| {
+                let controller = pw.controller();
+
+                /* WebView2 自己的默认底色：不设就是**纯白**。跟浅色主题的 `--bg`（#eef2f9）对齐，
+                 * 这样即便有一帧露出底色，看起来也是应用自己的颜色而不是刺眼的白。
+                 * （窗口本身等到页面加载完才显示，这里只是双保险。） */
+                if let Ok(c2) = controller.cast::<ICoreWebView2Controller2>() {
+                    let bg = COREWEBVIEW2_COLOR { A: 255, R: 0xEE, G: 0xF2, B: 0xF9 };
+                    // SAFETY: 只写入一个 4 字节的颜色结构
+                    if let Err(e) = unsafe { c2.SetDefaultBackgroundColor(bg) } {
+                        note(&format!("设置 WebView2 默认底色失败（不影响功能）：{e}"));
+                    }
+                }
+
+                let core = match unsafe { controller.CoreWebView2() } {
+                    Ok(c) => c,
+                    Err(e) => {
+                        note(&format!("取 CoreWebView2 失败，宿主对象未注册：{e}"));
+                        return;
+                    }
+                };
+
+                // ① 虚拟主机映射（只有 C# 宿主那条 wwwroot 路线才需要）
+                let mut url_w: Vec<u16> = Vec::new();
+                if use_folder {
+                    let host_w: Vec<u16> = UI_HOST.encode_utf16().chain(std::iter::once(0)).collect();
+                    let folder_w: Vec<u16> =
+                        wwwroot.to_string_lossy().encode_utf16().chain(std::iter::once(0)).collect();
+                    match core.cast::<ICoreWebView2_3>() {
+                        Ok(wv3) => unsafe {
+                            match wv3.SetVirtualHostNameToFolderMapping(
+                                PCWSTR(host_w.as_ptr()),
+                                PCWSTR(folder_w.as_ptr()),
+                                COREWEBVIEW2_HOST_RESOURCE_ACCESS_KIND_ALLOW,
+                            ) {
+                                Ok(()) => note(&format!("虚拟主机 {UI_HOST} → {}", wwwroot.display())),
+                                Err(e) => note(&format!("虚拟主机映射失败：{e}")),
+                            }
+                        },
+                        Err(e) => note(&format!("拿不到 ICoreWebView2_3，无法映射虚拟主机：{e}")),
+                    }
+                    url_w = UI_URL.encode_utf16().chain(std::iter::once(0)).collect();
+                }
+
+                // ② 宿主对象：10 个桥共用一份 COM 实现（hostobject.rs）
+                for (name, spec) in HOST_OBJECTS {
+                    match hostobject::register(&core, name, spec) {
+                        Ok(()) => note(&format!("宿主对象 {name} 已注册（{} 个方法）", spec.len())),
+                        Err(e) => note(&format!("宿主对象 {name} 注册失败：{e}")),
+                    }
+                }
+
+                // ③ 推送通道挂上同一个核心对象（页面侧的监听是 chrome.webview 的 message 事件）
+                push::attach(&app_handle, &core);
+
+                // ③ 一切就绪后再导航（顺序确定，不存在"页面先跑、桥后到"的竞态）
+                if !url_w.is_empty() {
+                    match unsafe { core.Navigate(PCWSTR(url_w.as_ptr())) } {
+                        Ok(()) => note(&format!("导航到 {UI_URL}")),
+                        Err(e) => note(&format!("导航失败：{e}")),
+                    }
+                }
+            })?;
+
+            // 主窗口句柄交给 `win` 桥（最小化/最大化/关闭/拖拽/背景色），并补 DWM 圆角/投影
+            match win.window_handle() {
+                Ok(h) => {
+                    if let raw_window_handle::RawWindowHandle::Win32(w) = h.as_raw() {
+                        let hwnd = w.hwnd.get() as isize;
+                        winbridge::set_hwnd(hwnd);
+                        /* 无边框窗口自己补 DWM 的圆角与投影。
+                         * ⚠ 这里曾经有个 bug：`apply_dwm_chrome` 把 DWMNCRENDERINGPOLICY 传成了
+                         * 1（= DISABLED，注释却写 ENABLED），结果 DWM 不再渲染非客户区，
+                         * Windows 退回经典边框 —— 看起来就是"底部多出一个 WinForm 味的老式窗框"。
+                         * 已改成 2（= ENABLED），详见 winbridge.rs 的注释。 */
+                        winbridge::apply_dwm_chrome(hwnd);
+                    }
+                }
+                Err(e) => note(&format!("取窗口句柄失败（win 桥的窗口操作会不可用）：{e}")),
+            }
+            note("Tauri WebView2 就绪；命令层 call / host_info / front_log 已注册；CDP 端口 9222");
+            Ok(())
+        })
+        .invoke_handler(tauri::generate_handler![
+            commands::call,
+            commands::host_info,
+            commands::front_log
+        ])
+        .run(tauri::generate_context!());
+
+    if let Err(e) = run {
         let msg = format!("{e:#}");
-        eprintln!("[rust-host] 启动失败：{msg}");
-        // ① 完整崩溃记录（环境 + 异常 + app.log 尾部），单文件即可复盘
-        if let Some(p) = logging::crash("启动失败", &msg) {
+        eprintln!("[rust-host] 运行失败：{msg}");
+        if let Some(p) = logging::crash("运行失败", &msg) {
             eprintln!("[rust-host] 崩溃记录：{p}");
         }
-        // ② 同目录再放一份：双击启动时 stderr 看不到，这一份是留给用户的最近线索
-        let _ = std::fs::write(
-            exe_dir().join("rust-host-error.log"),
-            format!("MFMath Rust 宿主启动失败：\n{msg}\n"),
-        );
+        std::process::exit(1);
     }
-}
-
-fn run() -> anyhow::Result<()> {
-    let event_loop = EventLoopBuilder::new().build();
-
-    let dir = exe_dir();
-    let wwwroot = dir.join("wwwroot");
-    println!("[rust-host] 程序目录：{}", dir.display());
-    println!("[rust-host] {}", handlers::engine_selfcheck());
-    if !wwwroot.is_dir() {
-        eprintln!(
-            "[rust-host] 警告：{} 不存在 —— 前端资源要放到这里\n\
-             [rust-host]   Release 值：npm run build 后从 MF_UI/MFMath.UI.Vue/dist 拷过来",
-            wwwroot.display()
-        );
-    }
-
-    let window = WindowBuilder::new()
-        .with_title("MF-Mathematics")
-        .with_inner_size(LogicalSize::new(1280.0, 840.0))
-        .build(&event_loop)?;
-
-    // WebView2 的用户数据目录：与 C# 宿主同名开关 MF_WEBVIEW2_DIR。
-    // 为什么必须有：C# 版那段注释写得很清楚 —— 多个宿主实例不能共用同一个数据目录；
-    // 另外在受限上下文里 %LOCALAPPDATA% 不可写时，指到可写目录是唯一的出路。
-    let mut web_context = match std::env::var("MF_WEBVIEW2_DIR") {
-        Ok(d) if !d.trim().is_empty() => {
-            let p = PathBuf::from(d.trim());
-            let _ = std::fs::create_dir_all(&p);
-            println!("[rust-host] WebView2 用户数据目录：{}", p.display());
-            wry::WebContext::new(Some(p))
-        }
-        _ => wry::WebContext::new(None),
-    };
-    // 让出一份 'static：单窗口宿主里数据目录要活到进程结束
-    let web_context: &'static mut wry::WebContext = Box::leak(Box::new(web_context));
-
-    // 与 C# Release 版同样的浏览器参数（wry 的默认值要自己带上，见其文档）
-    let webview = WebViewBuilder::new_with_web_context(web_context)
-        .with_url("about:blank")
-        .with_additional_browser_args(
-            "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection \
-             --autoplay-policy=no-user-gesture-required \
-             --remote-debugging-port=9222",
-        )
-        .build(&window)?;
-
-    let core = webview.webview();
-
-    // ① 虚拟主机映射：https://mfmath.local/index.html → wwwroot（前端用的是相对资源路径）
-    let wv3: ICoreWebView2_3 = core.cast()?;
-    let host_w = wide("mfmath.local");
-    let folder_w = wide(&wwwroot.to_string_lossy());
-    unsafe {
-        wv3.SetVirtualHostNameToFolderMapping(
-            PCWSTR(host_w.as_ptr()),
-            PCWSTR(folder_w.as_ptr()),
-            COREWEBVIEW2_HOST_RESOURCE_ACCESS_KIND_ALLOW,
-        )?;
-    }
-
-    // ② 同步宿主对象：前端 window.chrome.webview.hostObjects.sync.mf.*
-    //    方法表 + 由它造出的 ITypeInfo 都在 hostobject.rs
-    //    一个通用 IDispatch 服务所有桥：加一个桥 = 这里加一行 + handlers.rs 加一个分支
-    hostobject::register(&core, "mf", MF_SPEC)?;
-    hostobject::register(&core, "sys", SYS_SPEC)?;
-    hostobject::register(&core, "diag", DIAG_SPEC)?;
-
-    // ③ 导航（与 C# 的发布模式一致）
-    unsafe { core.Navigate(w!("https://mfmath.local/index.html"))? };
-    println!("[rust-host] WebView2 就绪；宿主对象 mf / sys / diag 已注册；CDP 端口 9222");
-
-    event_loop.run(move |event, _, control_flow| {
-        *control_flow = ControlFlow::Wait;
-        if let Event::WindowEvent {
-            event: WindowEvent::CloseRequested,
-            ..
-        } = event
-        {
-            *control_flow = ControlFlow::Exit;
-        }
-        let _keep = &webview; // WebView 必须活到事件循环结束
-    });
 }
