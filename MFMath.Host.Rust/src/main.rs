@@ -21,6 +21,7 @@
 
 mod account;
 mod commands;
+mod console;   // ⚠ 文件名不能叫 con.rs：Windows 保留设备名，git 读不了它（见下方注释）
 mod dpapi;
 mod engine;
 mod handlers;
@@ -174,6 +175,32 @@ const SEARCH_SPEC: &[MethodSpec] = &[
     MethodSpec { name: "SelfCheck", params: &[], ret: RetKind::Str },
 ];
 
+/// `con`：控制台 + 可选组件（对照 C# `ConsoleBridge.cs` + `ComponentDownload.cs`）。
+///
+/// ⚠ **模块文件叫 `console.rs`，但注册的宿主对象名必须是 `con`**（前端写的是
+/// `hostObjects.sync.con`，那是契约）。改名不是因为命名偏好：Windows 把 `con` 当保留设备名，
+/// `src/con.rs` 这种文件 **git 索引不了**（`git add` 直接报
+/// `open("src/con.rs"): No such file or directory`，而文件明明在磁盘上），
+/// 留着它等于这个桥永远进不了版本库。
+/// 方法名与参数个数照前端 `lib/console/bridge.js` 的 `c.XXX(...)` 调用点：
+/// `Components SetDownloadBase Install Uninstall CancelInstall InstallStatus
+///  Start Poll Stop StopAll`（正好 10 个，C# 桥面也是这 10 个）。
+///
+/// ⚠ `Install` 与 `Start` 的返回是**裸 id 字符串**（`"job3"` / `"run4"`），不是 JSON ——
+/// 前端写的是 `String(c.Install(name))`，用例也按裸字符串用。
+const CON_SPEC: &[MethodSpec] = &[
+    MethodSpec { name: "Components", params: &[], ret: RetKind::Str },
+    MethodSpec { name: "SetDownloadBase", params: &["url"], ret: RetKind::Str },
+    MethodSpec { name: "Install", params: &["name"], ret: RetKind::Str },
+    MethodSpec { name: "Uninstall", params: &["name"], ret: RetKind::Str },
+    MethodSpec { name: "CancelInstall", params: &["jobId"], ret: RetKind::Str },
+    MethodSpec { name: "InstallStatus", params: &["jobId"], ret: RetKind::Str },
+    MethodSpec { name: "Start", params: &["language", "code", "stdin"], ret: RetKind::Str },
+    MethodSpec { name: "Poll", params: &["runId"], ret: RetKind::Str },
+    MethodSpec { name: "Stop", params: &["runId"], ret: RetKind::Str },
+    MethodSpec { name: "StopAll", params: &[], ret: RetKind::Str },
+];
+
 /// 要注册的宿主对象。**加一个桥 = 这里加一行 + handlers.rs 加一个分支**，
 /// COM 那一层（hostobject.rs）一行都不用动。
 const HOST_OBJECTS: &[(&str, &[MethodSpec])] = &[
@@ -185,6 +212,7 @@ const HOST_OBJECTS: &[(&str, &[MethodSpec])] = &[
     ("update", UPDATE_SPEC),
     ("account", ACCOUNT_SPEC),
     ("search", SEARCH_SPEC),
+    ("con", CON_SPEC),
 ];
 
 /// 同时写 stderr 与 app.log。

@@ -93,7 +93,41 @@ pub fn call(object: &str, method: &str, args: &[Arg]) -> Ret {
         "update" => update(method, args),
         "account" => account(method, args),
         "search" => search(method, args),
+        "con" => con(method, args),
         other => Ret::Str(err_envelope(&format!("未知宿主对象：{other}"))),
+    }
+}
+
+/// `con` 桥：控制台 + 可选组件（对照 C# `ConsoleBridge.cs` + `ComponentDownload.cs`）。
+///
+/// 纪律（与 C# 一致的取舍）：
+///   · **跑用户代码一律异步**：`Start` 立即返回 runId，输出靠 `Poll` 增量取 ——
+///     同步跨桥调用会把渲染进程阻塞到方法返回，而控制台可能跑几十秒；
+///   · **组件是可选下载**：下载带断点续传，解压前先 SHA-256 校验，
+///     `.part` 是续传凭据（取消/失败都保留），暂存目录失败时才清；
+///   · **停止是"停止等待"而不是"假装杀干净"**：取消安装不打断解压阶段，
+///     文案如实写"已取消安装（已下载的部分保留着，下次接着下）"；
+///   · `Install` / `Start` 返回的是**裸 id 字符串**（不是 JSON），前端按 `String(...)` 用。
+fn con(method: &str, args: &[Arg]) -> Ret {
+    // 模块文件叫 `console.rs`（`con.rs` 在 Windows 上是保留设备名，git 索引不了），
+    // 但注册给页面的宿主对象名仍是 `con` —— 那是前端契约。
+    use crate::console as c;
+    match method {
+        "Components" => Ret::Str(c::components()),
+        "SetDownloadBase" => Ret::Str(c::set_download_base(arg_str(args, 0).unwrap_or(""))),
+        "Install" => Ret::Str(c::install(arg_str(args, 0).unwrap_or(""))),
+        "Uninstall" => Ret::Str(c::uninstall(arg_str(args, 0).unwrap_or(""))),
+        "CancelInstall" => Ret::Str(c::cancel_install(arg_str(args, 0).unwrap_or(""))),
+        "InstallStatus" => Ret::Str(c::install_status(arg_str(args, 0).unwrap_or(""))),
+        "Start" => Ret::Str(c::start(
+            arg_str(args, 0).unwrap_or("python"),
+            arg_str(args, 1).unwrap_or(""),
+            arg_str(args, 2).unwrap_or(""),
+        )),
+        "Poll" => Ret::Str(c::poll(arg_str(args, 0).unwrap_or(""))),
+        "Stop" => Ret::Str(c::stop(arg_str(args, 0).unwrap_or(""))),
+        "StopAll" => Ret::Str(c::stop_all()),
+        other => Ret::Str(err_envelope(&format!("con 没有这个方法：{other}"))),
     }
 }
 
