@@ -52,7 +52,11 @@ const TYPE_OF = {
   matrix: "matrix", ll_matrix: "matrix", matrix_symbolic: "matrix",
 };
 
-function apiFiles() {
+/* ── 刮取器：**导出**给别的闸门复用（见 tools/check-arg-contract.mjs）。
+ *  ⚠ 本文件原来是个纯脚本（import 它就等于跑对账），所以下面把 CLI 部分收进 main()，
+ *  只在"被当成命令直接执行"时运行；被 import 时只提供 scrape()/apiFiles()。
+ *  这样"引擎读哪些参数"这条规则**只有一份实现**（复制一份迟早会漂移）。 ── */
+export function apiFiles() {
   const out = [];
   (function walk(d) {
     for (const e of fs.readdirSync(d, { withFileTypes: true })) {
@@ -66,7 +70,7 @@ function apiFiles() {
 }
 
 /** 从源码刮出 { fn: {file, params, required, optional} } */
-function scrape() {
+export function scrape() {
   const result = {};
   for (const file of apiFiles()) {
     const text = fs.readFileSync(file, "utf8");
@@ -115,6 +119,11 @@ function scrape() {
   return Object.fromEntries(Object.entries(result).sort(([a], [b]) => a.localeCompare(b)));
 }
 
+/* ── 只在"被当命令跑"时执行对账/重建；被 import 时什么也不做 ── */
+const IS_MAIN = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+if (IS_MAIN) main();
+
+function main() {
 const fresh = scrape();
 
 if (WRITE) {
@@ -201,3 +210,4 @@ if (hard.length) {
   process.exit(1);
 }
 console.log("✓ 无漂移：函数集合一致，且源码读取的每个参数都在表里、必填/可选不矛盾");
+}

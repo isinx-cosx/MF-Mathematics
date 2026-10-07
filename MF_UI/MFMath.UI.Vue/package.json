@@ -14,7 +14,8 @@
     "check:signatures": "node tools/engine-signatures.mjs --check",
     "check:ui": "node tools/build-tutorials.mjs && node tools/check-ui.mjs && node tools/check-examples.mjs",
     "signatures:write": "node tools/engine-signatures.mjs --write",
-    "check": "npm run check:types && npm run check:signatures && npm run check:ui"
+    "check": "npm run check:types && npm run check:signatures && npm run check:args && npm run check:ui",
+    "check:args": "node tools/check-arg-contract.mjs"
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6.20.3",

@@ -256,6 +256,42 @@
   其余 4 页（复平面 / 向量场 / 几何 / 分形）**仍未验证** —— 等宿主能起来后跑
   `node tests/cdp-plot-workspace.mjs`（它会自己报告 `INTERFERENCE`；退出码 2 = 宿主不可用）。
 
+### 0.4 参数契约系统核对（2026-10-07）：**415 个模式 / 934 个声明键，0 处真缺陷**
+
+**为什么要做**：B1 是"引擎读 `interval`、UI 发 `a`/`b` ⇒ 用户填的区间永远不生效（恒定 [0,1]）"。
+而现有的 `npm run check:signatures` **只对账「引擎源码 ↔ engine-signatures.json」，完全不含 UI**
+—— 两边各自都"无漂移"，缝里的 B1 谁也没看见。所以要把**第三条边**补上：**UI 的 `ENGINE_MAP` ↔ 引擎实际读的键**。
+
+**怎么做的**（两段，缺一不可）：
+1. **静态**：复用 `tools/engine-signatures.mjs` 的刮取器，列出每个模式"UI 声明了、但源码里看不到读"的键。
+   ⚠ 刮取器只是**下界** —— 引擎大量参数经 helper / lambda / `args["k"]` 读（例：`get_interval(args,a,b)`）。
+2. **动态（定案）**：对每个候选做**差分探针** —— 用 `probe_call.exe` 真调引擎，**删掉**这个键 / 换成别的值，
+   看结果变不变。这是 B1 的同一套判据，不依赖刮取器。
+
+**结果**：78 个候选**全部是刮取器盲区**，没有一个是真缺陷。三类判据：
+- **删掉即报错**（42 条）：`对象缺少键: z` / `缺少必填参数 point` / `gamma 必须为 circle(center, r)`
+  —— 引擎明确要它，铁证；
+- **改值结果就变**（30 条）：如 `extreme_value` 的 [0,1] max=1 → [0,2] max=4；
+- **单看删除没差别、但已查清原因**（6 条）：`get_interval` 的默认值**就是 [0,1]**，而样本区间恰好也是 [0,1]
+  （实测：省略 interval 与传 [0,1] 逐字相同，传 [0,2] 下和 0.285→2.28）；另有两个模式只输出**判定值**
+  （`一致连续`/`黎曼可积`），判定对区间不敏感 —— 但源码里 `get_interval` 是**无条件**调用的。
+
+**顺带确认 B1 的修复是对的**：引擎 `real_analysis_api.cpp` 里 `darboux_sum`/`riemann_integrable`/
+`fundamental_theorem`/`integral_mean_value`/`uniform_continuity`/`extreme_value`/`intermediate_value`/
+`weierstrass_m_test`/`termwise_integration`/`uniform_convergence` 全部走 `get_interval(args, a, b)`，
+UI 发 `interval` 正是对的（当初发 `a`/`b` 才是不生效）。
+
+**由此新增的常驻闸门**：`tools/check-arg-contract.mjs`（`npm run check:args`，已进 `npm run check`）。
+- 判据：UI 声明的每个键，要么被刮取器看到，要么在 `HELPER_READ` 白名单里且**写明判据**；
+- **已验证它会失败**：临时给「达布和」注入一个引擎不读的 `bogus_key` ⇒ 立即报出该模式该键并 `exit 1`，
+  还原后 `exit 0`；
+- 白名单**拒绝无判据的条目**（文件注释里写明：拿不出判据就别加，白名单只会越长越没人信）；
+- 反方向（引擎按必填读、UI 没声明）只**警告**：4 处已核为**多分支互斥**的假阳性
+  （`variance` 的 `required=[expr,pmf_data]` 实际是 data / pmf_data / expr+range 三选一）。
+
+**结论**：**参数契约这一侧是干净的**。这也是本轮唯一一处"系统核对"而不是"抽查"——
+其余条目（B1 之外的 400 多个模式）此前只做过零散核对，现在有了闸门，**新引入的同类错会被挡住**。
+
 ## 0. 汇总（按严重度排序）
 
 | # | 级别 | 状态 | 位置 | 一句话 |
