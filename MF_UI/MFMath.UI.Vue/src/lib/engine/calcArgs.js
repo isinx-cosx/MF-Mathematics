@@ -189,7 +189,14 @@ export function convertArg(type, raw) {
   }
 }
 
-/** 必填参数拿不到值时的兜底（仍交给引擎校验并报错） */
+/**
+ * 必填参数拿不到值时的兜底值。
+ *
+ * ⚠ 这些值**在引擎眼里全都是合法值**（0 / [0,0] / [] / ""），所以引擎不会报错，
+ * 而是拿它们老老实实算出一个结果。注释里曾写"仍交给引擎校验并报错"，**那是错的**：
+ * 「某点导数」缺 point 时静默算成 f'(0)，用户以为算的是自己想的那个点（BUGS.md B4）。
+ * 因此每次走到这里都要经 noteDefaulted() 记账，由调用点决定怎么告诉用户。
+ */
 function fallbackOf(type) {
   switch (type) {
     case "double": case "int": return 0;
@@ -200,12 +207,59 @@ function fallbackOf(type) {
 }
 
 /**
+ * 记账：这次调用里有哪些**必填**参数是"替用户填的"。
+ *
+ * 为什么要这个通道：构造器返回的就是引擎参数对象本身，没有地方放"警告"。
+ * 而"用了兜底"这件事必须能传出去 —— 否则用户看到的就是一个**看起来很正常的错结果**。
+ * 收集器由调用点传入（可选参数，老调用点一行都不用改）。
+ * @param {{defaulted?: Array<{key:string,type:string,value:unknown}>}|undefined} report
+ * @param {{key:string,type:string}} a 参数声明
+ */
+function noteDefaulted(report, a) {
+  if (!report || !Array.isArray(report.defaulted)) return;
+  report.defaulted.push({ key: a.key, type: a.type, value: fallbackOf(a.type) });
+}
+
+/**
+ * 选"输入框的第一段喂给哪个参数"。
+ *
+ * 这段规则原先在文件里**复制了 3 份**（其中两份逐字相同），于是任何一处改动都极易
+ * 只落到一处 —— 这类漂移在本文件里已经出过事（BUGS.md B12）。现在只有这一处实现。
+ *
+ * 两种口径是**有意不同**的，不要合并：
+ *   · `skipWholeString: true`（自动映射路径）：排除 `string_array`（整组条件）与
+ *     `complex_obj`（整串复形），因为它们要的是"整串"而不是"第一段"；
+ *     找不到就返回 undefined，把整串留给后面的整串分支处理。
+ *     ⚠ 也**不能**退回 `args[0]`：唯一参数就是 string_array 时（「解不等式/组」），
+ *     退回 args[0] 会把整串交给"只吃第一段"的逻辑，于是 `x>1; x<3` 只剩 x>1（BUGS.md B2③）。
+ *   · `skipWholeString: false`（弹窗路径）：必填字符串 → 第一个必填 → 第一个声明的。
+ *     弹窗第一格是输入框镜像，本来就该落到"那条表达式"上；首参是数字/矩阵的模式
+ *     （等差数列、Lp 范数）也要能拿到它。
+ *
+ * @param {Array<{key:string,type:string,opt?:boolean}>} args 参数声明
+ * @param {{skipWholeString?:boolean}} [opt]
+ */
+function pickTextArg(args, opt = {}) {
+  const list = Array.isArray(args) ? args : [];
+  const reqString = list.find((a) => !a.opt && a.type === "string");
+  if (reqString) return reqString;
+  if (opt.skipWholeString) {
+    return list.find((a) => !a.opt && a.type !== "string_array")
+        || list.find((a) => a.type !== "string_array" && a.type !== "complex_obj")
+        || list.find((a) => a.type !== "string_array");
+  }
+  return list.find((a) => !a.opt) || list[0];
+}
+
+/**
  * 自动映射构造参数
  * @param {string} mode 中文模式名
  * @param {string} expr 用户输入的表达式（可用 `;` 分段附带结构化参数）
+ * @param {{defaulted?: Array<object>}} [report] 可选收集器：调用点传入后即可知道
+ *        哪几个**必填**参数是兜底填的（见 noteDefaulted / BUGS.md B4）
  * @returns {object|null} 引擎参数对象；模式未映射时返回 null
  */
-export function buildEngineArgs(mode, expr) {
+export function buildEngineArgs(mode, expr, report) {
   const spec = ENGINE_MAP[mode];
   if (!spec) return null;
   const fields = ENGINE_VAR_SPECS[mode] || [];
@@ -218,16 +272,23 @@ export function buildEngineArgs(mode, expr) {
   // ① 第一段永远是"那条表达式"：给第一个必填的字符串参数
   //    （不能按声明顺序给 —— 傅里叶系数这类模式的必填项是 n:int 在前、f:string 在后，
   //      那样会把用户写的表达式当项号。）
-  // 第一段给"必填"参数：优先必填字符串（表达式），其次第一个必填参数，
-  // 全可选时才用第一个声明的。旧写法会落到**可选**字符串上（z 检验的 alternative
-  // 是个可选字符串，结果输入框第一段被它吃掉，sample_mean 反而错位）。
-  const textArg = spec.args.find((a) => !a.opt && a.type === "string")
-               || spec.args.find((a) => !a.opt && a.type !== "string_array")
-               || spec.args.find((a) => a.type !== "string_array" && a.type !== "complex_obj")
-               || spec.args[0];
+  //    选法与口径说明见 pickTextArg（原来这里是一段复制出来的 find 链）。
+  const textArg = pickTextArg(spec.args, { skipWholeString: true });
   // 必须按类型转换：textArg 现在可能是数字/矩阵/点等（旧写法一律 toEngineExpr，
   // 结果把 "5" 当字符串塞给 int 参数 → "参数 n 类型错误"。string_array 交给下面的分支整组处理）
-  if (textArg && segments.length) { args[textArg.key] = eat(textArg, segments[seg++]); }
+  /* ⚠ prob_table 是"整串就是一张表"的类型：`;` 在它里面是**表项分隔符**，不是参数分隔符。
+   * 不特殊处理的话，条件概率/独立性/全概率/贝叶斯自带的那串
+   * "A_and_B=0.2; B=0.5" 会在这里被切成两段，表只剩前半张（BUGS.md B2①）——
+   * 而 buildEngineArgs 的 ④ 还会把剩下的半张喂给下一个参数，于是 A 变成 "B=0.5"。
+   * 所以对 prob_table 一律"整串 join 回去"（与下面 string_array 的处理同一个思路）。 */
+  if (textArg && segments.length) {
+    if (textArg.type === "prob_table") {
+      args[textArg.key] = convertArg("prob_table", segments.join(";"));
+      seg = segments.length;
+    } else {
+      args[textArg.key] = eat(textArg, segments[seg++]);
+    }
+  }
 
   // ② 不等式组这类：剩下的段整组当字符串数组
   for (const a of spec.args) {
@@ -256,7 +317,13 @@ export function buildEngineArgs(mode, expr) {
   const takeField = () => { skipField(); return fi < fields.length ? fields[fi++][1] : null; };
   for (const a of missingRequired) {
     const v = takeField();
-    args[a.key] = v === null ? fallbackOf(a.type) : eat(a, v);
+    if (v === null) {
+      // 必填却拿不到值：兜底 + **记账**（引擎不会报错，但结果已不是用户要的，见 B4）
+      noteDefaulted(report, a);
+      args[a.key] = fallbackOf(a.type);
+    } else {
+      args[a.key] = eat(a, v);
+    }
   }
 
   // ⑥ 其余可选参数 → VAR_SPECS 字段；没有就**整个键省略**，让引擎用自己的默认值
@@ -280,8 +347,9 @@ export function buildEngineArgs(mode, expr) {
  * @param {object} spec ENGINE_MAP[mode]
  * @param {Array<[string,string]>} fields VAR_SPECS 的字段定义
  * @param {string[]} values 用户填写的值（与 fields 一一对应）
+ * @param {{defaulted?: Array<object>}} [report] 可选收集器，同 buildEngineArgs（见 BUGS.md B4）
  */
-export function buildEngineArgsFromValues(spec, fields, values) {
+export function buildEngineArgsFromValues(spec, fields, values, report) {
   const args = {};
   // 弹窗第一个格子就是输入框的内容，里面同样可以用 `;` 分段带参数：
   //   "x^3; x; 2" + 弹窗默认 → 不必逐个手填
@@ -298,13 +366,25 @@ export function buildEngineArgsFromValues(spec, fields, values) {
     .map((f, i) => ({ label: f[0], value: values[i] }))
     .filter((f, i) => i > 0 && !isSkippedField(f.label));
   let ui = 0, seg = 0;
+  /* 输入框整串被当成**一张概率表**吃掉时置真。为什么需要它：下面的 ui 是"弹窗字段要跳过
+   * 几格"（段已经填掉几个参数）。而概率表是把所有段 join 成一张表用的，**没有**填掉
+   * 若干个参数，所以此时 ui 必须是 0，否则字段队列会整体错位（BUGS.md B2①）。 */
+  let tableTookAll = false;
   const conv = (a, v) => (a.type === "string" ? toEngineExpr(String(v)) : convertArg(a.type, v));
 
   if (!boxEmpty) {
     // ① 第一段给第一个必填字符串参数（"那条表达式"），其次给第一个必填参数
-    const textArg = spec.args.find((a) => !a.opt && a.type === "string")
-                 || spec.args.find((a) => !a.opt) || spec.args[0];
-    if (textArg) args[textArg.key] = conv(textArg, segments[seg++]);
+    const textArg = pickTextArg(spec.args);
+    if (textArg) {
+      if (textArg.type === "prob_table") {
+        // 整串就是一张表：`;` 是表项分隔符（同 buildEngineArgs 里那段说明）
+        args[textArg.key] = conv(textArg, segments.join(";"));
+        seg = segments.length;
+        tableTookAll = true;
+      } else {
+        args[textArg.key] = conv(textArg, segments[seg++]);
+      }
+    }
     // ② 剩下的段：**先必填、后可选**，按声明顺序（与 buildEngineArgs 同一规则）。
     //    旧写法按声明顺序一把梭，遇到"可选参数声明在前"的模式（RK4 的 h）会把
     //    第一段参数喂给可选参数，必填参数反而落空。
@@ -319,7 +399,7 @@ export function buildEngineArgsFromValues(spec, fields, values) {
 
   // 段已经填过若干参数 → 对应的弹窗字段也要跳过，否则同一参数被"段"和"字段"各填一次
   // （交换律验证就是这样把运算符填成了 b 的值）
-  ui = Math.max(0, seg - 1);
+  ui = tableTookAll ? 0 : Math.max(0, seg - 1);
   /* 输入框为空时，先处理**第 0 格**（输入框的镜像）。
    *
    * 它对应的参数（textArg，与 ① 的选法一致）此时拿不到"段"，但**这一格自己是有值的**：
@@ -328,21 +408,31 @@ export function buildEngineArgsFromValues(spec, fields, values) {
    * product_measure 读不到 mu → as_double 抛「值不是数字」（cdp-engine-coverage 实测）。
    * 现在用这一格自己的值填；为空时才走 fallbackOf（引擎仍会如实报"缺少必填参数 X"）。 */
   {
-    const textArg = spec.args.find((a) => !a.opt && a.type === "string")
-                 || spec.args.find((a) => !a.opt) || spec.args[0];
+    const textArg = pickTextArg(spec.args);
     const f0 = fields[0];
     // 注意：**不能**因为第 0 格带"（输入框）"就跳过它 —— isSkippedField 说"它是输入框的镜像、
     // 不进字段队列"是对的，但**空输入框**时这一格的默认值正是该参数该取的值
     // （乘积测度第 0 格默认 "lebesgue"；其它模式是 ""，于是走 fallback，引擎照样如实报错）。
     if (boxEmpty && textArg && f0 && values.length) {
       const v = values[0];
-      args[textArg.key] = String(v ?? "") === "" ? fallbackOf(textArg.type) : conv(textArg, v);
+      if (String(v ?? "") === "") {
+        // 必填（textArg 非可选）却连这一格的默认值都是空 → 兜底并记账
+        if (!textArg.opt) noteDefaulted(report, textArg);
+        args[textArg.key] = fallbackOf(textArg.type);
+      } else {
+        args[textArg.key] = conv(textArg, v);
+      }
     }
   }
   // ③ 其余必填参数（弹窗字段优先，其次兜底）
   for (const a of spec.args) {
     if (a.opt || a.key in args) continue;
-    args[a.key] = ui < rest.length ? conv(a, rest[ui++].value) : fallbackOf(a.type);
+    if (ui < rest.length) {
+      args[a.key] = conv(a, rest[ui++].value);
+    } else {
+      noteDefaulted(report, a);          // 必填却没有格子可填 → 记账（见 B4）
+      args[a.key] = fallbackOf(a.type);
+    }
   }
   // ④ 可选参数（剩余字段；没有就省略 → 用引擎默认）
   for (const a of spec.args) {
@@ -352,10 +442,9 @@ export function buildEngineArgsFromValues(spec, fields, values) {
   return args;
 }
 
-/** 模式是否有引擎映射 */
-export function hasEngineMode(mode) {
-  return Object.prototype.hasOwnProperty.call(ENGINE_MAP, mode);
-}
+/* hasEngineMode 只在 engineMap.js 里实现**一处**，这里原样再导出（既有调用点无需改动）。
+ * 从前这里又实现了一遍逐字相同的判断，两份各改一半就会分叉（BUGS.md B12）。 */
+export { hasEngineMode } from "./engineMap.js";
 
 /** 模式是否需要多参数弹窗 */
 export function needsVarDialog(mode) {

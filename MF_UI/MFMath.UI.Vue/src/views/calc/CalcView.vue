@@ -2,8 +2,9 @@
 /**
  * CalcView — 通用计算工作区（对应旧版 renderCalcWorkspace + Python BaseWorkspace/BaseCalcBlock）
  *  · 计算块：表达式输入 + 模式下拉 + 计算结果 + 删除（可增删，多块独立）
- *  · 计算流程：模式 → 引擎映射（324 项）→ 自动构造参数 → 引擎调用 → 结果对话框
- *  · 多参数模式（19 项 VAR_SPECS）先弹出参数输入框，用户可自定义 a/b/n 等
+ *  · 计算流程：模式 → 引擎映射（合并后 415 个模式，见 lib/engine/engineMap.js）→ 自动构造参数 → 引擎调用 → 结果对话框
+ *  · 多参数模式（139 项 VAR_SPECS）先弹出参数输入框，用户可自定义 a/b/n 等
+ *  · 重的活走后台通道（shouldRunAsync 判据）—— 否则同步调用会占满主线程、白屏（BUGS.md B5）
  *  · 未映射的模式明确提示"引擎未提供该模式的接口"（不静默）
  */
 import { ref, computed, watch, onMounted, onBeforeUnmount } from "vue";
@@ -13,8 +14,9 @@ import MultiVarDialog from "../../components/calc/MultiVarDialog.vue";
 import ResultDialog from "../../components/calc/ResultDialog.vue";
 import { getViewConfig } from "../../lib/engine/viewConfigs.js";
 import { ENGINE_MAP, ENGINE_VAR_SPECS } from "../../lib/engine/engineMap.js";
-import { buildEngineArgs, buildEngineArgsFromValues, toEngineExpr, hasEngineMode, needsVarDialog } from "../../lib/engine/calcArgs.js";
-import { engineCall, isHosted, bridgeVersion } from "../../lib/bridge.js";
+import { buildEngineArgs, buildEngineArgsFromValues, hasEngineMode, needsVarDialog } from "../../lib/engine/calcArgs.js";
+import { engineCall, engineCallAsync, isHosted, bridgeVersion } from "../../lib/bridge.js";
+import { shouldRunAsync } from "../../lib/engine/asyncPolicy.js";
 // 「查看步骤」：把这道题交给 AI 逐步调引擎讲解（分步显示的渲染层在 AiPanel/StepViewer）
 import { requestAiTurn } from "../../lib/ai/bridge.js";
 import { takePending, pickMode } from "../../lib/workspace/pendingInput.js";
@@ -255,7 +257,7 @@ function modeNeedsInput(mode) {
   return args.some((a) => !a.opt);
 }
 
-function calc(block) {
+async function calc(block) {
   const expr = String(block.expr || "").trim();
   const mode = block.mode;
   // 被示例拦住的块：先让用户选对操作，不要用默认模式算出一个不相干的结果
@@ -283,21 +285,87 @@ function calc(block) {
     return;
   }
 
-  finish(block, mode, expr, engineCall(spec.fn, buildEngineArgs(mode, expr)));
+  /* report 收集"哪几个必填参数是兜底替用户填的"。为什么要它：兜底值（0 / [0,0] / []）
+   * 在引擎眼里都是合法值，引擎不会报错，于是用户会拿到一个**看起来很正常的错结果**
+   * （例：「某点导数」缺 point 时算的是 f'(0)）。见 BUGS.md B4。 */
+  const report = { defaulted: [] };
+  const args = buildEngineArgs(mode, expr, report);
+  const missing = missingRequiredText(report, mode);
+  if (missing) {
+    // 拒绝计算：兜底值会让引擎"算出"一个不是用户要的结果（见 missingRequiredText 的说明）
+    patchBlock(block.id, { computing: false, error: missing });
+    statusText.value = `${mode}：${missing}`;
+    return;
+  }
+  const result = await callEngine(spec.fn, args, block, mode);
+  finish(block, mode, expr, result);
+}
+
+/**
+ * 调引擎：**毫秒级的活仍走同步**（保持既有行为、也保持既有端到端用例的时序），
+ * 可能跑上几百毫秒甚至更久的走后台通道。
+ *
+ * 为什么必须分流：同步 engineCall 会占住渲染进程主线程 —— 积分 / 因式分解 / 级数展开
+ * 这类**没有上界**的符号运算一跑就是好几秒，界面白屏、被系统判定"未响应"；而且
+ * `computing` 在同一 tick 内就被 `finish` 置回 false，"计算中…"永远渲染不出来。
+ * 分界线是实测出来的，见 lib/engine/asyncPolicy.js（哪 4 个按规模、哪 28 个无条件后台）。
+ *
+ * 安全性：engineCallAsync 在"没有宿主"或"宿主没有 DispatchJob"时会**自动退回同步**，
+ * 所以老宿主上行为与以前一模一样（bridge.js 的注释里写明这是刻意设计）。
+ */
+function callEngine(fn, args, block, mode) {
+  if (!shouldRunAsync(fn, args)) return engineCall(fn, args);
+  patchBlock(block.id, { computing: true, error: "" });
+  return engineCallAsync(fn, args, {
+    onProgress: (st) => {
+      const sec = ((st && st.elapsedMs) || 0) / 1000;
+      statusText.value = `${mode}：计算中 ${sec.toFixed(1)}s（后台通道，界面仍可操作）`;
+    },
+  });
 }
 
 /** 弹窗确认：用收集的值构造参数并计算 */
-function onVarConfirm(values) {
+async function onVarConfirm(values) {
   const dlg = varDialog.value;
   if (!dlg) return;
   varDialog.value = null;
   const block = blocks.value.find((b) => b.id === dlg.blockId);
   const spec = ENGINE_MAP[dlg.mode];
-  const args = buildEngineArgsFromValues(spec, dlg.fields, values);
+  const report = { defaulted: [] };
+  const args = buildEngineArgsFromValues(spec, dlg.fields, values, report);
   if (block) {
+    const missing = missingRequiredText(report, dlg.mode);
+    if (missing) {
+      patchBlock(block.id, { computing: false, error: missing });
+      statusText.value = `${dlg.mode}：${missing}`;
+      return;
+    }
     patchBlock(block.id, { computing: true });
-    finish(block, dlg.mode, dlg.expr, engineCall(spec.fn, args));
+    const result = await callEngine(spec.fn, args, block, dlg.mode);
+    finish(block, dlg.mode, dlg.expr, result);
   }
+}
+
+/**
+ * 必填参数没取到值时的提示 —— 有内容就**拒绝计算**（BUGS.md B4）。
+ *
+ * 为什么不能"兜底后照算"：`fallbackOf` 给的是 0 / [0,0] / [] / ""，**在引擎眼里都是合法值**，
+ * 所以引擎不会报错，而是拿它们老老实实算出一个结果 —— 用户拿到的是一个"看起来很正常的错答案"
+ * （最典型：「某点导数」缺 point 时算的是 f'(0)）。宁可明确说"缺什么、怎么补"。
+ *
+ * 修这条路的前提是**样本齐全**：10 个页面模式原先连 fixture 样本都没有，所以这条路一开
+ * 它们就会从"算错"变成"报错"。那 10 条的样本已补（tests/fixtures/mode-samples.mjs 末尾），
+ * 并用真引擎验过（audit-modes 393/0）。
+ */
+function missingRequiredText(report, mode) {
+  const list = report && Array.isArray(report.defaulted) ? report.defaulted : [];
+  if (!list.length) return "";
+  return t("缺少必填参数：{list}。{how}", {
+    list: list.map((d) => d.key).join("、"),
+    how: needsVarDialog(mode)
+      ? t("请在参数弹窗里把这些格子填上（留空会算错）")
+      : t("请在输入框里用 ; 分段补上（顺序 = 参数顺序），例如 x^2; 1"),
+  });
 }
 
 function finish(block, mode, expr, result) {

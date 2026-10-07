@@ -20,6 +20,10 @@ const A_OPT = { key: "a", type: "string_or_number", opt: true };
 const B_OPT = { key: "b", type: "string_or_number", opt: true };
 const p1 = { key: "p1", type: "point", opt: false };
 const p2 = { key: "p2", type: "point", opt: false };
+/* 区间参数。**键名必须是 "interval"、值必须是 2 元数组**：
+ * real_analysis 一族的引擎 handler 全都走 real_analysis_api.cpp:34-44 的 get_interval，
+ * 它只读 args["interval"]（size 必须为 2），读不到就恒定用 [0,1]（BUGS.md B1）。 */
+const INTERVAL = { key: "interval", type: "double_array", opt: true };
 
 export const EXTRA_MAP = {
   /* ════════ 参数声明与引擎签名不符的模式（本轮修正）════════
@@ -167,7 +171,9 @@ export const EXTRA_MAP = {
   "幂级数": { fn: "power_series", module: "calculus", args: [VAR_X, { key: "point", type: "double", opt: true }, { key: "n", type: "int", opt: true }, EXPR] },
   "极值": { fn: "local_extrema", module: "calculus", args: [VAR_X, EXPR] },
   "最值": { fn: "global_extrema", module: "calculus", args: [VAR_X, A_OPT, B_OPT, EXPR] },
-  "平均值": { fn: "integral_mean_value", module: "real_analysis", args: [A_OPT, B_OPT, EXPR] },
+  /* ⚠ 区间参数必须是 `interval`（2 元数组），不能是 a/b —— 引擎的 get_interval 只认这个键，
+   * 发 a/b 等于用户填的区间从来没生效过（BUGS.md B1，实测：填 [0,2] 也仍按 [0,1] 算）。 */
+  "平均值": { fn: "integral_mean_value", module: "real_analysis", args: [EXPR, INTERVAL] },
   "旋转体体积(圆盘)": { fn: "volume_disk", module: "calculus", args: [VAR_X, A_OPT, B_OPT, EXPR] },
   "旋转体体积(壳)": { fn: "volume_shell", module: "calculus", args: [VAR_X, A_OPT, B_OPT, EXPR] },
   "Rolle定理": { fn: "calc_rolle_theorem", module: "calculus", args: [VAR_X, A_OPT, B_OPT, EXPR] },
@@ -346,6 +352,28 @@ export const EXTRA_MAP = {
   "复指数": { fn: "exp_complex", module: "complex_analysis", args: [{ key: "z", type: "point", opt: true }] },
   // 留数需要展开点 z0
   "留数": { fn: "residue", module: "complex_analysis", args: [{ key: "z0", type: "point", opt: true }, { key: "func", type: "string", opt: false }] },
+
+  /* ════════ real_analysis：区间参数统一叫 `interval`（BUGS.md B1）════════
+   * 为什么单列一组：引擎 real_analysis_api.cpp:34-44 的 get_interval **只读 "interval" 这个键**
+   * （且要求是 2 元数组），读不到就恒定取 [0,1]。这 9 个模式原先**一个区间参数都没声明**，
+   * 于是界面上根本无法指定区间 —— 引擎永远按 [0,1] 算，用户怎么填都没用（不是"算错"，
+   * 是"输入被静默忽略"）。这里补上 interval，并在 EXTRA_VAR_SPECS 里配上同名弹窗字段。
+   * 字段默认值取 0,1 = 引擎自己的缺省，所以**不改弹窗直接点计算的结果与修复前完全一致**。
+   * 核对方式（把"引擎读 interval 的 fn"反查成 UI 模式）见 BUGS.md 附 B ③。
+   *
+   * ⚠ 声明顺序 = 弹窗字段顺序：buildEngineArgsFromValues 的 ④ 是"可选参数按声明顺序吃字段"，
+   * 所以某个可选参数声明在 interval 之前，它的字段也**必须**排在「区间 a,b」之前。 */
+  "达布和": { fn: "darboux_sum", module: "real_analysis", args: [EXPR, INTERVAL] },
+  "黎曼可积判定": { fn: "riemann_integrable", module: "real_analysis", args: [EXPR, INTERVAL] },
+  "微积分基本定理": { fn: "fundamental_theorem", module: "real_analysis", args: [EXPR, INTERVAL] },
+  "一致连续": { fn: "uniform_continuity", module: "real_analysis", args: [EXPR, INTERVAL] },
+  "极值定理": { fn: "extreme_value", module: "real_analysis", args: [EXPR, INTERVAL] },
+  // 介值定理多一个 value（引擎 get_double_opt(args,"value",0.0)）→ 字段顺序：函数值 → 区间
+  "介值定理": { fn: "intermediate_value", module: "real_analysis", args: [{ key: "value", type: "double", opt: true }, EXPR, INTERVAL] },
+  "一致收敛": { fn: "uniform_convergence", module: "real_analysis", args: [{ key: "seq_expr", type: "string", opt: false }, INTERVAL] },
+  "Weierstrass M-判别": { fn: "weierstrass_m_test", module: "real_analysis", args: [{ key: "seq_expr", type: "string", opt: false }, INTERVAL] },
+  // 逐项积分同理：n_terms 默认 10（引擎 get_int_opt_bounded(args,"n_terms",10,…,200)）→ 字段顺序：项数 → 区间
+  "逐项积分": { fn: "termwise_integration", module: "real_analysis", args: [{ key: "n_terms", type: "int", opt: true }, { key: "seq_expr", type: "string", opt: false }, INTERVAL] },
 };
 
 /** 新增/覆盖的弹窗字段。第一个字段是输入框占位（用「（输入框）」显式标注）。 */
@@ -367,7 +395,22 @@ export const EXTRA_VAR_SPECS = {
   "级数展开": [["函数（输入框）", ""], ["自变量", "x"], ["展开点", "0"], ["阶数", "6"]],
   "极限": [["函数（输入框）", ""], ["自变量", "x"], ["趋近值", "0"], ["方向（left/right，留空为两侧）", ""]],
   "最值": [["函数（输入框）", ""], ["自变量", "x"], ["区间左端", "-1"], ["区间右端", "1"]],
-  "平均值": [["函数（输入框）", ""], ["区间左端", "0"], ["区间右端", "1"]],
+  /* real_analysis 一族：引擎的 get_interval 只读 `interval`（且必须是 2 元数组），
+   * 所以这里一律给"一个「区间 a,b」字段"，而不是别的模式那种"区间左端/右端"两格。
+   * 默认 0,1 正是引擎自己的缺省 → 不改弹窗直接点「计算」，结果与修复前完全一致（BUGS.md B1）。
+   * ⚠ 字段顺序必须与 EXTRA_MAP 里的 args 声明顺序一致（可选参数按声明顺序吃字段）。 */
+  "平均值": [["函数（输入框）", ""], ["区间 a,b", "0,1"]],
+  "达布和": [["函数（输入框）", ""], ["区间 a,b", "0,1"]],
+  "黎曼可积判定": [["函数（输入框）", ""], ["区间 a,b", "0,1"]],
+  "微积分基本定理": [["函数（输入框）", ""], ["区间 a,b", "0,1"]],
+  "一致连续": [["函数（输入框）", ""], ["区间 a,b", "0,1"]],
+  "极值定理": [["函数（输入框）", ""], ["区间 a,b", "0,1"]],
+  // 介值定理多一格「函数值 f(ξ)」（引擎缺省 0.0）→ 排在「区间」之前
+  "介值定理": [["函数（输入框）", ""], ["函数值 f(ξ)", "0"], ["区间 a,b", "0,1"]],
+  "一致收敛": [["通项 aₙ（输入框）", ""], ["区间 a,b", "0,1"]],
+  "Weierstrass M-判别": [["通项 aₙ（输入框）", ""], ["区间 a,b", "0,1"]],
+  // 逐项积分多一格「项数 n」（引擎缺省 10）→ 排在「区间」之前
+  "逐项积分": [["通项 aₙ（输入框）", ""], ["项数 n", "10"], ["区间 a,b", "0,1"]],
   "旋转体体积(圆盘)": [["函数（输入框）", ""], ["自变量", "x"], ["区间左端", "0"], ["区间右端", "1"]],
   "旋转体体积(壳)": [["函数（输入框）", ""], ["自变量", "x"], ["区间左端", "0"], ["区间右端", "1"]],
   "Rolle定理": [["函数（输入框）", ""], ["自变量", "x"], ["区间左端", "0"], ["区间右端", "1"]],
@@ -456,8 +499,14 @@ export const EXTRA_VAR_SPECS = {
   "庞加莱对偶": [["流形（S1/S2/S3/T2/RP2/K）（输入框）", "T2"], ["k", "1"]],
   "条件概率": [["概率表 P（键=值; 键=值）（输入框）", "A_and_B=0.2; B=0.5"], ["事件 A", "A"], ["事件 B", "B"]],
   "独立性": [["概率表 P（键=值; 键=值）（输入框）", "A_and_B=0.12; A=0.3; B=0.4"], ["事件 A", "A"], ["事件 B", "B"]],
-  "全概率公式": [["概率表 P（键=值; 键=值）（输入框）", "A1=0.5; A2=0.5; B|A1=0.1; B|A2=0.2"], ["完备事件组（逗号分隔）", "A1,A2"], ["条件 B", "B"]],
-  "贝叶斯公式": [["概率表 P（键=值; 键=值）（输入框）", "A1=0.5; A2=0.5; B|A1=0.1; B|A2=0.2"], ["完备事件组（逗号分隔）", "A1,A2"], ["已发生的事件", "B"]],
+  /* ⚠ 全概率/贝叶斯要的是**两张分开的表**，不是"一张大表 + 一串事件名"。
+   * 引擎 probability_api.cpp:151-186 是这么用的：先 `for (ev : events.keys())` 遍历
+   * **先验概率表**，再按 `P["<条件>|<事件>"]` 逐条取条件概率。
+   * 原来这里第 2 格是"完备事件组（逗号分隔）"，却被赋给了声明为 prob_table 的 `P`
+   * → probTableOf("A1,A2") 找不到 `=` → **P 恒为空对象**，引擎必然报"缺少条件概率"。
+   * 现在第 2 格改成真正的条件概率表（BUGS.md B2②）。 */
+  "全概率公式": [["先验概率表 P(Ai)（键=值; 键=值）（输入框）", "A1=0.5; A2=0.5"], ["条件概率表 P(B|Ai)（键=值; 键=值）", "B|A1=0.1; B|A2=0.2"], ["条件 B", "B"]],
+  "贝叶斯公式": [["先验概率表 P(Ai)（键=值; 键=值）（输入框）", "A1=0.5; A2=0.5"], ["条件概率表 P(B|Ai)（键=值; 键=值）", "B|A1=0.1; B|A2=0.2"], ["已发生的事件", "B"]],
   "二次型": [["矩阵（输入框）", "[[1,2],[3,4]]"]],
   "矩阵表示": [["变换矩阵（输入框）", "[[1,0],[0,1]]"], ["定义域基", "[[1,0],[0,1]]"]],
   "矩估计": [["样本数据（输入框）", "1,2,3,4,5"], ["分布（normal/exponential/…）", "normal"]],

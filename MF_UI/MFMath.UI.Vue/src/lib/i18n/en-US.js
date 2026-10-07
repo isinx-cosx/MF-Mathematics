@@ -143,4 +143,15 @@ export const EN = {
     "Includes arithmetic and geometric sequences, recurrence sequences and more",
   "包含：傅里叶变换与级数、卷积与卷积定理、小波与短时傅里叶、滤波器、δ 分布与缓增分布、泊松求和、不确定性原理等":
     "Includes Fourier transforms and series, convolution and the convolution theorem, wavelets and the short-time Fourier transform, filters, the delta and tempered distributions, Poisson summation, the uncertainty principle and more",
+
+  /* ── 计算块：必填参数缺失时**拒绝计算**（BUGS.md B4）──
+   * 兜底值在引擎眼里都是合法值，所以引擎不会报错，用户会拿到一个"看起来正常的错结果"
+   * （例：「某点导数」缺 point 时算的是 f'(0)）。现在直接说清缺什么、怎么补。
+   * `{list}` / `{how}` 由 t() 的第二个参数替换。 */
+  "缺少必填参数：{list}。{how}":
+    "Missing required parameter: {list}. {how}",
+  "请在参数弹窗里把这些格子填上（留空会算错）":
+    "Fill in these fields in the parameter dialog (leaving them empty gives a wrong result)",
+  "请在输入框里用 ; 分段补上（顺序 = 参数顺序），例如 x^2; 1":
+    "Supply them in the input box separated by ';' (in parameter order), e.g. x^2; 1",
 };
