@@ -1,16 +1,17 @@
 /**
  * ai/client.ts — OpenAI 兼容端点客户端（移植自 MVS Agent 的
- * `src/model/openai-compatible.ts`，**只换掉运输层**：fetch → 宿主中继）
+ * `src/model/openai-compatible.ts`，**只换掉运输层**：浏览器 fetch → 页面直连）
  *
  * 一份适配器覆盖 DeepSeek / OpenAI / Moonshot / 硅基流动 / Ollama / vLLM ——
  * 它们共用 chat completions 的形状。**刻意不做 provider 注册表**：
  * 等真接了第二家"形状不同"的（比如 Anthropic 的 messages），抽象会自己浮出来。
  *
  * 与原文的三处差异，都是"桌面应用"这个环境决定的：
- *   1. 运输层换成 `relayPost`（宿主带密钥发请求并把原始字节转回来）——
- *      页面里没有密钥，也不受 CORS 影响；
- *   2. `baseUrl` 不再由这里拼接：宿主持有端点，页面只给**相对路径**；
- *   3. 取消/超时的判定来自宿主的中继错误（kind: aborted / timeout），
+ *   1. 运输层换成 `relayPost`（**页面自己**带明文密钥发请求，把响应原始字节
+ *      按块交回来）。不再有宿主中继 —— 页面直连，端点由用户自己填；
+ *   2. `baseUrl` 的拼接在 relay.ts 里（`baseUrl.trimEnd('/') + path`），
+ *      非法地址直接报错，**绝不退回内置站点**；
+ *   3. 取消/超时的判定来自运输层错误（kind: aborted / timeout），
  *      它们与"真的出错"分开 —— 上层要能区分"没开始"和"吐了一半"。
  *
  * 已知的行为差异不在这里抹平，而是降级成 Notice 让上层看见：
@@ -31,7 +32,7 @@ import type {
 import { parseSSE } from './sse.ts'
 import { relayPost, readAll, RelayError } from './relay.ts'
 
-export interface HostClientConfig {
+export interface DirectClientConfig {
   /**
    * 是否请求 usage 尾包（stream_options.include_usage）。
    * OpenAI / DeepSeek 支持；部分兼容网关会拒绝这个字段，置 false 即可。
@@ -43,10 +44,10 @@ export interface HostClientConfig {
 const DEFAULT_INCLUDE_USAGE = true
 const CHAT_PATH = '/chat/completions'
 
-export class HostRelayClient implements ModelClient {
-  #config: HostClientConfig
+export class DirectModelClient implements ModelClient {
+  #config: DirectClientConfig
 
-  constructor(config: HostClientConfig = {}) {
+  constructor(config: DirectClientConfig = {}) {
     this.#config = config
   }
 
@@ -69,8 +70,8 @@ export class HostRelayClient implements ModelClient {
     let parsedChunks = 0
 
     try {
-      // signal 必须一路传到中继 —— 否则"停止"只是改了页面状态，
-      // 宿主连接照旧、这条流照旧读完，工具循环还会继续开新请求（真实 token 花费）。
+      // signal 必须一路传到运输层 —— 否则"停止"只是改了页面状态，
+      // 这条流照旧读完，工具循环还会继续开新请求（真实 token 花费）。
       const response = await relayPost(CHAT_PATH, this.#body(req, model), req.signal)
 
       if (response.status < 200 || response.status >= 300) {
@@ -105,7 +106,7 @@ export class HostRelayClient implements ModelClient {
       }
 
       for await (const sse of parseSSE(tappingBody())) {
-        // 取消要在**每一片**上生效。中继那条流被 abort 时会抛 RelayError('aborted')，
+        // 取消要在**每一片**上生效。运输层那条流被 abort 时会抛 RelayError('aborted')，
         // 但这里再主动看一眼，避免"已经取消却还把剩余分片读完/继续解析"。
         if (req.signal?.aborted) {
           yield { type: 'done', reason: 'aborted' }
@@ -193,7 +194,7 @@ export class HostRelayClient implements ModelClient {
         }
       }
     } catch (err) {
-      // 宿主侧已把"谁取消的"分好类：取消是正常终止，不是错误
+      // 运输层已经把"谁取消的"分好类：取消是正常终止，不是错误
       const relay = err instanceof RelayError ? err : null
       if (relay && relay.kind === 'aborted') {
         yield { type: 'done', reason: 'aborted' }
@@ -347,7 +348,7 @@ function toErrorKind(kind: string): ModelError['kind'] {
     case 'config':
     case 'timeout':
     case 'aborted':
-    // 宿主以 kind:"busy" 拒绝（已有一轮在跑）。原先落到 default → 面板显示
+    // 运输层以 kind:"busy" 拒绝（已有一轮在跑）。原先落到 default → 面板显示
     // "类别：unknown"，看不出是"上一轮还没结束"，用户只能干等最长 900s。
     case 'busy':
       return kind

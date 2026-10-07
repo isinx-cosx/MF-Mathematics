@@ -7,8 +7,8 @@
  *
  * 直接对每个 chunk 做 JSON.parse 是最常见的崩法。
  *
- * 在 MF-Math 里这一层跑在**渲染进程**（TS），拿到的是宿主转发过来的原始字节
- * （见 relay.ts）：宿主负责凭据与网络，协议语义全在这里，只有一份实现。
+ * 在 MF-Math 里这一层跑在**渲染进程**（TS），拿到的是页面自己 fetch 回来的原始字节
+ * （见 relay.ts）：网络由页面发，SSE 分帧只在这里做，只有一份实现。
  */
 
 export interface SSEEvent {

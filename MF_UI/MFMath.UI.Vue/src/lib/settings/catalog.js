@@ -67,11 +67,11 @@ export const ITEMS = [
   { id: "ai.baseUrl", group: "ai", label: "API Base", keywords: "base url 端点 endpoint 地址 deepseek openai ollama vllm 预设", status: "ready" },
   { id: "ai.model", group: "ai", label: "默认模型", keywords: "模型 model deepseek-chat reasoner", status: "ready" },
   { id: "ai.modelParams", group: "ai", label: "模型参数", keywords: "max_tokens temperature 温度 超时 timeout usage 参数", status: "ready" },
-  { id: "ai.apiKey", group: "ai", label: "API Key", keywords: "密钥 key token dpapi 加密 明文 只写不读", status: "ready" },
+  { id: "ai.apiKey", group: "ai", label: "API Key", keywords: "密钥 key token 明文 apikey ai.json 直连 不受保护", status: "ready" },
   { id: "ai.context", group: "ai", label: "上下文与历史", keywords: "上下文 context length 窗口 历史 轮数 history", status: "ready" },
   { id: "ai.privacy", group: "ai", label: "会发送什么", keywords: "隐私 说明 privacy 发送 表达式 结果 历史 代码", status: "ready" },
   { id: "ai.test", group: "ai", label: "测试连接", keywords: "测试 连接 test connection 连通性", status: "ready" },
-  { id: "ai.selftest", group: "ai", label: "AI 自检", keywords: "自检 selftest dpapi sse 分帧 密钥", status: "ready" },
+  { id: "ai.selftest", group: "ai", label: "AI 自检", keywords: "自检 selftest 配置 端点 http 密钥 不退回站点", status: "ready" },
   { id: "ai.tools", group: "ai", label: "工具调用（让 AI 调引擎计算）", keywords: "工具 tool function calling 引擎 engine_call 计算 心算", status: "ready" },
   { id: "ai.chat", group: "ai", label: "会话记录", keywords: "会话 记录 对话 清空 chat ai-chat 缓存", status: "ready" },
 

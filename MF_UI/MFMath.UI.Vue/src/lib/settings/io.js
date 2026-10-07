@@ -2,11 +2,13 @@
  * settings/io.js — 设置备份：导出 / 导入（换机迁移）
  *
  * 一个**内容选择**上的决定，比实现更重要：**凭据不进备份**。
- *   · `ai.json`（API Key 密文）、`account.json`（登录 token 密文）、`search.json`（Wolfram App ID 密文）
- *     整份排除，并在包里写清 `excluded` —— 换机迁移不该搬密钥（DPAPI 密文换台机器也解不开，
+ *   · `ai.json`（API Key，**本轮起是明文** —— `apiKey` 字段）、`account.json`（登录 token 密文）、
+ *     `search.json`（Wolfram App ID 密文）整份排除，并在包里写清 `excluded` ——
+ *     换机迁移不该搬密钥（明文搬过去等于把钥匙抄了一份；旧的 DPAPI 密文换台机器也解不开，
  *     搬过去只是一串没用的字节，却让人误以为"密钥跟着走了"）；
  *   · 其余文件里再按字段名剥一遍（`*protected` / `password` / `secret` / `token` / `apikey`），
  *     并记录剥掉了哪些字段名 —— **双保险，且是可见的**。
+ *     注意 `apiKey` 这条正则命中：`api[-_]?key` 在忽略大小写下匹配 `apiKey`。
  *
  * 导入同样**不写**上面那三类文件：所以导入一个旧备份**不会**把你现在的密钥清掉。
  * 这一点有断言守着（写错的话用户会静默失去密钥，很难查）。
@@ -16,7 +18,7 @@
  * { "app":"MF-Mathematics", "kind":"settings-bundle", "version":1,
  *   "exportedAt":"…", "appVersion":"2.0.0",
  *   "files": { "history": {…}, … }, "prefs": { "mf_theme": "dark" },
- *   "excluded": ["ai","account","search"], "stripped": ["apiKeyProtected"] }
+ *   "excluded": ["ai","account","search"], "stripped": ["someFile.apiKey"] }
  * ```
  */
 import { ref } from "vue";

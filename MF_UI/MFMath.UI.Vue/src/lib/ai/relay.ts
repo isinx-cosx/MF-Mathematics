@@ -1,26 +1,24 @@
 /**
- * ai/relay.ts — 宿主中继的页面侧（凭据与网络在宿主，协议语义在 TS）
+ * ai/relay.ts — 运输层：**页面自己发请求**（协议语义仍然只在 TS 侧一份实现）
  *
- * 为什么不是页面直接 fetch：
- *   · **密钥**。页面直连就必须自己持有 API Key，落点只能是 localStorage / 内存 ——
- *     而本项目已经有渲染进程注入面的现实案例（教程富文本清洗那个绕过，
- *     见 docs/FRONTEND-FIXES.md）。密钥留在宿主，页面里根本不存在这个字符串。
- *   · **端点可配**。baseUrl 允许用户填自建 / 中转端点，这类不少不发 CORS 头
- *     （本项目自己的假端点就是），宿主侧则对任何端点都成立。
+ * 这一层只有一个职责：拿"用户在设置里填的端点 + 明文密钥 + 超时"，发一次 POST，
+ * 把响应体的**原始字节成块**交出去。它**不理解** SSE，也不理解 OpenAI 的分片语义
+ * —— `event:` / `data:` 的分帧在 sse.ts，分片语义在 client.ts。
  *
- * 宿主只做两件事：**用自己的密钥发这个请求**、**把响应原始字节转回来**。
- * 它**不理解** SSE，也不理解 OpenAI 的分片语义 —— 那些全在 sse.ts / client.ts 里
- * （移植自 MVS Agent），宿主侧没有第二份实现。
+ * 凭据从哪来：bridge.js 读 `%LOCALAPPDATA%\MFMath\settings\ai.json`（`apiKey` 明文），
+ * 刷新配置后调用 `setRelayCredentials()` 推进来。方向是
+ * relay.ts ← client.ts ← bridge.js，反过来 import 会形成循环 —— 而且
+ * "配置从哪来、怎么脱敏"本来就是 bridge.js 的职责，运输层只该知道
+ * "用哪个地址、带哪个密钥、超时多久"。
  *
- * 安全边界（宿主侧强制，见 MFMath.Host/AiRelay.cs）：
- *   · 只接受**相对路径**（如 `/chat/completions`），绝对 URL 一律拒绝 ——
- *     否则这就是一个"把密钥发到任意地址"的原语；
- *   · Authorization 由宿主自己加，页面传的任何头都不能覆盖它。
+ * ⚠ **绝不"地址不认识就退回默认站点"**：baseUrl 是用户自己填的。如果它不合法
+ * （不是 http/https 绝对地址）而这里悄悄换成内置站点，就等于把用户的密钥发到
+ * 我们的服务器上 —— 那是隐私事故，不是一次降级。所以 `joinBasePath()` 只做
+ * `baseUrl.trimEnd('/') + path`，非法一律抛 RelayError('config')。
  *
- * 事件话题：ai.http（状态行）· ai.raw（base64 字节块）· ai.rawEnd · ai.rawError
+ * 取消的语义是**"停止等待"**：abort 会掐断这条流、让调用方立刻收尾；
+ * 但**它撤不回已经发出的请求**（服务商那边可能已经收到、已经在计费）。
  */
-
-import { onPush } from '../push.js'
 
 export interface RelayResponse {
   status: number
@@ -40,193 +38,202 @@ export class RelayError extends Error {
   }
 }
 
-interface Queue {
-  chunks: Uint8Array[]
-  status: number
-  statusText: string
-  done: boolean
-  error: RelayError | null
-  wake: (() => void) | null
-  headersReady: Promise<void>
-  resolveHeaders: () => void
+/* ── 凭据 ────────────────────────────────────────────────────────────── */
+
+export interface RelayCredentials {
+  baseUrl?: string
+  apiKey?: string
+  timeoutSec?: number
 }
 
-function newQueue(): Queue {
-  let resolveHeaders: () => void = () => {}
-  const headersReady = new Promise<void>((resolve) => { resolveHeaders = resolve })
-  return {
-    chunks: [], status: 0, statusText: '', done: false, error: null, wake: null,
-    headersReady, resolveHeaders,
+const DEFAULT_TIMEOUT_SEC = 120
+
+let creds = { baseUrl: '', apiKey: '', timeoutSec: DEFAULT_TIMEOUT_SEC }
+
+/** 更新凭据。字段传 `undefined` 表示"这一项不改" */
+export function setRelayCredentials(next: RelayCredentials): void {
+  if (next.baseUrl !== undefined) creds.baseUrl = String(next.baseUrl ?? '')
+  if (next.apiKey !== undefined) creds.apiKey = String(next.apiKey ?? '')
+  if (next.timeoutSec !== undefined) {
+    const n = Number(next.timeoutSec)
+    creds.timeoutSec = Number.isFinite(n) && n > 0 ? n : DEFAULT_TIMEOUT_SEC
   }
 }
 
-const queues = new Map<string, Queue>()
-/** 请求头可能比 Begin 的返回值先到（极端时序），先按 id 存这里，绑定时认领 */
-const orphans = new Map<string, Queue>()
 /**
- * 孤儿队列的上限。请求结束/取消之后**迟到**的 `ai.raw` 推送会不断新建孤儿队列，
- * 而原实现从不清理 —— 整个会话期内单调增长（内存泄漏）。
- * 只保留最近的若干个就够用（孤儿只在"头比 Begin 返回值先到"这个窗口里被认领）。
+ * baseUrl 是不是一个**可用的** http/https 绝对地址。
+ * 只做格式校验：不认识就报 false，**绝不换成默认站点**。
  */
-const MAX_ORPHANS = 32
-let subscribed = false
-
-function hostObj() {
+export function isUsableBaseUrl(baseUrl: unknown): boolean {
+  const text = String(baseUrl ?? '').trim()
+  if (!text) return false
+  let url: URL
   try {
-    return window.chrome?.webview?.hostObjects?.sync?.ai ?? null
+    url = new URL(text)
   } catch {
-    return null
+    return false
   }
-}
-
-export function isRelayHosted(): boolean {
-  return hostObj() !== null
-}
-
-function b64ToBytes(b64: string): Uint8Array {
-  const bin = atob(b64)
-  const out = new Uint8Array(bin.length)
-  for (let i = 0; i < bin.length; i += 1) out[i] = bin.charCodeAt(i)
-  return out
-}
-
-function wake(q: Queue) {
-  const fn = q.wake
-  q.wake = null
-  if (fn) fn()
-}
-
-function ensureSubscribed() {
-  if (subscribed) return
-  subscribed = true
-  onPush((env: { topic?: string; payload?: Record<string, unknown> }) => {
-    const topic = String(env?.topic || '')
-    if (topic !== 'ai.http' && !topic.startsWith('ai.raw')) return
-    const p = env.payload || {}
-    const id = String(p.requestId || '')
-    const q = queues.get(id) ?? orphans.get(id) ?? newQueue()
-    if (!queues.has(id) && !orphans.has(id)) {
-      /* ⚠ 这里必须**真的**封顶（MAX_ORPHANS 以前是声明了却没人用的死常量，
-       * 于是注释里写的那个泄漏一直存在）：每个 id 未知的推送都会新建一条孤儿队列，
-       * 请求结束/取消之后迟到的推送就这么一直在会话期内堆积。
-       * Map 保持插入顺序，所以删掉最早的一条即可 —— 孤儿只在"响应头比 Begin 的返回值
-       * 先到"那个极窄窗口里会被认领，老的注定认领不到了。 */
-      if (orphans.size >= MAX_ORPHANS) {
-        const oldest = orphans.keys().next().value
-        if (oldest !== undefined) orphans.delete(oldest)
-      }
-      orphans.set(id, q)
-    }
-
-    switch (topic) {
-      case 'ai.http':
-        q.status = Number(p.status || 0)
-        q.statusText = String(p.statusText || '')
-        q.resolveHeaders()
-        break
-      case 'ai.raw':
-        q.chunks.push(b64ToBytes(String(p.b64 || '')))
-        break
-      case 'ai.rawEnd':
-        q.done = true
-        break
-      case 'ai.rawError':
-        q.error = new RelayError(String(p.kind || 'unknown'), String(p.message || ''), Number(p.status || 0))
-        q.done = true
-        q.resolveHeaders()   // 连接都没起来时不会有 ai.http，别让调用方干等
-        break
-      default:
-        break
-    }
-    wake(q)
-  })
+  return (url.protocol === 'http:' || url.protocol === 'https:') && url.hostname !== ''
 }
 
 /**
- * 让宿主带密钥请求一次（path 必须是相对路径），把响应体当字节流交回来。
+ * 组请求地址：`baseUrl.trimEnd('/') + path`。
+ *
+ * 三条都不许放宽：
+ *   · 端点必须是 http/https 绝对地址 —— 不合法就抛错，**不退回内置站点**；
+ *   · 路径必须以单个 `/` 开头（相对路径），否则一段注入的绝对地址就变成了端点；
+ *   · 拼接结果必须与 baseUrl **同源** —— 路径里塞 `//host` 一类的东西不能改写到别的站点。
+ */
+export function joinBasePath(baseUrl: unknown, path: unknown): string {
+  const base = String(baseUrl ?? '').trim().replace(/\/+$/, '')
+  if (!isUsableBaseUrl(base)) {
+    throw new RelayError('config',
+      `端点地址不是合法的 http/https 地址：${base || '（空）'}。不会退回内置站点 —— 请到「设置 → AI」改对。`)
+  }
+  const p = String(path ?? '')
+  if (!p.startsWith('/')) throw new RelayError('config', `只接受以 / 开头的相对路径：${p || '（空）'}`)
+  if (/[\s\u0000-\u001f]/.test(p)) throw new RelayError('config', '路径里不允许空白或控制字符')
+
+  const joined = base + p
+  let url: URL
+  try {
+    url = new URL(joined)
+  } catch {
+    throw new RelayError('config', `拼接后的地址不合法：${joined}`)
+  }
+  if (url.origin !== new URL(base).origin) {
+    throw new RelayError('config', '路径不能把请求改写到别的站点')
+  }
+  return joined
+}
+
+/**
+ * 名字保留（调用方只认这个名字），但**语义已经变了**：
+ *   以前 = "宿主提供了 `ai` 桥"；
+ *   现在 = "配置就绪" —— 有明文密钥，且 baseUrl 是合法的 http/https 地址。
+ * 网络由页面自己发，所以缺的只剩配置；`hosted` 里的 "host" 不再指宿主。
+ */
+export function isRelayHosted(): boolean {
+  return creds.apiKey !== '' && isUsableBaseUrl(creds.baseUrl)
+}
+
+/* ── 在飞的请求（取消 / 忙碌判定）────────────────────────────────────── */
+
+const active = new Set<AbortController>()
+
+function message(e: unknown): string {
+  if (e instanceof Error) return e.message || e.name
+  return String(e)
+}
+
+/**
+ * 让页面带密钥请求一次（path 必须是相对路径），把响应体当字节流交回来。
  *
  * `signal` 必须真的能打断这条流 —— 否则"停止"只把页面状态改成空闲，
- * 宿主侧连接与在跑的迭代照旧，工具循环还会继续开新请求（真实 token 花费）。
+ * 连接照旧读完，工具循环还会继续开新请求（真实 token 花费）。
  */
-export async function relayPost(path: string, body: unknown, signal?: AbortSignal): Promise<RelayResponse> {
-  const ai = hostObj()
-  if (!ai) throw new RelayError('config', '无宿主：AI 只在 MFMath.exe 里可用')
+export async function relayPost(
+  path: string,
+  body: unknown,
+  signal?: AbortSignal,
+): Promise<RelayResponse> {
+  if (!creds.apiKey) throw new RelayError('config', '还没有配置 API Key：去「设置 → AI」填一个')
+  // 已经取消过就先按取消收尾（别把"用户停了"报成"配置错了"）
   if (signal?.aborted) throw new RelayError('aborted', '已取消')
+  // 非法地址在这里就是 config 错误（**不会退回内置站点**）
+  const url = joinBasePath(creds.baseUrl, path)
 
-  ensureSubscribed()
+  // 超时与"用户取消"是两个来源：收尾时才能说清是谁取消的（kind: timeout / aborted）。
+  // 超时是**整轮**的墙钟上限（和原来宿主侧一致），不是"每个分片的间隔"。
+  const ctrl = new AbortController()
+  let timedOut = false
+  const timer = setTimeout(() => {
+    timedOut = true
+    ctrl.abort()
+  }, creds.timeoutSec * 1000)
 
-  const res = JSON.parse(String(ai.Begin(JSON.stringify({ path, body }))) || '{}')
-  if (!res || res.ok !== true) {
-    throw new RelayError(String(res?.kind || 'config'), String(res?.error || '中继启动失败'), Number(res?.status || 0))
+  const onOuterAbort = () => ctrl.abort()
+  if (signal) signal.addEventListener('abort', onOuterAbort, { once: true })
+
+  active.add(ctrl)
+  let released = false
+  const release = () => {
+    if (released) return
+    released = true
+    clearTimeout(timer)
+    try { signal?.removeEventListener('abort', onOuterAbort) } catch { /* 忽略 */ }
+    active.delete(ctrl)
   }
 
-  const id = String(res.requestId || '')
-  const q = orphans.get(id) ?? newQueue()
-  queues.set(id, q)
-  orphans.delete(id)
-
-  // ── signal → 打断队列 ──────────────────────────────────────────────────
-  // 做法是"把队列置成已完成 + 唤醒等待者"，而不是在别处再挂一套 Promise：
-  // bodyStream 的循环本来就会检查 q.error / q.done，于是它自然抛出。
-  let detach: (() => void) | null = null
-  if (signal) {
-    const onAbort = () => {
-      if (!q.done) {
-        q.error = new RelayError('aborted', '已取消')
-        q.done = true
-      }
-      q.resolveHeaders()   // 连接还没起来时不会有 ai.http，别让调用方干等
-      wake(q)
-    }
-    if (signal.aborted) onAbort()
-    else signal.addEventListener('abort', onAbort, { once: true })
-    detach = () => { try { signal.removeEventListener('abort', onAbort) } catch { /* 忽略 */ } }
+  const classify = (e: unknown): RelayError => {
+    if (timedOut) return new RelayError('timeout', '本轮超过设定的超时时间（可在设置 → AI 里调整）')
+    if (ctrl.signal.aborted || signal?.aborted) return new RelayError('aborted', '已取消')
+    // 连接失败 / 被静默拦截（CORS、证书、代理）都归这一类：重试**可能**有意义
+    return new RelayError('network', `请求没能建立或中途断了：${message(e)}`)
   }
 
-  // 等状态行：宿主在收到响应头时立刻推 ai.http（早于任何字节）。
-  // 没有它就没法判断 2xx/4xx，所以这里必须等，而不是拿一个恒为 0 的 status 去猜。
-  // （被取消时 onAbort 会 resolveHeaders，所以这里不会卡住。）
-  await q.headersReady
-
-  if (q.error) {
-    detach?.()
-    queues.delete(id)
-    try { ai.Cancel(id) } catch { /* 忽略 */ }
-    throw q.error
+  let resp: Response
+  try {
+    resp = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'text/event-stream',
+        Authorization: 'Bearer ' + creds.apiKey,
+      },
+      // body 已经是 JSON 字符串时原样送（调用方负责形状）
+      body: typeof body === 'string' ? body : JSON.stringify(body ?? {}),
+      signal: ctrl.signal,
+      // 不传 credentials：跨源请求默认不带 cookie。
+      // 重定向也不额外处理：浏览器在**跨源重定向**时会自己删掉 Authorization，
+      // 所以 baseUrl 里的开放重定向不会把密钥转到别的站点。
+    })
+  } catch (e) {
+    release()
+    throw classify(e)
   }
 
-  const cancel = () => {
-    try { ai.Cancel(id) } catch { /* 忽略 */ }
-  }
+  const reader = resp.body ? resp.body.getReader() : null
 
   async function* bodyStream(): AsyncGenerator<Uint8Array> {
     try {
+      if (!reader) return
       for (;;) {
-        if (q.chunks.length) {
-          yield q.chunks.shift() as Uint8Array
-          continue
+        let step: ReadableStreamReadResult<Uint8Array>
+        try {
+          step = await reader.read()
+        } catch (e) {
+          throw classify(e)
         }
-        if (q.error) throw q.error
-        if (q.done) return
-        await new Promise<void>((resolve) => { q.wake = resolve })
+        if (step.done) return
+        // 字节按原样交出去，**不做任何分帧**：分帧是 sse.ts 的事
+        if (step.value && step.value.byteLength > 0) yield step.value
       }
     } finally {
-      detach?.()
-      queues.delete(id)
-      cancel()
+      release()
+      // 调用方提前收工（解析到 [DONE] 就 break）时也要把这条连接关掉
+      try { await reader?.cancel() } catch { /* 忽略 */ }
     }
   }
 
-  return { status: q.status, statusText: q.statusText, body: bodyStream() }
+  return { status: resp.status, statusText: resp.statusText, body: bodyStream() }
 }
 
-/** 停止当前这一轮（页面点"停止"、或页面卸载时） */
+/**
+ * 停止当前这一轮（页面点"停止"、或页面卸载时）。
+ *
+ * ⚠ 这是"**停止等待**"，不是"撤回请求"：请求早已发到服务商那边，
+ * 该计费的照旧计费。这里能保证的只是不再继续读、不再继续开新请求。
+ */
 export function relayCancelAll(): void {
-  try { hostObj()?.CancelAll() } catch { /* 忽略 */ }
+  for (const c of [...active]) {
+    try { c.abort() } catch { /* 忽略 */ }
+  }
 }
 
+/** 页面里还有没有在飞的请求 */
 export function relayBusy(): boolean {
-  try { return hostObj()?.Busy() === true } catch { return false }
+  return active.size > 0
 }
 
 /**

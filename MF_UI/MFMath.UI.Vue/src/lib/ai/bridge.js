@@ -1,45 +1,47 @@
 /**
- * ai/bridge.js — AI 助手（宿主桥 + 流式状态 + 消息组装）
+ * ai/bridge.js — AI 助手（页面直连端点 + 明文配置 + 流式状态 + 消息组装）
  *
- * 分工（刻意如此）：
- *   · **宿主** 负责传输与密钥：SSE 分帧、超时、取消、错误分类，密钥只在宿主内存与
- *     DPAPI 密文里（见 MFMath.Host/AiBridge.cs）。页面**拿不到密钥**。
+ * 分工（本轮改了，别按旧注释理解）：
+ *   · **网络在页面里发**：页面直连用户填的 OpenAI 兼容端点（relay.ts / client.ts / sse.ts）。
+ *     宿主那条 `ai` 桥（带密钥发请求、把响应字节推回来）已经不再使用，
+ *     也不再订阅任何 `ai.*` 推送话题 —— 协议层与运输层都只有一份实现。
+ *   · **密钥明文存在配置文件**：`%LOCALAPPDATA%\MFMath\settings\ai.json` 的 `apiKey` 字段。
+ *     读写它走 `sys` 桥（StoreRead / StoreWrite）—— `sys` 是**另一个**桥，与 AI 无关的那部分照旧。
+ *     页面直连服务商时把它放进 Authorization。
+ *     ⚠ 它**没有加密**：界面文案必须如实说明，不要暗示它受保护。
  *   · **页面** 负责组装消息与渲染：系统提示、上下文、历史按隐私开关取舍，
  *     以及把增量渲染到面板上。
  *
- * 事件话题（宿主经 PushHub 推来，都带 requestId）：
- *   ai.started · ai.delta · ai.reasoning · ai.toolcall · ai.usage · ai.notice
- *   ai.done · ai.error · ai.test
+ * ⚠ **绝不"地址不认识就退回默认站点"**：baseUrl 由用户自己填，悄悄退回内置站点
+ *    等于把用户的密钥发到我们的服务器上（见 relay.ts 的 joinBasePath）。
+ *    这里的规范化只在 baseUrl **为空**时套内置默认值；填了但不认识的一律原样保留，让它去报错。
  *
  * 三条纪律（照搬 MVS Agent 的模型层，这里落在 UI 侧）：
  *   ① 流式是原语：状态里存的是**增量累加**的 text/reasoning，不是最终字符串；
  *   ② 能力缺失是可观测的降级：缺 usage、流被截断都进 notices，不算失败；
  *   ③ 错误是一等事件：error/done 都带原因，"没开始"和"吐了一半"必须能区分。
  *
- * 无宿主（浏览器预览）时全部降级：面板照旧能开，但会在顶部明说"只在 MFMath.exe 里可用"。
+ * 读不到设置文件时（浏览器预览：没有 `sys` 桥）全部降级：面板照旧能开，
+ * 但会明说"读不到 ai.json，AI 用不了"。
  */
 import { computed, ref } from "vue";
-import { onPush } from "../push.js";
 import { getPage } from "../workspace/store.js";
-import { HostRelayClient } from "./client.ts";
+import { DirectModelClient } from "./client.ts";
 import { collect, parseToolArgs } from "./collect.ts";
-import { isRelayHosted, relayCancelAll } from "./relay.ts";
+import {
+  isRelayHosted, isUsableBaseUrl, joinBasePath, relayBusy, relayCancelAll, setRelayCredentials,
+} from "./relay.ts";
 import { parseInline } from "./markdown.ts";
 import { AI_TOOLS, executeTool, initAiToolsHook, ENGINE_FN_COUNT } from "./tools.ts";
 
-/* ── 宿主桥 ──────────────────────────────────────────────────────────── */
+/* ── 设置文件（只借 `sys` 桥读写 ai.json；AI 那条宿主桥已经不用了）─────── */
 
-function hostObj() {
+function sysObj() {
   try {
-    return window.chrome?.webview?.hostObjects?.sync?.ai ?? null;
+    return window.chrome?.webview?.hostObjects?.sync?.sys ?? null;
   } catch {
     return null;
   }
-}
-
-/** 宿主是否提供 `ai` 桥 */
-export function isAiHosted() {
-  return hostObj() !== null;
 }
 
 function parse(text, fallback = null) {
@@ -48,11 +50,7 @@ function parse(text, fallback = null) {
   try { return JSON.parse(String(text)); } catch { return fallback; }
 }
 
-function call(method, ...args) {
-  const c = hostObj();
-  if (!c || typeof c[method] !== "function") return null;
-  try { return parse(c[method](...args)); } catch (e) { return { ok: false, error: String(e?.message || e) }; }
-}
+const AI_STORE = "ai";
 
 /* ── 配置状态 ────────────────────────────────────────────────────────── */
 
@@ -71,79 +69,373 @@ const DEFAULT_CFG = {
   sendHistory: false,
   sendCode: false,
   hasKey: false,
-  keySource: "none",
+  keySource: "none",            // "file"（明文存在 ai.json）/ "none"
   keyPersisted: false,
-  dpapiAvailable: false,
-  configPath: "",
+  configStore: false,           // `sys` 桥在不在（不在 = 浏览器预览，读不到设置文件）
+  configPath: "",               // 实际路径（由 sys.Info 的 settingsDir 拼出来）
+  configError: "",             // 读不回来时的原因（损坏 / 无桥），要如实显示
+  legacyProtectedKey: false,    // 旧版 DPAPI 密文还在、而明文密钥还没有
+  keyNote: "",                  // 上面那种情况的迁移提示（有内容界面就必须显示）
   lastError: "",
   // 工具调用：让 AI 能调本地 C++ 引擎真算（默认开 —— 计算必须发生在引擎里）
   toolsEnabled: true,
 };
 
-/** 脱敏后的配置（永远不含密钥本身） */
+/** 脱敏后的配置（**永远不含密钥**：明文与旧版密文都被剥掉） */
 export const aiConfig = ref({ ...DEFAULT_CFG });
+/** 面板/设置页据它判断"AI 能不能用"。语义见 isAiHosted() */
 export const aiHosted = ref(false);
 
-/** 刷新宿主侧状态。面板打开、设置改动后都要调一次。 */
+/** 明文密钥：**只活在模块作用域**，绝不进 aiConfig（那是给界面与测试看的脱敏视图） */
+let aiKey = "";
+/** 最近一次读到的 ai.json 原文：写回时在它上面改，别把未知字段丢掉 */
+let aiRaw = {};
+
+/**
+ * 读 ai.json。返回 `{ ok, exists, value, error }`。
+ * `ok:false` 与 `exists:false` 是两件事：前者是"读不出来（损坏/无桥）"，
+ * 后者是"文件还没有，按默认值跑" —— 界面与自检要区分它们。
+ */
+function readAiFile() {
+  const c = sysObj();
+  if (!c || typeof c.StoreRead !== "function") {
+    return { ok: false, exists: false, value: {}, error: "无宿主：读不到设置文件（浏览器预览）" };
+  }
+  let r;
+  try {
+    r = parse(c.StoreRead(AI_STORE));
+  } catch (e) {
+    return { ok: false, exists: false, value: {}, error: "读取失败：" + String(e?.message || e) };
+  }
+  if (!r || r.ok !== true) {
+    return {
+      ok: false, exists: false, value: {},
+      error: r?.corrupt
+        ? "ai.json 不是合法 JSON（原文件已保留，未被覆盖）：" + String(r.error || "")
+        : String(r?.error || "读取失败"),
+    };
+  }
+  if (r.exists === false || !r.json) return { ok: true, exists: false, value: {}, error: "" };
+  try {
+    const v = JSON.parse(r.json);
+    return { ok: true, exists: true, value: v && typeof v === "object" && !Array.isArray(v) ? v : {}, error: "" };
+  } catch (e) {
+    return { ok: false, exists: true, value: {}, error: "ai.json 解析失败：" + String(e?.message || e) };
+  }
+}
+
+function writeAiFile(value) {
+  const c = sysObj();
+  if (!c || typeof c.StoreWrite !== "function") {
+    return { ok: false, error: "无宿主：AI 配置只在 MFMath.exe 里可改" };
+  }
+  try {
+    const r = parse(c.StoreWrite(AI_STORE, JSON.stringify(value, null, 2)));
+    if (!r || r.ok !== true) return { ok: false, error: String(r?.error || "写入失败") };
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: String(e?.message || e) };
+  }
+}
+
+let cachedSettingsDir = "";
+/** 配置文件的真实路径（`%LOCALAPPDATA%\MFMath\settings\ai.json`）。读不到就如实说明 */
+function aiConfigPath() {
+  if (!cachedSettingsDir) {
+    try {
+      const info = parse(sysObj()?.Info?.());
+      cachedSettingsDir = String(info?.settingsDir || "");
+    } catch { cachedSettingsDir = ""; }
+  }
+  return cachedSettingsDir
+    ? cachedSettingsDir.replace(/[\\/]+$/, "") + "\\ai.json"
+    : "%LOCALAPPDATA%\\MFMath\\settings\\ai.json";
+}
+
+function clampNum(v, lo, hi, fallback) {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.min(hi, Math.max(lo, n));
+}
+
+/**
+ * 把配置文件收敛到可用范围（配置文件是外部可编辑的）。
+ *
+ * ⚠ baseUrl **只在为空时**套内置默认值 —— "填了但不认识"的一律原样保留，
+ * 让发请求时报错。绝不在这里把它换成内置站点（那是把用户密钥发到我们服务器上）。
+ */
+function normalizeConfig(raw) {
+  const cfg = { ...DEFAULT_CFG, ...raw };
+  cfg.baseUrl = String(cfg.baseUrl ?? "").trim().replace(/\/+$/, "");
+  if (!cfg.baseUrl) cfg.baseUrl = DEFAULT_CFG.baseUrl;
+  cfg.model = String(cfg.model ?? "").trim() || DEFAULT_CFG.model;
+  cfg.temperature = clampNum(cfg.temperature, 0, 2, DEFAULT_CFG.temperature);
+  cfg.maxTokens = Math.round(clampNum(cfg.maxTokens, 1, 32000, DEFAULT_CFG.maxTokens));
+  cfg.timeoutSec = Math.round(clampNum(cfg.timeoutSec, 5, 900, DEFAULT_CFG.timeoutSec));
+  cfg.contextWindow = Math.round(clampNum(cfg.contextWindow, 0, 4_000_000, 0));
+  cfg.historyTurns = Math.round(clampNum(cfg.historyTurns, 0, 50, DEFAULT_CFG.historyTurns));
+  for (const k of ["enabled", "includeUsage", "sendExpr", "sendResult", "sendHistory", "sendCode", "toolsEnabled"]) {
+    cfg[k] = cfg[k] === true;
+  }
+  return cfg;
+}
+
+/**
+ * 刷新配置状态：读 ai.json → 脱敏 → 把凭据推进运输层。
+ * 启动、面板打开、设置改动后都要调一次。
+ *
+ * 宿主那套"页面刷新后旧请求还活在宿主里"的麻烦随架构消失：请求只活在页面里，
+ * 刷新页面 = 连接一起没了，界面不会再莫名其妙地停在"正在输出"。
+ */
 export function refreshAiConfig() {
+  const read = readAiFile();
+  aiRaw = read.value || {};
+  const cfg = normalizeConfig(aiRaw);
+
+  const key = String(cfg.apiKey ?? "").trim();
+  aiKey = key;
+  const legacyCipher = typeof cfg.apiKeyProtected === "string" && cfg.apiKeyProtected.length > 0;
+
+  cfg.hasKey = key.length > 0;
+  cfg.keySource = cfg.hasKey ? "file" : "none";
+  cfg.keyPersisted = cfg.hasKey;
+  // 旧版密钥是 DPAPI 密文，页面读不出来 —— **不要假装有密钥**，如实提示重填
+  cfg.legacyProtectedKey = legacyCipher && !cfg.hasKey;
+  cfg.keyNote = cfg.legacyProtectedKey
+    ? "旧版密钥是加密（DPAPI）存的，新版需要在设置里重填一次。"
+    : "";
+  cfg.configStore = !!sysObj();
+  cfg.configPath = aiConfigPath();
+  cfg.configError = read.ok ? "" : read.error;
+
+  // ⚠ 脱敏：明文密钥与旧版密文都不许出现在这里
+  const exposed = { ...cfg };
+  delete exposed.apiKey;
+  delete exposed.apiKeyProtected;
+  aiConfig.value = exposed;
+
+  // 凭据推给运输层（relay.ts 不 import 本模块，避免循环依赖）
+  setRelayCredentials({ baseUrl: exposed.baseUrl, apiKey: aiKey, timeoutSec: exposed.timeoutSec });
   aiHosted.value = isAiHosted();
-  const info = call("Info");
-  if (info && typeof info === "object" && "enabled" in info) {
-    aiConfig.value = { ...DEFAULT_CFG, ...info };
-  }
-  // 宿主侧可能有一轮在跑而页面不知道 —— **刷新过页面就会这样**：旧请求还活在宿主里。
-  // Info() 一直带着 running（宿主注释也写了"页面刷新后靠它决定要不要显示正在输出"），
-  // 但此前 JS 侧没人读：界面显示空闲、点发送被 busy 拒绝（还显示成 unknown）、
-  // 停止按钮又不出现（它要求 running），于是最长要干等 900s 才能再用。
-  if (!currentTurn) {
-    const hostRunning = Number(aiConfig.value.running) > 0;
-    if (hostRunning && !aiState.value.running) {
-      aiState.value = { ...aiState.value, running: true, doneReason: "remote" };
-    } else if (!hostRunning && aiState.value.running && aiState.value.doneReason === "remote") {
-      // 只清自己写进去的那种，免得把真正在跑的本地轮次也关掉
-      aiState.value = { ...aiState.value, running: false, doneReason: "" };
-    }
-  }
   return aiConfig.value;
 }
 
-/** 只发改动过的字段：整份回传会把界面没显示的字段以默认值悄悄写回磁盘 */
+/**
+ * AI 是否**就绪**。
+ *
+ * 语义已变：以前是"宿主提供了 `ai` 桥"，现在是"**配置就绪**" ——
+ * 网络由页面自己发，缺的只剩配置。四项齐备才算就绪：
+ * 能读到设置文件、开关打开、有明文密钥、端点地址合法。
+ */
+export function isAiHosted() {
+  if (!sysObj()) return false;   // 读不到 ai.json（浏览器预览）
+  const c = aiConfig.value;
+  return c.enabled === true && c.hasKey === true && isUsableBaseUrl(c.baseUrl);
+}
+
+/**
+ * 写配置前的共同前提：拿到"要改的那份原文"。
+ *
+ * ⚠ 文件存在但读不出来（JSON 坏了）时**拒绝写入**，把原因交给界面 ——
+ * 这种情况下任何合并都无意义，整份写回等于把用户还不知道的内容静默抹掉。
+ * （宁可报一个明确的错，也不要"看着保存成功了、其实配置被清空"。）
+ */
+function writeBase() {
+  const cur = readAiFile();
+  if (!cur.ok && cur.exists) return { ok: false, error: cur.error };
+  return { ok: true, value: { ...(cur.value || {}) } };
+}
+
+/**
+ * 只发改动过的字段：在**读到的原文**上合并，再整份写回。
+ * 界面没显示的字段（含我们不认识的字段）因此不会被默认值悄悄覆盖 ——
+ * 现在页面是这份文件的主人，"合并"的责任就在这里。
+ */
 export function aiConfigure(patch) {
   const keys = Object.keys(patch || {});
   if (!keys.length) return { ok: true, changed: 0 };
-  const res = call("Configure", JSON.stringify(patch));
+
+  const base = writeBase();
+  if (!base.ok) return { ok: false, error: base.error };
+  const next = base.value;
+  let changed = 0;
+  for (const k of keys) {
+    if (patch[k] === undefined) continue;
+    next[k] = patch[k];
+    changed += 1;
+  }
+  if (!changed) return { ok: true, changed: 0 };
+
+  const res = writeAiFile(next);
   refreshAiConfig();
-  return res || { ok: false, error: "无宿主：AI 配置只在 MFMath.exe 里可改" };
+  return res.ok ? { ok: true, changed } : { ok: false, error: res.error };
 }
 
+/**
+ * 保存 API Key：**明文**写进 `apiKey` 字段（用户已决定不再加密，也不再走宿主 SetKey）。
+ * 顺手删掉旧版 `apiKeyProtected` —— 留着它只会让"到底哪把钥匙在生效"变得含糊。
+ */
 export function aiSetKey(key) {
-  const res = call("SetKey", String(key || ""));
+  const k = String(key || "").trim();
+  if (!k) return { ok: false, error: "密钥为空" };
+  const base = writeBase();
+  if (!base.ok) return { ok: false, error: base.error };
+  const next = base.value;
+  next.apiKey = k;
+  delete next.apiKeyProtected;
+  const res = writeAiFile(next);
   refreshAiConfig();
-  return res || { ok: false, error: "无宿主" };
+  if (!res.ok) return { ok: false, error: res.error };
+  return {
+    ok: true, persisted: true,
+    warning: "密钥已以明文保存到 " + aiConfig.value.configPath +
+             "（没有加密；页面直连服务商时会用它组 Authorization 头）。",
+  };
 }
 
+/** 清除密钥：明文与旧版密文都删掉（其余配置保留） */
 export function aiClearKey() {
-  const res = call("ClearKey");
+  const base = writeBase();
+  if (!base.ok) return { ok: false, error: base.error };
+  const next = base.value;
+  delete next.apiKey;
+  delete next.apiKeyProtected;
+  const res = writeAiFile(next);
   refreshAiConfig();
-  return res || { ok: false, error: "无宿主" };
+  return res.ok ? { ok: true } : { ok: false, error: res.error };
 }
 
+/**
+ * 自检：**都不联网**，只看本地这几件事能不能成立。
+ * "项名 + ok + detail" 的形状与 `ok_all` 字段保持不变（界面就按这个渲染）。
+ */
 export function aiSelfCheck() {
-  return call("SelfCheck") || { ok: false, error: "无宿主" };
+  const cfg = aiConfig.value;
+  const checks = [];
+
+  const read = readAiFile();
+  checks.push({
+    name: "配置文件可解析",
+    ok: read.ok,
+    detail: read.ok
+      ? (read.exists
+        ? "ai.json 已读到并解析成功：" + cfg.configPath
+        : "ai.json 还不存在（首次保存时创建），本次按默认值运行")
+      : read.error,
+  });
+
+  const usable = isUsableBaseUrl(cfg.baseUrl);
+  checks.push({
+    name: "端点合法（只接受 http/https）",
+    ok: usable,
+    detail: usable
+      ? cfg.baseUrl
+      : `${cfg.baseUrl || "（空）"} 不是合法的 http/https 绝对地址（不会退回内置站点）`,
+  });
+
+  const hasKey = cfg.hasKey === true;
+  checks.push({
+    name: "密钥已配置（明文存 ai.json）",
+    ok: hasKey,
+    detail: hasKey
+      ? "apiKey 有值 —— 注意它是明文，没有加密"
+      : (cfg.legacyProtectedKey
+        ? "只剩旧版 DPAPI 密文，读不出来；需要在设置里重填一次"
+        : "还没有填密钥"),
+  });
+
+  // 不退回站点：拼接只能是 baseUrl + path，非法地址必须报错而不是被换成内置站点
+  let noFallback = false;
+  let fbDetail = "";
+  try {
+    const joined = joinBasePath("https://api.example.com/v1", "/chat/completions");
+    const sameUrl = joined === "https://api.example.com/v1/chat/completions";
+    let rejectScheme = false;
+    let rejectBogus = false;
+    try { joinBasePath("ftp://api.example.com/v1", "/chat/completions"); } catch { rejectScheme = true; }
+    try { joinBasePath("这不是地址", "/chat/completions"); } catch { rejectBogus = true; }
+    noFallback = sameUrl && rejectScheme && rejectBogus;
+    fbDetail = noFallback
+      ? "拼接只是 baseUrl + path；非 http/https 或不认识的地址直接报错，不会退回内置站点"
+      : "拼接行为不符合预期 —— 存在把密钥发到内置站点的风险";
+  } catch (e) {
+    fbDetail = "自检异常：" + String(e?.message || e);
+  }
+  checks.push({ name: "端点不退回内置站点", ok: noFallback, detail: fbDetail });
+
+  return { ok: true, ok_all: checks.every((c) => c.ok === true), checks };
 }
 
 /* ── 连通性测试 ──────────────────────────────────────────────────────── */
 
 export const aiTestState = ref({ testing: false, result: null });
 
-export function aiTest() {
-  const res = call("Test");
-  if (!res || res.ok === false) {
-    aiTestState.value = { testing: false, result: { ok: false, detail: res?.error || "无宿主" } };
-    return res;
+/**
+ * 测连接：发一条最大 1 token 的**非流式**请求，只看能不能通。
+ *
+ * 由页面自己发（不再经宿主，也就没有 `ai.test` 推送）：
+ * `POST {baseUrl}/chat/completions`，`stream:false`、`max_tokens:1`，
+ * `resp.ok` 就是成功判据；结果直接写进 aiTestState（`{testing, result}` 形状不变）。
+ */
+export async function aiTest() {
+  const cfg = aiConfig.value;
+  const fail = (detail, status = 0) => {
+    const r = { ok: false, status, ms: 0, detail };
+    aiTestState.value = { testing: false, result: r };
+    return r;
+  };
+  if (!cfg.enabled) return fail("AI 未启用（先打开上面的开关）");
+  if (!cfg.hasKey) return fail("还没有 API Key（先在下面填一个）");
+
+  let url;
+  try {
+    url = joinBasePath(cfg.baseUrl, "/chat/completions");
+  } catch (e) {
+    return fail(String(e?.message || e));
   }
+
   aiTestState.value = { testing: true, result: null };
-  return { ok: true };
+  const t0 = Date.now();
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), Math.min(30, Number(cfg.timeoutSec) || 30) * 1000);
+  try {
+    const resp = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: "Bearer " + aiKey },
+      body: JSON.stringify({
+        model: cfg.model,
+        messages: [{ role: "user", content: "ping" }],
+        stream: false,
+        max_tokens: 1,
+      }),
+      signal: ctrl.signal,
+    });
+    const ms = Date.now() - t0;
+    if (!resp.ok) {
+      let detail = "";
+      try { detail = String(await resp.text()).slice(0, 300); } catch { /* 读不到就算了 */ }
+      const r = { ok: false, status: resp.status, ms, detail: detail || `HTTP ${resp.status}` };
+      aiTestState.value = { testing: false, result: r };
+      return r;
+    }
+    let model = "";
+    try {
+      const body = JSON.parse(await resp.text());
+      model = String(body?.model || "");
+    } catch { /* 形状不认识也不影响"通了"这个结论 */ }
+    const r = { ok: true, status: resp.status, ms, model, detail: model ? "模型：" + model : "端点已响应" };
+    aiTestState.value = { testing: false, result: r };
+    return r;
+  } catch (e) {
+    const r = {
+      ok: false, status: 0, ms: Date.now() - t0,
+      detail: ctrl.signal.aborted ? "已取消或超时" : String(e?.message || e),
+    };
+    aiTestState.value = { testing: false, result: r };
+    return r;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 /* ── 流式会话状态 ────────────────────────────────────────────────────── */
@@ -177,7 +469,7 @@ const MAX_MESSAGES = 40;
 const MAX_REASONING = 8000;
 
 function persistChat() {
-  const c = (() => { try { return window.chrome?.webview?.hostObjects?.sync?.sys ?? null; } catch { return null; } })();
+  const c = sysObj();
   if (!c || typeof c.StoreWrite !== "function") return;
   try {
     c.StoreWrite(CHAT_STORE, JSON.stringify({
@@ -189,7 +481,7 @@ function persistChat() {
 }
 
 function loadChat() {
-  const c = (() => { try { return window.chrome?.webview?.hostObjects?.sync?.sys ?? null; } catch { return null; } })();
+  const c = sysObj();
   if (!c || typeof c.StoreRead !== "function") return;
   try {
     const r = parse(c.StoreRead(CHAT_STORE));
@@ -212,32 +504,24 @@ export function clearChat() {
   persistChat();
 }
 
-/* ── 推送订阅 ────────────────────────────────────────────────────────── */
+/* ── 启动 ────────────────────────────────────────────────────────────── */
 
 let inited = false;
 
-/** 挂上推送订阅（App 启动时调一次，幂等） */
+/**
+ * 挂上（App 启动时调一次，幂等）。
+ *
+ * ⚠ 对话**不经任何推送话题**：SSE 分帧、OpenAI 分片语义、错误分类都在 TS 里，
+ * 增量是把 `client.stream()` 的事件喂进 `collect({ onEvent })` 得来的 —— 一份实现。
+ * 以前那套 `ai.started/delta/reasoning/usage/notice/done/error` 话题，以及这里
+ * 对 `ai.test` 的订阅，都随"宿主中继"一起删掉了（页面直连，结果自己拿）。
+ */
 export function initAi() {
   if (inited) return;
   inited = true;
   loadChat();
-  initTestWatch();
-}
-
-/**
- * 只订阅连通性自检结果。
- *
- * ⚠ 对话本身**不再走推送话题**：SSE 分帧、OpenAI 分片语义、错误分类都搬到了
- * TS 那一层（`client.ts` 直接消费宿主转回来的原始字节），所以增量是把
- * `client.stream()` 的事件喂进 `collect({ onEvent })` 得来的 —— 一份实现。
- * 之前那套 `ai.started/delta/reasoning/usage/notice/done/error` 话题连同
- * 宿主侧的 C# 流式客户端一起删掉了（宿主现在只转发字节）。
- */
-function initTestWatch() {
-  onPush((env) => {
-    if (String(env?.topic || "") !== "ai.test") return;
-    aiTestState.value = { testing: false, result: env.payload || {} };
-  });
+  // 启动就把配置与凭据准备好（面板打开、设置改动时会再刷一次）
+  refreshAiConfig();
 }
 
 /* ── 消息组装（隐私开关在这里生效）────────────────────────────────────── */
@@ -369,7 +653,7 @@ export function splitMath(text) {
   return flat.length ? flat : [{ kind: "text", value: String(text || "") }];
 }
 
-/* ── 发送 / 停止（走 TS 客户端；宿主只负责带密钥发请求与转发字节）───────── */
+/* ── 发送 / 停止（走 TS 客户端 + 页面 fetch；配置与密钥来自 ai.json）────── */
 
 /**
  * 当前这一轮的**归属**。
@@ -394,7 +678,7 @@ let currentTurn = null;   // { id, ctrl }
  *   ① 轮次有上限（MAX_TOOL_ROUNDS）：模型抽风反复调工具时会被截断并给出说明，而不是无限烧钱；
  *   ② 工具只能碰引擎（见 lib/ai/tools.ts），碰不到能写文件/起进程的桥；
  *   ③ 「发送引擎结果」关着时工具会被拒（结果要回传给模型 = 把引擎结果发出去）；
- *   ④ 停止会**真正**中断：abort 会打断中继那条流（relayPost 现在收 signal），
+ *   ④ 停止会**真正**中断：abort 会掐断页面自己发的那条流（relayPost 收 signal），
  *      工具循环在每轮开始与每次工具调用前都查 aborted，不再"按了停止还继续开新请求"。
  * @returns {{ok:boolean, error?:string}}
  */
@@ -430,7 +714,11 @@ export function sendTurn(userText, { route = "", history = aiMessages.value, con
   if (!cfg.enabled) return failTurn("AI 未启用：去「设置 → AI」打开开关");
   if (!cfg.hasKey) return failTurn("还没有 API Key：去「设置 → AI」填一个");
   if (aiState.value.running) return failTurn("已有一轮在输出，先停止它", "busy");
-  if (!isRelayHosted()) return failTurn("无宿主：AI 只在 MFMath.exe 里可用");
+  // 端点由用户填：不合法就明说（**不会退回内置站点**，那会把密钥发到我们服务器上）
+  if (!isUsableBaseUrl(cfg.baseUrl)) {
+    return failTurn(`端点地址不合法：${cfg.baseUrl || "（空）"}（只接受 http/https，且不会退回内置站点）`);
+  }
+  if (!isRelayHosted()) return failTurn("AI 还没就绪：检查「设置 → AI」里的端点与密钥");
 
   const ctx = context ?? currentContext(route);
   const messages = buildMessages({ userText: text, history, context: ctx, cfg });
@@ -452,7 +740,11 @@ export function sendTurn(userText, { route = "", history = aiMessages.value, con
   /** 这一轮是否已被取消或被更新的轮次取代 —— 工具循环每一步都靠它决定要不要继续 */
   const superseded = () => myCtrl.signal.aborted || currentTurn?.id !== myTurn;
 
-  const client = new HostRelayClient({ includeUsage: cfg.includeUsage !== false });
+  // 把这一轮真正要用的凭据推给运输层：relay.ts 不 import 本模块（避免循环依赖），
+  // 所以"配置 → 运输层"这条线只能由这里推。用 cfg + aiKey 而不是运输层里的旧值，
+  // 保证"界面上看到的端点与密钥"就是"这一轮真的用了的"。
+  setRelayCredentials({ baseUrl: cfg.baseUrl, apiKey: aiKey, timeoutSec: Number(cfg.timeoutSec) });
+  const client = new DirectModelClient({ includeUsage: cfg.includeUsage !== false });
 
   // 工具循环。不 await：调用方（面板）要立刻恢复响应，增量靠回调推进。
   (async () => {
@@ -648,7 +940,10 @@ export function sendTurn(userText, { route = "", history = aiMessages.value, con
 }
 
 /**
- * 停止当前这一轮：取消宿主侧连接 + abort 本地迭代。
+ * 停止当前这一轮：abort 页面这条流（+ 运输层的 CancelAll 兜底）。
+ *
+ * ⚠ 语义是"**停止等待**"，不是"撤回请求"：请求早已发到服务商那边，该计费的照旧计费。
+ *    这里保证的只是不再继续读、不再继续开新请求。
  *
  * ⚠ 关键：**不要**在这里同步把 `running` 置 false。原先那样写，`sendTurn` 的
  * `if (aiState.value.running) return` 守卫就失效了 —— 在旧那条流真正结束前
@@ -660,8 +955,7 @@ export function stopTurn() {
   if (!aiState.value.running) return { ok: false, error: "当前没有在输出的请求" };
   const local = currentTurn;
   try { local?.ctrl?.abort(); } catch { /* 忽略 */ }
-  // 页面刷新过的情况下 currentTurn 是 null（那一轮只活在宿主里），
-  // 所以 CancelAll 必须在，不能只靠 abort。
+  // 页面刷新过、或这一轮的 controller 已经不可达时，abort 够不到它 —— 所以 CancelAll 必须在
   relayCancelAll();
   aiState.value = { ...aiState.value, doneReason: "aborted" };
   // 没有本地轮次时没人会来收尾，这里自己落下，否则界面永远停在"正在输出"
@@ -726,6 +1020,9 @@ export function initAiHook() {
       budget: contextBudget,
       context: currentContext,
       hosted: isAiHosted,
+      // 运输层的纯函数：测试要断言"端点只接受 http/https、拼接不退回内置站点"，
+      // 而这两条**不能**只看行为（行为要联网才看得出来），所以把纯函数露出来
+      relay: { join: joinBasePath, usable: isUsableBaseUrl, busy: relayBusy },
       // 工具：引擎目录规模、单个函数/校验/执行（"只能调引擎"这条边界也靠它断言）
       tools: {
         count: () => ENGINE_FN_COUNT,

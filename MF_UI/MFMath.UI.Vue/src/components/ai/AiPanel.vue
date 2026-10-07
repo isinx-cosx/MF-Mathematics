@@ -153,9 +153,9 @@ const outgoing = computed(() => {
 });
 
 const statusText = computed(() => {
-  if (!aiHosted.value) return "浏览器预览：AI 只在 MFMath.exe 里可用";
+  if (!aiConfig.value.configStore) return "读不到设置文件：AI 用不了";
   if (!aiConfig.value.enabled) return "AI 未启用";
-  if (!aiConfig.value.hasKey) return "还没有 API Key";
+  if (!aiConfig.value.hasKey) return aiConfig.value.legacyProtectedKey ? "密钥要重填一次" : "还没有 API Key";
   if (aiState.value.running) return "正在输出…";
   return aiConfig.value.model;
 });
@@ -185,9 +185,13 @@ function openSettings() {
 
     <!-- 未就绪时把"为什么不能用"和"去哪里开"直接说出来，而不是给一个点不动的输入框 -->
     <div v-if="!aiHosted || !aiConfig.enabled || !aiConfig.hasKey" class="ai-blocked" data-ai="blocked">
-      <p v-if="!aiHosted">浏览器预览里没有宿主桥。AI 的传输与密钥都在 MFMath.exe 里，所以这里不能用。</p>
+      <p v-if="!aiConfig.configStore">读不到设置文件（浏览器预览里没有 <code>sys</code> 桥），所以这里的 AI 用不了。</p>
       <p v-else-if="!aiConfig.enabled">AI 现在是关的。打开它并填一个 API Key 就能用。</p>
-      <p v-else>还没有 API Key。密钥只存在宿主（DPAPI 加密），页面拿不到它。</p>
+      <p v-else-if="!aiConfig.hasKey">
+        还没有 API Key（或端点地址不合法）。密钥以<strong>明文</strong>存在
+        <code>%LOCALAPPDATA%\MFMath\settings\ai.json</code> 里，页面直连服务商时会用到它。
+      </p>
+      <p v-else>端点地址不合法：只接受 http/https 绝对地址，且<strong>不会</strong>退回内置站点。</p>
       <button class="btn btn-primary" data-ai="settings-link" data-tour="main_window.ai_settings"
               @click="openSettings">去设置 → AI</button>
     </div>

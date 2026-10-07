@@ -1,11 +1,18 @@
-// cdp-ai.mjs — AI 助手端到端（宿主 AiBridge + 假端点 + 推送流式）
+// cdp-ai.mjs — AI 助手端到端（页面直连假端点 + 明文密钥配置 + fetch 流式）
 //
 // 覆盖三层：
-//   ① 配置与密钥：读写连通、**密钥不进渲染进程**（脱敏视图 + 配置文件里没有明文）；
+//   ① 配置与密钥：**页面直连**用户填的端点；密钥**明文**存 ai.json（脱敏视图里仍然没有它），
+//      baseUrl 只接受 http/https，且拼接时不会退回内置站点；
 //   ② 流式与七类异常：正常增量、停止、401/500、坏 SSE、无 usage、无 [DONE]、
 //      连接失败、超时 —— 全都要求"不崩、有明确原因、下一轮还能继续"；
 //   ③ 硬约束：**AI 不得成为计算源** —— 假端点故意回 "1+1=3"，
 //      断言计算页的结果区仍然是引擎算出来的值（这条是整个 AI 功能的红线）。
+//
+// 架构断言（本轮改动的核心，别删）：
+//   · 请求由**页面**发出：假端点收到的 Origin 头 = 页面 origin
+//     （旧架构里是宿主 HttpClient，不会有这个头）；
+//   · 对话**不再依赖任何宿主推送**：push log 里没有 ai.* 话题，
+//     流是页面自己从 fetch 的 body 里读的。
 //
 // 前置：本套件自己拉起 tests/fake-ai-server.mjs，不需要网络也不需要真 key。
 //
@@ -73,14 +80,34 @@ const send = (method, params, timeoutMs = 30000) => new Promise((resolve) => {
   ws.addEventListener("message", h);
   ws.send(JSON.stringify({ id: mid, method, params }));
 });
+/** 最后开始的那条检查（页面卡死时报出来，比"看哪一条 FAIL 了"准得多） */
+let lastCheck = "";
+
+/**
+ * 求值一次。
+ *
+ * ⚠ 页面**卡死**（渲染进程不再响应 CDP，例如某个宿主桥调用没有返回）时必须**立刻报一次并停下**：
+ * 否则后面每条检查都会各自等满 30 秒、报成"功能坏了"，把真正的病因埋掉
+ * —— 实测踩过：一次卡死产生了 8 条互不相干的假失败，还顺带吃掉了收尾的复位。
+ */
 const evalJs = async (expr, timeoutMs = 30000) => {
   const r = await send("Runtime.evaluate", { expression: expr, returnByValue: true, awaitPromise: true }, timeoutMs);
+  if (r.timeout === true) {
+    console.error(`\n[HANG] 页面在「${lastCheck || "(启动阶段)"}」之后不再响应 CDP（渲染进程卡死 / 宿主桥调用没返回）。`);
+    console.error("[HANG] 后续检查已跳过；请把这一行与它上面最后几条输出一起报上来。");
+    console.error("[HANG] 已知残留：%LOCALAPPDATA%\\MFMath\\settings\\ai.json 会停在最后一次成功写入的状态（收尾复位没跑到）。");
+    console.log(`RESULT|cdp-ai|${pass}|${fail}`);
+    try { ws.close(); } catch { /* 忽略 */ }
+    try { fake.kill(); } catch { /* 忽略 */ }
+    process.exit(2);
+  }
   if (r.result?.exceptionDetails) return "[异常] " + (r.result.exceptionDetails.text || "");
   return r.result?.result?.value;
 };
 
 let pass = 0, fail = 0;
 const check = (label, ok, detail = "") => {
+  lastCheck = label;
   ok ? pass++ : fail++;
   console.log(`  ${ok ? "[OK]" : "[FAIL]"} ${label}${detail ? "   " + detail : ""}`);
 };
@@ -100,14 +127,14 @@ const waitIdle = (ms = 20000) => waitTrue(`window.__mfAi.state().running === fal
 const waitRunning = (ms = 8000) => waitTrue(`window.__mfAi.state().running === true`, ms);
 
 /**
- * 清掉可能残留的上一轮状态，并把配置指到假端点。
- * 两件事都要做：宿主侧取消连接（CancelAll）+ 页面侧复位 running 状态。
- * 只做前者时 JS 里可能还停在 running=true，下一次发送会被自己的单飞检查拒绝。
+ * 清掉可能残留的上一轮状态。
+ *
+ * 页面直连之后请求只活在这个页面里（AbortController + fetch），
+ * 宿主侧没有"刷新后还活着的旧连接"，所以这里只需要页面侧停止；
+ * 停完再确认 running 已经落回 false，免得下一次发送被自己的单飞检查拒绝。
  */
 async function resetTurn() {
   await evalJs(`(() => {
-    const ai = window.chrome.webview.hostObjects.sync.ai;
-    ai.CancelAll();
     try { window.__mfAi.stop(); } catch (e) { /* 没在跑就算了 */ }
     return true;
   })()`);
@@ -115,7 +142,7 @@ async function resetTurn() {
   await sleep(200);
 }
 
-console.log("=== ① 配置与密钥（密钥不进渲染进程）===");
+console.log("=== ① 配置与密钥（明文存 ai.json，请求由页面直连）===");
 
 // 先等页面把 __mfAi 钩子挂上。宿主刚换过 wwwroot 时首屏会更慢（WebView2 缓存是冷的），
 // 用固定 sleep 赌这一刻的结果就是"同一构建有时 52/0、有时满屏 Uncaught"。
@@ -133,7 +160,11 @@ if (!pageReady) {
   process.exit(1);
 }
 
-check("宿主提供 ai 桥", (await evalJs(`window.__mfAi.hosted()`)) === true);
+// 干净起点：上一个跑挂了的会话可能在 ai.json 里留下密钥，而下面的"未配置"断言要靠它为空
+await evalJs(`window.__mfAi.clearKey()`);
+// "就绪"的语义已经变了：不再是"宿主提供了 ai 桥"，而是"**配置齐备**"
+// （能读到设置文件 + 开关打开 + 有明文密钥 + 端点合法）。没密钥时不能自称就绪。
+check("没有密钥时不假装就绪（就绪 = 配置齐备）", (await evalJs(`window.__mfAi.hosted()`)) === false);
 
 // 先清掉**已落盘的旧会话**：否则"回答只出现一次""思考过程只出现一次"这类断言
 // 会被上一次运行留下的 ai-chat.json 影响，变成看运气的用例。
@@ -153,40 +184,73 @@ check("配置写入成功", /"ok":true/.test(String(configured)), String(configu
 
 const KEY = "sk-fake-DO-NOT-LEAK-9f3c";
 const setKey = await evalJs(`JSON.stringify(window.__mfAi.setKey(${JSON.stringify(KEY)}))`);
-check("密钥已设置", /"ok":true/.test(String(setKey)), String(setKey).slice(0, 120));
+check("密钥已设置（明文写进 ai.json）", /"ok":true/.test(String(setKey)), String(setKey).slice(0, 120));
+check("配置齐备后自称就绪（AI 直连就绪）", (await evalJs(`window.__mfAi.hosted()`)) === true);
 
 const info1 = String(await evalJs(`JSON.stringify(window.__mfAi.info())`));
 check("脱敏视图：hasKey=true", /"hasKey":true/.test(info1));
-check("脱敏视图：密钥来源说明存在", /"keySource":"(dpapi|memory)"/.test(info1), (info1.match(/"keySource":"[^"]*"/) || [""])[0]);
+check("脱敏视图：密钥来源是配置文件", /"keySource":"file"/.test(info1), (info1.match(/"keySource":"[^"]*"/) || [""])[0]);
+check("脱敏视图：密钥已落盘", /"keyPersisted":true/.test(info1));
 check("脱敏视图里**没有**密钥明文", !info1.includes(KEY));
-check("脱敏视图里没有密文片段（apiKey 字段根本不存在）", !/"apiKeyProtected"/.test(info1));
+check("脱敏视图里没有密钥字段（apiKey / apiKeyProtected 都不在）",
+  !/"apiKey"/.test(info1) && !/"apiKeyProtected"/.test(info1));
 
-// 配置文件里也不该有明文（sys.StoreRead 能读到密文，但读不出密钥）
+// 配置文件里**就是明文** —— 这是本轮的明确决定（不再 DPAPI、不再走宿主 SetKey）。
+// 页面直连要用它，所以它必须可读；同时上面那条断言保证它不会出现在脱敏视图里。
 const raw = String(await evalJs(`(() => {
   const sys = window.chrome.webview.hostObjects.sync.sys;
   const r = JSON.parse(sys.StoreRead("ai"));
   return r.ok ? r.json : "";
 })()`));
-check("落盘的 ai.json 里没有密钥明文", raw.length > 0 && !raw.includes(KEY), raw.length > 0 ? "" : "读不到文件");
-check("落盘的 ai.json 用的是密文（apiKeyProtected）", /apiKeyProtected/.test(raw));
+check("落盘的 ai.json 里是**明文** apiKey（用户已决定不再加密）",
+  raw.length > 0 && raw.includes(KEY), raw.length > 0 ? "" : "读不到文件");
+check("旧版密文字段已被清掉（不会出现两把钥匙打架）", !/"apiKeyProtected"/.test(raw));
 
-// 中继的闸门：页面**不能**让宿主把密钥发到任意地址（这是中继最危险的一面）
-const evilAbsolute = String(await evalJs(`(() => {
-  const ai = window.chrome.webview.hostObjects.sync.ai;
-  return ai.Begin(JSON.stringify({ path: "https://evil.example/v1/chat/completions", body: {} }));
-})()`));
-check("中继拒绝绝对地址（密钥不会被发到任意地址）", /"ok":false/.test(evilAbsolute) && /"kind":"config"/.test(evilAbsolute),
-  evilAbsolute.slice(0, 120));
-const evilProtoRelative = String(await evalJs(`(() => {
-  const ai = window.chrome.webview.hostObjects.sync.ai;
-  return ai.Begin(JSON.stringify({ path: "//evil.example/v1", body: {} }));
-})()`));
-check("中继拒绝协议相对地址（//host）", /"ok":false/.test(evilProtoRelative), evilProtoRelative.slice(0, 90));
-const evilDotDot = String(await evalJs(`(() => {
-  const ai = window.chrome.webview.hostObjects.sync.ai;
-  return ai.Begin(JSON.stringify({ path: "/../../x", body: {} }));
-})()`));
-check("中继拒绝 .. 穿越", /"ok":false/.test(evilDotDot), evilDotDot.slice(0, 90));
+// 新架构下**仍然成立**的安全属性：端点只接受 http/https，且拼接时**不会退回内置站点**。
+// （旧架构那条"页面不能让宿主把密钥发到任意地址"随中继一起消失，换成这两条。）
+const urlFacts = JSON.parse(String(await evalJs(`JSON.stringify({
+  ok: window.__mfAi.relay.join("https://api.example.com/v1", "/chat/completions"),
+  badScheme: (() => { try { window.__mfAi.relay.join("ftp://evil.example/v1", "/chat/completions"); return "没报错"; } catch (e) { return String(e.message || e); } })(),
+  empty: (() => { try { window.__mfAi.relay.join("", "/chat/completions"); return "没报错"; } catch (e) { return String(e.message || e); } })(),
+  protoRelative: (() => { try { window.__mfAi.relay.join("//evil.example/v1", "/chat/completions"); return "没报错"; } catch (e) { return String(e.message || e); } })(),
+  usableHttp: window.__mfAi.relay.usable("http://127.0.0.1:8791/v1"),
+  usableHttps: window.__mfAi.relay.usable("https://api.deepseek.com/v1"),
+  usableFtp: window.__mfAi.relay.usable("ftp://api.deepseek.com/v1"),
+  usableEmpty: window.__mfAi.relay.usable("")
+})`)));
+check("端点只接受 http/https（https 与 http 都收，ftp 被拒）",
+  urlFacts.usableHttp === true && urlFacts.usableHttps === true && urlFacts.usableFtp === false,
+  JSON.stringify(urlFacts).slice(0, 160));
+check("空地址不算可用（不会被当成默认站点）", urlFacts.usableEmpty === false);
+check("拼接只是 baseUrl + path（同源，不改写站点）",
+  urlFacts.ok === "https://api.example.com/v1/chat/completions", String(urlFacts.ok));
+check("非 http/https 地址**直接报错**，不退回内置站点",
+  !/没报错/.test(urlFacts.badScheme) && !urlFacts.badScheme.includes("api.deepseek.com"), urlFacts.badScheme.slice(0, 130));
+check("空地址同样报错（不会悄悄用内置站点）",
+  !/没报错/.test(urlFacts.empty) && !urlFacts.empty.includes("api.deepseek.com"), urlFacts.empty.slice(0, 130));
+check("协议相对地址（//host）被拒", !/没报错/.test(urlFacts.protoRelative), urlFacts.protoRelative.slice(0, 130));
+
+// 行为层面再钉一次：配置里写一个非法协议，发送必须**在本地就失败**，
+// 一个请求都不许出去（否则就是"把密钥发给别的站点"这类事故）。
+//
+// ⚠ 这里**必须先真的把 baseUrl 改成非法值**（第一版漏了这一步，于是发送用的还是
+// 上一轮的合法端点：既 ok:true、又真的发出去一个请求，还顺手往会话里塞了一条回答，
+// 让后面"同一段回答只出现一次"跟着一起挂）。
+await resetTurn();
+check("把端点改成非 http/https", /"ok":true/.test(String(await evalJs(`JSON.stringify(window.__mfAi.configure({ baseUrl: "ftp://evil.example/v1" }))`))));
+check("非法端点下不自称就绪", (await evalJs(`window.__mfAi.hosted()`)) === false);
+const beforeBadUrl = (await fakeRequests()).length;
+const badSend = String(await evalJs(`JSON.stringify(window.__mfAi.send("这条不该发出去"))`));
+await sleep(400);
+check("非法 baseUrl：发送被本地拒绝",
+  /"ok":false/.test(badSend) && /端点地址不合法/.test(badSend), badSend.slice(0, 140));
+check("非法 baseUrl：一个请求都没发出去",
+  (await fakeRequests()).length === beforeBadUrl, `${beforeBadUrl} → ${(await fakeRequests()).length}`);
+check("非法 baseUrl：没有往会话里塞东西", (await evalJs(`window.__mfAi.messages().length`)) === 0);
+// 复位：端点回到假端点，并把这一节留下的错误状态清干净（§② 的"只出现一次"要靠这个）
+await evalJs(`window.__mfAi.configure({ baseUrl: ${JSON.stringify(BASE)} })`);
+await evalJs(`window.__mfAi.clear()`);
+check("复位后重新就绪", (await evalJs(`window.__mfAi.hosted()`)) === true);
 
 console.log("=== ② 正常流式 ===");
 await resetTurn();
@@ -205,10 +269,19 @@ const st1 = await evalJs(`JSON.stringify(window.__mfAi.state())`);
 check("usage 收到（假端点给了尾包）", /"inputTokens":42/.test(String(st1)), String(st1).slice(0, 120));
 check("回复进入会话记录", await evalJs(`window.__mfAi.messages().some(m => m.role === "assistant")`) === true);
 check("面板 DOM 里能看到正文", await waitTrue(`(document.querySelector('[data-ai=stream]')?.textContent || '').includes('收到') || document.querySelector('[data-ai=msgs]').textContent.includes('收到')`));
-// 架构断言：字节是宿主经中继话题转过来的，解析在 TS 侧（不是宿主推"事件"）
+// 架构断言：**不再依赖宿主推送**。
+// 旧架构是宿主把响应字节经 ai.http / ai.raw* 推回来、页面订阅话题；
+// 现在是页面自己 fetch、自己 `resp.body.getReader()` 读流 —— 所以：
+//   ① 假端点真的收到了这次请求（fetch 确实发出去了）；
+//   ② push log 里**不该再有**任何 ai.* 话题（没有 ai.http / ai.raw* / ai.delta / ai.test）。
+check("这一轮的请求真的打到了假端点（页面自己 fetch，不经宿主推送）",
+  (await fakeRequests()).length >= 1, `收到 ${(await fakeRequests()).length} 次`);
 const pushTopics = String(await evalJs(`JSON.stringify([...new Set(window.__mfPush.log().map(e => e.topic))])`));
-check("走的是中继话题（ai.http + ai.raw*）", /"ai\.http"/.test(pushTopics) && /"ai\.raw"/.test(pushTopics), pushTopics.slice(0, 140));
-check("宿主侧不再推 ai.delta（协议层只有一份 TS 实现）", !/"ai\.delta"/.test(pushTopics), pushTopics.slice(0, 140));
+check("对话不再依赖宿主推送（push log 里没有任何 ai.* 话题）",
+  !/"ai\./.test(pushTopics), pushTopics.slice(0, 140));
+check("流是页面直接从 fetch 读的（没有 ai.raw / ai.http / ai.delta 这类中继话题）",
+  !/"ai\.raw/.test(pushTopics) && !/"ai\.http"/.test(pushTopics) && !/"ai\.delta"/.test(pushTopics),
+  pushTopics.slice(0, 140));
 
 // 回归：一轮结束后**不能有残留的实时缓冲**，否则同一段回答会被渲染两次
 // （实测踩过：running 置假了但 aiState.stream 没清，面板里回答出现两遍）
@@ -598,6 +671,14 @@ check("关掉历史：第二个请求没有把整段对话带上", !!last && las
   `消息数 ${last?.messageCount}，roles=${JSON.stringify(last?.roles)}`);
 check("请求里带了密钥（否则端点会 401）", !!last?.authPresent, last ? "authTail=" + last.authTail : "无请求");
 check("假端点收到的认证尾部与设置的一致", !!last && last.authTail === KEY.slice(-4), last?.authTail || "");
+// 架构对照：这条请求是**页面**发的（浏览器跨源 fetch 一定带 Origin，
+// 而旧架构里那个 .NET HttpClient 不会带）—— 与"push log 里没有 ai.* 话题"互相印证。
+{
+  const pageOrigin = String(await evalJs(`location.origin`));
+  check("请求确由**页面**发出（Origin 头 = 页面 origin）",
+    !!last?.origin && last.origin === pageOrigin,
+    `origin=${last?.origin || "（无）"} 页面=${pageOrigin}`);
+}
 
 // 打开历史后，第二个请求应该多出第一轮的往返
 await resetTurn();
@@ -646,21 +727,71 @@ const afterVal = String(await evalJs(`((document.querySelector('.lcd .lcd-result
 check("AI 回复**没有**改写结果区（结果仍是引擎的值 2）", afterVal === engineVal && afterVal === "2",
   `引擎=${JSON.stringify(engineVal)} 之后=${JSON.stringify(afterVal)}`);
 
-console.log("=== ⑦ 自检与设置页 ===");
+console.log("=== ⑦ 自检、连通性测试与设置页 ===");
+// 「测试连接」以前是宿主发 + ai.test 推回来；现在也是页面自己发：
+// 非流式、max_tokens=1、body 里只有一句 ping。
+await resetFake();
+const testRes = String(await evalJs(`(async () => JSON.stringify(await window.__mfAi.test()))()`));
+check("连通性测试：页面自己发一次请求并成功",
+  /"ok":true/.test(testRes) && /"status":200/.test(testRes), testRes.slice(0, 150));
+{
+  const tReq = (await fakeRequests()).slice(-1)[0];
+  check("连通性测试的请求体是 stream:false + max_tokens:1（不会顺手跑起一条流）",
+    !!tReq && tReq.stream === false && tReq.body?.max_tokens === 1 &&
+      (tReq.body?.messages || [])[0]?.content === "ping",
+    JSON.stringify(tReq?.body || {}).slice(0, 170));
+  check("连通性测试同样是页面的 fetch（Origin 头在）", !!tReq?.origin, tReq?.origin || "（无）");
+}
+
+// 自检现在全是**本地**检查（不联网、也不再有"宿主侧"的那几项）：
+// 配置可解析 / 端点合法 / 密钥在不在 / 端点不退回内置站点。
 const sc = String(await evalJs(`JSON.stringify(window.__mfAi.selfCheck())`));
-check("自检有密钥保护一项", sc.includes("密钥保护"), sc.slice(0, 120));
-check("自检的中继路径闸门通过（拒绝绝对地址）", /"name":"中继路径闸门（拒绝绝对地址）","ok":true/.test(sc), sc.slice(0, 260));
-check("自检的字节转手无损（base64）通过", /"name":"响应字节转手无损（base64）","ok":true/.test(sc));
-check("自检的配置目录可写通过", /"name":"配置目录可写","ok":true/.test(sc));
+check("自检的「配置文件可解析」通过", sc.includes('"name":"配置文件可解析","ok":true'), sc.slice(0, 200));
+check("自检的「端点合法（只接受 http/https）」通过",
+  sc.includes('"name":"端点合法（只接受 http/https）","ok":true'), sc.slice(0, 300));
+check("自检的「密钥已配置」通过，且如实说是明文",
+  sc.includes('"name":"密钥已配置（明文存 ai.json）","ok":true') && sc.includes("明文"), sc.slice(0, 400));
+check("自检的「端点不退回内置站点」通过",
+  sc.includes('"name":"端点不退回内置站点","ok":true'), sc.slice(0, 500));
+check("自检整体 ok_all=true", sc.includes('"ok_all":true'), sc.slice(0, 500));
+// 旧的四项随架构一起没了，不该再出现（留着就是"测试在验一个不存在的实现"）
+check("自检里不再有宿主侧那几项（DPAPI / base64 转手 / 中继闸门 / 配置目录可写）",
+  !/密钥保护（DPAPI）/.test(sc) && !/base64/.test(sc) && !/中继路径闸门/.test(sc) && !/配置目录可写/.test(sc));
 
 await evalJs(`location.hash = "#/settings?group=ai"`);
 check("设置里有 AI 分组", await waitTrue(`!!document.querySelector('[data-setting="ai.enabled"]')`, 12000));
 check("AI 分组显示密钥状态（只说在不在）", await waitTrue(`(document.querySelector('[data-ai=key-state]')?.textContent || '').includes('已配置')`));
+// 文案必须**如实**：密钥是明文写在 ai.json 里、页面直连时会用它 ——
+// 不能再出现"宿主侧保管 / 页面拿不到 / DPAPI 保护"这类旧说法（它们现在是假的）
+check("密钥那一栏如实说是明文（不再暗示受保护）", await evalJs(`(() => {
+  const el = document.querySelector('[data-setting="ai.apiKey"]');
+  const t = el ? el.textContent : "";
+  return t.includes("明文") && !/页面拿不到/.test(t) && !/DPAPI/.test(t) && !/宿主/.test(t);
+})()`) === true, String(await evalJs(`document.querySelector('[data-setting="ai.apiKey"]')?.textContent?.slice(0,120)`)));
 check("密钥输入框是 password 类型（不明文展示）",
   await evalJs(`document.querySelector('[data-ai-set=apiKey]')?.type === "password"`) === true);
 check("隐私开关齐全（表达式/结果/历史/代码）",
   await evalJs(`["sendExpr","sendResult","sendHistory","sendCode"].every(k => !!document.querySelector('[data-ai-set="' + k + '"]'))`) === true);
 check("设置项 id 与 catalog 对齐（ai.privacy 存在）", await waitTrue(`!!document.querySelector('[data-setting="ai.privacy"]')`));
+
+// 设置页上的那个「测试」按钮：点下去必须真的发一次、并把结果落进界面
+// （aiTestState 的形状与显示链路：{testing, result} → data-ai=test-line）
+await resetFake();
+await evalJs(`(() => { const b = document.querySelector('[data-ai=test]'); if (b) b.click(); return true; })()`);
+check("「测试」按钮真的发出请求并在界面上显示结果",
+  await waitTrue(`(document.querySelector('[data-ai=test-line]')?.textContent || '').includes('连接正常')`, 12000),
+  String(await evalJs(`document.querySelector('[data-ai=test-line]')?.textContent || "（没有结果行）"`)));
+check("「测试」的这一轮也是页面自己发的", (await fakeRequests()).length >= 1);
+// 按钮**不禁用**：没配好时点它也必须有结果（写清楚"为什么测不了"），
+// 否则用户面对的是一个点不动的按钮、测试也查不到链路。
+await evalJs(`window.__mfAi.configure({ enabled: false })`);
+await sleep(300);
+await evalJs(`(() => { const b = document.querySelector('[data-ai=test]'); if (b) b.click(); return true; })()`);
+check("未启用时点「测试」也会给出原因（不是点不动）",
+  await waitTrue(`/未启用/.test(document.querySelector('[data-ai=test-line]')?.textContent || '')`, 8000),
+  String(await evalJs(`document.querySelector('[data-ai=test-line]')?.textContent || "（没有结果行）"`)));
+await evalJs(`window.__mfAi.configure({ enabled: true })`);
+await sleep(200);
 
 console.log("=== ⑧ 面板可用性与不可用时的诚实提示 ===");
 await evalJs(`location.hash = "#/calc/basic"`);
@@ -678,8 +809,59 @@ await evalJs(`window.__mfAi.configure({ enabled: true })`);
 await sleep(200);
 check("重新启用后阻塞提示消失", await evalJs(`!document.querySelector('[data-ai=blocked]')`) === true);
 
-/* ── 收尾：清掉密钥与对话，避免污染用户环境 ── */
+console.log("=== ⑨ 旧版密钥迁移（只有 DPAPI 密文时不许假装有密钥）===");
+// 为什么放在**最后**：这一节会把配置写成"旧版样子"（只有 apiKeyProtected、没有明文 apiKey），
+// 一旦这里出问题，前面 150 多项不该跟着一起变红 —— 上一版放在中间，就是这样连锁挂了 8 条。
+//
+// 为什么**不直接读写宿主桥**：写配置走的是正常 API（configure / setKey），与全流程其它地方
+// 同一种调用姿势。上一版在用例里直接 `sys.StoreRead/StoreWrite` 一套自己的写法，
+// 出问题时没法区分"功能坏了"和"姿势不对"，实测就是在那一节之后页面不再响应 CDP。
+await evalJs(`location.hash = "#/settings?group=ai"`);
+check("迁移一节回到设置页", await waitTrue(`!!document.querySelector('[data-setting="ai.apiKey"]')`, 12000));
+
+await evalJs(`window.__mfAi.clearKey()`);
+const legacy = String(await evalJs(`JSON.stringify((() => {
+  const write = window.__mfAi.configure({ apiKeyProtected: "AQAAANCMND8BFdERjHoAwE_Cl-sBAAAA" });
+  const c = window.__mfAi.info();
+  return {
+    write: write, hasKey: c.hasKey, keySource: c.keySource, legacy: c.legacyProtectedKey,
+    hosted: window.__mfAi.hosted(), note: c.keyNote,
+  };
+})())`));
+check("旧版密文密钥：配置写入成功", /"ok":true/.test((legacy.match(/"write":\{[^}]*\}/) || [""])[0]), legacy.slice(0, 200));
+check("旧版密文密钥：不假装有密钥、不自称就绪",
+  /"hasKey":false/.test(legacy) && /"keySource":"none"/.test(legacy) && /"legacy":true/.test(legacy) && /"hosted":false/.test(legacy),
+  legacy.slice(0, 220));
+check("旧版密文密钥：给的是「重填一次」的说明（不是'已配置'）",
+  /"note":"[^"]*重填/.test(legacy), (legacy.match(/"note":"[^"]*"/) || [""])[0]);
+check("旧版密文密钥：脱敏视图里没有密文本身", !/AQAAANCMND8BFdERjHoAwE/.test(legacy));
+check("旧版密文密钥：设置页如实提示「重填一次」",
+  await waitTrue(`(document.querySelector('[data-ai=key-note]')?.textContent || '').includes('重填')`, 8000),
+  String(await evalJs(`document.querySelector('[data-ai=key-note]')?.textContent || "（没有提示行）"`)));
+check("旧版密文密钥：密钥状态那一行也说清了（未配置，不是已配置）",
+  await waitTrue(`/未配置/.test(document.querySelector('[data-ai=key-state]')?.textContent || '')`, 6000));
+
+// 重填一次（这就是迁移动作）：状态必须立刻恢复，提示必须消失
+await evalJs(`window.__mfAi.setKey(${JSON.stringify(KEY)})`);
+check("重填一次后立刻恢复就绪", (await evalJs(`window.__mfAi.hosted()`)) === true);
+check("重填后提示消失", await waitTrue(`!document.querySelector('[data-ai=key-note]')`, 6000));
+
+/* ── 收尾：清掉密钥与对话，避免污染用户环境（含迁移一节写进去的假密文占位符）── */
 await evalJs(`window.__mfAi.clearKey(); window.__mfAi.clear(); window.__mfAi.configure({ enabled: false, baseUrl: "https://api.deepseek.com/v1", model: "deepseek-chat" })`);
+{
+  // 收尾必须**真的**落地：上一版残留成了 {enabled:true, baseUrl:127.0.0.1:8791, apiKeyProtected:"…"}
+  const residue = String(await evalJs(`(() => {
+    const sys = window.chrome.webview.hostObjects.sync.sys;
+    const r = JSON.parse(sys.StoreRead("ai"));
+    return r.ok ? r.json : "";
+  })()`));
+  check("收尾：ai.json 里既没有明文密钥、也没有假密文占位符",
+    residue.length > 0 && !residue.includes("sk-fake") && !/"apiKeyProtected"\s*:\s*"[^"]+"/.test(residue),
+    residue.replace(/\s+/g, " ").slice(0, 160));
+  check("收尾：ai.json 里回到生产端点且 AI 关闭",
+    /"baseUrl"\s*:\s*"https:\/\/api\.deepseek\.com\/v1"/.test(residue) && /"enabled"\s*:\s*false/.test(residue),
+    residue.replace(/\s+/g, " ").slice(0, 160));
+}
 
 console.log(`RESULT|cdp-ai|${pass}|${fail}`);
 try { ws.close(); } catch { /* 忽略 */ }

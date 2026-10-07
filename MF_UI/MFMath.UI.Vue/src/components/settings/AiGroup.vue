@@ -10,12 +10,14 @@
  *   · localModel 由 provider=Ollama 预设覆盖（baseUrl 指 127.0.0.1:11434/v1）；
  *   · cache 改成"会话记录"（条数 + 清空），因为对话缓存反而会让回答过期。
  *
- * 密钥的那一栏把两件事分开说：「我的 key 在不在」和「它是不是明文躺在磁盘上」——
- * 只给一个打码字符串，用户没法判断自己该不该去改。打码值原样回传表示"没改密钥"。
+ * 密钥的那一栏现在只说**实话**：密钥以**明文**存在
+ * `%LOCALAPPDATA%\MFMath\settings\ai.json` 的 `apiKey` 字段里，页面直连服务商时要用到它。
+ * 它没有加密，也不要暗示它受保护 —— 只说"在不在"、"存在哪里"，
+ * 以及旧版（DPAPI 密文）升级上来的话需要重填一次。
  */
 import { computed, onMounted, ref } from "vue";
 import {
-  aiConfig, aiTestState, aiHosted, aiMessages,
+  aiConfig, aiTestState, aiMessages,
   refreshAiConfig, aiConfigure, aiSetKey, aiClearKey, aiSelfCheck, aiTest, clearChat,
 } from "../../lib/ai/bridge.js";
 
@@ -47,10 +49,12 @@ const toolCount = (() => {
   try { return window.__mfAi?.tools?.count?.() ?? 0; } catch { return 0; }
 })();
 const keyState = computed(() => {
-  if (!cfg.value.hasKey) return "未配置";
-  return cfg.value.keySource === "memory"
-    ? "已配置（仅本次运行的内存里，未落盘）"
-    : "已配置（DPAPI 密文落盘）";
+  if (!cfg.value.hasKey) {
+    return cfg.value.legacyProtectedKey
+      ? "未配置（只剩旧版密文密钥，读不出来）"
+      : "未配置";
+  }
+  return "已配置（明文存在 ai.json）";
 });
 
 const PRESETS = [
@@ -90,8 +94,12 @@ const testLine = computed(() => {
 
 <template>
   <div class="ag">
-    <p v-if="!aiHosted" class="ag-warn" data-setting="ai.enabled">
-      浏览器预览里没有宿主桥：AI 的传输与密钥都在 MFMath.exe 中，这里只能看不能改。
+    <p v-if="!cfg.configStore" class="ag-warn" data-setting="ai.enabled">
+      读不到设置文件（浏览器预览里没有 <code>sys</code> 桥）：配置存在
+      <code>%LOCALAPPDATA%\MFMath\settings\ai.json</code>，所以这里只能看不能改。
+    </p>
+    <p v-else-if="cfg.configError" class="ag-warn" data-setting="ai.enabled" data-ai="config-error">
+      {{ cfg.configError }}
     </p>
 
     <!-- ① 启用 -->
@@ -169,17 +177,19 @@ const testLine = computed(() => {
       </div>
     </section>
 
-    <!-- ⑤ 密钥：只说"在不在"和"是不是明文"，不问内容 -->
+    <!-- ⑤ 密钥：如实说明存在哪里、**没有加密** -->
     <section class="row" data-setting="ai.apiKey">
       <div class="lab">
         <span>API Key</span>
-        <small>只写不读：密钥存在宿主侧，页面拿不到它（这就是它不落 localStorage 的原因）</small>
+        <small>
+          以<strong>明文</strong>存在 <code>%LOCALAPPDATA%\MFMath\settings\ai.json</code> 的
+          <code>apiKey</code> 字段里；页面直连服务商时会用它组 Authorization 头。
+          它<strong>没有加密</strong>：能读到这个文件（或这段页面内存）的人就能拿到它。
+        </small>
       </div>
       <div class="ctl col">
-        <p class="state" data-ai="key-state">
-          {{ keyState }}
-          <span v-if="!cfg.dpapiAvailable" class="warn">· 本机 DPAPI 不可用，密钥只留内存（不写明文）</span>
-        </p>
+        <p class="state" data-ai="key-state">{{ keyState }}</p>
+        <p v-if="cfg.keyNote" class="note warn" data-ai="key-note">{{ cfg.keyNote }}</p>
         <div class="inline">
           <input class="inp mono" type="password" placeholder="粘贴新密钥（留空表示不改）"
                  data-ai-set="apiKey" v-model="keyDraft" @keydown.enter="saveKey" />
@@ -273,8 +283,10 @@ const testLine = computed(() => {
       </div>
       <div class="ctl col">
         <div class="inline">
-          <button class="btn" data-ai="test" :disabled="!aiHosted || !cfg.enabled || !cfg.hasKey"
-                  @click="aiTest">测试</button>
+          <!-- 按钮**不禁用**：点一下就得到"为什么测不了"（没启用 / 没密钥 / 端点不合法），
+               比一个点不动的按钮诚实；也让"点击 → 结果落进界面"这条链路永远可测。
+               aiTest() 的每条早退路径都会把原因写进 aiTestState。 -->
+          <button class="btn" data-ai="test" @click="aiTest">测试</button>
           <span v-if="testLine" class="note" data-ai="test-line">{{ testLine }}</span>
         </div>
       </div>
@@ -284,7 +296,7 @@ const testLine = computed(() => {
     <section class="row" data-setting="ai.selftest">
       <div class="lab">
         <span>自检</span>
-        <small>密钥保护、SSE 分帧（任意切分一致）、配置目录可写 —— 不联网</small>
+        <small>配置可解析、端点合法（http/https）、密钥在不在、端点不退回内置站点 —— 不联网</small>
       </div>
       <div class="ctl col">
         <button class="btn" data-ai="selfcheck" @click="selfCheck = aiSelfCheck()">重新自检</button>

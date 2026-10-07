@@ -3,8 +3,12 @@
 // 为什么要有它：
 //   · 端到端测试不能依赖真模型：**不要钱、不要 key、可复现**，而且异常路径
 //     （断开、500、坏 JSON、没有 [DONE]）在真实端点上根本没法按需触发；
-//   · 它跑在**真实 TCP + 真实 SSE** 上 —— 宿主里那段分帧、超时、取消、错误分类
-//     全都真的执行一遍，不是被 mock 掉的。
+//   · 它跑在**真实 TCP + 真实 SSE** 上 —— 页面那一段 fetch/流读取、分帧、超时、取消、
+//     错误分类全都真的执行一遍，不是被 mock 掉的。
+//
+// ⚠ CORS：页面（origin `https://mfmath.local`）现在**自己发请求**，所以这里必须像
+//   真实端点那样把跨源头给全，并处理 OPTIONS 预检。否则浏览器会在预检阶段就拦下，
+//   测试看到的会是"network 错误"而不是我们想验的场景。
 //
 // 场景由**最后一条 user 消息的内容**触发（类似 MVS Agent 的 scripts/fake-server.ts）：
 //   含「断开」   → 吐两个字后粗暴掐断连接（验证 network / 吐了一半）
@@ -28,6 +32,22 @@ import http from "node:http";
 
 const PORT = Number(process.env.FAKE_AI_PORT || 8791);
 const requests = [];
+
+/**
+ * 跨源头。**每个响应**（含 4xx/5xx 与流式端点）都要带，否则浏览器读不到状态行与正文，
+ * 测试会把"HTTP 401"看成"network 错误"。
+ *
+ * ⚠ `Access-Control-Allow-Headers` 不能只写 `*`：按 CORS 规范，
+ * `Authorization` 属于 non-wildcard request-header name，通配符**不覆盖它**。
+ * 所以这里除了 `*` 还把常见头点名列出 —— 不点名的话带密钥的预检会被浏览器拒掉。
+ */
+const CORS = {
+  "access-control-allow-origin": "*",
+  "access-control-allow-headers": "Authorization, Content-Type, Accept, *",
+  "access-control-allow-methods": "*",
+  "access-control-max-age": "600",
+};
+const cors = (extra = {}) => ({ ...CORS, ...extra });
 
 const chunk = (obj) => `data: ${JSON.stringify(obj)}\n\n`;
 const wrap = (delta, finish = null) => chunk({
@@ -127,24 +147,31 @@ async function streamText(res, text, gapMs) {
 }
 
 const server = http.createServer((req, res) => {
+  // ── CORS 预检：必须在任何路由判断**之前**答掉 ─────────────────────────
+  // （包括错误状态那条路：预检不过，后面 401/500 的场景就永远看不到）
+  if (req.method === "OPTIONS") {
+    res.writeHead(204, cors());
+    res.end();
+    return;
+  }
   if (req.method === "GET" && req.url === "/__requests") {
-    res.writeHead(200, { "content-type": "application/json" });
+    res.writeHead(200, cors({ "content-type": "application/json" }));
     res.end(JSON.stringify(requests));
     return;
   }
   if (req.method === "POST" && req.url === "/__reset") {
     requests.length = 0;
-    res.writeHead(200, { "content-type": "application/json" });
+    res.writeHead(200, cors({ "content-type": "application/json" }));
     res.end('{"ok":true}');
     return;
   }
   if (req.method === "GET" && req.url === "/__health") {
-    res.writeHead(200, { "content-type": "application/json" });
+    res.writeHead(200, cors({ "content-type": "application/json" }));
     res.end('{"ok":true}');
     return;
   }
   if (!req.url?.endsWith("/chat/completions")) {
-    res.writeHead(404, { "content-type": "application/json" });
+    res.writeHead(404, cors({ "content-type": "application/json" }));
     res.end('{"error":"only /chat/completions is implemented"}');
     return;
   }
@@ -161,6 +188,9 @@ const server = http.createServer((req, res) => {
 
     // 记录请求：**记 body 原文**，隐私断言要看"到底发出去了什么"。
     // 密钥只记"有没有 + 末四位"，绝不落全文（假端点也没必要持有它）。
+    //
+    // `origin` 是"请求真的由**页面**发出"的判据：浏览器跨源 fetch 一定会带 Origin，
+    // 而宿主侧 HttpClient（旧架构）不会 —— 测试据此断言链路已经换成页面直连。
     requests.push({
       at: Date.now(),
       model: body.model ?? "",
@@ -168,6 +198,7 @@ const server = http.createServer((req, res) => {
       messageCount: messages.length,
       roles: messages.map((m) => m.role),
       body,
+      origin: String(req.headers.origin || ""),
       authPresent: auth.startsWith("Bearer ") && auth.length > 12,
       authTail: auth ? auth.slice(-4) : "",
       scenario: pickScenario(prompt),
@@ -177,12 +208,17 @@ const server = http.createServer((req, res) => {
 
     if (scenario === "http500" || scenario === "http401") {
       const status = scenario === "http500" ? 500 : 401;
-      res.writeHead(status, { "content-type": "application/json" });
+      res.writeHead(status, cors({ "content-type": "application/json" }));
       res.end(JSON.stringify({ error: { message: "fake endpoint 故意返回 " + status, type: "fake_error" } }));
       return;
     }
 
-    res.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-cache", connection: "keep-alive" });
+    // 流式端点同样要带跨源头（浏览器读流之前先看预检/实际响应）
+    res.writeHead(200, cors({
+      "content-type": "text/event-stream",
+      "cache-control": "no-cache",
+      connection: "keep-alive",
+    }));
 
     // 首包：role（真实端点也会先发一个只有 role 的 chunk）
     res.write(wrap({ role: "assistant", content: "" }));

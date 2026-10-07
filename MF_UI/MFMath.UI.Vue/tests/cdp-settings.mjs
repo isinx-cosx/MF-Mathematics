@@ -193,10 +193,11 @@ const aiPendingTags = await ev(`document.querySelectorAll('[data-setting^="ai."]
 check("AI 分组不再有待实现标记", aiPendingTags === 0, `实际 ${aiPendingTags} 项`);
 const aiPrivacy = await ev(`document.querySelectorAll('[data-setting="ai.privacy"] input[type=checkbox]').length`);
 check("AI 分组列出了「会发送什么」的逐项开关", aiPrivacy >= 4, `实际 ${aiPrivacy} 项`);
-// 密钥那一栏必须说清"在不在"与"是不是明文"，而不是只给一个打码串
+// 密钥那一栏必须说清"在不在"与"是不是明文"，而不是只给一个打码串。
+// （本轮起密钥是**明文**存 ai.json 的：已配置时那一栏会明说"明文"，未配置时是"未配置"，两者都要被接受）
 const keyStateText = await ev(`(document.querySelector('[data-ai=key-state]') || {}).textContent || ''`);
-check("密钥状态说清了来源（未配置 / DPAPI 密文 / 仅内存）",
-  /未配置|DPAPI|内存/.test(keyStateText), keyStateText.slice(0, 60));
+check("密钥状态说清了来源（未配置 / 已配置并说明是明文）",
+  /未配置|明文/.test(keyStateText), keyStateText.slice(0, 60));
 
 // 搜索组现在也是**真实**设置了（宿主 SearchBridge + /tools/search 页面）。
 // "占位必须说清依赖、不留空白"这条覆盖继续往下挪到**仍然是占位的「更新」组** ——
