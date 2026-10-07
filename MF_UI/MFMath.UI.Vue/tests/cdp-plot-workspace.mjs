@@ -18,11 +18,29 @@
  */
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-const list = await (await fetch("http://127.0.0.1:9222/json/list")).json();
+/* 连不上就**明确说清楚并退出**，不要甩一堆 `fetch failed` 堆栈：
+ * 那既看不出"宿主没起"，也会让人误以为是用例自己坏了。
+ * 退出码 2 且**不打印 RESULT 行** —— run-all 会把它报成 `???? (no RESULT line, exit=2)`，
+ * 也就是"没跑成"，而不是"通过"（详见文件末尾那段说明）。 */
+let list;
+try {
+  list = await (await fetch("http://127.0.0.1:9222/json/list")).json();
+} catch (e) {
+  console.error("连不上 CDP（http://127.0.0.1:9222/json/list）：" + String((e && e.message) || e));
+  console.error("  宿主没起、或已经退出。起法见 AGENTS.md §4（优先**附着**到已运行的宿主，不要另起一个）。");
+  console.error("  （不打印 RESULT 行：本轮没有可信结论，不能让 run-all 把它算成通过）");
+  process.exit(2);
+}
 const page = list.find((t) => t.type === "page" && /mfmath\.local|index\.html/.test(t.url || ""));
-if (!page) { console.error("找不到宿主页面（宿主没起？）"); process.exit(1); }
+if (!page) {
+  console.error("CDP 通了但找不到宿主页面（列表里没有 mfmath.local）—— 宿主可能刚起、页面还没加载。");
+  process.exit(2);
+}
 const ws = new WebSocket(page.webSocketDebuggerUrl);
-await new Promise((res, rej) => { ws.onopen = res; ws.onerror = rej; });
+await new Promise((res, rej) => { ws.onopen = res; ws.onerror = rej; }).catch(() => {
+  console.error("WebSocket 连不上调试端口 —— 宿主可能正在退出。");
+  process.exit(2);
+});
 
 let id = 0;
 const send = (method, params, timeoutMs = 20000) => new Promise((resolve) => {
@@ -174,8 +192,15 @@ for (const p of PAGES) {
 await ev(`location.hash='#/'`); await sleep(400);
 
 if (unavailable) {
-  console.log("\n✘ **页面或宿主已经不可用**（location.hash 都读不到）—— 本轮的失败不作数。");
-  console.log("  检查：宿主进程是否还在、CDP 9222 是否在监听；两者的起法见 AGENTS.md §4。");
+  console.log("\n✘ **页面或宿主已经不可用**（location.hash 都读不到）—— 本轮什么都没验成。");
+  console.log("  检查：宿主进程是否还在、CDP 9222 是否在监听（起法见 AGENTS.md §4）。");
+  /* ⚠ **这里故意不打印 RESULT 行。** run-all.ps1 只看 `RESULT|名|pass|fail` 的计数
+   * （run-all.ps1:190-197），只有"没有 RESULT 行"才会报成 `???? (no RESULT line, exit=N)`。
+   * 若在这里印一行 `0|0`，**会被读成 OK** —— 明明什么都没验，却显示通过，
+   * 那正是纪律①（不编造结果）禁止的事。所以走"没有 RESULT 行"这条路，退出码 2 表"没跑成"。 */
+  console.log("  （不打印 RESULT 行：本轮没有可信结论，不能让 run-all 把它算成通过）");
+  ws.close();
+  process.exit(2);
 }
 if (interfered) {
   console.log("\n⚠ 检测到并发驱动：有另一个进程在同一个宿主上切换页面（路由被改成了我没请求的那一个）。");
@@ -184,5 +209,4 @@ if (interfered) {
 console.log(`\n═══ 绘图页工作区往返：${pass} 通过 / ${fail} 失败 ═══`);
 console.log(`RESULT|cdp-plot-workspace|${pass}|${fail}`);
 ws.close();
-/* 不可用（宿主没了）不是"产品失败"，用 2 区分，免得被读成缺陷 */
-process.exit(unavailable ? 2 : (fail ? 1 : 0));
+process.exit(fail ? 1 : 0);
