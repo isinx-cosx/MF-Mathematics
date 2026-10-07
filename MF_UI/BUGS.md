@@ -335,8 +335,27 @@ B10 已决定"24 个重名条目登记可见"，所以是**补齐**而不是删�
   （数据目录是 Windows CBS 那个）；
 - **桌面会话**：`query session` 显示 console / session 1 / **Active**，`explorer.exe` 在运行；
 - release 与 debug 两个构建**都一样**起不来（内核自检那一步是过的：`list_functions.count = 424`）。
-⇒ 这是 **A 面（Rust 宿主）的问题**，且**宿主的提示文案会把排查带偏**（它把原因归给数据目录）。
-在这条解决之前，B14 那 4 页只能算"代码就绪、未验证"；`cdp-plot-workspace` 已经写好并登记，
+
+**后续（同一轮内，A 面提交 `e951fdd` 之后）拿到了更精确的定位 —— 卡点不在权限，在 A 面新加的锁代码：**
+
+1. `e951fdd`（A 面：启动前明确报出占用者）让失败信息从"窗口创建 0x800700AA"变成
+   **"WebView2 数据目录占用 失败 / 原始错误：拒绝访问 (os error 5)"**，并报出了持有者 `pid=25208`。
+2. 查明 **`pid=25208` 早已不存在** —— `%LOCALAPPDATA%\MFMath\webview2\.mf-instance` 是一条**过期锁记录**
+   （我实测能**独占打开**该文件 ⇒ 没有活动句柄）。删掉它之后错误依旧，只是变成"（读不到持有者信息）"。
+   ⇒ **它的存活判定把"死掉的 pid"仍当成"被占用"，于是宿主会永远起不来，直到有人手工删文件。**
+3. **`os error 5` 不是权限问题**：我按 `diagnose-windows-sandbox-acl` skill 跑了那条诊断/修复命令
+   （`-Path %LOCALAPPDATA%\MFMath\webview2 -AllowRoot %LOCALAPPDATA%\MFMath`），
+   结论是 **`VERDICT=NOT_THIS_CLASS`**：
+   `MY_RIGHTS=[FullControl]`、`WRITE_DAC=True`、`WRITE_OWNER=True`、owner = 当前用户、
+   `packageObjects=[]` —— **没有任何权限项需要修复，它也没做任何改动**（skill 对这类结论的要求就是"停止并报告"，
+   所以我没有手工改权限）。报告留在 `%LOCALAPPDATA%\MFMath\acl-recovery\acl-report-*.jsonl`。
+4. **指向 A 面的具体怀疑点**：`os error 5` 发生在**获取"数据目录"句柄**这一步，而且
+   **换成全新的空目录（`MF_WEBVIEW2_DIR`）同样失败** ⇒ 与目录状态无关。
+   Windows 上"打开**目录**句柄得到 `ERROR_ACCESS_DENIED(5)`"是经典症状：`CreateFile` 开目录时
+   **必须带 `FILE_FLAG_BACKUP_SEMANTICS`**，否则一律拒绝。建议 A 面先核对这一点，
+   以及把"持有者判定"改成"pid 不存活即视为空闲"。
+
+⇒ 在这条解决之前，B14 那 4 页只能算"代码就绪、未验证"；`cdp-plot-workspace` 已经写好并登记，
 宿主一能起来就能跑（它自己会报 `INTERFERENCE`；退出码 2 = 宿主不可用）。
 
 ## 0. 汇总（按严重度排序）
