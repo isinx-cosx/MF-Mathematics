@@ -612,7 +612,21 @@ fn download_attempt(
 
     // 单个请求的整体超时给得很宽（见 DOWNLOAD_TIMEOUT_SEC）：54 MB 慢网要好几分钟
     let client = crate::http::client_with_timeout_ua(DOWNLOAD_TIMEOUT_SEC as i64, Some(DOWNLOAD_UA));
-    let mut req = client.get(url);
+    let mut req = client
+        .get(url)
+        /* ⚠ **必须显式要 identity**：本仓库给 reqwest 开了 gzip/brotli，它在请求头里没有
+         * `Accept-Encoding` 时会自动补一个 `gzip` 并透明解压（`ai.rs` 那条注释里有同样的
+         * 追查：tower-http 的 `decompression/service.rs` 判的是 `Entry::Vacant`）。
+         *
+         * 这对"下载一个文件"是**错的**，有两个后果：
+         *   ① **断点续传会拼出坏文件** —— `Range: bytes=<已下载>-` 的偏移指的是**压缩流**的
+         *      偏移，而落盘的是解压后的字节，两者不是一套坐标；
+         *   ② 进度条会失去总量 —— reqwest 解压时会把 `Content-Length` 抹掉
+         *      （它不知道解压后多长），于是 `content_length()` 变 None、界面只能显示"未知大小"。
+         * C# 那边其实从不发这个头（.NET 的 `HttpClientHandler.AutomaticDecompression` 默认是
+         * `DecompressionMethods.None`），所以发 `identity` 才是**与 C# 一致**的行为，
+         * 不是额外加限制。 */
+        .header("Accept-Encoding", "identity");
     if have > 0 {
         req = req.header("Range", format!("bytes={have}-"));
     }
