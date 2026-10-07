@@ -186,13 +186,20 @@ if ($rst -and (Test-Path $rst)) {
 
 $tp = 0
 $tf = 0
+$tskip = 0
 foreach ($t in $tests) {
   $script = Join-Path $PSScriptRoot "$t.mjs"
   if (-not (Test-Path $script)) { Write-Host "missing script: $t" -ForegroundColor Yellow; continue }
 
   $out = & node $script 2>&1 | Out-String
   $m = [regex]::Match($out, "RESULT\|\S+\|(\d+)\|(\d+)")
-  if ($m.Success) {
+  # SKIP：用例自己说了"这次没测"（例：cdp-console-sci 的 CPython 组件未安装）。
+  # 它打印的是 RESULT|…|0|0，若照旧按 fail=0 处理就会显示成 OK —— 一个**什么都没测**的用例
+  # 看起来像通过，正是纪律①（不编造结果）要防的。所以单独成一行、单独计数。
+  if ($out -match "\[SKIP\]") {
+    $tskip++
+    Write-Host ("SKIP {0,-20} {1}" -f $t, (($out -split "`n" | Where-Object { $_ -match "\[SKIP\]" } | Select-Object -First 1) -replace '^\s+', '')) -ForegroundColor DarkGray
+  } elseif ($m.Success) {
     $p = [int]$m.Groups[1].Value
     $f = [int]$m.Groups[2].Value
     $tp += $p; $tf += $f
@@ -208,10 +215,11 @@ foreach ($t in $tests) {
 }
 
 Write-Host ""
+$skipNote = if ($tskip -gt 0) { " ($tskip skipped)" } else { "" }
 if ($tf -eq 0) {
-  Write-Host "==== TOTAL: $tp pass / $tf fail ====" -ForegroundColor Green
+  Write-Host "==== TOTAL: $tp pass / $tf fail$skipNote ====" -ForegroundColor Green
 } else {
-  Write-Host "==== TOTAL: $tp pass / $tf fail ====" -ForegroundColor Red
+  Write-Host "==== TOTAL: $tp pass / $tf fail$skipNote ====" -ForegroundColor Red
 }
 
 # Only stop the host if THIS script started it ($proc is $null under -NoLaunch -- never kill

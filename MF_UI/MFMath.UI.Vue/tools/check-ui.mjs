@@ -336,9 +336,9 @@ const DUPLICATE_NAME_GROUPS = [
     "等差数列", "等比数列", "级数求和", "级数敛散性",
     "内积(泛函)", "谱分类", "逆傅里叶变换",
     "Lp 范数", "Zeta 级数", "Banach 空间判定", "Hilbert 空间判定", "Hahn-Banach 延拓",
-    // ⚠ 这一条不只是"重名"：它的 args 是**空的**（`[]`），而页面上同 fn 的「解不等式/组」
-    //    声明了 `ineqs: string_array`。也就是说这个旧名字即便挂出来也构造不出参数 ——
-    //    是坏掉的重复条目，建议直接删（清理时连同本行一起删）。
+    // ⚠ 这一条原先是"坏掉的重复条目"：args 是空的（`[]`），挂出来也构造不出参数。
+    //    2026-10-07 已在 engineMapExtra.js 里给它补齐 `ineqs: string_array`（与正式入口
+    //    「解不等式/组」一致），所以现在它只是**普通的**重名条目，不再是坏的。
     "解不等式组",
   ]],
 ];
@@ -406,6 +406,37 @@ const FROZEN_VUE_PLOT_FILES = [
   }
   console.log(`冻结的 Vue 绘图组    ：${actual.length}/${FROZEN_VUE_PLOT_FILES.length} 个文件在位，被 import ${importers.length} 处`);
   console.log(`重名模式登记        ：已登记 ${DUPLICATE_NAMES.size} 个，未登记 ${dupNoReg.length} 个`);
+
+  /* ── 6f. 跨视图重名：同一个模式名出现在两个视图的 modes 里 ⇒ 同一 fn 挂了两处 ────────
+   *
+   * 与 6d 是**相反方向**的重复：6d 是"名字选不到"，这里是"名字能在两个页面各选到一次"。
+   * 实测当前 2 处（`逆傅里叶变换` / `正交投影`）都只是**冗余**，不是错 —— 同一个计算在
+   * 两个学科页面下都说得通，删哪一边都会让一部分用户找不到。
+   * 但它也不该**静默增长**（照 `tests/dupmodes.mjs` 的口径）：新增的必须在下面登记，
+   * 或者把重复的那一处从 viewConfigs 里删掉。 */
+  const crossSeen = new Map();
+  for (const [vk, cfg] of Object.entries(VIEW_CONFIGS)) {
+    for (const m of cfg.modes || []) {
+      if (!crossSeen.has(m)) crossSeen.set(m, []);
+      crossSeen.get(m).push(vk);
+    }
+  }
+  const crossDup = [...crossSeen.entries()].filter(([, v]) => v.length > 1);
+  const CROSS_VIEW_DUP_OK = new Map([
+    ["逆Fourier变换", "同一算法在「微积分」与「调和分析」两页都讲得通，两处都留着（删任一边都会有人找不到）"],
+    ["正交投影", "同上：线性代数与泛函分析两页各有语境"],
+  ]);
+  const crossNew = crossDup.filter(([m]) => !CROSS_VIEW_DUP_OK.has(m));
+  for (const [m, views] of crossNew) {
+    problems.push(`模式「${m}」同时挂在 ${views.join(" / ")} 两个视图上（同一 fn 两处入口）—— `
+      + `要么删掉重复的那一处（viewConfigs.js），要么登记进 CROSS_VIEW_DUP_OK 并写明理由`);
+  }
+  for (const [m] of CROSS_VIEW_DUP_OK) {
+    if (!crossDup.some(([x]) => x === m)) {
+      problems.push(`CROSS_VIEW_DUP_OK 里的「${m}」已经不是跨视图重名了 —— 过时条目，请删除`);
+    }
+  }
+  console.log(`跨视图重名          ：${crossDup.length} 处（已登记 ${CROSS_VIEW_DUP_OK.size}，未登记 ${crossNew.length}）`);
 }
 
 /* ── 7. i18n：t("…") 用到的键，必须在 en-US 里有译文 ─────────────────────────
