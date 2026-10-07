@@ -152,7 +152,7 @@ ctest --test-dir MF_Mathematics/build -C Release --output-on-failure
 # ③ 前端：类型检查（strict）+ 构建期自检
 npm --prefix MF_UI/MFMath.UI.Vue run check
 
-# ④ 端到端：46 个 CDP 用例，跑在一个真实的宿主会话里
+# ④ 端到端：48 个 CDP 用例，跑在一个真实的宿主会话里（`check-ui` 会校验"用例数 = 登记数"）
 powershell -NoProfile -File MF_UI/MFMath.UI.Vue/tests/run-all.ps1
 ```
 
@@ -177,7 +177,7 @@ powershell -NoProfile -File MF_UI/MFMath.UI.Vue/tests/run-all.ps1
 | `MF_Mathematics/tests/` | 16 个 CTest 套件 + 4 个探针（共 19 个可执行目标；`probe_call` 可不起宿主直调引擎） |
 | **`MFMath.Host.Rust/`** | **现役宿主**：Rust/Tauri + WebView2，9 个宿主对象；`docs/ACCEPTANCE.md` 是验收步骤，`docs/PACKAGING.md` 是打包 |
 | `MFMath.Host/` | 🚩 **已废弃**（C#/WPF 宿主）。不再接受功能改动，只留作迁移参考 —— 下面几份设计文档里凡是指向它的实现说明都已过时，见 `docs/PROJECT-BOARD.md` §3 R7 |
-| `MF_UI/MFMath.UI.Vue/` | Vue 3 前端：`src/`、`tests/`（47 个 CDP 用例 + fixtures）、`tools/`（构建期自检） |
+| `MF_UI/MFMath.UI.Vue/` | Vue 3 前端：`src/`、`tests/`（48 个 CDP 用例 + fixtures）、`tools/`（构建期自检） |
 | `MF_UI/MFMath.UI.React/` | React 绘图组：被 Vue 壳内嵌（`ReactPlotView.vue`），6 个绘图页；独立跑 `npm run check:types` |
 | `docs/` | 设计文档与状态记录（见下表） |
 | `AGENTS.md` · `docs/PROJECT-BOARD.md` | 并行协作规约 · 工作面进度与风险台账 |
