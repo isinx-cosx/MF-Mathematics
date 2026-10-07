@@ -26,30 +26,61 @@
 
 ### 0.1 当前验收基线（2026-10-07，**已提交版本**）
 
+**一次跑完全部 46 组：`==== TOTAL: 2135 pass / 9 fail ====`**（用仓库自带的 `run-all.ps1`，
+`MF_HOST_EXE` 指向 Rust 宿主）。逐组明细：
+
 | 套件 | 结果 | 说明 |
 | --- | --- | --- |
 | `cdp-basic-calc` / `cdp-bridge-verify` / `cdp-window-shell` / `cdp-plot-verify` | 41/0 · 7/0 · 25/0 · 9/0 | — |
 | `cdp-account` / `cdp-update` | 52/0 · 37/0 | — |
 | `cdp-search` | **55/0** | — |
 | `cdp-console` / `cdp-console-sci` | **66/0 · 8/0** | — |
-| `cdp-settings` | **43/0** | 由 40/3 随 `con` 落地转绿 |
-| `cdp-push` | **20/0** | 由 14/6 随 `con` 落地转绿 |
-| `cdp-history-search` | **21/0** | 由 18/3 随 `search` 落地转绿 |
 | `cdp-ai` | **127/0** | — |
-| `cdp-export-image` | 43/2 | 导出状态行文案（**改动前就有的 2 项**，与链接层无关） |
-| `cdp-workspace` | 20/5 | **绘图页自己的载荷采集没触发**（见下，已证明不是链接层） |
+| `cdp-settings` / `cdp-settings-io` | **43/0 · 32/0** | 40/3 随 `con` 落地转绿 |
+| `cdp-push` | **20/0** | 14/6 随 `con` 落地转绿 |
+| `cdp-history-search` | **21/0** | 18/3 随 `search` 落地转绿 |
+| `cdp-calc-workspace` | **65/0** | 计算侧的工作区用例（与下面的 `cdp-workspace` 不是同一个） |
+| **`audit-modes` / `cdp-engine-coverage`** | **393/0 · 393/0** | 每个模式都真调一遍引擎 —— 这是对"引擎桥"最重的验证 |
+| `cdp-modes-render` / `cdp-tutorials-keypad` / `cdp-appearance` / `cdp-input-notation` / `cdp-font-load` / `cdp-expr-normalize` | 均 0 失败 | — |
+| 绘图各组（`p3/p4/p5`、`region`、`final`、`asymptote`、`extrema`、`3d`、`vector`、`fractal`、`complex-modes`、`geometry`、`truth` …） | 均 0 失败 | — |
+| `unit-result-model` / `unit-sse` / `unit-markdown` | 30/0 · 13/0 · 18/0 | 纯 Node 单测 |
+| `cdp-export-image` | 43/2 | ↓ 见下方根因表 |
+| `cdp-workspace` | 20/5 | ↓ |
+| `cdp-shortcuts-prefs` | 22/1 | ↓ |
+| `cdp-modes-render`（全量时） | 189/2 | 单独跑 **191/0**，跨用例污染 |
 
 （另有 `verify-spike` 10/0、`--selftest-jobs` 5/5、`--selftest-common` 10/0 三条无头验收。）
 
-**`cdp-workspace` 那 5 项的定案 —— 不是链接层缺口，是绘图页的载荷采集没触发**：
-失败项全部指向 `/plot/2d` 没把自己的载荷写进工作区（该页仍留着默认 `y=x^2`）。
-带异常捕获的探测结论：
-① 合成 `input` 事件与**真实按键**都让输入框的值变成了 `y=sin(x)`，且**没有任何异常**；
-② 工作区里仍然没有这一页 —— 该页那个"变化后写回"的 `watch` 根本没跑；
-③ 直接调 `window.__mfWorkspace.setPage('/plot/2d', …)` **能正常注册**，
-   证明 store 与宿主这条通路是好的，失败路径上**没有一次宿主调用**。
-（`docs/MIGRATION-GAPS.md` 记着 C# 宿主曾 25/0，但那份记录早于当前 UI；本会话内 C# 宿主
-起不来 —— 它的清单要求提权，非交互会话下被系统拒绝，所以无法 A/B。）
+**全部剩余失败的根因（逐条查实，结论一致：不在链接层）**
+
+跑一次全量（46 组、**2135 通过 / 9 失败**）后，把 9 项逐条隔离复现，结论如下 ——
+**8 项都指向"React 绘图页还没实现"，1 项是用例顺序污染**：
+
+| 失败 | 数量 | 定案 |
+| --- | --- | --- |
+| `cdp-workspace` | 4 | `/plot/2d` 没把载荷写进工作区 |
+| `cdp-shortcuts-prefs` | 1 | 同一条：读的也是 `pages()["/plot/2d"].view` |
+| `cdp-export-image` | 2 | 导出**文件真的写出了**（"点了就真的写出文件""是合法 PNG""背景不透明"全过），失败的是界面状态文案 |
+| `cdp-modes-render` | 2 | **单独跑 191/0** —— 全量里那 2 项是跨用例污染（清一次状态就好） |
+
+**根因**：路由表里 **`/plot/2d` → `ReactPlotView.vue`**（`src/router/index.js:37`），
+也就是说这条路由已经由 **React 版**绘图页接管；我一开始逐行分析的 `PlotView.vue`
+（它里面有完整的 `capturePlot` / `syncWorkspace` / `setPage` 与"导出后写状态"）**对这个路由已是死代码**。
+React 版目前还没有"登记工作区载荷 / 采用配置的绘图范围 / 导出后更新状态文案"这几件事 ——
+那些 `.tsx` 正是工作区里**在途**的迁移改动。
+
+证据链（每一条都指向"页面自己的事，与宿主无关"）：
+① 合成 `input` 事件与**真实按键**都让输入框的值真的变成了 `y=sin(x)`，且**没有任何异常**；
+② 工作区里始终没有这一页 —— 页面根本没走到登记那一步；
+③ 直接调 `window.__mfWorkspace.setPage('/plot/2d', …)` **能正常注册**；
+④ 我亲手把 `prefs` 写成 `plotXMin:-5, plotXMax:5, plotYMin:-1, plotYMax:1`，
+   宿主 `StoreWrite` 返回 `{"ok":true}`、`StoreRead` 回读**一字不差**，可绘图页仍显示默认范围
+   `范围 [-10.00, 10.00] × [-10.46, 10.46]` —— 说明**页面压根没去用配置的范围**；
+⑤ 导出用例里文件确实落盘了，证明 `saveBinaryFile` → 宿主 → 写文件这条链是好的。
+
+（`docs/MIGRATION-GAPS.md` 里"`cdp-workspace` 25/0"与用例注释里"干净宿主上单独跑连过三次"
+都写于 **React 迁移之前**，现在是过期信息。本会话内 C# 宿主起不来 —— 它的清单要求提权，
+非交互会话下被系统拒绝 —— 所以没法再拿它做 A/B；但上面五条证据已经不需要 A/B 了。）
 
 ### 0.2 本轮实测记录（2026-10-07）
 
