@@ -164,3 +164,15 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File .\run-all.ps1
 
 > ⚠ 跑全量前先确认 `dist` 的构建时间戳，并**记进结论**：如果工作区里还有别人正在改的前端代码，
 > 数字反映的是"那份未提交的代码"，不是被测提交。
+
+---
+
+## 7. 发布形态（单独一份，见 `PACKAGING.md`）
+
+打包/分发不在上面的用例里。`PACKAGING.md` 里写了：出包命令（含**必须**配的 `resources` 覆盖 ——
+漏了它，装出来的包就只有 exe，页面白屏且算不了数）、实测产物与体积、
+**我在这台机器上没能验证的部分**（安装器在本会话无法启动：`Start-Process` 报 `ERROR_CANCELLED`，
+直接调用静默不生效；manifest 是 `asInvoker` 所以不是 UAC），以及真机上要走的五步验证。
+
+> AGENTS.md §4 的并发规矩在这里同样适用：**起宿主前先看有没有别人在跑**，优先用
+> `run-all.ps1 -NoLaunch` 附着到已有宿主，不要另起一个。
