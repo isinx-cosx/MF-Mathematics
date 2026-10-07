@@ -94,7 +94,7 @@ React 版目前还没有"登记工作区载荷 / 采用配置的绘图范围 / �
 | 2 | **UI 走 `wwwroot` + 虚拟主机** | `SetVirtualHostNameToFolderMapping("mfmath.local", <exe>/wwwroot)` + `ICoreWebView2::Navigate`，与 C# 宿主的 `MainWindow.xaml.cs:187-192` 逐字一致。新增 `tools/sync-wwwroot.mjs`（默认拷到 `target/debug/wwwroot`，`MF_WWWROOT` 可指到别处） |
 | 3 | **`push` 桥** | `PostWebMessageAsJson` + 信封 `{topic,seq,ts,payload}`。`cdp-push` 从"崩"变成 **14/6**（余下 6 项全在需要 `con` 的两段） |
 | 4 | 验收 | `verify-spike` **10/0**、`cdp-bridge-verify` **7/0**、`cdp-basic-calc` **41/0**、`cdp-window-shell` **25/0**、`cdp-plot-verify` **9/0** |
-| 5 | **共享件**（`dpapi` / `http` / `pack`） | DPAPI 逐字兼容 C#（**不传 entropy**，否则两个宿主的密文互相解不开）；HTTP 用 reqwest+rustls+**ring**；sha256 与 zip（**自带路径穿越防护，整包拒绝**）；新增 `--selftest-common` |
+| 5 | **共享件**（`dpapi` / `http` / `pack`） | DPAPI 逐字兼容老版 C# 宿主留下的密文（**不传 entropy** —— `account.json` 等旧文件必须还能解开）；HTTP 用 reqwest+rustls+**ring**；sha256 与 zip（**自带路径穿越防护，整包拒绝**）；新增 `--selftest-common` |
 | 6 | **`update` 桥** | 版本关系判定（1.10.0 > 1.9.9、预发布小于正式版）、信封解析、协议闸门。`cdp-update` **37/0** |
 | 7 | **`account` 桥**（19 方法） | 离线优先（`Info()` 不碰网络）、token 只在宿主、失败不合并、临期静默续期。`cdp-account` **52/0** |
 | 8 | **部署接进构建** | `build.rs` 自动把引擎 DLL 与 `dist`→`wwwroot` 放到 exe 同目录（只在新时拷、缺了只警告） |
@@ -129,9 +129,9 @@ React 版目前还没有"登记工作区载荷 / 采用配置的绘图范围 / �
 - **`export-image` 的 2 项**：导出**文件真的写出来了**（`点了就真的写出文件`/`是合法 PNG`/
   `背景不透明` 全过），失败的是"界面说明了导出到哪里"那条状态文案 —— 与 `workspace` 同一类：
   失败路径上没有宿主调用。
-- **`ai` 的几处未验证面**（子代理标注、本机测不出来）：`Accept-Encoding: identity` 对真实
-  中转网关的影响；两个宿主共用一份 `ai.json` 的密文互读（字段与 DPAPI 都已对齐，
-  但没做过真实对照）；`Cancel` 对超过 64 条之外的旧 id 会返回 `ok:false`（C# 恒 ok）。
+- ~~**`ai` 的几处未验证面**~~ —— **这一整条已作废**（2026-10-07）：AI 改成页面直连后，
+  "宿主发给真实网关时的 `Accept-Encoding: identity`"与"两宿主共用 `ai.json` 密文互读"都**不再存在**
+  （浏览器 `fetch` 自己处理压缩；密钥不再是 DPAPI 密文）。详见 §8。
 - **`con` 的两处未验证面**（同上）：
   1. `taskkill` 在被白名单限制的环境里可能不可用 → **已让它如实可见**（2026-10-07）：
      `kill_tree()` 现在返回是否真的结束了进程树，失败时写一条 `WARN` 进 `app.log`
@@ -188,7 +188,7 @@ React 版目前还没有"登记工作区载荷 / 采用配置的绘图范围 / �
 | 层 | 位置 | 对外面 |
 | --- | --- | --- |
 | 引擎 | `MF_Mathematics/`（C++） | 只有两个 C ABI：`math_call(name, args_json, out, size)` / `function_exists(name)`；424 个 action |
-| **宿主** | `MFMath.Host/`（C# WPF+WebView2，现役）、**`MFMath.Host.Rust/`（迁移中）** | 窗口 + WebView + **10 个宿主对象** |
+| **宿主** | **`MFMath.Host.Rust/`（现役）** · `MFMath.Host/`（C# WPF+WebView2，**2026-10-07 已废弃**，见 `AGENTS.md` §2） | 窗口 + WebView + **9 个宿主对象**（`ai` 归 TS，见 §8） |
 | 前端 | `MF_UI/MFMath.UI.Vue/`（Vue 外壳 + React 绘图页） | 22 个模式视图、7 个绘图页、控制台、设置、教程 |
 
 链接层 = 上表中间那一列与前端 `src/lib/**` 之间的**那条缝**。它是这次"换宿主"唯一不能靠改配置绕过去的东西。
@@ -575,8 +575,8 @@ cargo build                             # 在 $H 下
 # 3) 起宿主后，先确认页面 URL（§3.4 的待核实项）
 curl.exe -s http://127.0.0.1:9222/json/list
 
-# 4) C# 宿主的对照跑法（迁移期两边并存）
-dotnet build "<repo>\MFMath.Host\MFMath.Host.csproj" -c Release --no-incremental
+# 4) （已废弃）C# 宿主的对照跑法 —— 2026-10-07 起 `MFMath.Host/` 只作迁移参考，不再跑它
+# dotnet build "<repo>\MFMath.Host\MFMath.Host.csproj" -c Release --no-incremental
 ```
 
 ---
@@ -635,35 +635,40 @@ dotnet build "<repo>\MFMath.Host\MFMath.Host.csproj" -c Release --no-incremental
 
 ---
 
-## 9. 两个宿主的共存与切换【2026-10-07】
+## 9. Rust 宿主与"已废弃的 C# 宿主"的对照【2026-10-07 更新】
 
-**现状**：C# 宿主（`MFMath.Host`，WPF）是在用的发布宿主；Rust 宿主（`MFMath.Host.Rust`）已功能对齐
-（9 个宿主对象；AI 归 TS）。两边**共用同一份数据目录** `%LOCALAPPDATA%\MFMath\{settings,logs,components}`，
-所以起哪个 exe 就是哪个宿主，页面 URL 都是 `https://mfmath.local/index.html`（用例一条都不用改）。
+> ⚠ **2026-10-07 项目所有者决定：`MFMath.Host/`（C#/.NET 宿主）已废弃**（见仓库根 `AGENTS.md` §2）。
+> 它**不再接受功能改动**，只作迁移参考；**现役宿主是 `MFMath.Host.Rust/`**。
+> 下面那些对照事实仍然成立（数据目录共用、AI 密钥不通用），但**不要再把它当成"在用的发布宿主"**，
+> 也不要再提"两个宿主并存/切换"这个前提。
 
-### 9.1 可以来回切的部分
+**现役**：Rust 宿主（`MFMath.Host.Rust`），9 个宿主对象、AI 归 TS、页面 URL
+`https://mfmath.local/index.html`。C# 宿主的实现细节（桥面契约、DPAPI、搜索解析器）**可以读**（迁移参考），
+**不要改**。
 
-`search.json`（含 Wolfram App ID）、`account.json`（token）、`update.json`、`window/工作区/历史` 等：
-**字段同名、格式相同**（Rust 侧还给每个字段加了 PascalCase `alias`，对齐 C# 的 `PropertyNameCaseInsensitive`），
-所以两个宿主可以交替启动，配置跟着走。
+### 9.1 共用数据目录（事实，与"是否并存"无关）
 
-### 9.2 ⚠ 不能通用的部分：AI 密钥（这是 §8 那次架构变更的直接后果）
+`search.json`（含 Wolfram App ID）、`account.json`（token）、`update.json`、窗口/工作区/历史等：
+**字段同名、格式相同**（Rust 侧还给每个字段加了 PascalCase `alias`，对齐 C# 的
+`PropertyNameCaseInsensitive`），所以老用户从 C# 宿主换过来，配置跟着走、不用重配。
 
-| 谁写的 | 落在哪 | 对方能不能用 |
+### 9.2 ⚠ 唯一不通用的一项：AI 密钥（这是 §8 那次架构变更的直接后果）
+
+| 谁写的 | 落在哪 | 现在能不能用 |
 | --- | --- | --- |
-| C# 宿主（老路径） | `ai.json` 的 `apiKeyProtected`（**DPAPI 密文**） | **Rust/TS 侧用不了** —— 页面没有 DPAPI 可调。现在会**如实提示"请在设置里重填一次"**，并且 `hasKey=false`（不假装有密钥） |
-| Rust/TS 侧（新路径） | `ai.json` 的 `apiKey`（**明文**） | **C# 宿主用不了** —— C# 的 `AiBridge` 只看 `apiKeyProtected`，明文它不认 |
+| C# 宿主（老路径，已废弃） | `ai.json` 的 `apiKeyProtected`（**DPAPI 密文**） | **用不了** —— 页面没有 DPAPI 可调。现在会**如实提示"请在设置里重填一次"**，且 `hasKey=false`（不假装有密钥） |
+| Rust/TS 侧（现役） | `ai.json` 的 `apiKey`（**明文**） | 现役路径就是它 |
 
-也就是说：**AI 这一项，两个宿主之间不通用**，切换时需要重填一次密钥（切回 C# 也一样）。
-这是刻意的取舍（用户决定"AI 全搬 TS、密钥存配置文件"），不是 bug。其余配置不受影响。
+所以**从 C# 宿主演进过来的用户，AI 这一项要重填一次密钥**（其余配置不用动）。
+这是刻意的取舍（所有者决定"AI 全搬 TS、密钥存配置文件"），不是 bug。
 
-### 9.3 什么时候可以退役 C#
+### 9.3 C# 宿主废弃后的收尾（**已决定废弃，不再是"要不要"的问题**）
 
-建议顺序：**Rust 宿主先真实发布过一版**（走过 `docs/ACCEPTANCE.md` §5 的真机清单）→ 再动 C#。
-退役时要一起处理的：
+`AGENTS.md` §2 已把它移出工作面。剩下的只是**文档债**（`docs/PROJECT-BOARD.md` §3 R7 已登记）：
+`docs/` 下 `ACCOUNT.md`、`ONLINE-SEARCH.md`、`AI-ASSISTANT.md`、`UPDATE-CHAIN.md`、
+`SETTINGS-BACKUP.md`、`MIGRATION-GAPS.md`、`STATUS-and-ROADMAP.md` 仍把它写成**现役实现**，
+引用前先核对 Rust 侧。另有两处小尾巴：
 
-1. `MFMath.Host/` 整个项目（含现在已闲置的 `AiBridge/AiRelay/AiClient/AiConfig` 864 行）；
-2. 仓库级文档与 CI 里对 C# 宿主的引用（`MF_UI` 下若干 `docs/*.md` 里"对照 C#"的章节，
-   那些是**迁移期**的对照资料，退役后可整体归档）；
-3. `MF_UI/MFMath.UI.Vue/src/lib/bridge.js` 的 `tauriInvoke()` 探测 —— 那时它才是纯死代码
-   （现在留着无害：C# 宿主下它本来就返回 null）。
+1. `MFMath.Host/` 里已闲置的 `AiBridge/AiRelay/AiClient/AiConfig`（864 行）—— 随项目一起冻结，不必单独删；
+2. `MF_UI/MFMath.UI.Vue/src/lib/bridge.js` 的 `tauriInvoke()` 探测 —— 现在它服务的是"Tauri 命令层"，
+   而那个命令层已删（§3.1 的记录），所以它实际永不成功；**但删它属于 B 面**，要动先跟管理者打招呼。

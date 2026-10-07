@@ -136,7 +136,7 @@ Compress-Archive -Path "$out\*" -DestinationPath "MF-Mathematics-2.0.0-win-x64.z
 注意与 NSIS 的**两个差异**：① exe 名字（NSIS 用 `productName` → `MF-Mathematics.exe`，cargo 产物叫
 `mfmath-host-rust.exe`，这里改名只是为了观感，程序不依赖自己的文件名）；② 没有安装/卸载与开始菜单项。
 另外要一并说明 **WebView2 运行时**是系统依赖（Win11 自带；Win10 老机器需装 Evergreen Runtime）——
-两个宿主都不负责安装它，缺了会得到一条可读的启动失败提示。
+宿主不负责安装它，缺了会得到一条可读的启动失败提示。
 
 ---
 

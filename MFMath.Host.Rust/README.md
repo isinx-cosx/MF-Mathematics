@@ -16,7 +16,7 @@
 | 层 | 位置 | 说明 |
 | --- | --- | --- |
 | 引擎 | `MF_Mathematics/` | 两个 C ABI：`math_call` / `function_exists`，424 个 action |
-| 宿主 | `MFMath.Host/`（C#，现役） · **`MFMath.Host.Rust/`（本目录）** | 窗口 + WebView + **10 个宿主对象** |
+| 宿主 | **`MFMath.Host.Rust/`（本目录，现役）** · `MFMath.Host/`（C#，**2026-10-07 已废弃**，只作迁移参考） | 窗口 + WebView + **9 个宿主对象**（`ai` 归 TS） |
 | 前端 | `MF_UI/MFMath.UI.Vue/` | Vue 外壳 + React 绘图页，共用 `src/lib/**` |
 
 ### 链接层：同步宿主对象，不是 `invoke`
@@ -155,8 +155,8 @@ Copy-Item "$H\target\debug\wwwroot" $run -Recurse -Force
 & "$run\mfmath-host-rust.exe"
 ```
 
-（`MF_WEBVIEW2_DIR` 可指定 WebView2 用户数据目录，**与 C# 宿主同名开关** ——
-两个宿主同时跑时必须指到不同目录，否则第二个会撞 `0x800700AA`。）
+（`MF_WEBVIEW2_DIR` 可指定 WebView2 用户数据目录 —— 想同时跑两份实例（例如拿一份干净的做对照）
+就用它指到不同目录，否则第二个会撞 `0x800700AA`。这个开关名是从已废弃的 C# 宿主沿用下来的。）
 
 ---
 
