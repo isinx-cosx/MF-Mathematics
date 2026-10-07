@@ -233,6 +233,55 @@ fn webview_data_dir() -> std::path::PathBuf {
         .unwrap_or_else(|| logging::data_dir().join("webview2"))
 }
 
+/// 数据目录锁文件的句柄：**必须活到进程结束** —— 句柄一丢，占用就释放了。
+static INSTANCE_GUARD: std::sync::OnceLock<std::fs::File> = std::sync::OnceLock::new();
+
+/// 同一个 WebView2 数据目录**只能有一个实例**在用（WebView2 对该目录是独占的，
+/// 第二个实例会以 `HRESULT(0x800700AA)`＝"请求的资源在使用中"收场）。
+///
+/// 为什么要自己先判一次：那个错误码**看不出是谁占着**，用户（和我）只能靠猜。
+/// 实测踩过：并行跑用例时另起一个宿主，另一个正常启动的实例就报这个码（2026-10-07）。
+///
+/// 做法是**独占共享模式**打开数据目录里的一个锁文件（`share_mode(0)`）：
+///   · 第二个实例 `open` 会拿到 `ERROR_SHARING_VIOLATION`，我们在建窗口**之前**就能明确报错；
+///   · Windows 在进程退出（含崩溃、被杀）时释放句柄，所以**不会留下"假占用"** ——
+///     这正是"看文件在不在"的做法不能用的原因；
+///   · 锁文件里写着持有者的 pid，报错时能直接说清是谁占着。
+/// 返回的 `File` 必须活到进程结束（调用方存进 static）。
+fn lock_webview_dir(dir: &std::path::Path) -> Result<std::fs::File, String> {
+    use std::io::Write;
+    use std::os::windows::fs::OpenOptionsExt;
+    std::fs::create_dir_all(dir).map_err(|e| format!("建数据目录失败：{e}"))?;
+    let lock = dir.join(".mf-instance");
+    match std::fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create(true)
+        // 只共享"读"：这样下一个实例**能读出**锁文件里的 pid 写进报错信息，
+        // 但它要的是写权限（read+write），拿不到 —— 仍然必然共享冲突。
+        .share_mode(1 /* FILE_SHARE_READ */)
+        .open(&lock)
+    {
+        Ok(mut f) => {
+            // 记账：谁占着这个目录（报错时给下一个实例看）
+            let _ = f.set_len(0);
+            let _ = f.write_all(format!("pid={}\n", std::process::id()).as_bytes());
+            Ok(f)
+        }
+        Err(e) => {
+            let holder = std::fs::read_to_string(&lock)
+                .ok()
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+                .unwrap_or_else(|| "（读不到持有者信息）".to_string());
+            Err(format!(
+                "WebView2 数据目录正被另一个实例占用：{}（{holder}）\n原始错误：{e}",
+                dir.display()
+            ))
+        }
+    }
+}
+
 /// 宿主 exe 所在目录（引擎 DLL、wwwroot 都按它找）
 fn exe_dir() -> std::path::PathBuf {
     std::env::current_exe()
@@ -266,8 +315,10 @@ const UI_URL: &str = "https://mfmath.local/index.html";
 /// 用户只会觉得"点了没反应"，而日志里一行都没有（C# 宿主 commit 7bc5632 修的就是这个）。
 fn fail_with_reason(stage: &str, err: &str) -> ! {
     let hint = if err.contains("0x800700AA") {
-        "\n\n提示：这个错误码是「请求的资源在使用中」——多半是**另一个宿主实例正占着同一个 WebView2 数据目录**。\n\
-         关掉另一个实例，或用环境变量 MF_WEBVIEW2_DIR 指到别的目录再试。"
+        "\n\n提示：这个错误码是「请求的资源在使用中」。\n\
+         启动前已经查过同目录实例（见日志里的「WebView2 数据目录占用」），所以这次多半是\n\
+         **上一次异常退出残留的 WebView2 子进程**还占着数据目录：结束掉 `msedgewebview2.exe`，\n\
+         或用环境变量 MF_WEBVIEW2_DIR 指到别的目录再试。"
     } else {
         ""
     };
@@ -351,6 +402,14 @@ fn main() {
              * 我们自己指定数据目录，它就用我们的。 */
             let data_dir = webview_data_dir();
             let _ = std::fs::create_dir_all(&data_dir);
+            /* 同目录单实例闸门（见 lock_webview_dir 的注释）：**在建窗口之前**判定，
+             * 否则只会拿到一个看不出原因的 0x800700AA。句柄存进 static，活到进程结束。 */
+            match lock_webview_dir(&data_dir) {
+                Ok(guard) => {
+                    let _ = INSTANCE_GUARD.set(guard);
+                }
+                Err(msg) => fail_with_reason("WebView2 数据目录占用", &msg),
+            }
 
             /* UI 从哪来：优先 exe 同目录的 `wwwroot`（= dist 的拷贝，与 C# 宿主同一份），
              * 没有才退回 Tauri 嵌进 exe 的那份资产。
