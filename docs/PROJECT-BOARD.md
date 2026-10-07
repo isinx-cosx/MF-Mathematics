@@ -72,15 +72,33 @@
   后面的 `cdp-console` / `cdp-modes-render` / `cdp-ai` / `cdp-account` / `cdp-update` / `cdp-search` / `cdp-push` / `cdp-settings` **一条都没跑到**）
 - 当时没有 node 进程在跑、日志 09:59:19 后不再增长 → 那次跑批是**被中断或提前结束**的。
 
+**时间线（都是文件 mtime，可自行复核）**：
+
+| 时刻 | 事件 |
+| --- | --- |
+| 03:45:05 | .NET 宿主的 `wwwroot` 最后一次同步（即：**对着 .NET 宿主跑的话，用的是 6 小时前的产物**） |
+| 09:44:06 | `MF_UI/MFMath.UI.Vue/dist` 全量重建（`assets/*` 同一时刻） |
+| 09:48:49 | `MF_UI/BUGS.md` 写入"全绿"表格（**在下面那次跑批之前**） |
+| **09:50:15** | 那次 e2e 起宿主（`msedgewebview2` 进程起始时间） |
+| 09:52:01 | `tests/cdp-plot-accuracy.mjs` 被改动 —— **跑批进行中**，所以它跑的是**改动前**的版本 |
+| 09:55:20 | 新增 `tests/cdp-plot-workspace.mjs` |
+| 09:55:39 | `tests/run-all.ps1` 登记该用例 |
+| 09:59:19 | 日志最后一次增长，随后停止（无 node 进程） |
+
 **我的判断（未定案，需 B 面复跑确认）**：失败特征集中在
 **"字体传输量 0 KB"、"KaTeX 一个字都没渲染"、"分形页 `no-btn`（按钮不存在）"** ——
-这更像**被测页面产物不对**（旧 `dist` / `wwwroot` 没重新同步），而不是 6 处互不相关的功能同时回归。
-`BUGS.md` §0.2 自己也写了同类的坑（沙箱、`TEMP`、esbuild 收尾失败）。
+这更像**被测页面产物不对**（旧 `dist` / 没重新同步的 `wwwroot` / 跑的不是最新 `wwwroot`），
+而不是 6 处互不相关的功能同时回归。`BUGS.md` §0.2 自己也写了同类的坑（沙箱、`TEMP`、esbuild 收尾失败）。
+另一条同样成立的解释：**`BUGS.md` 的那份"全绿"是在另一个产物上跑的**（写在本次跑批之前）。
+
+**无论哪种，都不能靠推断结案** —— 需要一次产物时间戳与跑批结果都记录在案的复跑。
 
 **处置**：
 1. **冻结**：在澄清之前，不要把 `BUGS.md` 里"二次实测全部转绿"的表格当成已定稿事实引用；
-2. **复跑**（B 面，单独占一个时间窗）：`npm run build` → `sync-wwwroot.mjs` → 附着宿主 → `run-all.ps1 -NoLaunch`，
-   把**完整**的 `RESULT` 行与产物时间戳记下来；
+2. **复跑**（B 面，单独占一个时间窗）：
+   `npm run build` → `sync-wwwroot.mjs` → 附着宿主 → `run-all.ps1 -NoLaunch`，
+   并**同时记录三样东西**：`dist` 的 mtime、被测 `wwwroot` 的绝对路径与 mtime、完整的 `RESULT` 行。
+   只记结果不记产物，等于下次还得再吵一遍；
 3. 复跑后二选一：要么改 `BUGS.md` 的数字，要么写明"当时是在另一个产物上跑的"。
    无论哪种，都要**带时间戳**（`AGENTS.md` §5）。
 
@@ -111,6 +129,19 @@ git log origin/main..HEAD --oneline | Measure-Object -Line   # 51
 （未取消的后台任务占着引擎；`BUGS.md` §0.2 第 5 条实测卡了 30+ 分钟）。
 排期时单独占一个窗口，且在宿主里跑，别在别人的会话里跑。
 
+### R6【提示】每个会话的 `%TEMP%` 是**各自独立**的，`ACCEPTANCE.md` §0.2 的"工作区外运行目录"因此是**每会话一份**
+
+**实测（2026-10-07 10:0x）**：本会话的 `$env:TEMP` =
+`C:\Users\FSAFSA~1\AppData\Local\Temp\dsh-S3MvdL`；而 A 面 09:50 那次跑批用的
+`%TEMP%\mfhost-run` 并不在这里（本会话里 `…\dsh-S3MvdL\mfhost-run` **不存在**）。
+
+- **好处**：两个会话不会抢同一个 `wwwroot` / 同一个 exe，天然隔离 —— 这解释了为什么
+  `AGENTS.md` §4 的"wwwroot 唯一写者"在实际操作里没那么容易撞车；
+- **代价**：**"我这边跑绿了"不能推广成"别人那边也绿"** —— 各自 `wwwroot` 的产物时间不同。
+  引用结论时必须写清**在哪个会话、哪份产物**上（正是 R1 的成因之一）；
+- **给 A 面的建议**：`ACCEPTANCE.md` §0.2 里 `$run = "$env:TEMP\mfhost-run"` 值得补一句
+  "这是每会话独立的路径；跨会话对比结论前先核对两边 `wwwroot` 的 mtime"。
+
 ---
 
 ## 4. 待拍板（需要你回答）
@@ -124,6 +155,18 @@ git log origin/main..HEAD --oneline | Measure-Object -Line   # 51
 ---
 
 ## 5. 收口检查结果（2026-10-07 10:00）
+
+**本次收口由管理者做的提交（2 个）**：
+
+| 提交 | 内容 |
+| --- | --- |
+| `chore(git)` | `.gitignore` 收容 `.tmp-*` / `.buildtmp/`（R3）；只忽略不删文件 |
+| `docs` | 新增 [`AGENTS.md`](../AGENTS.md) 与本文 |
+
+**未提交、且刻意留给 B 面的在途工作**：`MF_UI/BUGS.md`、
+`tests/cdp-plot-accuracy.mjs`、`tests/run-all.ps1`（已改）与
+`tests/cdp-plot-workspace.mjs`（新增）。理由：这三份改动是**同一次工作**，
+且其中的"全绿"数字要先过 R1 —— 管理者不替在途的一线改数字。
 
 | 检查 | 结果 |
 | --- | --- |
