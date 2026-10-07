@@ -46,20 +46,25 @@ await sleep(600);
 
 let pass = 0, fail = 0;
 const failures = [];
-let interfered = false;
+let interfered = false;   // 页面被别人开走了（并发）
+let unavailable = false;  // 页面/宿主整个没了（读不到任何东西）—— 与并发分开报
 const check = (label, ok, detail = "") => {
   ok ? pass++ : fail++;
   if (!ok) failures.push({ label, detail });
   console.log(`  ${ok ? "[OK]" : "[FAIL]"} ${label}${detail ? "   " + detail : ""}`);
 };
 
-/** 当前路由（同时作为"有没有别人在开页面"的判据） */
-const hash = () => ev(`location.hash`);
-/** 干扰检测：请求的页面与当前页面不一致 ⇒ 有人在并发驱动，结论不可信 */
-const routeOk = async (want) => {
+/** 当前路由（同时作为"有没有别人在开页面"的判据）。
+ *  ⚠ 读不到（evaluate 超时/失败）返回 undefined —— 那是**页面或宿主不可用**，
+ *  与"页面被别人开走了"是两码事，必须分开报：本套件第一版把两者混成一句"有并发驱动"，
+ *  于是在宿主进程被杀掉之后给出了一条**完全错误的归因**（把宿主没了说成别人抢页面）。 */
+const hash = () => ev(`location.hash`, 8000);
+/** 路由检查：'ok' | 'changed'（有人开走了）| 'unavailable'（读不到 = 页面/宿主没了） */
+const routeState = async (want) => {
   const now = await hash();
-  if (now !== want) { interfered = true; return false; }
-  return true;
+  if (now === undefined) { unavailable = true; return "unavailable"; }
+  if (now !== want) { interfered = true; return "changed"; }
+  return "ok";
 };
 
 /** 往控件里写值（math-field 与普通 input 两种，照既有用例的做法） */
@@ -77,19 +82,23 @@ const readControl = (sel) => ev(`(function(){
   if (!el) return null;
   return String(el.value); })()`);
 
-/* 每页：路由、控件选择器、写入值、工作区里应当出现的载荷片段（含 kind） */
+/* 每页：路由（location.hash）、**工作区的键**（store 按 `route.path` 存，没有 `#`）、
+ * 控件选择器、写入值、工作区里应当出现的载荷片段（含 kind）。
+ * ⚠ `path` 与 `route` 必须分开：本套件第一版拿 `"#/plot/2d"` 当工作区键去查，
+ *   于是永远"工作区里没有这一页" —— 而同一轮里"重挂载后还原"却是通过的（自相矛盾，
+ *   正说明是**读取的键写错了**，不是产品没存）。 */
 const PAGES = [
-  { name: "2D/极坐标（对照，cdp-workspace 已覆盖）", route: "#/plot/2d", sel: ".desmos-side math-field",
+  { name: "2D/极坐标（对照，cdp-workspace 已覆盖）", route: "#/plot/2d", path: "/plot/2d", sel: ".desmos-side math-field",
     sentinel: "sin(2*x)", kind: "plot", field: (v) => ({ expressions: [{ text: v }] }) },
-  { name: "3D 曲面", route: "#/plot/3d", sel: ".input",
+  { name: "3D 曲面", route: "#/plot/3d", path: "/plot/3d", sel: ".input",
     sentinel: "0.5*x+0.25*y", kind: "plot3d", field: (v) => ({ exprInput: v }) },
-  { name: "复平面", route: "#/plot/complex", sel: ".plot-side .input.mono",
+  { name: "复平面", route: "#/plot/complex", path: "/plot/complex", sel: ".plot-side .input.mono",
     sentinel: "z^2+1", kind: "plot-complex", field: (v) => ({ funcExpr: v }) },
-  { name: "向量场", route: "#/plot/vector", sel: ".input",
+  { name: "向量场", route: "#/plot/vector", path: "/plot/vector", sel: ".input",
     sentinel: "2*x", kind: "plot-vector", field: (v) => ({ dxInput: v }) },
-  { name: "自由几何（吸附开关）", route: "#/plot/geometry", sel: ".chk input",
+  { name: "自由几何（吸附开关）", route: "#/plot/geometry", path: "/plot/geometry", sel: ".chk input",
     sentinel: null, kind: "plot-geometry", field: () => ({ snap: false }) },
-  { name: "分形（迭代次数）", route: "#/plot/fractal", sel: "select",
+  { name: "分形（迭代次数）", route: "#/plot/fractal", path: "/plot/fractal", sel: "select",
     sentinel: "512", kind: "plot-fractal", field: () => ({ maxIter: 512 }) },
 ];
 
@@ -115,8 +124,11 @@ for (const p of PAGES) {
   await ev(`location.hash=${JSON.stringify(p.route)}`);
   await sleep(2200);
 
-  if (!(await routeOk(p.route))) {
-    check(`  ${p.name}：页面停在了请求的路由上`, false, `请求 ${p.route}，实际 ${await hash()}（有并发驱动）`);
+  if ((await routeState(p.route)) !== "ok") {
+    const now = await hash();
+    check(`  ${p.name}：页面停在了请求的路由上`, false,
+      now === undefined ? "读不到 location.hash —— 页面或宿主已经不可用（不是并发）" : `请求 ${p.route}，实际 ${now}（有并发驱动）`);
+    if (now === undefined) break;   // 宿主没了，后面的检查都没有意义
     continue;
   }
 
@@ -134,16 +146,19 @@ for (const p of PAGES) {
   }
   await sleep(900);
 
-  const payload = await evJson(`(window.__mfWorkspace && window.__mfWorkspace.pages ? window.__mfWorkspace.pages()[${JSON.stringify(p.route)}] : null)`);
-  check(`  ${p.name}：改动被写进工作区（kind=${p.kind}）`, payloadMatches(payload, p, p.sentinel === null ? null : p.sentinel),
-    payload ? `载荷=${JSON.stringify(payload).slice(0, 110)}` : "工作区里没有这一页");
+  const payload = await evJson(`(window.__mfWorkspace && window.__mfWorkspace.pages ? window.__mfWorkspace.pages()[${JSON.stringify(p.path)}] : null)`);
+  check(`  ${p.name}：改动被写进工作区（键 ${p.path}，kind=${p.kind}）`, payloadMatches(payload, p, p.sentinel === null ? null : p.sentinel),
+    payload ? `载荷=${JSON.stringify(payload).slice(0, 110)}` : `工作区里没有 ${p.path} 这一页`);
 
   /* ② 还原：离开再回来 → 控件显示改动后的值 */
   await ev(`location.hash='#/'`); await sleep(600);
   await ev(`location.hash=${JSON.stringify(p.route)}`);
   await sleep(2200);
-  if (!(await routeOk(p.route))) {
-    check(`  ${p.name}：还原时页面停在请求的路由上`, false, `实际 ${await hash()}（有并发驱动）`);
+  if ((await routeState(p.route)) !== "ok") {
+    const now = await hash();
+    check(`  ${p.name}：还原时页面停在请求的路由上`, false,
+      now === undefined ? "读不到 location.hash —— 页面或宿主已经不可用（不是并发）" : `实际 ${now}（有并发驱动）`);
+    if (now === undefined) break;
     continue;
   }
   const back = await readControl(p.sel);
@@ -158,11 +173,16 @@ for (const p of PAGES) {
 /* 收尾：回首页，别把别的用例留在某个绘图页上 */
 await ev(`location.hash='#/'`); await sleep(400);
 
+if (unavailable) {
+  console.log("\n✘ **页面或宿主已经不可用**（location.hash 都读不到）—— 本轮的失败不作数。");
+  console.log("  检查：宿主进程是否还在、CDP 9222 是否在监听；两者的起法见 AGENTS.md §4。");
+}
 if (interfered) {
-  console.log("\n⚠ 检测到并发驱动：有另一个进程在同一个宿主上切换页面。");
-  console.log("  本用例的失败**不能**当作产品缺陷 —— 请在没有并行会话时重跑。");
+  console.log("\n⚠ 检测到并发驱动：有另一个进程在同一个宿主上切换页面（路由被改成了我没请求的那一个）。");
+  console.log("  本用例的失败**不能**当作产品缺陷 —— 请在没有并行会话时重跑（AGENTS.md §4）。");
 }
 console.log(`\n═══ 绘图页工作区往返：${pass} 通过 / ${fail} 失败 ═══`);
 console.log(`RESULT|cdp-plot-workspace|${pass}|${fail}`);
 ws.close();
-process.exit(fail ? 1 : 0);
+/* 不可用（宿主没了）不是"产品失败"，用 2 区分，免得被读成缺陷 */
+process.exit(unavailable ? 2 : (fail ? 1 : 0));
