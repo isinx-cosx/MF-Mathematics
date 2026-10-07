@@ -349,11 +349,23 @@ B10 已决定"24 个重名条目登记可见"，所以是**补齐**而不是删�
    `MY_RIGHTS=[FullControl]`、`WRITE_DAC=True`、`WRITE_OWNER=True`、owner = 当前用户、
    `packageObjects=[]` —— **没有任何权限项需要修复，它也没做任何改动**（skill 对这类结论的要求就是"停止并报告"，
    所以我没有手工改权限）。报告留在 `%LOCALAPPDATA%\MFMath\acl-recovery\acl-report-*.jsonl`。
-4. **指向 A 面的具体怀疑点**：`os error 5` 发生在**获取"数据目录"句柄**这一步，而且
-   **换成全新的空目录（`MF_WEBVIEW2_DIR`）同样失败** ⇒ 与目录状态无关。
-   Windows 上"打开**目录**句柄得到 `ERROR_ACCESS_DENIED(5)`"是经典症状：`CreateFile` 开目录时
-   **必须带 `FILE_FLAG_BACKUP_SEMANTICS`**，否则一律拒绝。建议 A 面先核对这一点，
-   以及把"持有者判定"改成"pid 不存活即视为空闲"。
+4. **`os error 5` 的根因已用 A/B 实验证实：开目录句柄漏了 `FILE_FLAG_BACKUP_SEMANTICS`。**
+   `os error 5` 发生在"获取数据目录句柄"这一步，且**换成全新空目录（`MF_WEBVIEW2_DIR`）同样失败**
+   ⇒ 与目录状态无关。Windows 上开**目录**句柄必须带 `FILE_FLAG_BACKUP_SEMANTICS`，否则一律
+   `ERROR_ACCESS_DENIED(5)`。实测对照（同一台机器、同一目录、同一时刻）：
+
+   ```
+   CreateFileW(dir, GENERIC_READ, share=3, OPEN_EXISTING, flags=0)                  → 失败 err=5
+   CreateFileW(dir, GENERIC_READ, share=3, OPEN_EXISTING, flags=FILE_FLAG_BACKUP_…) → 成功
+   ```
+
+   同时排除了"环境/沙箱挡子进程"这一可能：**从我的 shell 派生的子进程（node）**
+   在同一个目录里 ① 列目录 ✔ ② 写文件 ✔ ③ 开目录句柄 ✔（Node 内部正是带了那个 flag）。
+   ⇒ 结论：**A 面的"数据目录占用"检查用 `CreateFile` 开目录时少了一个 flag**，
+   加上它就应当能启动（这是 ~1 个 flag 的修法）。
+5. 另外建议把**持有者判定**改成"pid 不存活即视为空闲"：本轮实测到
+   `%LOCALAPPDATA%\MFMath\webview2\.mf-instance` 里留着 `pid=25208`，而那个进程**早已不存在**
+   —— 它仍被报成"被占用"，宿主于是永远起不来，直到有人手工删掉那个文件。
 
 ⇒ 宿主起不来这条**没有阻塞住 B14 的验证** —— 下一段说明了绕过办法（同一轮内完成）。
 
