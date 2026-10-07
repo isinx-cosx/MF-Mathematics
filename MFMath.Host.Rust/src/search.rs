@@ -542,9 +542,11 @@ pub fn clip(s: &str, max: usize) -> String {
 
 /// 解 HTML 实体。**只做文本用途**：解出来的东西永远走插值渲染，不再当标记。
 ///
-/// 与 C# `WebUtility.HtmlDecode` 的差别（有意为之，列在这里免得被当成疏漏）：
-///   · 认全 HTML4 的命名实体表不现实（250 条），这里覆盖搜索结果里**实际会出现**的那一批；
-///   · `&#39`（没有分号）这种宽容写法不解 —— 见到就原样留着。
+/// 与 C# `WebUtility.HtmlDecode` 的对齐情况（都实测过，不再靠猜）：
+///   · 命名实体表现在是 **HTML4 全集 253 条**，且逐条由 .NET 的 `HtmlDecode` 取值生成
+///     （见 `named_entity` 的注释）—— 不再有"子集漏掉某条"的问题；
+///   · 命名与数字实体都**必须带分号**才解。这与 .NET 一致：实测 `&uuml`、`&#39`、`&#x27`
+///     在 .NET 里同样不解，所以这里"见到就原样留着"是对齐，不是保守。
 fn html_decode(s: &str) -> String {
     if !s.contains('&') {
         return s.to_string();
@@ -592,92 +594,155 @@ fn decode_entity(body: &str) -> Option<(char, usize)> {
     named_entity(body).map(|c| (c, consumed))
 }
 
-/// 命名实体（HTML4 里搜索结果真会碰到的那一批）
+/// 命名实体表：**HTML4 全集（253 条）**，取值方式见下。
+///
+/// 为什么是全集、而且必须"问 .NET 要"：C# 宿主用的是 `WebUtility.HtmlDecode`（.NET 的实体表），
+/// 而真页面上的 `Z&uuml;rich`、`caf&eacute;`、`&hellip;` 都得解出来才不影响可读性。
+/// 原先手写的 114 条子集在真站点上会漏 —— 而假端点夹具是纯 ASCII，**这套用例永远测不出来**。
+/// 所以这里逐条由下面这一句产出，与 C# 宿主逐字一致：
+///
+/// ```text
+/// [System.Net.WebUtility]::HtmlDecode("&uuml;")   ->  ü
+/// ```
+///
+/// （`&apos;` 严格说不在 HTML4 里，但 .NET 会解，所以以 C# 为准一并收下。
+/// 要增删就照上面这个办法重新生成，**别手抄** —— 手抄过一次，漏了 `&amp; &lt; &gt; &quot;`。）
+///
+/// 注：命名与数字实体都**必须带分号**才解。这一点也与 .NET 一致（实测 `&uuml`、`&#39`
+/// 都不解），所以 `html_decode` 只认带分号的写法不是保守，而是对齐。
 fn named_entity(name: &str) -> Option<char> {
     Some(match name {
+        // ── 基础（XML/HTML 核心 —— .NET 也解 apos，所以以 C# 为准一并收下）
         "amp" => '&',
         "lt" => '<',
         "gt" => '>',
         "quot" => '"',
         "apos" => '\'',
+
+        // ── Latin-1（西欧语言，真页面标题里常见：Z&uuml;rich / caf&eacute;）
         "nbsp" => '\u{a0}',
-        "shy" => '\u{ad}',
-        "ensp" => '\u{2002}',
-        "emsp" => '\u{2003}',
-        "thinsp" => '\u{2009}',
-        "zwnj" => '\u{200c}',
-        "zwj" => '\u{200d}',
-        "hellip" => '…',
-        "mdash" => '—',
-        "ndash" => '–',
-        "lsquo" => '‘',
-        "rsquo" => '’',
-        "ldquo" => '“',
-        "rdquo" => '”',
-        "laquo" => '«',
-        "raquo" => '»',
-        "prime" => '′',
-        "Prime" => '″',
-        "bull" => '•',
-        "middot" => '·',
-        "dagger" => '†',
-        "permil" => '‰',
-        "sect" => '§',
-        "para" => '¶',
-        "copy" => '©',
-        "reg" => '®',
-        "trade" => '™',
-        "euro" => '€',
-        "pound" => '£',
-        "yen" => '¥',
+        "iexcl" => '¡',
         "cent" => '¢',
+        "pound" => '£',
+        "curren" => '¤',
+        "yen" => '¥',
+        "brvbar" => '¦',
+        "sect" => '§',
+        "uml" => '¨',
+        "copy" => '©',
+        "ordf" => 'ª',
+        "laquo" => '«',
+        "not" => '¬',
+        "shy" => '\u{ad}',
+        "reg" => '®',
+        "macr" => '¯',
         "deg" => '°',
-        "micro" => 'µ',
         "plusmn" => '±',
-        "times" => '×',
-        "divide" => '÷',
-        "minus" => '−',
-        "lowast" => '∗',
-        "frac12" => '½',
-        "frac14" => '¼',
-        "frac34" => '¾',
-        "frac13" => '⅓',
-        "frac23" => '⅔',
         "sup2" => '²',
         "sup3" => '³',
-        "le" => '≤',
-        "ge" => '≥',
-        "ne" => '≠',
-        "asymp" => '≈',
-        "equiv" => '≡',
-        "infin" => '∞',
-        "radic" => '√',
-        "int" => '∫',
-        "sum" => '∑',
-        "prod" => '∏',
-        "part" => '∂',
-        "nabla" => '∇',
-        "empty" => '∅',
-        "isin" => '∈',
-        "notin" => '∉',
-        "sub" => '⊂',
-        "sup" => '⊃',
-        "sube" => '⊆',
-        "supe" => '⊇',
-        "cup" => '∪',
-        "cap" => '∩',
-        "and" => '∧',
-        "or" => '∨',
-        "not" => '¬',
-        "forall" => '∀',
-        "exist" => '∃',
-        "larr" => '←',
-        "uarr" => '↑',
-        "rarr" => '→',
-        "darr" => '↓',
-        "harr" => '↔',
-        "rArr" => '⇒',
-        "hArr" => '⇔',
+        "acute" => '´',
+        "micro" => 'µ',
+        "para" => '¶',
+        "middot" => '·',
+        "cedil" => '¸',
+        "sup1" => '¹',
+        "ordm" => 'º',
+        "raquo" => '»',
+        "frac14" => '¼',
+        "frac12" => '½',
+        "frac34" => '¾',
+        "iquest" => '¿',
+        "Agrave" => 'À',
+        "Aacute" => 'Á',
+        "Acirc" => 'Â',
+        "Atilde" => 'Ã',
+        "Auml" => 'Ä',
+        "Aring" => 'Å',
+        "AElig" => 'Æ',
+        "Ccedil" => 'Ç',
+        "Egrave" => 'È',
+        "Eacute" => 'É',
+        "Ecirc" => 'Ê',
+        "Euml" => 'Ë',
+        "Igrave" => 'Ì',
+        "Iacute" => 'Í',
+        "Icirc" => 'Î',
+        "Iuml" => 'Ï',
+        "ETH" => 'Ð',
+        "Ntilde" => 'Ñ',
+        "Ograve" => 'Ò',
+        "Oacute" => 'Ó',
+        "Ocirc" => 'Ô',
+        "Otilde" => 'Õ',
+        "Ouml" => 'Ö',
+        "times" => '×',
+        "Oslash" => 'Ø',
+        "Ugrave" => 'Ù',
+        "Uacute" => 'Ú',
+        "Ucirc" => 'Û',
+        "Uuml" => 'Ü',
+        "Yacute" => 'Ý',
+        "THORN" => 'Þ',
+        "szlig" => 'ß',
+        "agrave" => 'à',
+        "aacute" => 'á',
+        "acirc" => 'â',
+        "atilde" => 'ã',
+        "auml" => 'ä',
+        "aring" => 'å',
+        "aelig" => 'æ',
+        "ccedil" => 'ç',
+        "egrave" => 'è',
+        "eacute" => 'é',
+        "ecirc" => 'ê',
+        "euml" => 'ë',
+        "igrave" => 'ì',
+        "iacute" => 'í',
+        "icirc" => 'î',
+        "iuml" => 'ï',
+        "eth" => 'ð',
+        "ntilde" => 'ñ',
+        "ograve" => 'ò',
+        "oacute" => 'ó',
+        "ocirc" => 'ô',
+        "otilde" => 'õ',
+        "ouml" => 'ö',
+        "divide" => '÷',
+        "oslash" => 'ø',
+        "ugrave" => 'ù',
+        "uacute" => 'ú',
+        "ucirc" => 'û',
+        "uuml" => 'ü',
+        "yacute" => 'ý',
+        "thorn" => 'þ',
+        "yuml" => 'ÿ',
+
+        // ── 希腊字母与符号
+        "fnof" => 'ƒ',
+        "Alpha" => 'Α',
+        "Beta" => 'Β',
+        "Gamma" => 'Γ',
+        "Delta" => 'Δ',
+        "Epsilon" => 'Ε',
+        "Zeta" => 'Ζ',
+        "Eta" => 'Η',
+        "Theta" => 'Θ',
+        "Iota" => 'Ι',
+        "Kappa" => 'Κ',
+        "Lambda" => 'Λ',
+        "Mu" => 'Μ',
+        "Nu" => 'Ν',
+        "Xi" => 'Ξ',
+        "Omicron" => 'Ο',
+        "Pi" => 'Π',
+        "Rho" => 'Ρ',
+        "Sigma" => 'Σ',
+        "Tau" => 'Τ',
+        "Upsilon" => 'Υ',
+        "Phi" => 'Φ',
+        "Chi" => 'Χ',
+        "Psi" => 'Ψ',
+        "Omega" => 'Ω',
         "alpha" => 'α',
         "beta" => 'β',
         "gamma" => 'γ',
@@ -686,29 +751,130 @@ fn named_entity(name: &str) -> Option<char> {
         "zeta" => 'ζ',
         "eta" => 'η',
         "theta" => 'θ',
+        "iota" => 'ι',
         "kappa" => 'κ',
         "lambda" => 'λ',
         "mu" => 'μ',
         "nu" => 'ν',
         "xi" => 'ξ',
+        "omicron" => 'ο',
         "pi" => 'π',
         "rho" => 'ρ',
+        "sigmaf" => 'ς',
         "sigma" => 'σ',
         "tau" => 'τ',
+        "upsilon" => 'υ',
         "phi" => 'φ',
         "chi" => 'χ',
         "psi" => 'ψ',
         "omega" => 'ω',
-        "Gamma" => 'Γ',
-        "Delta" => 'Δ',
-        "Theta" => 'Θ',
-        "Lambda" => 'Λ',
-        "Xi" => 'Ξ',
-        "Pi" => 'Π',
-        "Sigma" => 'Σ',
-        "Phi" => 'Φ',
-        "Psi" => 'Ψ',
-        "Omega" => 'Ω',
+        "thetasym" => 'ϑ',
+        "upsih" => 'ϒ',
+        "piv" => 'ϖ',
+
+        // ── 排版与标点
+        "OElig" => 'Œ',
+        "oelig" => 'œ',
+        "Scaron" => 'Š',
+        "scaron" => 'š',
+        "Yuml" => 'Ÿ',
+        "circ" => 'ˆ',
+        "tilde" => '˜',
+        "ensp" => '\u{2002}',
+        "emsp" => '\u{2003}',
+        "thinsp" => '\u{2009}',
+        "zwnj" => '\u{200c}',
+        "zwj" => '\u{200d}',
+        "lrm" => '\u{200e}',
+        "rlm" => '\u{200f}',
+        "ndash" => '–',
+        "mdash" => '—',
+        "lsquo" => '‘',
+        "rsquo" => '’',
+        "sbquo" => '‚',
+        "ldquo" => '“',
+        "rdquo" => '”',
+        "bdquo" => '„',
+        "dagger" => '†',
+        "Dagger" => '‡',
+        "permil" => '‰',
+        "lsaquo" => '‹',
+        "rsaquo" => '›',
+        "euro" => '€',
+        "bull" => '•',
+        "hellip" => '…',
+        "prime" => '′',
+        "Prime" => '″',
+        "oline" => '‾',
+        "frasl" => '⁄',
+
+        // ── 数学与集合
+        "weierp" => '℘',
+        "image" => 'ℑ',
+        "real" => 'ℜ',
+        "trade" => '™',
+        "alefsym" => 'ℵ',
+        "larr" => '←',
+        "uarr" => '↑',
+        "rarr" => '→',
+        "darr" => '↓',
+        "harr" => '↔',
+        "crarr" => '↵',
+        "lArr" => '⇐',
+        "uArr" => '⇑',
+        "rArr" => '⇒',
+        "dArr" => '⇓',
+        "hArr" => '⇔',
+        "forall" => '∀',
+        "part" => '∂',
+        "exist" => '∃',
+        "empty" => '∅',
+        "nabla" => '∇',
+        "isin" => '∈',
+        "notin" => '∉',
+        "ni" => '∋',
+        "prod" => '∏',
+        "sum" => '∑',
+        "minus" => '−',
+        "lowast" => '∗',
+        "radic" => '√',
+        "prop" => '∝',
+        "infin" => '∞',
+        "ang" => '∠',
+        "and" => '∧',
+        "or" => '∨',
+        "cap" => '∩',
+        "cup" => '∪',
+        "int" => '∫',
+        "there4" => '∴',
+        "sim" => '∼',
+        "cong" => '≅',
+        "asymp" => '≈',
+        "ne" => '≠',
+        "equiv" => '≡',
+        "le" => '≤',
+        "ge" => '≥',
+        "sub" => '⊂',
+        "sup" => '⊃',
+        "nsub" => '⊄',
+        "sube" => '⊆',
+        "supe" => '⊇',
+        "oplus" => '⊕',
+        "otimes" => '⊗',
+        "perp" => '⊥',
+        "sdot" => '⋅',
+        "lceil" => '⌈',
+        "rceil" => '⌉',
+        "lfloor" => '⌊',
+        "rfloor" => '⌋',
+        "lang" => '〈',
+        "rang" => '〉',
+        "loz" => '◊',
+        "spades" => '♠',
+        "clubs" => '♣',
+        "hearts" => '♥',
+        "diams" => '♦',
+
         _ => return None,
     })
 }
@@ -790,15 +956,25 @@ pub fn real_url(href: &str) -> String {
 /// `[^>]*` = "标签里不能有 `>`"，也就是"读到第一个 `>` 为止"；`.*?` + Singleline = "读到最近的
 /// 闭合标签为止"。所以这里的扫描与那两条正则**是同一套语义**。
 ///
+/// ⚠ `allow_div` **必须照 C# 分开**：标题那条正则写的是 `<a…`，只认 `<a>`；
+/// 只有摘要那条是 `<(a|div)…`。这不是细节洁癖 —— 真页面里 `<div class="result__a">`
+/// 这种写法一旦出现，放宽的那一侧就会多抓一条（甚至错抓整块容器）。
+///
+/// ⚠ 至于"要不要干脆用 `regex` crate 把那两条模式原样搬过来"：**不划算**。
+/// C# 摘要那条用了反引用 `</\1>`（要求开闭标签同名），而 `regex` crate 不支持反引用，
+/// 搬过来只能退化成 `</(?:a|div)>`，反而比现在这段扫描更松。所以这里保持手写扫描
+///（它本来就已经做到"开闭标签配对"），只在 `allow_div` 这一处按 C# 收紧。
+///
 /// ⚠ `cap` 是**扫描上限**而不是结果上限：C# 会一直扫到 `list.Count == max` 为止，
 /// 中间被丢掉的（坏协议链接、空标题）不占名额。这里给 `max` 留 8 倍余量，够用又不至于
 /// 在畸形页面上扫出一大堆字符串。
-fn scan_tag_texts(html: &str, marker: &str, cap: usize) -> Vec<(String, String)> {
+fn scan_tag_texts(html: &str, marker: &str, cap: usize, allow_div: bool) -> Vec<(String, String)> {
     let mut out: Vec<(String, String)> = Vec::new();
     let mut pos = 0usize;
     while out.len() < cap {
-        // 同时找 `<a` 与 `<div`，取更靠前的那个（DDG 的结果块两种都出现过）
-        let (start, close) = match (find_ci(html, "<a", pos), find_ci(html, "<div", pos)) {
+        // 同时找 `<a` 与 `<div`，取更靠前的那个（DDG 的结果块两种都出现过；标题只认前者）
+        let head_div = if allow_div { find_ci(html, "<div", pos) } else { None };
+        let (start, close) = match (find_ci(html, "<a", pos), head_div) {
             (None, None) => break,
             (Some(x), None) => (x, "</a>"),
             (None, Some(y)) => (y, "</div>"),
@@ -832,8 +1008,8 @@ pub fn parse_ddg_html(html: &str, max: usize) -> Vec<SearchResult> {
         return list;
     }
     let cap = max.saturating_mul(8).saturating_add(32);
-    let titles = scan_tag_texts(html, "result__a", cap);
-    let snippets = scan_tag_texts(html, "result__snippet", cap);
+    let titles = scan_tag_texts(html, "result__a", cap, false);   // C#: 标题只认 <a>
+    let snippets = scan_tag_texts(html, "result__snippet", cap, true); // C#: 摘要认 <a> 或 <div>
 
     for (i, (tag, text)) in titles.iter().enumerate() {
         if list.len() >= max {
@@ -1666,26 +1842,40 @@ pub fn self_check() -> String {
         checks.push(json!({ "name": name, "ok": ok, "detail": detail }));
     };
 
-    // ① DDG HTML 解析（跳转链接还原 + 去标签 + 丢弃 javascript: 链接）
+    // ① DDG HTML 解析（跳转链接还原 + 去标签 + **解实体** + 标题只认 <a> + 丢弃 javascript: 链接）
+    //
+    // ⚠ 实体这几条是**补上去的**：假端点夹具是纯 ASCII，`cdp-search` 那 55 项**一条实体都不覆盖**，
+    // 而真页面上 `Z&uuml;rich`、`caf&eacute;`、`&hellip;` 到处都是 —— 实体表缺条目时，
+    // 整套用例照样全绿。所以把"解 Latin-1/排版符号"与"缺分号不解"钉在这里。
     const DDG_HTML: &str = "<html><body>\
         <a rel=\"nofollow\" class=\"result__a\" href=\"//duckduckgo.com/l/?uddg=https%3A%2F%2Fexample.com%2Fx&amp;rut=1\">示例 <b>标题</b></a>\
         <a class=\"result__snippet\" href=\"x\">示例 <b>摘要</b> 文本</a>\
+        <a class=\"result__a\" href=\"https://example.com/z\">Z&uuml;rich &hellip; caf&eacute;</a>\
+        <a class=\"result__snippet\" href=\"x\">缺分号的实体 caf&eacute 原样留着</a>\
+        <div class=\"result__a\" href=\"https://evil.example/d\">不该被当成标题</div>\
         <a class=\"result__a\" href=\"javascript:alert(1)\">坏链接</a>\
         </body></html>";
     let parsed = parse_ddg_html(DDG_HTML, 8);
-    let ddg_ok = parsed.len() == 1
+    let ddg_ok = parsed.len() == 2
         && parsed[0].url == "https://example.com/x"
         && parsed[0].title == "示例 标题"
-        && parsed[0].snippet == "示例 摘要 文本";
+        && parsed[0].snippet == "示例 摘要 文本"
+        // 实体表：Latin-1 与排版符号都要解出来（`Z&uuml;rich &hellip; caf&eacute;` → `Zürich … café`）
+        && parsed[1].title == "Zürich … café"
+        // 缺分号的写法**不解**（与 .NET 的 HtmlDecode 实测一致：`&uuml`、`&#39`、`&#x27` 都不解）
+        && parsed[1].snippet == "缺分号的实体 caf&eacute 原样留着"
+        // 标题只认 `<a>`（C# 那条正则就是 `<a…`）：`<div class="result__a">` 不能被抓成一条结果
+        && !parsed.iter().any(|r| r.title.contains("不该被当成标题"));
     all &= ddg_ok;
     add(
         &mut checks,
         "DuckDuckGo 结果解析",
         ddg_ok,
         if ddg_ok {
-            "跳转链接还原 + 去标签 + 丢弃 javascript: 链接 都正确".to_string()
+            "跳转链接还原 + 去标签 + 解实体（含缺分号不解）+ 标题只认 <a> + 丢弃 javascript: 链接 都正确"
+                .to_string()
         } else {
-            "内置样本解析不符合预期".to_string()
+            format!("内置样本解析不符合预期：{} 条 {:?}", parsed.len(), parsed.iter().map(|r| &r.title).collect::<Vec<_>>())
         },
     );
 
