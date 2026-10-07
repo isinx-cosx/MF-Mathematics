@@ -1,8 +1,11 @@
 // 一次性：打印指定引擎函数的注册体（看清它到底读哪些参数键）
 import fs from "node:fs";
 import path from "node:path";
+import { ENGINE_ROOT, requirePath } from "./engine-paths.mjs";
 
-const root = "C:/Users/fsafsafsa/Desktop/cppcshap/MF_Mathematics";
+/* 引擎源码根目录：环境变量 MF_ENGINE_ROOT → 相对 v2.0 推导（BUGS.md B8）。
+ * 原来写死的是 `Desktop/cppcshap/MF_Mathematics` —— 另一棵树，换机器必挂。 */
+const root = requirePath(ENGINE_ROOT, "引擎源码目录 MF_Mathematics（showfn 要读它的 .cpp）", "MF_ENGINE_ROOT");
 const want = process.argv.slice(2);
 const files = [];
 (function walk(dir) {

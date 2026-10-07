@@ -15,8 +15,12 @@ import path from "node:path";
 import { VIEW_CONFIGS } from "../src/lib/engine/viewConfigs.js";
 import { ENGINE_MAP, ENGINE_VAR_SPECS } from "../src/lib/engine/engineMap.js";
 import { buildEngineArgs, buildEngineArgsFromValues, needsVarDialog } from "../src/lib/engine/calcArgs.js";
+import { PROBE, requirePath } from "./engine-paths.mjs";
 
-const PROBE = "C:/Users/fsafsafsa/Desktop/cppcshap/MF_Mathematics/build/bin/Release/probe_call.exe";
+/* ⚠ 这里原来写死的是 `C:/Users/fsafsafsa/Desktop/cppcshap/.../probe_call.exe` ——
+ * 那是**另一棵树**里的引擎，早就不是这份代码所跑的那份了；而且换机器就 ENOENT。
+ * 现在统一由 engine-paths.mjs 解析：环境变量 MF_PROBE_EXE → 相对 v2.0 推导（BUGS.md B8）。 */
+requirePath(PROBE, "引擎探针 probe_call.exe（audit-modes 用它绕过宿主直接调引擎）", "MF_PROBE_EXE");
 const only = process.argv[2] || "";
 const tmp = path.join(os.tmpdir(), "audit-args.json");
 

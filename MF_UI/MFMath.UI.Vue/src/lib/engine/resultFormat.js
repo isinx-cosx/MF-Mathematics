@@ -49,14 +49,5 @@ export function fmtNum(v) {
   return s;
 }
 
-/** 结果摘要（用于列表/状态栏的单行文本） */
-export function resultSummary(value, limit = 80) {
-  let text;
-  if (value === null || value === undefined) text = "（空）";
-  else if (typeof value === "number") text = fmtNum(value);
-  else if (typeof value === "string") text = value;
-  else if (Array.isArray(value)) text = `[${value.length} 项]`;
-  else if (typeof value === "object") text = `{${Object.keys(value).length} 个字段}`;
-  else text = String(value);
-  return text.length > limit ? text.slice(0, limit) + "…" : text;
-}
+/* 这里原来还有一个 resultSummary(value, limit)：全仓库零引用，已删除（BUGS.md B12）。
+ * 结果的多行/单行展示都在 resultModel.js 的 briefValue 那一套里，别再补第二份摘要实现。 */

@@ -3,8 +3,11 @@ import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { PROBE, requirePath } from "./engine-paths.mjs";
 
-const PROBE = "C:/Users/fsafsafsa/Desktop/cppcshap/MF_Mathematics/build/bin/Release/probe_call.exe";
+/* 树外路径统一由 engine-paths.mjs 解析（BUGS.md B8）——这里原来写死的是
+ * `Desktop/cppcshap` 那棵**另一棵树**里的 probe_call.exe。 */
+requirePath(PROBE, "引擎探针 probe_call.exe（probe-implicit 用它直接看引擎的解析结果）", "MF_PROBE_EXE");
 const tmp = path.join(os.tmpdir(), "implicit.json");
 
 const cases = [

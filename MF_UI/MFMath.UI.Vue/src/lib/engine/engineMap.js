@@ -1,7 +1,13 @@
 /**
  * 引擎模式映射表（由旧版 MFMath.UI/js/engine-map.js 自动转换而来）
- *  · ENGINE_MAP：中文模式名 → { fn, module, args:[{key,type,opt}] }（324 项）
- *  · ENGINE_VAR_SPECS：需要多参数输入弹窗的模式 → [[字段名, 默认值], ...]（19 项）
+ *  · ENGINE_MAP：中文模式名 → { fn, module, args:[{key,type,opt}] }
+ *  · ENGINE_VAR_SPECS：需要多参数输入弹窗的模式 → [[字段名, 默认值], ...]
+ *
+ * ⚠ 数量别写在这里。下面 RAW_* 两份是**旧版快照**（RAW_MAP 324 / RAW_VAR_SPECS 19），
+ *   而对外导出的是与 engineMapExtra.js 合并后的结果 —— 目前是 **415 / 139**。
+ *   这两个数字以前被写死在注释里（324 / 19），于是同一仓库里出现三种口径
+ *   （engineMap.js 写 324、ToolboxView 写 424/371、实际 415）谁也不知道哪个对（BUGS.md B12）。
+ *   要核实时跑 `npm run check:ui`，它会打印真实条目数。
  *
  * 生成方式：node 脚本从旧文件提取 window.ENGINE_MAP / window.ENGINE_VAR_SPECS 的 JSON 字面量，
  * 原样保留（未手工修改），确保与旧版行为一致。
@@ -21,17 +27,13 @@ const RAW_VAR_SPECS = {"不定积分":[["被积函数",""],["积分变量","x"]]
 export const ENGINE_MAP = { ...RAW_MAP, ...EXTRA_MAP };
 export const ENGINE_VAR_SPECS = { ...RAW_VAR_SPECS, ...EXTRA_VAR_SPECS };
 
-/** 模式是否在引擎映射表中 */
+/** 模式是否在引擎映射表中。
+ *  ⚠ 这个判断**曾经在 calcArgs.js 里又实现了一遍**（逻辑逐字相同），于是同一个语义有两份，
+ *  改一处忘另一处就会分叉。现在 calcArgs 从这里 import（BUGS.md B12）。 */
 export function hasEngineMode(mode) {
   return Object.prototype.hasOwnProperty.call(ENGINE_MAP, mode);
 }
 
-/** 取模式的引擎函数与参数签名 */
-export function getEngineSpec(mode) {
-  return ENGINE_MAP[mode] || null;
-}
-
-/** 取模式的多参数输入规格（无则返回 null） */
-export function getVarSpec(mode) {
-  return ENGINE_VAR_SPECS[mode] || null;
-}
+/* 这里原来还有 getEngineSpec / getVarSpec 两个导出，全仓库零引用（BUGS.md B12），已删除。
+ * 要取签名直接 `ENGINE_MAP[mode]` / `ENGINE_VAR_SPECS[mode]` 即可 —— 不要为了"看起来完整"
+ * 再补一层没人用的包装。 */

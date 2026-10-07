@@ -25,7 +25,15 @@ const REAL_VIEWS = {
   "/calc/basic": () => import("../views/calc/BasicCalcView.vue"),
   // 绘图页（整组）：**已改用 React 实现**，经 ReactPlotView 嵌在 Vue 外壳里。
   // 逻辑层仍是同一份 src/lib（@shared 别名），所以引擎桥与表达式解析不会漂移。
-  // Vue 版各页保留在树上（不删）：要回退就把对应这行改回 ../views/plot/XXX.vue。
+  //
+  // ⚠ `src/views/plot/*`（6 个文件）是**冻结的回退资产**，不是可用实现（BUGS.md B9）：
+  //   · 它们**已不再跟随修复** —— React 侧这些轮次改过的东西（缩放适应、极坐标参数、
+  //     精度、异步通道…）那边一概没有；
+  //   · 它们**不在构建图里**（没人 import），也不在类型检查范围（tsconfig 只含 src/**/*.ts），
+  //     更**没有任何用例覆盖**（cdp-plot-* 打的全是 React 页面）；
+  //   · 所以"把下面这行改回去"**不等于回退到一个能用的版本**，而是回退到一份无人验证的旧码。
+  // 真要走回退，先把它们接回来、补跑 cdp-plot-* 全套、再删掉 check-ui 里那条冻结断言
+  // （它现在专门盯着"白名单 + 确认没人 import"，防止它们被悄悄重新接上）。
   "/plot/2d": () => import("../components/plot-react/ReactPlotView.vue"),
   // 极坐标：原版是独立入口（i18n.py 的 get_plot_modes 第 2 项），
   // 能力早就在 plotMath 里，缺的只是入口；grid 经 meta 传给页面。

@@ -25,10 +25,17 @@ import { fileURLToPath } from "node:url";
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const VUE = path.resolve(HERE, "..");                       // MFMath.UI.Vue
 const V2 = path.resolve(VUE, "..", "..");                   // Multifunctional-Mathematics-v2.0
-const SRC = process.env.MF_TUTORIAL_SRC
-  || "C:\\Users\\fsafsafsa\\Desktop\\MVS知识库\\Multifunctional系列\\Multifunctional-Mathematics\\MF_Tutorial\\tutorials";
+/* 教程源目录：环境变量 → 相对 v2.0 推导（v1 的教程在**另一棵树**里）。
+ * ⚠ 这里原来写死了本机绝对路径 `C:\Users\fsafsafsa\Desktop\...\MF_Tutorial\tutorials`，
+ * 后果是换机器/进 CI 时 `npm run check` 的第一步就抛 ENOENT，而且看不出该改哪（BUGS.md B8）。 */
+const { TUTORIAL_SRC: SRC, requirePath } = await import("../tests/engine-paths.mjs");
 const OUT_JSON = path.join(VUE, "src", "tutorials", "tutorials.json");
-const ARCHIVE = path.join(V2, "docs", "tutorials-src");
+/* YAML 原件的留档目录。它是**副产物**（真正要产出的是上面的 JSON），所以：
+ *   · 可以用 MF_TUTORIAL_ARCHIVE 指到别处；
+ *   · 写不进去时只警告、**不中断** —— 留档失败不该让教程数据生不出来。 */
+const ARCHIVE = process.env.MF_TUTORIAL_ARCHIVE || path.join(V2, "docs", "tutorials-src");
+
+requirePath(SRC, "v1 教程 YAML 源目录（本脚本的输入）", "MF_TUTORIAL_SRC");
 
 /* ── 权威数量表（来自对 v1 的独立清点，不是从本解析器推导出来的）────────── */
 const EXPECTED = [
@@ -472,9 +479,24 @@ fs.writeFileSync(
   ) + "\n",
   "utf8"
 );
-fs.mkdirSync(ARCHIVE, { recursive: true });
-for (const f of files) fs.copyFileSync(path.join(SRC, f), path.join(ARCHIVE, f));
+/* 留档 YAML 原件：**副产物**，失败只警告不中断（见文件头 ARCHIVE 的说明）。
+ * 从前这里是裸的 mkdir+copyFile，任何写权限问题都会让整个脚本以非零码退出 ——
+ * 而此时 tutorials.json 其实已经写好了，`npm run check` 却报"教程构建失败"（BUGS.md B8）。 */
+let archived = 0;
+let archiveError = "";
+try {
+  fs.mkdirSync(ARCHIVE, { recursive: true });
+  for (const f of files) fs.copyFileSync(path.join(SRC, f), path.join(ARCHIVE, f));
+  archived = files.length;
+} catch (e) {
+  archiveError = e && e.message ? e.message : String(e);
+}
 
 console.log("\n自检通过 ✔");
 console.log(`  写出 ${path.relative(V2, OUT_JSON)} （${(fs.statSync(OUT_JSON).size / 1024).toFixed(1)} KB）`);
-console.log(`  留档 ${path.relative(V2, ARCHIVE)} （${files.length} 个 YAML 原件）`);
+if (archiveError) {
+  console.log(`  ⚠ 留档未完成（不影响上面这份教程数据）：${archiveError}`);
+  console.log(`    可用 MF_TUTORIAL_ARCHIVE 指到一个可写目录后重跑。`);
+} else {
+  console.log(`  留档 ${path.relative(V2, ARCHIVE)} （${archived} 个 YAML 原件）`);
+}

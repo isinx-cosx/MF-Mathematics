@@ -6,13 +6,14 @@
  * 于是教程 05 与 11 每一步都失效、点一下遮罩就消失，**却仍被标记成"已完成"**。
  * 这类错误在运行时几乎不可察觉，必须在构建期拦下来。
  *
- * 五项断言：
+ * 断言（任一失败即 exit 1；共 12 组，此处只列要点）：
  *   1. 每个教程步骤的 target 要么在源码里真有 data-tour，要么在 PENDING 里写明理由；
  *   2. PENDING 里不留过时条目（教程已不引用它了，说明该删）；
  *   3. 键盘键数 = 126（与 v1 一致），且插入的 LaTeX 里没有残留的 ▢ 占位符、
  *      `\begin{...}` 环境都配了 `\end{...}`（v1 的 `\begin{pmatrix}` 就是缺后半截）；
  *   4. 教程数据的字段合法性（actionType 取值、步骤/示例/FAQ 完整性）；
- *   5. 引擎映射表里没有重复键（JS 后者胜，前面的会变成"改了没反应"的死条目）。
+ *   5. 引擎映射表里没有重复键（JS 后者胜，前面的会变成"改了没反应"的死条目）；
+ *   6. 每个 tests/cdp-*.mjs 都登记进了 run-all.ps1（漏登记 = 该用例永远不跑）。
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -254,6 +255,159 @@ const NOT_EXPOSED = new Map(
     `取不到 ${missing.length} 个（已登记 ${NOT_EXPOSED.size} 个待补或无处安放）`);
 }
 
+/* ── 6b. 区间类 handler 必须真的收到 `interval` ─────────────────────────────
+ *
+ * 为什么单列：BUGS.md B1 是一类**静默失效** —— 引擎 real_analysis_api.cpp:34-44 的
+ * get_interval **只读 args["interval"]**（且必须是 2 元数组），而这条链上的 10 个模式
+ * 要么把区间声明成 a/b、要么一个区间参数都没有。结果：用户填的区间从来没进过引擎，
+ * 模式永远按 [0,1] 算，界面上却毫无提示（不是报错，是"输入被忽略"）。
+ *
+ * 判据刻意**不去读引擎源码**（那是树外路径，见 BUGS.md B8，会让本自检在别的机器上跑不动），
+ * 而是固定列出"由 get_interval 读区间的 handler"。**引擎新增这类 handler 时要把名字加进来** ——
+ * 宁可这里多维护一行，也不要在页面上再出现一个"填了没用"的参数。
+ * ⚠ real_rolle_theorem / real_lagrange_theorem 不在此列：它们在页面上另有映射
+ * （Rolle定理 / Lagrange中值定理 走 calc_* 系列，那两个引擎确实读 a/b）。 */
+const INTERVAL_FNS = [
+  "darboux_sum", "riemann_integrable", "fundamental_theorem", "integral_mean_value",
+  "uniform_continuity", "extreme_value", "intermediate_value", "uniform_convergence",
+  "weierstrass_m_test", "termwise_integration",
+];
+{
+  const ALL_MODES = { ...ENGINE_MAP, ...EXTRA_MAP };
+  let checked = 0;
+  const bad = [];
+  for (const [mode, spec] of Object.entries(ALL_MODES)) {
+    if (!INTERVAL_FNS.includes(spec.fn)) continue;
+    checked += 1;
+    if (!(spec.args || []).some((a) => a.key === "interval")) bad.push(`${mode}(${spec.fn})`);
+  }
+  for (const b of bad) {
+    problems.push(`模式「${b}」的 handler 用 get_interval 读区间，但 args 里没有 interval 键 —— 用户填的区间会被静默忽略（BUGS.md B1）`);
+  }
+  console.log(`区间参数契约        ：${INTERVAL_FNS.length} 个 handler / 命中模式 ${checked} 个 / 缺 interval ${bad.length} 个`);
+}
+
+/* ── 6c. 概率表类模式：用弹窗自带默认值构造出来不能是空表 ────────────────────
+ *
+ * 为什么单列：BUGS.md B2② 的表现是"`P` 恒为空对象" —— 弹窗字段与 args 语义错位，
+ * 用户填的事件名列表被塞进声明为 prob_table 的参数，probTableOf 找不到 `=` 就返回 {}，
+ * 引擎必然报"缺少条件概率"。**用户点开弹窗、什么都不改、直接点计算就会失败。**
+ *
+ * 这条守卫跑的是**真实构造器 + 自带默认值**，与用户的默认路径完全一致：
+ * 凡是参数里有 prob_table 的模式（4 个概率模式），每个 prob_table 参数都必须非空。 */
+{
+  const { buildEngineArgsFromValues } = await import("../src/lib/engine/calcArgs.js");
+  const ALL_MODES = { ...ENGINE_MAP, ...EXTRA_MAP };
+  let checked = 0;
+  const bad = [];
+  for (const [mode, fields] of Object.entries(ENGINE_VAR_SPECS)) {
+    const spec = ALL_MODES[mode];
+    if (!spec) continue;
+    const probArgs = (spec.args || []).filter((a) => a.type === "prob_table");
+    if (!probArgs.length) continue;
+    checked += 1;
+    const built = buildEngineArgsFromValues(spec, fields, fields.map((f) => f[1])) || {};
+    for (const a of probArgs) {
+      const v = built[a.key];
+      if (!v || typeof v !== "object" || Object.keys(v).length === 0) bad.push(`${mode}.${a.key}`);
+    }
+  }
+  for (const b of bad) {
+    problems.push(`模式「${b}」用弹窗默认值构造出来是**空概率表** —— 用户不改任何东西直接点计算也会失败（BUGS.md B2②）`);
+  }
+  console.log(`概率表契约          ：${checked} 个模式 / 空表 ${bad.length} 个`);
+}
+
+/* ── 6d. "名字选不到、但功能可达"的重复模式名必须显式登记（BUGS.md B10）────────
+ *
+ * 为什么要有这一条：原先的判据是"模式名可选到 **或** 它的 fn 已被页面上某个模式覆盖"，
+ * 于是下面这 24 个名字在界面上**根本选不到**却一路静默通过（自检还打印"取不到 0 个"）。
+ *
+ * 收紧后实测：这 24 个**全部**是同 fn 的重复命名（化简/表达式化简、中点/中点坐标、
+ * 回路积分/围道积分、等差数列/等差数列第n项…），所以**功能是可达的，缺的只是"这个名字"**——
+ * 那就不能判成缺口，但**也不能静默**：逐个登记在此，将来清理或补入口时按规矩删条目。
+ * ⚠ 判据的边界：只对"fn 已被页面覆盖"的名字要求登记；fn 完全没人覆盖的仍走上面的硬失败。 */
+const DUPLICATE_NAME_GROUPS = [
+  ["同 fn 的重复命名：功能在页面上另有名字可选到，这个旧名字选不到（BUGS.md B10）。" +
+   "清理（删条目）或补入口（挂进页面 modes）都可以，但两种都要**显式**做，别让它静默躺着。", [
+    "化简", "中点", "两点式直线", "全局最值", "局部极值", "幂级数展开",
+    "回路积分", "柯西积分公式", "洛朗级数",
+    "旋转体体积(圆盘法)", "旋转体体积(柱壳法)",
+    "等差数列", "等比数列", "级数求和", "级数敛散性",
+    "内积(泛函)", "谱分类", "逆傅里叶变换",
+    "Lp 范数", "Zeta 级数", "Banach 空间判定", "Hilbert 空间判定", "Hahn-Banach 延拓",
+    // ⚠ 这一条不只是"重名"：它的 args 是**空的**（`[]`），而页面上同 fn 的「解不等式/组」
+    //    声明了 `ineqs: string_array`。也就是说这个旧名字即便挂出来也构造不出参数 ——
+    //    是坏掉的重复条目，建议直接删（清理时连同本行一起删）。
+    "解不等式组",
+  ]],
+];
+const DUPLICATE_NAMES = new Map(
+  DUPLICATE_NAME_GROUPS.flatMap(([why, names]) => names.map((n) => [n, why])));
+
+/* ── 6e. 冻结的 Vue 绘图组：允许存在，但不许被悄悄重新接上（BUGS.md B9）──────
+ *
+ * 背景：绘图组已整组迁到 React（router 把 7 条 /plot/* 全指向 ReactPlotView）。
+ * 这 6 个 Vue 文件既不参与构建、也不在类型检查范围、更没有任何用例覆盖。
+ * 产品决定是"**保留为冻结的回退资产**"。冻结就得看得见：
+ *   · 文件名与该白名单逐一对应（增删文件都要改这里）；
+ *   · 并且**确认仍然没有人 import 它们** —— 一旦出现引用，说明有人开始回退或误接，
+ *     那时必须连同 router 的注释一起改，并补上对应用例（回退不是"改一行"那么轻）。 */
+const FROZEN_VUE_PLOT_FILES = [
+  "Plot3DView.vue", "PlotComplexView.vue", "PlotFractalView.vue",
+  "PlotGeometryView.vue", "PlotVectorView.vue", "PlotView.vue",
+];
+{
+  const dir = path.join(SRC, "views", "plot");
+  const actual = fs.existsSync(dir)
+    ? fs.readdirSync(dir).filter((f) => f.endsWith(".vue")).sort()
+    : [];
+  for (const f of actual) {
+    if (!FROZEN_VUE_PLOT_FILES.includes(f)) {
+      problems.push(`src/views/plot/${f} 不在"冻结的回退资产"白名单里 —— 新增的文件要么挂上路由，要么加进 FROZEN_VUE_PLOT_FILES 并说明（BUGS.md B9）`);
+    }
+  }
+  for (const f of FROZEN_VUE_PLOT_FILES) {
+    if (!actual.includes(f)) problems.push(`冻结白名单里的 src/views/plot/${f} 已不存在 —— 请从 FROZEN_VUE_PLOT_FILES 里删掉（BUGS.md B9）`);
+  }
+  // 引用检查：只看真正的 import 语句（router 里那句"改回 ../views/plot/XXX.vue"是注释，不该误报）
+  const importers = [];
+  const walk = (d) => {
+    for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+      const p = path.join(d, e.name);
+      if (e.isDirectory()) { walk(p); continue; }
+      if (p.startsWith(dir + path.sep)) continue;                 // 它们互相引用不算
+      if (!/\.(vue|js|ts|mjs)$/.test(e.name)) continue;
+      const text = fs.readFileSync(p, "utf8");
+      if (/from\s+["'][^"']*views\/plot\/[^"']*["']/.test(text)) importers.push(path.relative(SRC, p));
+    }
+  };
+  walk(SRC);
+  for (const f of importers) {
+    problems.push(`${f} import 了已冻结的 src/views/plot/* —— 要么真的回退（补跑 cdp-plot-* 全套后再改这条断言与 router 注释），要么撤掉这个 import（BUGS.md B9）`);
+  }
+  /* 这一块的判据与上面第 6 项同源，但第 6 项把 pageModes/pageFns 算在它自己的块作用域里，
+   * 所以这里就地重算一份（三个集合都很小，不值得为它把作用域搅在一起）。 */
+  const ALL_MODES_GLOBAL = { ...ENGINE_MAP, ...EXTRA_MAP };
+  const pageModesGlobal = new Set();
+  for (const cfg of Object.values(VIEW_CONFIGS)) for (const m of cfg.modes || []) pageModesGlobal.add(m);
+  const pageFnsGlobal = new Set([...pageModesGlobal].map((m) => ALL_MODES_GLOBAL[m]?.fn).filter(Boolean));
+  const dupNoReg = Object.keys(ALL_MODES_GLOBAL).filter(
+    (m) => !pageModesGlobal.has(m) && pageFnsGlobal.has(ALL_MODES_GLOBAL[m]?.fn) && !DUPLICATE_NAMES.has(m));
+  for (const m of dupNoReg) {
+    problems.push(`模式「${m}」（${ALL_MODES_GLOBAL[m].fn}）的名字在任何页面都选不到（功能可由同 fn 的页面模式代替）—— 要么挂进页面 modes，要么登记进 DUPLICATE_NAME_GROUPS 并写明理由（BUGS.md B10）`);
+  }
+  for (const [name] of DUPLICATE_NAMES) {
+    if (!ALL_MODES_GLOBAL[name]) {
+      problems.push(`DUPLICATE_NAME_GROUPS 里的「${name}」在 ENGINE_MAP 里不存在`);
+    } else if (pageModesGlobal.has(name)) {
+      problems.push(`DUPLICATE_NAME_GROUPS 里的「${name}」现在已经能在页面上选到了 —— 过时条目，请删除`);
+    }
+  }
+  console.log(`冻结的 Vue 绘图组    ：${actual.length}/${FROZEN_VUE_PLOT_FILES.length} 个文件在位，被 import ${importers.length} 处`);
+  console.log(`重名模式登记        ：已登记 ${DUPLICATE_NAMES.size} 个，未登记 ${dupNoReg.length} 个`);
+}
+
 /* ── 7. i18n：t("…") 用到的键，必须在 en-US 里有译文 ─────────────────────────
  *
  * 译文表以**中文原文为键**（见 src/lib/i18n/index.js 的说明），好处是数据层一行都不用改、
@@ -323,12 +477,72 @@ const NOT_EXPOSED = new Map(
   console.log(`i18n 键盘分类        ：${CATEGORIES.length} 个分类，缺译文 ${catNoTr.length} 个`);
 }
 
+/* ── 12. 端到端用例都必须登记进 run-all.ps1 ──────────────────────────────
+ *
+ * 为什么单列一条：这件事**已经复发过一次** —— `cdp-engine-coverage` 曾长期没登记
+ * （见 docs/FRONTEND-FIXES.md §2），本轮又发现 `cdp-plot-accuracy` 同样躺在磁盘上
+ * 却从未被执行（BUGS.md B7），而它恰恰是唯一按**几何判据**验证绘图的用例。
+ * 靠人记必然会再犯，所以在构建期拦住：
+ *   · 加了用例却忘了登记 → 这里失败；
+ *   · 登记了却把文件删了 → 这里也失败（否则 run-all 会静默跳过，只打印一行 missing）。
+ * 允许显式白名单（确实不该进套件的脚本），但必须写明理由。 */
+const TESTS = path.resolve(HERE, "..", "tests");
+const RUN_ALL = path.join(TESTS, "run-all.ps1");
+/** 有意不进套件的 cdp-*.mjs：脚本名 → 理由。当前为空。 */
+const NOT_IN_SUITE = {};
+let suiteStats = null;
+
+if (fs.existsSync(RUN_ALL)) {
+  const ps = fs.readFileSync(RUN_ALL, "utf8");
+  // 只认"整个引号里都是 [a-z0-9-]"的字符串；路径/环境变量名含反斜杠冒号，天然不会命中
+  const registered = new Set([...ps.matchAll(/"([a-z0-9-]+)"/g)].map((m) => m[1]));
+  const files = fs.readdirSync(TESTS)
+    .filter((f) => /^cdp-.*\.mjs$/.test(f))
+    .map((f) => f.replace(/\.mjs$/, ""))
+    .sort();
+  for (const name of files) {
+    if (registered.has(name) || Object.prototype.hasOwnProperty.call(NOT_IN_SUITE, name)) continue;
+    problems.push(`tests/${name}.mjs 没有登记进 tests/run-all.ps1 —— 它永远不会被执行（要么登记，要么加进 NOT_IN_SUITE 并写明理由）`);
+  }
+  for (const name of registered) {
+    if (!name.startsWith("cdp-")) continue;
+    if (!files.includes(name)) problems.push(`tests/run-all.ps1 登记了 ${name}，但 tests/${name}.mjs 不存在`);
+  }
+  suiteStats = { files: files.length, inSuite: files.filter((f) => registered.has(f)).length };
+}
+
+/* ── 12b. 样本 fixture 里不该有重复键（JS 后者胜 ⇒ 前面那条是**静默的死条目**）────
+ *
+ * 为什么值得盯：`tests/fixtures/mode-samples.mjs` 里同一个模式被定义两次时，后面的胜出，
+ * 前面那条成了死条目 —— 而它还**长得像真的**。这一轮就被它误导过一次：
+ * 读到"全概率公式"的三段式老样本，误以为契约没变，白查一轮（BUGS.md B15）。
+ * 只报警、不失败：死条目当下不影响结论（生效的那条才是被测的），但看到就该清理。
+ * 清理方式固定：**保留最后一条**，删掉它前面的。 */
+{
+  const fx = path.join(TESTS, "fixtures", "mode-samples.mjs");
+  if (fs.existsSync(fx)) {
+    /* ⚠ 正则**不能**用行首锚点（`^ {2}"key":`）：本文件里有若干"一行两个条目"的紧凑行
+     * （`"最小二乘拟合": …,  "全概率公式": …`），行首锚点会把**后半条**整个漏掉 ——
+     * 实测就漏掉过一个 `"协方差"` 的重复（所以真实重复数是 29 而不是 28）。
+     * 改成"键名前面是行首、逗号或空白"，紧凑行里的第二个键同样能抓到。 */
+    const keys = [...fs.readFileSync(fx, "utf8").matchAll(/(?:^|[,\s])"([^"]+)":/g)].map((m) => m[1]);
+    const seen = new Set();
+    const dup = [];
+    keys.forEach((k, i) => { if (keys.indexOf(k) !== i && !seen.has(k)) { seen.add(k); dup.push(k); } });
+    if (dup.length) {
+      warnings.push(`tests/fixtures/mode-samples.mjs 里有 ${dup.length} 个重复键（后者胜，前面的是死条目）：${dup.slice(0, 6).join("、")}${dup.length > 6 ? " …" : ""} —— 建议保留最后一条、删掉前面的`);
+    }
+    console.log(`样本 fixture        ：${keys.length} 个键 / 重复键 ${dup.length} 个`);
+  }
+}
+
 /* ── 输出 ──────────────────────────────────────────────────────────────── */
 console.log("=".repeat(78));
 console.log(`源码里注册的 data-tour：${sourceTargets.size} 个`);
 console.log(`教程引用的 target    ：${usedTargets.size} 个（已实现 ${[...usedTargets.keys()].filter((n) => sourceTargets.has(n)).length}，待实现 ${Object.keys(PENDING).length}）`);
 console.log(`数学键盘            ：${CATEGORIES.length} 分类 / ${KEY_COUNT} 键（v1 也是 ${V1_KEY_COUNT}）`);
 console.log(`键面可读性          ：排版 ${faceStats.math} 键 / 文字 ${faceStats.plain} 键 / 紧凑替代 ${faceStats.override} 键 / 清理后文字 ${faceStats.fallback} 键（裸 LaTeX 0 键）`);
+console.log(`端到端用例          ：${suiteStats ? `cdp-* ${suiteStats.files} 个，已登记 ${suiteStats.inSuite} 个` : "（未找到 tests/run-all.ps1，跳过登记检查）"}`);
 console.log("=".repeat(78));
 
 if (warnings.length) {
@@ -340,4 +554,4 @@ if (problems.length) {
   for (const p of problems) console.error("  ✗ " + p);
   process.exit(1);
 }
-console.log("\n自检通过 ✔  引导目标无静默失效、键盘键位与 v1 对齐、每个键面都看得懂");
+console.log("\n自检通过 ✔  引导目标无静默失效、键盘键位与 v1 对齐、每个键面都看得懂、端到端用例无漏登记");

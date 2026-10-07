@@ -11,6 +11,11 @@
  */
 import { computed, ref } from "vue";
 import { TUTORIALS } from "../../lib/tutorial/store.js";
+/* 富文本清洗器（与 TourOverlay / HelpArticleView 用的是同一个）。
+ * 这几段 description 目前是**组件内硬编码常量**，所以今天不是注入面；但本项目已经因为
+ * "教程富文本清洗漏了一个分支"出过一条真实绕过（<p><img src=x onerror=…>），
+ * 而 v-html 一旦将来改成从数据文件读就是注入面 —— 直接过一遍清洗，零成本（BUGS.md B11）。 */
+import { sanitizeTourHtml } from "../../lib/tutorial/targets.js";
 
 const emit = defineEmits(["close", "start-tour"]);
 
@@ -76,7 +81,8 @@ function prev() { if (index.value > 0) index.value -= 1; }
     <div class="welcome" role="dialog" aria-label="欢迎">
       <div class="w-icon">{{ card.icon }}</div>
       <h2 class="w-title">{{ card.title }}</h2>
-      <p class="w-desc" v-html="card.description" />
+      <!-- 过清洗器：见 script 里 import 处的说明（BUGS.md B11） -->
+      <p class="w-desc" v-html="sanitizeTourHtml(card.description)" />
       <ul class="w-feats">
         <li v-for="(f, i) in card.features" :key="i">{{ f }}</li>
       </ul>

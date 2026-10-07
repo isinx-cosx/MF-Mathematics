@@ -47,8 +47,37 @@ const check = (label, ok, detail = "") => {
 };
 
 await send("Runtime.enable");
+/* 先绕到另一条绘图路由再回来，**强制 ReactPlotView 重挂**（它按 route.fullPath 卸载重建）。
+ * 为什么必须：本套件的几何断言假定视口是默认的 [-10,10]（下文的 y 跨度按画布宽高比算），
+ * 而 PlotPage 的视图存在 React state 里 —— 若上一个用例在同一路由上缩放过，只写
+ * location.hash='#/plot/2d' 是**同一个值**、不触发路由变化，也就不会重挂，视口会带着上一个
+ * 用例的缩放进来，几何断言会成片假失败。这样本套件就不再依赖"排在前面的用例有没有动过视图"。 */
+await ev(`location.hash='#/plot/polar'`);
+await sleep(600);
 await ev(`location.hash='#/plot/2d'`);
-await sleep(1800);
+
+/** 等画布真的挂出来（有界等待）。
+ *  为什么不再用固定 sleep：① 慢机器上 1.8s 未必够；② 更要紧的是——**渲染进程可能被卡住**
+ *  （例如宿主里还有没跑完的后台任务：bridge.js 写明 CancelJob 只停止等待、引擎会把这一步算完）。
+ *  那种情况下任何 Runtime.evaluate 都会超时，固定 sleep 之后读画布会得到 undefined，
+ *  然后在很远的地方抛一句 `Cannot read properties of undefined` —— 完全看不出真因（本套件
+ *  实测踩过）。现在这里会**明确报出来**并指出该怎么办。 */
+const waitCanvas = async (ms = 20000) => {
+  const t0 = Date.now();
+  while (Date.now() - t0 < ms) {
+    if (await ev(`!!document.querySelector('canvas')`)) return true;
+    await sleep(300);
+  }
+  return false;
+};
+if (!(await waitCanvas())) {
+  const h = await ev(`location.hash`);
+  console.error(`画布没在 20 秒内出现（当前 hash=${h}）。两种可能：`);
+  console.error("  · 页面没走到绘图页 —— 检查路由是否被别的用例改坏；");
+  console.error("  · **渲染进程被卡住**（宿主里还有没跑完的重活），此时所有 evaluate 都会超时。");
+  console.error("    重启宿主（先杀 mfmath-host-rust 再起来）即可恢复，然后再跑本套件。");
+  process.exit(1);
+}
 
 const setExpr = (text) => ev(`(function(){
   const f=[...document.querySelectorAll('math-field')][0];
@@ -57,20 +86,54 @@ const setExpr = (text) => ev(`(function(){
   f.dispatchEvent(new Event('input',{bubbles:true}));
   return 'ok'; })()`);
 
-/* 视口几何：默认视图的 **x 范围**是固定的 [-10, 10]（view.js 的 DEFAULT_X_MIN/MAX），
- * y 跨度按画布宽高比同比例展开（即世界坐标 1:1，画面是正方形网格 —— 实测用 y=x 的红线
- * 反推过：斜率 -1.045 ≈ -(H/W)，两边跨度相等）。
+/* 视口几何：**直接从页面读真实视图**，不再靠"猜"。
  *
- * ⚠ 不要拿状态栏那行"范围 [-10.00, 10.00] × [-10.46, 10.46]"当视口：那是**采样**范围，
- * 带 25% 外扩（PlotView 的 padX/padY），照它换算会差 20 个设备像素 —— 本套件第一版
- * 就是这么把 y=x 误判成"两端没画出来"的。 */
+ * ⚠ 这里原来写死 X_SPAN = Y_SPAN = 20（即假定视口是 ±10 × ±10），依据是作者当时用 y=x
+ * 的红线拟合出"两边世界跨度相等"。**那个前提只在画布恰好是正方形时成立** ——
+ * view.js 的默认视图是 x∈[-10,10]、而 **y 跨度 = 20 · h/w**。
+ * 本机画布是 694×726（竖着），真实视口是 y∈[-10.46, 10.46]；照 20 换算，
+ * |y| 越大偏得越多（y=8 差约 12.8 设备像素，远超 ±2 容差），于是 `x` 那条线
+ * 在 (-7,-7)/(8,8) 被误判成"没画出来"。**这是套件的判据错，不是产品画错**
+ * （其余 5 条表达式都过、连续性也过，正因为它们的 |y| 小）。
+ *
+ * 现在读 `window.__mfPlot.view()`（PlotPage 暴露的排障钩子，与 __mfWorkspace 等同一做法）：
+ * 这样不仅对画布宽高比免疫，也顺带覆盖"设置里配了固定绘图范围"或"工作区还原了上次视野"的情形。
+ *
+ * ⚠ **读不到就直接失败，不再退回 ±10×±10。** 那个退路看着"温和"，实际是把一次时序问题
+ * 变成 6 条含义不明的几何假失败 —— 实测踩过：钩子是 `useEffect` 里挂的（DOM 提交之后），
+ * 所以"画布已在 DOM 里"并不保证钩子已就位；那次恰好落在窗口里，于是退回了 ±10×±10、
+ * 几何全错、6 条命中断言集体失败，而真因只是一次竞争。宁可在这里明确报出来。 */
+const hookReady = async (ms = 10000) => {
+  const t0 = Date.now();
+  while (Date.now() - t0 < ms) {
+    if (await ev(`!!(window.__mfPlot && typeof window.__mfPlot.view === "function")`)) return true;
+    await sleep(200);
+  }
+  return false;
+};
+if (!(await hookReady())) {
+  console.error("等不到排障钩子 window.__mfPlot（10 秒）。两种可能：");
+  console.error("  · React 绘图页没挂起来（路由/构建问题）—— 检查 hash 与页面报错；");
+  console.error("  · **渲染进程卡住了**：宿主里还有没跑完的重活时，所有 evaluate 都会超时。");
+  console.error("    重启宿主（杀 mfmath-host-rust 再起）即可恢复。");
+  process.exit(1);
+}
+
 const geom = await ev(`(function(){
   const c=document.querySelector('canvas');
   const r=c.getBoundingClientRect();
   return { cssW:Math.round(r.width), cssH:Math.round(r.height), dpr:window.devicePixelRatio||1 }; })()`);
-const X_SPAN = 20;                                  // [-10, 10]
-const Y_SPAN = X_SPAN;   // 实测（用 y=x 的红线拟合）：世界跨度相等 ⇒ 视口 ±10 × ±10
-const VIEW = { x0: -X_SPAN / 2, x1: X_SPAN / 2, y0: -Y_SPAN / 2, y1: Y_SPAN / 2 };
+if (!geom) {
+  console.error("读不到画布尺寸（渲染进程可能刚被卡住）—— 重启宿主后重跑本套件");
+  process.exit(1);
+}
+const realView = await ev(`window.__mfPlot.view()`);
+if (!(realView && ["x0", "x1", "y0", "y1"].every((k) => Number.isFinite(realView[k])))) {
+  console.error(`__mfPlot.view() 不是合法视图：${JSON.stringify(realView)}`);
+  process.exit(1);
+}
+const VIEW = { x0: realView.x0, x1: realView.x1, y0: realView.y0, y1: realView.y1 };
+const viewSource = "window.__mfPlot（真实视图）";
 const toPx = (x, y) => ({
   px: ((x - VIEW.x0) / (VIEW.x1 - VIEW.x0)) * geom.cssW,
   py: ((VIEW.y1 - y) / (VIEW.y1 - VIEW.y0)) * geom.cssH,
@@ -115,7 +178,7 @@ function maxGapOnColumn(img, cssPx) {
   return maxGap;
 }
 
-console.log(`画布 ${geom.cssW}x${geom.cssH} @${geom.dpr}x，视口 x[${VIEW.x0},${VIEW.x1}] y[${VIEW.y0.toFixed(2)},${VIEW.y1.toFixed(2)}]`);
+console.log(`画布 ${geom.cssW}x${geom.cssH} @${geom.dpr}x，视口 x[${VIEW.x0},${VIEW.x1}] y[${VIEW.y0.toFixed(2)},${VIEW.y1.toFixed(2)}] —— 取自 ${viewSource}`);
 
 /* ① 命中点：曲线必须经过这些已知坐标 */
 const CASES = [
@@ -145,6 +208,42 @@ for (const [expr, cols] of [["x^2", [2, 5, 8]], ["e^x", [-5, 0, 2]], ["ln(x)", [
   check(`${expr}：视口内曲线连续（最大空洞 ${worst.toFixed(1)}px）`, worst <= 6,
     gaps.map(([x, g]) => `x=${x}:${g.toFixed(1)}px`).join(" "));
 }
+
+/* ③ 「缩放到适应」必须真的改变视图，且不得抛异常（BUGS.md B3 的回归）
+ *
+ * 这条曾经是坏的：PlotPage.tsx 的 zoomFit 里 viewW / viewH 没有 import，又误用了
+ * `view.value`（`view` 是 useState 的值，不是 Vue 的 ref）。点一下必抛 ReferenceError，
+ * 而 React 的**错误边界不捕获事件处理器异常** —— 界面上就是"按钮点了没反应"，
+ * 既不白屏、也不留提示，所以只数像素的用例一个都抓不住它。
+ *
+ * 因此判据不能是像素：必须读**真实视图**（window.__mfPlot 暴露），并单独断言没抛异常。 */
+await ev(`window.__mfZoomErr=null;
+  window.addEventListener('error', function h(e){
+    window.__mfZoomErr = String((e && (e.message || e.error)) || 'unknown');
+    window.removeEventListener('error', h);
+  });`);
+await setExpr("x^2");
+await sleep(2400);
+
+const hookOk = await ev(`!!(window.__mfPlot && window.__mfPlot.view)`);
+check("排障钩子 window.__mfPlot 可用（React 侧已挂上）", hookOk === true,
+  hookOk ? "" : "读不到视图就无法判定 —— 检查 PlotPage 是否仍挂着这个钩子");
+
+const vBefore = await ev(`window.__mfPlot ? JSON.stringify(window.__mfPlot.view()) : null`);
+const clicked = await ev(`(function(){
+  const b=[...document.querySelectorAll('button')].find(x=>/缩放到适应/.test(x.title||''));
+  if(!b) return 'no-button';
+  b.click(); return 'ok'; })()`);
+await sleep(1200);
+
+const vAfter = await ev(`window.__mfPlot ? JSON.stringify(window.__mfPlot.view()) : null`);
+const zoomErr = await ev(`window.__mfZoomErr || ''`);
+
+check("「缩放到适应」按钮存在且可点", clicked === "ok",
+  clicked === "no-button" ? "按 title 找不到按钮" : "");
+check("点击「缩放到适应」不抛异常", !zoomErr, zoomErr ? "异常：" + zoomErr : "");
+check("「缩放到适应」确实改变了视图", !!vBefore && !!vAfter && vBefore !== vAfter,
+  "before=" + vBefore + " after=" + vAfter);
 
 console.log(`\nRESULT|cdp-plot-accuracy|${pass}|${fail}`);
 ws.close();

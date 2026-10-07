@@ -4,6 +4,7 @@ import {
   themeLabel, currentAppearance, applyAppearance, initTheme, watchSystemTheme,
   windowControlsAvailable, winMinimize, winToggleMaximize, winClose, winIsMaximized, winStartDrag,
 } from "@shared/bridge.js";
+import { NAV_GROUPS, findNav } from "@shared/router/nav.js";
 import PlotPage from "./plot/PlotPage";
 import { safe } from "./lib/hostSafe";
 import "./styles/app.css";
@@ -18,71 +19,12 @@ const DEFAULT_APPEARANCE = {
 } as { theme: string; shape: string; density: string; font: string; followSystem: boolean };
 
 /**
- * 导航数据：**与 Vue 版 src/router/registry.js 逐字一致**（分组、名称、路由、顺序）。
- * registry.js 顶部 import 了 HomeView.vue，React 侧不能直接引用，故在此同步一份。
- * 后续应收口：把 NAV_GROUPS 抽到零依赖模块（如 lib/router/nav.js），两边共用。
+ * 导航数据来自 Vue 版抽出的零依赖模块 `@shared/router/nav.js`
+ * （即 MFMath.UI.Vue/src/lib/router/nav.js，经 vite alias / tsconfig paths 映射）。
+ * 以前这里手抄了一份 NAV_GROUPS，已经和 Vue 版漂移过；现在两边是同一份数据。
  */
 type NavItem = { name: string; route: string; grid?: "polar" };
 type NavGroup = { id: string; title: string; items: NavItem[] };
-
-const NAV_GROUPS: NavGroup[] = [
-  {
-    id: "calc",
-    title: "计算模式",
-    items: [
-      { name: "基础运算", route: "/calc/basic" },
-      { name: "代数计算", route: "/calc/algebra" },
-      { name: "微积分", route: "/calc/calculus" },
-      { name: "解析几何", route: "/calc/analytic-geometry" },
-      { name: "数列", route: "/calc/sequences" },
-      { name: "线性代数", route: "/calc/linear-algebra" },
-      { name: "概率论与数理统计", route: "/calc/probability" },
-      { name: "数值分析", route: "/calc/numerical" },
-      { name: "数论", route: "/calc/number-theory" },
-      { name: "实分析", route: "/calc/real-analysis" },
-      { name: "泛函分析", route: "/calc/functional-analysis" },
-      { name: "复分析", route: "/calc/complex-analysis" },
-      { name: "代数拓扑", route: "/calc/algebraic-topology" },
-      { name: "测度论", route: "/calc/measure-theory" },
-      { name: "调和分析", route: "/calc/harmonic-analysis" },
-    ],
-  },
-  {
-    id: "plot",
-    title: "绘图模式",
-    items: [
-      { name: "2D 函数绘图", route: "/plot/2d" },
-      { name: "极坐标", route: "/plot/polar", grid: "polar" },
-      { name: "3D 曲面", route: "/plot/3d" },
-      { name: "复平面", route: "/plot/complex" },
-      { name: "向量场", route: "/plot/vector" },
-      { name: "自由几何", route: "/plot/geometry" },
-      { name: "分形", route: "/plot/fractal" },
-    ],
-  },
-  {
-    id: "tools",
-    title: "工具",
-    items: [
-      { name: "搜索", route: "/tools/search" },
-      { name: "控制台", route: "/tools/console" },
-      { name: "函数工具箱", route: "/tools/toolbox" },
-    ],
-  },
-  {
-    id: "help",
-    title: "帮助",
-    items: [
-      { name: "使用教程", route: "/tutorial" },
-      { name: "示例任务库", route: "/examples" },
-    ],
-  },
-];
-
-function findNav(route: string): { group: NavGroup; item: NavItem } | null {
-  for (const g of NAV_GROUPS) for (const it of g.items) if (it.route === route) return { group: g, item: it };
-  return null;
-}
 
 /** 已迁移到 React 的绘图路由（其余绘图页与计算页尚未迁移） */
 const MIGRATED_PLOTS = new Set(["/plot/2d", "/plot/polar"]);
