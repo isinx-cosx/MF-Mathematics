@@ -259,6 +259,25 @@ D1 之后暴露的最大一块债。**清单（`grep` 可复现，2026-10-07 10:
 | 未跟踪的**真实资产** | 无（新用例已随 `b8872fa` 入库） |
 | 重复工作迹象 | 无（三个面的改动范围互不重叠） |
 
+**文档建设（层 1 + 层 5 已落地）**：六层共 35 份文档的**建设台账不在这里，在
+[`docs/README.md`](README.md) §3** —— 本文只记进度与风险，避免出现两份互相漂移的清单。
+本轮落地 5 份：[`docs/README.md`](README.md)（文档地图）、[`README.md`](../README.md)（收成入口）、
+[`docs/DESIGN.md`](DESIGN.md)、[`docs/DECISIONS.md`](DECISIONS.md)、
+[`docs/DESIGN-BOUNDARIES.md`](DESIGN-BOUNDARIES.md)。
+
+两条副产品（都属"文档与实测不一致"这一类）：
+
+1. **README 的 CTest 数字自相矛盾**：原文写"16 个 CTest 套件 + 4 个探针（共 19 个可执行目标）"，
+   而实测是 **19 个可执行目标 = 15 个 `test_*.cpp` + 4 个 `probe_*.cpp`，其中 16 个注册进 CTest**
+   （`grep add_test MF_Mathematics/CMakeLists.txt` 得 16 条）。两个划分被混在一句话里 —— 已更正。
+2. **README 的"无安装包"已过期**：Rust 侧实测**能**出 NSIS 包（11.11 MiB），只是"安装 → 启动"未验证。
+   已改成"能出，但没验过"，并保留"三步构建仍是唯一被实测跑通的路径"这句 ——
+   见 [PACKAGING.md](../MFMath.Host.Rust/docs/PACKAGING.md) 与 [DESIGN-BOUNDARIES.md](DESIGN-BOUNDARIES.md) §5。
+
+顺带把两处**重复真相**收成指针：README 原来自己维护一份"文档清单"和一份"已知边界"，
+现在分别指向 [`docs/README.md`](README.md) 与 [`docs/DESIGN-BOUNDARIES.md`](DESIGN-BOUNDARIES.md)
+（保留 LICENSE 那一行作法律声明）。
+
 **给 B 面的一件事**：`tests/cdp-plot-workspace.mjs` + `run-all.ps1` 的登记 + `BUGS.md` 的更正
 是同一次工作，建议**一次提交**；但其中的"全绿"数字要先过 R1。
 另有一件由 D1 引出的（见 R7 第 2 条）：**`run-all.ps1` 解析宿主的默认路径指向已废弃的 .NET 宿主**

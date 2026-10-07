@@ -38,6 +38,10 @@ AI 助手与交互式教程。
 **求导自证**测试：对结果求导、再与原式数值比对（容差 1e-9）。写 `∫cos³x` 时把 `−sin³x/3`
 写成了 `+`，就是这条自证以 `maxrel=0.635` 当场抓出来的 —— 一个错误的原函数比"未实现"危险得多。
 
+> 这三条不是口号：**每一条在代码里都有对应机制、并且有可复跑的判据**。
+> 完整展开（含"违反它会发生什么"与已知代价）见 [`docs/DESIGN.md`](docs/DESIGN.md)；
+> 具体的架构决定与代价见 [`docs/DECISIONS.md`](docs/DECISIONS.md)。
+
 ---
 
 ## 功能一览
@@ -174,12 +178,12 @@ powershell -NoProfile -File MF_UI/MFMath.UI.Vue/tests/run-all.ps1
 | 路径 | 内容 |
 | --- | --- |
 | `MF_Mathematics/` | 引擎源码（仅 C++，110 个 `.cpp`）、`CMakeLists.txt` |
-| `MF_Mathematics/tests/` | 16 个 CTest 套件 + 4 个探针（共 19 个可执行目标；`probe_call` 可不起宿主直调引擎） |
+| `MF_Mathematics/tests/` | **19 个可执行目标** = 15 个 `test_*.cpp` + 4 个 `probe_*.cpp`；其中 **16 个注册进了 CTest**（15 个 `test_*` + `probe_bugs`）。`probe_call` 可不起宿主直调引擎 |
 | **`MFMath.Host.Rust/`** | **现役宿主**：Rust/Tauri + WebView2，9 个宿主对象；`docs/ACCEPTANCE.md` 是验收步骤，`docs/PACKAGING.md` 是打包 |
 | `MFMath.Host/` | 🚩 **已废弃**（C#/WPF 宿主）。不再接受功能改动，只留作迁移参考 —— 下面几份设计文档里凡是指向它的实现说明都已过时，见 `docs/PROJECT-BOARD.md` §3 R7 |
 | `MF_UI/MFMath.UI.Vue/` | Vue 3 前端：`src/`、`tests/`（48 个 CDP 用例 + fixtures）、`tools/`（构建期自检） |
 | `MF_UI/MFMath.UI.React/` | React 绘图组：被 Vue 壳内嵌（`ReactPlotView.vue`），6 个绘图页；独立跑 `npm run check:types` |
-| `docs/` | 设计文档与状态记录（见下表） |
+| `docs/` | 设计文档与状态记录 —— **入口是 [`docs/README.md`](docs/README.md) 这份文档地图**（六层结构与"我想知道 X 该读哪份"的查表） |
 | `AGENTS.md` · `docs/PROJECT-BOARD.md` | 并行协作规约 · 工作面进度与风险台账 |
 
 ### 引擎的两个目标
@@ -198,37 +202,49 @@ powershell -NoProfile -File MF_UI/MFMath.UI.Vue/tests/run-all.ps1
 
 ## 文档
 
-| 文档 | 内容 |
+**全部文档的入口是 [`docs/README.md`](docs/README.md)** —— 它是文档地图，也是建设进度的台账：
+六层结构（README / 设计理念 / 链接层 / 引擎 / 前端 / 全面介绍软件）、"我想知道 X 该读哪份"的查表，
+以及哪些已经写好、哪些还没动笔。
+
+只需要按角色挑三份的话：
+
+| 你是 | 先读 |
 | --- | --- |
-| [`docs/STATUS-and-ROADMAP.md`](docs/STATUS-and-ROADMAP.md) | 现状与路线图 |
-| [`docs/PLAN-feature-completion.md`](docs/PLAN-feature-completion.md) | 功能补齐计划 |
-| [`docs/MIGRATION-GAPS.md`](docs/MIGRATION-GAPS.md) | 从 v1 迁移的差距清单 |
-| [`docs/OPEN-ITEMS.md`](docs/OPEN-ITEMS.md) | 未完成清单（可直接当待办用） |
-| [`docs/AI-ASSISTANT.md`](docs/AI-ASSISTANT.md) | AI 助手（含"不得当计算源"的约束） |
-| [`docs/ONLINE-SEARCH.md`](docs/ONLINE-SEARCH.md) | 联网搜索（宿主抓取/解析/缓存） |
-| [`docs/ACCOUNT.md`](docs/ACCOUNT.md) | 账号系统与离线承诺 |
-| [`docs/UPDATE-CHAIN.md`](docs/UPDATE-CHAIN.md) | 更新链（只提示 + sha256 + 交给浏览器） |
-| [`docs/SETTINGS-BACKUP.md`](docs/SETTINGS-BACKUP.md) | 设置导入导出（凭据不进备份） |
-| [`docs/HANG-OPTIMIZATION.md`](docs/HANG-OPTIMIZATION.md) · [`docs/hang-fix-verification.md`](docs/hang-fix-verification.md) | 卡死问题的定位与验证 |
-| [`docs/FRONTEND-FIXES.md`](docs/FRONTEND-FIXES.md) · [`docs/STEP-VIEW.md`](docs/STEP-VIEW.md) | 前端修复记录、分步显示 |
+| **使用者 / 评估者** | [`docs/DESIGN-BOUNDARIES.md`](docs/DESIGN-BOUNDARIES.md)（能做什么、**不能做什么**）、[`docs/HANG-OPTIMIZATION.md`](docs/HANG-OPTIMIZATION.md)（已知慢的地方） |
+| **改代码的人** | [`AGENTS.md`](AGENTS.md)（谁能改哪些文件、怎么提交）、[`docs/DESIGN.md`](docs/DESIGN.md)（为什么是这个样子）、[`docs/PROJECT-BOARD.md`](docs/PROJECT-BOARD.md)（现在到哪一步了） |
+| **想知道还缺什么** | [`docs/OPEN-ITEMS.md`](docs/OPEN-ITEMS.md)（功能缺口）、[`MF_UI/BUGS.md`](MF_UI/BUGS.md)（确有证据的缺陷） |
+| **调宿主 / 打包** | [`MFMath.Host.Rust/docs/ACCEPTANCE.md`](MFMath.Host.Rust/docs/ACCEPTANCE.md)、[`PACKAGING.md`](MFMath.Host.Rust/docs/PACKAGING.md) |
+
+> 📌 这个项目里的文档分两种寿命：**手册**（只在架构真的改了才动）与**状态类**（每天在变）。
+> 两者的区分与读法写在 [`docs/README.md`](docs/README.md) §0 —— 引用状态类结论时**必须看时间戳**。
 
 ---
 
 ## 已知边界（如实列出）
 
-- **数学能力边界**：不定积分对非初等函数如实返回"未实现"；部分不定式极限、复变不定积分同理。
-  这是设计选择，不是缺陷 —— 详见上文"三条纪律 ①"。
-- **无安装包**：目前只能按上面的三步构建，仓库不提供 `.msi`/`.exe` 安装程序。
+**完整清单在 [`docs/DESIGN-BOUNDARIES.md`](docs/DESIGN-BOUNDARIES.md)** —— 它区分四种性质不同的"没做"
+（**明确不做** / **推迟** / **能力边界** / **尚未验证**），并写明每一条的推翻门槛。
+本节只留三条最容易被误解的，与一条法律声明：
+
+- **数学能力边界**：不定积分对非初等函数如实返回"未实现"（`∫xˣ dx`、`∫sin(x)/x dx`、`∫e^{−x²}dx`…），
+  部分不定式极限与复变不定积分同理。**这是设计选择，不是缺陷** —— 见上文"三条纪律 ②"。
+- **安装包：能出，但"装完能不能跑"还没验过**。Rust 宿主用 `tauri build --bundles nsis` **可以**产出
+  NSIS 安装包（实测 **11.11 MiB**），但安装后的布局、安装/卸载、从安装目录启动**都尚未在真机上验证**
+  （见 [`PACKAGING.md`](MFMath.Host.Rust/docs/PACKAGING.md) §3）。仓库本身仍不含任何编译产物/安装包。
+  ⚠ 因此本文上面的「三步构建」仍是**唯一被实测跑通**的路径。
 - **多语言只覆盖了一部分**：导航、顶栏、**全部 14 个学科视图**（含 415 个模式名与 184 个参数弹窗字段）
   已中英双语，可在「设置 → 外观 → 界面语言」切换并记忆；**页面正文（设置面板各行、工具/绘图/帮助页、
   lib 里的提示文案、教程正文）仍是中文**。迁移路径：把要翻的那处包一层 `t()`，再往
   `src/lib/i18n/en-*.js` 补译文 —— `npm run check` 会拦住漏译。
-- **崩溃有记录，但不上报**：宿主把崩溃与前端未捕获异常写进
-  `%LOCALAPPDATA%\MFMath\logs\`（`crash-*.log` + `app.log`），并可通过「设置 → 存储与数据 →
-  导出诊断包」一并导出。**不联网上报** —— 数学工具的用户不该因为一次崩溃被上传任何东西。
 - **无 LICENSE（保留所有权利）**：仓库暂未提供许可证，因此依默认版权规则
-  **未经作者许可不得复制、修改或分发**。这是有意的 —— 作者保留后续授权方式的选择权。
+  **未经作者许可不得复制、修改或分发**。这是**有意的** —— 作者保留后续授权方式的选择权。
   若你需要以其它方式使用，请联系作者。
+
+> 另外两条已经独立的文档接管，本文不再重复（**重复就是两份真相**）：
+> 崩溃**只本地记录、不上报**（`%LOCALAPPDATA%\MFMath\logs\`，可导出诊断包）见
+> [`docs/DECISIONS.md`](docs/DECISIONS.md) D-008；
+> 已知**慢**的地方（持续同调 O(n³)、符号矩阵 > 12×12、`roots_in_disc`…）见
+> [`docs/HANG-OPTIMIZATION.md`](docs/HANG-OPTIMIZATION.md) §4。
 
 ---
 
