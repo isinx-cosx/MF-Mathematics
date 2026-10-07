@@ -632,3 +632,38 @@ dotnet build "<repo>\MFMath.Host\MFMath.Host.csproj" -c Release --no-incremental
 ### 8.5 如果哪天要回退
 
 回退点很清晰：宿主侧恢复 `ai` 对象（revert 删它的那一笔），前端把 `relay.ts` 换回"经 `ai.Begin` 转发字节"，密钥回到 DPAPI 密文。**但要先回答一个问题**：那时用户的密钥已经明文存在 `ai.json` 里了 —— 回退时要么重新加密一次，要么承认"已经明文过"。
+
+---
+
+## 9. 两个宿主的共存与切换【2026-10-07】
+
+**现状**：C# 宿主（`MFMath.Host`，WPF）是在用的发布宿主；Rust 宿主（`MFMath.Host.Rust`）已功能对齐
+（9 个宿主对象；AI 归 TS）。两边**共用同一份数据目录** `%LOCALAPPDATA%\MFMath\{settings,logs,components}`，
+所以起哪个 exe 就是哪个宿主，页面 URL 都是 `https://mfmath.local/index.html`（用例一条都不用改）。
+
+### 9.1 可以来回切的部分
+
+`search.json`（含 Wolfram App ID）、`account.json`（token）、`update.json`、`window/工作区/历史` 等：
+**字段同名、格式相同**（Rust 侧还给每个字段加了 PascalCase `alias`，对齐 C# 的 `PropertyNameCaseInsensitive`），
+所以两个宿主可以交替启动，配置跟着走。
+
+### 9.2 ⚠ 不能通用的部分：AI 密钥（这是 §8 那次架构变更的直接后果）
+
+| 谁写的 | 落在哪 | 对方能不能用 |
+| --- | --- | --- |
+| C# 宿主（老路径） | `ai.json` 的 `apiKeyProtected`（**DPAPI 密文**） | **Rust/TS 侧用不了** —— 页面没有 DPAPI 可调。现在会**如实提示"请在设置里重填一次"**，并且 `hasKey=false`（不假装有密钥） |
+| Rust/TS 侧（新路径） | `ai.json` 的 `apiKey`（**明文**） | **C# 宿主用不了** —— C# 的 `AiBridge` 只看 `apiKeyProtected`，明文它不认 |
+
+也就是说：**AI 这一项，两个宿主之间不通用**，切换时需要重填一次密钥（切回 C# 也一样）。
+这是刻意的取舍（用户决定"AI 全搬 TS、密钥存配置文件"），不是 bug。其余配置不受影响。
+
+### 9.3 什么时候可以退役 C#
+
+建议顺序：**Rust 宿主先真实发布过一版**（走过 `docs/ACCEPTANCE.md` §5 的真机清单）→ 再动 C#。
+退役时要一起处理的：
+
+1. `MFMath.Host/` 整个项目（含现在已闲置的 `AiBridge/AiRelay/AiClient/AiConfig` 864 行）；
+2. 仓库级文档与 CI 里对 C# 宿主的引用（`MF_UI` 下若干 `docs/*.md` 里"对照 C#"的章节，
+   那些是**迁移期**的对照资料，退役后可整体归档）；
+3. `MF_UI/MFMath.UI.Vue/src/lib/bridge.js` 的 `tauriInvoke()` 探测 —— 那时它才是纯死代码
+   （现在留着无害：C# 宿主下它本来就返回 null）。
