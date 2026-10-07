@@ -1012,17 +1012,29 @@ where
 /// 杀掉整个进程树。
 ///
 /// C# 用的是 `Process.Kill(entireProcessTree: true)`；std 的 `Child::kill()` 只杀直接子进程，
-/// 所以这里调 `taskkill /T /F`（Windows 自带），调用方再补一次 `Child::kill()` 兜底。
-fn kill_tree(pid: u32) {
+/// 所以这里调 `taskkill /T /F`（Windows 自带），调用方再补一次 `child.kill()` 兜底。
+///
+/// ⚠ 返回 `false` 表示**进程树没被结束**（极简镜像没有 taskkill、权限不足、或 pid 已经没了）——
+/// 那时调用方只能杀掉直接子进程，**孙进程可能残留**。这是真实的能力边界，别把它当成"杀干净了"：
+/// 所以这里失败要写进 app.log（诊断包里能看到），而不是无声无息。
+/// （没有改 `Stop`/`StopAll` 的返回形状：那是前端契约，为一个罕见降级去动它不划算。）
+fn kill_tree(pid: u32) -> bool {
     let pid_s = pid.to_string();
-    // 失败（极简镜像没有 taskkill / 权限不足）由调用方的 child.kill() 兜底
-    let _ = Command::new("taskkill")
+    let ok = Command::new("taskkill")
         .args(["/PID", &pid_s, "/T", "/F"])
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .creation_flags(CREATE_NO_WINDOW)
-        .status();
+        .status()
+        .map(|s| s.success())
+        .unwrap_or(false);
+    if !ok {
+        crate::logging::warn(&format!(
+            "结束进程树失败（taskkill 不可用或权限不足）：pid={pid}。已退回只结束直接子进程，孙进程可能残留。"
+        ));
+    }
+    ok
 }
 
 /// 同步跑一个工具并回收它的输出（安装阶段用，量很小）。

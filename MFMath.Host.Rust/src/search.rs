@@ -1348,7 +1348,14 @@ fn searxng(c: &SearchConfig, q: &str, cancel: &AtomicBool) -> Outcome {
         return Outcome::failure(
             engine,
             "config",
-            "自定义端点必须是 http/https 地址，且不能带查询串/片段/用户信息".to_string(),
+            // ⚠ 这里**刻意比 C# 严**（C# 只有"空就报错"），而且是有意的：
+            //   基址是 `origin + 可选路径前缀`，我们再往后拼 `/search?q=…&format=json`
+            //   （与 C# 的 `CustomUrl + "/search?q=…"` 逐字一致）。所以基址里带 `?` 会拼成
+            //   `https://x/?a=1/search?q=…` —— C# 会照拼、然后以一个莫名其妙的错误收场，
+            //   我们在这里直接说清"该怎么填"。`#` 之后的内容 HTTP 客户端根本不会发；
+            //   `@` 能塞用户信息/伪装主机（`https://evil@real`），一律拒。
+            "自定义端点要填成「站点前缀」：http/https、不能带查询串/片段/用户信息\
+             （本软件会在它后面拼 /search?q=…&format=json）".to_string(),
             0,
         );
     }
@@ -1357,7 +1364,9 @@ fn searxng(c: &SearchConfig, q: &str, cancel: &AtomicBool) -> Outcome {
     }
 
     let path = format!("/search?q={}&format=json", urlencode(q));
-    let call = site::get_ua(&c.custom_url, &path, None, c.timeout_sec, Some(crate::http::BROWSER_UA));
+    // ⚠ 用 get_verbatim 而不是 site::get_ua：后者会过 normalize_base_url，
+    // 而它对坏值的处理是**退回内置站点** —— 那等于把用户的查询词发到我们自己的服务器上。
+    let call = site::get_verbatim(&c.custom_url, &path, c.timeout_sec, Some(crate::http::BROWSER_UA));
     if !call.ok {
         return failure_from(engine, &call, c.timeout_sec);
     }

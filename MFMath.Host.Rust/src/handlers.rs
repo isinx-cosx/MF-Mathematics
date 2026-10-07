@@ -225,7 +225,6 @@ fn win(method: &str, args: &[Arg]) -> Ret {
     match method {
         "Minimize" => { w::minimize(); Ret::Empty }
         "ToggleMaximize" => { w::toggle_maximize(); Ret::Empty }
-        "Restore" => { w::restore(); Ret::Empty }
         "IsMaximized" => Ret::Bool(w::is_maximized()),
         "Close" => { w::close(); Ret::Empty }
         "StartDrag" => { w::start_drag(); Ret::Empty }

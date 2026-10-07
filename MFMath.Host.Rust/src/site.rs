@@ -143,6 +143,24 @@ pub fn post(
     finish(req.send())
 }
 
+/// GET 一个**原样拼接**的地址（`base.trim_end('/') + path`），**不做任何规范化**。
+///
+/// 为什么需要它：`get`/`get_ua` 会先过 `normalize_base_url`，而那个函数对"不认识的地址"
+/// 的处理是**退回内置站点** —— 对账号/搜索的**固定端点**这是对的（坏值等于没配），
+/// 但对**用户自己填的地址**就是事故：搜索的自定义端点（SearXNG）一旦走了规范化，
+/// 用户把地址写歪一点，他的查询词就会被发到 `mf-vis-science.cn` 上。
+/// 这与 `ai.rs`/`relay.ts` 里"绝不退回内置站点"是**同一条纪律**，所以单独开一条不走规范化的路。
+///
+/// 调用方**必须自己**先校验地址（见 `search.rs` 的 `custom_url_ok`）。
+pub fn get_verbatim(base: &str, path: &str, timeout_sec: i64, ua: Option<&str>) -> ApiCall {
+    if is_cancelled() {
+        return ApiCall::err(0, String::new(), "aborted", "已取消".into());
+    }
+    let url = format!("{}{}", base.trim_end_matches('/'), path);
+    let client = http::client_with_timeout_ua(timeout_sec, ua);
+    finish(client.get(&url).send())
+}
+
 fn finish(sent: Result<reqwest::blocking::Response, reqwest::Error>) -> ApiCall {
     let resp = match sent {
         Ok(r) => r,

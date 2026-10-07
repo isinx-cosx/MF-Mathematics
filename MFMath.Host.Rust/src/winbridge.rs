@@ -115,13 +115,6 @@ pub fn toggle_maximize() {
     }
 }
 
-pub fn restore() {
-    if let Some(h) = hwnd() {
-        // SAFETY: 同上
-        unsafe { let _ = ShowWindow(h, SW_RESTORE); }
-    }
-}
-
 pub fn is_maximized() -> bool {
     match hwnd() {
         // SAFETY: 同上

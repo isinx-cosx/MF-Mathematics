@@ -20,7 +20,6 @@
 #![windows_subsystem = "windows"]
 
 mod account;
-mod commands;
 mod console;   // ⚠ 文件名不能叫 con.rs：Windows 保留设备名，git 读不了它（见下方注释）
 mod dpapi;
 mod engine;
@@ -102,7 +101,6 @@ const DIAG_SPEC: &[MethodSpec] =
 const WIN_SPEC: &[MethodSpec] = &[
     MethodSpec { name: "Minimize", params: &[], ret: RetKind::Empty },
     MethodSpec { name: "ToggleMaximize", params: &[], ret: RetKind::Empty },
-    MethodSpec { name: "Restore", params: &[], ret: RetKind::Empty },
     MethodSpec { name: "IsMaximized", params: &[], ret: RetKind::Bool },
     MethodSpec { name: "Close", params: &[], ret: RetKind::Empty },
     MethodSpec { name: "StartDrag", params: &[], ret: RetKind::Empty },
@@ -504,14 +502,18 @@ fn main() {
                 }
                 Err(e) => note(&format!("取窗口句柄失败（win 桥的窗口操作会不可用）：{e}")),
             }
-            note("Tauri WebView2 就绪；命令层 call / host_info / front_log 已注册；CDP 端口 9222");
+            /* ⚠ 这里**没有** `.invoke_handler(...)`：三条 Tauri 命令（`call` / `host_info` /
+             * `front_log`）已随 `commands.rs` 一起删掉。理由（实测过，不是理论）：
+             *   · 页面从 `mfmath.local` 这个 origin 调 `invoke` 会被 Tauri 直接拒
+             *     （`call not allowed. Plugin not found`），所以它们**永远不会成功**；
+             *   · 它们想兜底的场景是"wwwroot 缺失、页面退回 `tauri.localhost`"，
+             *     但那条路救不了 `mf` —— `Dispatch` 必须**同步**返回，而 `invoke` 只有 Promise；
+             *   · `front_log` 那条独立路径的功能已由宿主对象 `diag.Front` 承担（异常上报仍可用）。
+             * 前端 `lib/bridge.js` 里的 `tauriInvoke()` 探测保持原样：它在 C# 宿主下本来就返回 null，
+             * 留着无害（那是两个宿主共用的那一层）。 */
+            note("Tauri WebView2 就绪；宿主对象 9 个（含 diag）；CDP 端口 9222");
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![
-            commands::call,
-            commands::host_info,
-            commands::front_log
-        ])
         .run(tauri::generate_context!());
 
     if let Err(e) = run {

@@ -133,7 +133,10 @@ React 版目前还没有"登记工作区载荷 / 采用配置的绘图范围 / �
   中转网关的影响；两个宿主共用一份 `ai.json` 的密文互读（字段与 DPAPI 都已对齐，
   但没做过真实对照）；`Cancel` 对超过 64 条之外的旧 id 会返回 `ok:false`（C# 恒 ok）。
 - **`con` 的两处未验证面**（同上）：
-  1. `taskkill` 在被白名单限制的环境里可能不可用（兜底只杀直接子进程）；
+  1. `taskkill` 在被白名单限制的环境里可能不可用 → **已让它如实可见**（2026-10-07）：
+     `kill_tree()` 现在返回是否真的结束了进程树，失败时写一条 `WARN` 进 `app.log`
+     （"已退回只结束直接子进程，孙进程可能残留"）。调用方原有的 `child.kill()` 兜底保留；
+     **没有**改 `Stop`/`StopAll` 的返回形状（那是前端契约，为一个罕见降级去动它不划算）；
   2. `SetDownloadBase` 与 C# 一样**没有闸门**（理由：包必过 SHA-256 才进解压 ——
      `verify_payload()` 在 `unzip_to` **之前**调用，期望值来自"本地 `<包名>.sha256` 旁文件
      或内置常量"，代码里没有任何"从服务器取 `.sha256`"的路径，所以恶意服务器无法自带匹配摘要；
@@ -153,11 +156,16 @@ React 版目前还没有"登记工作区载荷 / 采用配置的绘图范围 / �
   · 标题扫描收紧成**只认 `<a>`**（C# 那条例外是摘要）；
   · 并把这三件事做进了 `search.SelfCheck` 的内置样本 —— 原先那块**夹具里一个实体都没有**，
     所以它能一直是绿的却仍然会漏。
-- **`search` 还剩一处有意差异**（只会在用户机器上显形，先记着）：
-  1. **自定义端点加了闸门**：只接受 http/https 且不带 `?`/`#`/`@`。因为 `site.rs` 会规范化
-     base URL、坏值一律退回站点默认地址 —— 那等于**把用户的查询词发到别的服务器**。
-     C# 是原样使用（含 `?`），所以自建 SearXNG 若带查询串会被我们拒绝；需要时改成
-     "不走规范化、只做 http/https + 无 `@` 校验"。
+- **`search` 的自定义端点：闸门保留，但隐患已根治**（2026-10-07 更新）：
+  1. **闸门比 C# 严，是有意的**：只接受 http/https，且不带 `?`/`#`/`@`。理由不是洁癖 ——
+     基址要往后拼 `/search?q=…&format=json`（与 C# 的 `CustomUrl + "/search?q=…"` 逐字一致），
+     所以基址带 `?` 会拼成 `https://x/?a=1/search?q=…`。**C# 也做不成这件事**（它照拼，然后以
+     一个莫名其妙的错误收场），我们只是把这个错提前说清；`#` 之后的内容 HTTP 客户端根本不发；
+     `@` 能伪装主机。
+  2. **原来的真隐患是"退回内置站点"**：`searxng()` 原先走 `site::get_ua`，而它会 `normalize_base_url`
+     —— 那个函数对坏值的处理是**退回 `mf-vis-science.cn`**，等于把用户的查询词发到我们自己的服务器。
+     现在新增 `site::get_verbatim()`（原样拼接、**不规范化**）供自定义端点使用，
+     与 `ai.rs`/`relay.ts` 里"绝不退回内置站点"是同一条纪律。⚠ 调用方**必须自己**先校验地址。
 - **用例顺序会互相影响**：`cdp-export-image` 紧跟 `cdp-plot-verify` 在同一宿主会话里跑会掉到 **20/13**
   （单独跑是 **43/2**，与改动前一致）。这与 `docs/STATUS-and-ROADMAP.md` 风险台账里 `cdp-plot-p5`
   那条是同一类问题：**成套跑时最好让每个用例独占一个宿主进程**。
@@ -200,9 +208,9 @@ React 版目前还没有"登记工作区载荷 / 采用配置的绘图范围 / �
 | 对象 | 前端模块 | 前端实际调用的方法 | C# 源 | **Rust 现状** |
 | --- | --- | --- | --- | --- |
 | `mf` | `src/lib/bridge.js` | Ready, Version, Dispatch, **DispatchJob, PollJob, CancelJob**, FunctionExists | MathBridge.cs | ✅ 全部实现，另加 `JobStats` |
-| `win` | `src/lib/bridge.js`、`settings/io.js` | Minimize, ToggleMaximize, Close, StartDrag, IsMaximized, SetChromeBackground, SaveTextFile, OpenTextFile, SaveBinaryFile | WindowBridge.cs | ✅ 全部实现（含**前端从不调用的** `Restore`，见 §6.1） |
+| `win` | `src/lib/bridge.js`、`settings/io.js` | Minimize, ToggleMaximize, Close, StartDrag, IsMaximized, SetChromeBackground, SaveTextFile, OpenTextFile, SaveBinaryFile | WindowBridge.cs | ✅ 全部实现；`Restore` **已删**（C# 有、但两侧前端都没人调，见 §6.1） |
 | `sys` | `settings/bridge.js`、`settings/io.js`、`update/bridge.js` | Info, EngineReport, StoreList, StoreRead, StoreWrite, StoreDelete, OpenPath, ExportDiagnostics | SettingsBridge.cs | ✅ 全部实现（AI 不再经它取密钥，但 `ai.json` 仍由 `StoreRead/StoreWrite` 读写） |
-| `diag` | `diagnostics/errors.js` | Front | LogBridge.cs | ✅ 实现（另有独立命令 `front_log`，见 §6.3） |
+| `diag` | `diagnostics/errors.js` | Front | LogBridge.cs | ✅ 实现（Tauri 命令 `front_log` 那条路已删，见 §6.3） |
 | `push` | `push.js` | Info, Emit ＋ `chrome.webview` 的 `message` 事件 | PushBridge.cs / PushHub.cs | ✅ 实现（信封 `{topic,seq,ts,payload}`，见 §1.4） |
 | `con` | `console/bridge.js` | Components, Install, Uninstall, CancelInstall, InstallStatus, SetDownloadBase, Start, Poll, Stop, StopAll | ConsoleBridge.cs（824 行） | ✅ 全部实现，`cdp-console` 66/0 |
 | ~~`ai`~~ | ~~`ai/bridge.js`、`ai/relay.ts`~~ | — | — | **❌ 刻意不提供**：AI 已**整体搬到 TS 直连**（页面自己 fetch、自己分帧 SSE、密钥明文存 `ai.json`），宿主不再有 `ai` 对象 —— 见 §8 |
@@ -237,6 +245,9 @@ JS 侧 `push.js` 在 `chrome.webview` 上挂 `message` 监听，按 `{topic, seq
 
 ## 2. 为什么它是这次迁移唯一可能翻车的点
 
+> ⚠ **历史章节**（写于迁移前，用于说服当时"先定接缝形状"）。
+> 里面的实测数据仍然有效，但"要不要迁、怎么迁"已经定了 —— 现状见 §0。
+
 ### 2.1 同步是硬需求，而且用在热循环里【实测】
 
 | 调用点 | 形状 |
@@ -266,6 +277,9 @@ WebView 里真正能同步取值的通道只有两条：**COM 宿主对象**（`
 ---
 
 ## 3. 现状实测
+
+> ⚠ **历史章节**：以下是**迁移开始前**的实测（那时 Rust 侧只完成了四分之一、页面 URL 还不对）。
+> 保留是为了记录当时的判断依据。**现状一律以 §0.1 为准。**
 
 ### 3.1 Rust 侧：四分之一
 
@@ -382,6 +396,9 @@ Caused by: 拒绝访问。 (os error 5)
 ---
 
 ## 5. 方案：**先定形状，再补对象**
+
+> ⚠ **历史章节**：这里列的三条路线（A 同步宿主对象 / B 全异步 invoke / C 混合）当时需要拍板，
+> **已经选了 A 并全部落地**（见 §0.1）。保留是为了记录为什么否掉 B/C。
 
 ### 5.1 三条路线
 
