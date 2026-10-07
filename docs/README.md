@@ -81,7 +81,16 @@
 | [DECISIONS.md](DECISIONS.md) | ✅ | 决策记录（ADR）：每条含背景 / 决定 / **代价** / 现状 / 出处 |
 | [DESIGN-BOUNDARIES.md](DESIGN-BOUNDARIES.md) | ✅ | 明确不做、推迟、能力边界 —— 并写明**推翻它的门槛** |
 
-### 层 4 · 链接层（6 份，其中 4 份是重写）
+### 层 4 · 链接层（6 份）
+
+> 这 6 份都是**新文件**，但其中 2 份还兼着"替存量"的作用 —— 别把两笔账混在一句话里
+> （我在本文件的初稿里就混过一次）：
+> - `FEATURES.md` 写完后**退役 4 份存量文档**（[ONLINE-SEARCH.md](ONLINE-SEARCH.md)、
+>   [ACCOUNT.md](ACCOUNT.md)、[UPDATE-CHAIN.md](UPDATE-CHAIN.md)、[SETTINGS-BACKUP.md](SETTINGS-BACKUP.md)）——
+>   它们讲的是**已废弃的 .NET 实现**，即 R7 债；
+> - `HOSTS.md` 接替 [LINK-LAYER.md](../MFMath.Host.Rust/docs/LINK-LAYER.md) §9 的"两宿主并存"前提。
+>
+> 所以这一层的账是：**新增 6 份、退役 4 份、净 +2**。
 
 | 文件 | 状态 | 回答什么 | 权威源 |
 | --- | --- | --- | --- |
@@ -89,8 +98,8 @@
 | `docs/link/OBJECTS.md` | 🚧 | 9 个宿主对象 × 84 个方法的权威表 | 宿主启动日志 + ACCEPTANCE §2 |
 | `docs/link/JOBS-PUSH.md` | 🚧 | 异步 job 通道 + 下行推送信封 `{topic,seq,ts,payload}` | `jobs.rs` / `push.rs` |
 | `docs/link/CREDENTIALS.md` | 🚧 | DPAPI 只存宿主 vs AI 明文 `ai.json`；两个宿主不通用 | LINK-LAYER §8/§9 |
-| `docs/link/FEATURES.md` | 🚧 **重写** | 搜索 / 账号 / 更新 / 设置备份 / 控制台组件（**偿还 R7 债**：这四份现存文档写的是已废弃的 .NET 实现） | [ONLINE-SEARCH.md](ONLINE-SEARCH.md) 等 4 份 |
-| `docs/link/HOSTS.md` | 🚧 **重写** | 宿主谱系：.NET 已废弃 → Rust 现役、切换与退役条件 | LINK-LAYER §9 |
+| `docs/link/FEATURES.md` | 🚧 **接替 4 份存量** | 搜索 / 账号 / 更新 / 设置备份 / 控制台组件（**偿还 R7 债**：那 4 份现存文档写的是已废弃的 .NET 实现） | [ONLINE-SEARCH.md](ONLINE-SEARCH.md) 等 4 份 |
+| `docs/link/HOSTS.md` | 🚧 **接替 LINK-LAYER §9** | 宿主谱系：.NET 已废弃 → Rust 现役、切换与退役条件 | LINK-LAYER §9 |
 
 ### 层 2 · 引擎（9 份）
 
