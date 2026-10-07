@@ -20,7 +20,6 @@
 #![windows_subsystem = "windows"]
 
 mod account;
-mod ai;
 mod commands;
 mod console;   // ⚠ 文件名不能叫 con.rs：Windows 保留设备名，git 读不了它（见下方注释）
 mod dpapi;
@@ -202,30 +201,6 @@ const CON_SPEC: &[MethodSpec] = &[
     MethodSpec { name: "StopAll", params: &[], ret: RetKind::Str },
 ];
 
-/// `ai`：AI 助手 + SSE 中继（对照 C# `AiBridge.cs` / `AiClient.cs` / `AiConfig.cs` / `AiRelay.cs`）。
-/// 模块文件是 `ai.rs`（**不是保留设备名**，见下面 `con` 桥那条告诫）。
-/// 方法名与参数个数照前端 `lib/ai/{bridge.js,relay.ts}` 的调用点：
-/// `Info Busy KeySource Configure SetKey ClearKey Test Begin Cancel CancelAll SelfCheck`
-/// （正好 11 个，C# 桥面也是这 11 个）。
-///
-/// ⚠ 这个桥**只转发字节**，不推 `ai.delta` 之类的事件：SSE 分帧与 OpenAI 分片语义
-/// 只有一份实现，在 TS 侧（`lib/ai/sse.ts`）。宿主推的是
-/// `ai.http`（状态行）/ `ai.raw`（base64 字节块）/ `ai.rawEnd` / `ai.rawError` / `ai.test`。
-const AI_SPEC: &[MethodSpec] = &[
-    MethodSpec { name: "Info", params: &[], ret: RetKind::Str },
-    // Busy 返 Bool：`relay.ts` 的 relayBusy 写的是 `hostObj()?.Busy() === true`
-    MethodSpec { name: "Busy", params: &[], ret: RetKind::Bool },
-    MethodSpec { name: "KeySource", params: &[], ret: RetKind::Str },
-    MethodSpec { name: "Configure", params: &["json"], ret: RetKind::Str },
-    MethodSpec { name: "SetKey", params: &["key"], ret: RetKind::Str },
-    MethodSpec { name: "ClearKey", params: &[], ret: RetKind::Str },
-    MethodSpec { name: "Test", params: &[], ret: RetKind::Str },
-    MethodSpec { name: "Begin", params: &["json"], ret: RetKind::Str },
-    MethodSpec { name: "Cancel", params: &["requestId"], ret: RetKind::Str },
-    MethodSpec { name: "CancelAll", params: &[], ret: RetKind::Str },
-    MethodSpec { name: "SelfCheck", params: &[], ret: RetKind::Str },
-];
-
 /// 要注册的宿主对象。**加一个桥 = 这里加一行 + handlers.rs 加一个分支**，
 /// COM 那一层（hostobject.rs）一行都不用动。
 const HOST_OBJECTS: &[(&str, &[MethodSpec])] = &[
@@ -238,7 +213,6 @@ const HOST_OBJECTS: &[(&str, &[MethodSpec])] = &[
     ("account", ACCOUNT_SPEC),
     ("search", SEARCH_SPEC),
     ("con", CON_SPEC),
-    ("ai", AI_SPEC),
 ];
 
 /// 同时写 stderr 与 app.log。

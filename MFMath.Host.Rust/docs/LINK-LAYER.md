@@ -18,8 +18,10 @@
 **接缝形状已经落地：同步宿主对象在 Tauri 下跑通了**（路线 A）。前端那 15 处访问器与 47 个 CDP
 用例**一行都没改**，`mf.Dispatch` 是同步函数、返回字符串、引擎真的在算。
 
-- **10/10 个宿主对象全部落地**：`mf`（16 个方法，含 job 通道）、`win`（10）、`sys`（8）、`diag`（1）、
-  `push`（3）、`update`（6）、`account`（19）、`search`（12）、`con`（10）、`ai`（11）；
+- **9 个宿主对象全部落地**：`mf`（16 个方法，含 job 通道）、`win`（10）、`sys`（8）、`diag`（1）、
+  `push`（3）、`update`（6）、`account`（19）、`search`（12）、`con`（10）；
+- **`ai` 不是"缺"，是刻意不提供** —— AI 已整体搬到 TS 直连（页面自己 fetch 服务商、自己分帧 SSE、
+  密钥明文存 `ai.json`）。理由、实测证据与代价见 **§8**；
 - 页面 URL 是 **`https://mfmath.local/index.html`**（读 exe 同目录的 `wwwroot`，与 C# 宿主同一份）
   —— 47 个用例的取页正则不用动；
 - 编译**零警告**；`--selftest-jobs` 5/5、`--selftest-common` 10/0。
@@ -198,14 +200,14 @@ React 版目前还没有"登记工作区载荷 / 采用配置的绘图范围 / �
 | --- | --- | --- | --- | --- |
 | `mf` | `src/lib/bridge.js` | Ready, Version, Dispatch, **DispatchJob, PollJob, CancelJob**, FunctionExists | MathBridge.cs | ✅ 全部实现，另加 `JobStats` |
 | `win` | `src/lib/bridge.js`、`settings/io.js` | Minimize, ToggleMaximize, Close, StartDrag, IsMaximized, SetChromeBackground, SaveTextFile, OpenTextFile, SaveBinaryFile | WindowBridge.cs | ✅ 全部实现（含**前端从不调用的** `Restore`，见 §6.1） |
-| `sys` | `settings/bridge.js`、`settings/io.js`、`ai/bridge.js`、`update/bridge.js` | Info, EngineReport, StoreList, StoreRead, StoreWrite, StoreDelete, OpenPath, ExportDiagnostics | SettingsBridge.cs | ✅ 全部实现 |
+| `sys` | `settings/bridge.js`、`settings/io.js`、`update/bridge.js` | Info, EngineReport, StoreList, StoreRead, StoreWrite, StoreDelete, OpenPath, ExportDiagnostics | SettingsBridge.cs | ✅ 全部实现（AI 不再经它取密钥，但 `ai.json` 仍由 `StoreRead/StoreWrite` 读写） |
 | `diag` | `diagnostics/errors.js` | Front | LogBridge.cs | ✅ 实现（另有独立命令 `front_log`，见 §6.3） |
-| `push` | `push.js` | Info, Emit ＋ `chrome.webview` 的 `message` 事件 | PushBridge.cs / PushHub.cs | ❌ **缺**（`handlers::call` 返回"未知宿主对象"） |
-| `con` | `console/bridge.js` | Components, Install, Uninstall, CancelInstall, InstallStatus, SetDownloadBase, Start, Poll, Stop, StopAll | ConsoleBridge.cs（824 行） | ❌ **缺** |
-| `ai` | `ai/bridge.js`、`ai/relay.ts` | Info, Configure, SetKey, ClearKey, Test, SelfCheck, Begin, Cancel, Busy | AiBridge.cs / AiRelay.cs | ❌ **缺** |
-| `search` | `search/bridge.js` | Info, Configure, SetWolframKey, ClearWolframKey, Start, Cancel, CancelAll, OpenUrl, CacheStats, ClearCache, SelfCheck | SearchBridge.cs 等 | ❌ **缺** |
-| `account` | `account/bridge.js` | Info, Configure, LoginEx, Logout, RefreshProfile, RefreshToken, EnsureFresh, ClearLocal, Register, SendCode, VerifyCode, ResendCode, ChangePassword, LoginHistory, SiteVersion, SelfCheck, Busy, CancelAll | AccountBridge.cs 等 | ❌ **缺** |
-| `update` | `update/bridge.js` | Info, Check, OpenDownloadPage, PreviewDownloadUrl, CancelAll, SelfCheck | UpdateBridge.cs | ❌ **缺** |
+| `push` | `push.js` | Info, Emit ＋ `chrome.webview` 的 `message` 事件 | PushBridge.cs / PushHub.cs | ✅ 实现（信封 `{topic,seq,ts,payload}`，见 §1.4） |
+| `con` | `console/bridge.js` | Components, Install, Uninstall, CancelInstall, InstallStatus, SetDownloadBase, Start, Poll, Stop, StopAll | ConsoleBridge.cs（824 行） | ✅ 全部实现，`cdp-console` 66/0 |
+| ~~`ai`~~ | ~~`ai/bridge.js`、`ai/relay.ts`~~ | — | — | **❌ 刻意不提供**：AI 已**整体搬到 TS 直连**（页面自己 fetch、自己分帧 SSE、密钥明文存 `ai.json`），宿主不再有 `ai` 对象 —— 见 §8 |
+| `search` | `search/bridge.js` | Info, Configure, SetWolframKey, ClearWolframKey, Start, Cancel, CancelAll, OpenUrl, CacheStats, ClearCache, SelfCheck | SearchBridge.cs 等 | ✅ 全部实现，`cdp-search` 55/0 |
+| `account` | `account/bridge.js` | Info, Configure, LoginEx, Logout, RefreshProfile, RefreshToken, EnsureFresh, ClearLocal, Register, SendCode, VerifyCode, ResendCode, ChangePassword, LoginHistory, SiteVersion, SelfCheck, Busy, CancelAll | AccountBridge.cs 等 | ✅ 全部实现，`cdp-account` 52/0 |
+| `update` | `update/bridge.js` | Info, Check, OpenDownloadPage, PreviewDownloadUrl, CancelAll, SelfCheck | UpdateBridge.cs | ✅ 全部实现，`cdp-update` 37/0 |
 
 > `mf` 的 `*Symbolic` 八个具名封装（SolveSymbolic / DiscriminantSymbolic / FactorSymbolic / CompareExpr /
 > SimplifySymbolic / ExtremaSymbolic / FreeSymbols / Differentiate）Rust 侧已实现（`SYMBOLIC_ALIASES`）。
@@ -223,10 +225,9 @@ JS 侧 `push.js` 在 `chrome.webview` 上挂 `message` 监听，按 `{topic, seq
 | `component.install` | ConsoleBridge.cs:386 | `components/settings/ComponentsGroup.vue:74` |
 | `console.run` | ConsoleBridge.cs:400 | `views/tools/ConsoleView.vue:354` |
 | `search.done` / `search.error` | SearchBridge.cs:349/355 | `lib/search/bridge.js:204`（按 `search.` 前缀） |
-| `ai.http` / `ai.raw` / `ai.rawEnd` / `ai.rawError` | AiRelay.cs:180/240/214/246 | `lib/ai/relay.ts:102-104` |
-| `ai.test` | AiBridge.cs:281 | `lib/ai/bridge.js:237` |
 | `account.changed` | AccountBridge.cs:133 | `lib/account/bridge.js:182` |
 | `settings.test` | **页面自己**经 `push.Emit` 发，宿主回推（往返自检） | `components/settings/EngineGroup.vue:38` |
+| ~~`ai.http` / `ai.raw` / `ai.rawEnd` / `ai.rawError` / `ai.test`~~ | ~~AiRelay.cs / AiBridge.cs~~ | **已不存在**：AI 改成页面直连后，字节由 `fetch` 的 `response.body` 直接读，不再经推送（见 §8） |
 
 > Tauri 里这套机制**能平移**：Rust 侧用 `app.emit()` / `webview.eval()`，页面侧用 Tauri 的 `listen()`。
 > 但**形状会变**（Tauri 的事件名是扁平的），`push.js` 的信封与 seq 连续性检查需要重写而不是照搬。
@@ -440,6 +441,9 @@ Caused by: 拒绝访问。 (os error 5)
 
 ## 7. 待补清单（按依赖排序）
 
+> ⚠ **本节是"迁移开始前"的历史记录**，保留是为了看清当时的判断依据（数字怎么来的、当时以为卡在哪）。
+> **现状一律以 §0.1 为准** —— 表里列的 9 个对象现在都已落地；`ai` 则改成不再由宿主提供（见 §8）。
+
 > 规模用 **C# 对应文件行数**当底数（【实测】`Get-Content | Measure-Object -Line`），不用"人日"猜。
 > **已迁**：`mf` 67 + `win` 237 + `sys` 365 + `diag` 31 ≈ **700 行**；
 > **待迁**：**约 4190 行**（下表合计）—— 也就是还有 **6 倍于已完成的量**。
@@ -556,3 +560,57 @@ curl.exe -s http://127.0.0.1:9222/json/list
 # 4) C# 宿主的对照跑法（迁移期两边并存）
 dotnet build "<repo>\MFMath.Host\MFMath.Host.csproj" -c Release --no-incremental
 ```
+
+---
+
+## 8. AI 改成「页面直连 + 配置明文密钥」【2026-10-07，用户决定】
+
+> 这一节记的不是"顺手改的一点东西"，而是**推翻了本文档原先的一条架构前提**：
+> 之前 AI 走宿主对象（宿主保管 DPAPI 密文密钥、宿主发请求、把响应字节经 push 推回），
+> 理由写在 §1.1/§1.4 与 `ai.rs` 的文件头。**现在 `ai` 不再是宿主对象** ——
+> 页面自己 `fetch` 服务商、自己在 TS 里分帧 SSE、密钥以**明文**存在 `ai.json` 里。
+
+### 8.1 为什么改（我原先的说法有两处是错的，这里如实改）
+
+决定前我主张"AI 必须由宿主代理"，理由三条，用户逐条追问后**两条被我自己的实测推翻**：
+
+| 我原先的理由 | 实测结果 | 结论 |
+| --- | --- | --- |
+| 页面直连会被 **CORS/预检** 拦住 | 从页面 origin（`https://mfmath.local`）直接 `fetch('https://api.deepseek.com/v1/models')` → **HTTP 401**（能读到状态码就说明没被 CORS 拦；被拦会是 `TypeError` 而不是 401）；再带 `Authorization: Bearer test` → 仍然 401，**说明预检也放行了** | ❌ **错**。至少对 DeepSeek 这类端点，页面能直连 |
+| 密钥一旦进渲染进程就危险 | 但**用户本来就是在页面 `<input>` 里敲密钥的**（`AiGroup.vue`）—— 录入那一刻它已经在渲染内存里。现设计真正的保证只是"**事后取不回**、磁盘上是密文" | ⚠️ **说法过宽**。HTML 输入是行业常态，不是缺陷 |
+| （隐含：TS 只能跑在浏览器里） | **不成立**：TS 只是语言，可以跑在 Node 侧车、也可以嵌进宿主（`deno_core`）。这一条把"TS"当成了"渲染进程" | ❌ **错** |
+
+补做的两个平台实测（都在本机宿主页面里跑）：
+- 页面 → 回环侧车：`GET http://127.0.0.1:8798/hello` **200**；`POST` 带 `Authorization` **预检通过、请求带上头到达**（回环不算混合内容，没被拦）；
+- 页面 → SSE：`fetch` + `response.body.getReader()` 逐块到达 **375ms / 727ms / 1087ms / 1444ms**（真·增量，不是攒完再给）。
+
+### 8.2 现在的形状
+
+```text
+渲染进程（TS）──fetch(Authorization: Bearer <明文密钥>)──▶ 服务商 /v1/chat/completions
+   · 端点 = ai.json 的 baseUrl（用户可配，默认 https://api.deepseek.com/v1）
+   · 密钥 = ai.json 的 apiKey（明文）
+   · 分帧 = lib/ai/sse.ts（照旧，仍是唯一一份协议实现）
+   · 取消 = AbortController（语义仍是"停止等待"）
+宿主侧：没有 `ai` 对象（`ai.rs` 已删，`main.rs`/`handlers.rs` 的注册一并去掉），宿主对象由 10 个变 9 个
+```
+
+### 8.3 代价与换来的东西（都写清，别只写好处）
+
+**换来**：AI 协议只有一份实现（TS）；没有"C#/Rust/TS 三方对齐线上字节"的维护税（原先 `ai.rs` 1081 行 + C# 864 行干的是同一件事）；宿主少一个桥。
+
+**代价**（都是真的，不是"理论上"）：
+1. **密钥明文落盘**：`ai.json` 的 `apiKey` 没有任何加密。换用户、拷贝文件、看备份都能直接读到。
+2. **密钥常驻页面**：每次请求都要用它拼 `Authorization`，所以会话期间它一直在渲染进程内存里（不只是录入那一瞬）。
+3. **旧版的 DPAPI 密文解不开了**：老用户 `apiKeyProtected` 里的密文，页面侧没有 DPAPI 可调 —— 现在的处理是**如实提示"请在设置里重填一次"**，不假装还有密钥。
+4. **"中继路径闸门"这条安全属性消失**：以前宿主只接受相对路径、绝对地址一律拒（防止密钥被发到任意地址）；现在端点由用户配的 `baseUrl` 决定，闸门随之转移到 §8.4。
+5. **只实测过 DeepSeek 与 GitHub**：不能说"所有服务商都能直连"（企业代理、按域白名单的服务商仍可能不行）。
+
+### 8.4 新架构下必须守住的两条（换地方了，但没取消）
+
+1. **绝不做"地址不认识就退回内置站点"的规范化** —— 这是原先 `ai.rs` 特意绕开 `site.rs` 的理由，换到 TS 后由 `relay.ts` 的 `isUsableBaseUrl`/`joinBasePath` 承担：只接受 http/https 绝对地址、路径必须以单个 `/` 开头、拼接结果必须与 baseUrl **同源**，否则报 `config` 错。`ai.SelfCheck()` 里有一项专门验它（含"错误信息里不出现内置站点域名"）。
+2. **导出/诊断仍然剥掉密钥字段**：`settings/io.js` 的 `CREDENTIAL_FILES` 整份排除 `ai`，`SECRET_FIELD` 正则又命中 `apiKey`（双保险）。否则备份包会把明文密钥带出去。
+
+### 8.5 如果哪天要回退
+
+回退点很清晰：宿主侧恢复 `ai` 对象（revert 删它的那一笔），前端把 `relay.ts` 换回"经 `ai.Begin` 转发字节"，密钥回到 DPAPI 密文。**但要先回答一个问题**：那时用户的密钥已经明文存在 `ai.json` 里了 —— 回退时要么重新加密一次，要么承认"已经明文过"。
