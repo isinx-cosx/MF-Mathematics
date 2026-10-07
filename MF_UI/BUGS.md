@@ -63,18 +63,34 @@
 环境：沙箱已解除（full access）。跑法：`npm run build` → 同步 `dist` 到宿主 wwwroot →
 **启动 Rust 宿主** → `run-all.ps1 -NoLaunch`。
 
-> ⚠ **重要前提**：本机只能跑起 **Rust 宿主**（`%TEMP%\mfhost-run\mfmath-host-rust.exe`），
-> 它只提供 `mf / sys / diag / win / push` 五个宿主对象；**没有 `ai / search / account / update`**。
+> ⚠ **重要前提**：本机只能跑起 **Rust 宿主**（`%TEMP%\mfhost-run\mfmath-host-rust.exe`）。
 > 而 `run-all.ps1` 原本针对的是 **.NET 宿主**（`MFMath.Host\bin\Release\...\MFMath.exe`）——
 > 本会话里 Start-Process 起不了 GUI 进程（`ERROR_CANCELLED`），用 shell 起起来的那个 .NET 宿主
-> 又始终没能初始化 WebView2（无子进程、无日志）。**所以下面的结果里，"宿主没有那个桥"导致的
-> 失败一律不能算前端缺陷。**
+> 又始终没能初始化 WebView2（无子进程、无日志）。
+>
+> 🔴 **下面"宿主缺桥"那一行已经作废，别再用（2026-10-07 二次实测推翻）**：
+> 当时我看到的是"Rust 宿主只有 `mf/sys/diag/win/push`、没有 `ai/search/account/update`"，
+> 于是把 88+37+27 条失败归给宿主。**但那是过期的** —— 并行开发者随后把 **AI 改成页面直连**
+> （`9c1ad1a`、`eafd482`），账号 / 更新 / 搜索也各自闭环。用最新提交重新构建后**逐条实测**：
+>
+> | 套件 | 当时（已作废） | **二次实测** |
+> |---|---|---|
+> | cdp-ai | 39/88 | **160/0** |
+> | cdp-account | 15/37 | **52/0** |
+> | cdp-update | 10/27 | **37/0** |
+> | cdp-search | 崩溃 exit 0xC0000409 | **55/0** |
+> | cdp-console / cdp-push | 无 RESULT 行 | **66/0 / 20/0** |
+> | cdp-settings | 40/3 | **43/0** |
+> | cdp-history-search | 18/3 | **21/0** |
+>
+> **教训（与 §0.1 第 1 条同类）**：在**有人并行改同一棵树**的情况下，"某处失败 ⇒ 归因给环境/宿主"
+> 这种结论**必须带时间戳**，否则会被后续提交悄悄推翻。另一条更早的教训是"取证只覆盖了一个工程"。
 
 | 结果 | 套件 |
 |---|---|
 | ✅ 全绿 | reset-appearance 2、unit-result-model 30、unit-sse 13、unit-markdown 18、cdp-bridge-verify 7、cdp-window-shell 25、cdp-appearance 33、cdp-input-notation 28、cdp-font-load 18、**cdp-plot-verify 9、cdp-plot-p3 7、cdp-plot-p4 9、cdp-plot-region 11、cdp-plot-p5 12、cdp-plot-final 10、cdp-plot-asymptote 7、cdp-plot-extrema 15、cdp-plot-extrema-domain 23、cdp-plot-3d 13、cdp-plot-vector 13、cdp-plot-fractal 14、cdp-complex-modes 21、cdp-plot-geometry 20、cdp-plot-truth 9**、cdp-calc-workspace 65、cdp-basic-calc 41、cdp-diff-at-param 10、cdp-fractal-orient 3、cdp-fractal-clickzoom 7、cdp-geometry-line 7、cdp-geometry-aspect 9、cdp-canvas-theme 5、**cdp-modes-render 191**、cdp-tutorials-keypad 48、cdp-settings-io 32、cdp-engine-solve 13、cdp-expr-normalize 26 |
 | ✅ 修好后全绿 | **cdp-plot-accuracy 14/0**（原本 13/1，判据错）、**audit-modes 393/0**（原本 391/2，fixture 过期） |
-| ❌ 宿主缺桥（不算前端缺陷） | cdp-ai 39/88、cdp-account 15/37、cdp-update 10/27、cdp-search **崩溃**（exit 0xC0000409）、cdp-console / cdp-push **无 RESULT 行**、cdp-console-sci 0/0、cdp-settings 3 条（组件/搜索行）、cdp-history-search 3 条（搜索框与站点行） |
+| ~~❌ 宿主缺桥（不算前端缺陷）~~ **← 已作废，见上方红字** | ~~cdp-ai 39/88、cdp-account 15/37、cdp-update 10/27、cdp-search 崩溃、cdp-console / cdp-push 无 RESULT 行、cdp-settings 3 条、cdp-history-search 3 条~~ → 二次实测**全部转绿**（160/0、52/0、37/0、55/0、66/0、20/0、43/0、21/0） |
 | ❌ **真前端缺陷（本轮新登记）** | cdp-workspace 21/4 + cdp-shortcuts-prefs 22/1 → **B14**；cdp-export-image 43/2 → **B15** |
 | ⚠ 未跑完 | **cdp-engine-coverage**：本机约 7 秒/模式 × 415 ≈ **45 分钟**，我在 10.7 分钟处停掉（已跑完 algebra / algebraic-topology / analytic-geometry）。部分结果：`双曲线方程 结果为空`，随后 `抛物线方程`/`斜截式直线`/`点斜式直线` 三条 **`Runtime.evaluate` 超时（≥30s）** |
 
@@ -163,11 +179,54 @@
 用纯 DOM 读探活：**四个模式全程可响应（0–3 ms）**，其中三个还成功算出了结果。
 （⚠ 前两次探针我把模态结果弹窗忘了关，`.cb-calc` 根本点不动 —— 那两轮"不卡"是假结论，已作废。）
 
-**结论**：这不是"某个模式太重"能解释的，**不能归因到单模式**，也**不能**据此说我这一轮的改动
-造成了它（第一次实跑它也是在同一位置附近卡住的，那时还没有本轮的改动）。
-更像是**长会话累积**（一次会话连点 299 个模式：结果弹窗、历史记录、Canvas 与内存都不回收）
-或宿主侧的累积效应。**要定位它需要一个专门的实验**（例如：按视图分段跑、跑一半导一次内存与
-DOM 节点数、或把用例拆成多次冷启动会话对比）。在那之前，任何人都不该拿这 7 条当"前端算错了"。
+**结论（2026-10-07 10:0x 更正 —— 真因是并发驱动，不是"长会话累积"）**：
+这 7 条**不是**前端缺陷，也和"某个模式太重"无关。真因是**另一个会话在同一个宿主上并发跑用例**，
+把页面开走了。证据（`10:0x` 实测）：
+
+1. `Get-CimInstance Win32_Process` 抓到 `.../tests/cdp-plot-fractal.mjs`、`cdp-complex-modes.mjs`、
+   `cdp-calc-workspace.mjs`、`cdp-update.mjs`、`cdp-engine-coverage.mjs` 等进程在跑 —— 都来自**别的会话**；
+   连续采样能看到它们按 `run-all` 的顺序一辆一辆过去。
+2. 同一时刻存在**两个 `mfmath-host-rust.exe`**（09:50:12 / 09:50:15 各起一个），而 CDP 端口只有一份
+   —— 两个会话共用同一个页面。
+3. 我设 `location.hash='#/plot/2d'` 之后读到的是 **`#/plot/vector`**，另一次读到 `#/plot/fractal`
+   —— **这两个路由我从没导航过**。（`cdp-plot-accuracy` 因此在完整套件里 10/4：③ 的三条断言全挂，
+   是因为 vector 页也有 canvas、但没有 `__mfPlot`、也没有「缩放到适应」按钮。）
+4. 这也解释了为什么我**单独**跑那 4 个可疑模式时全程可响应（0–3 ms）——那次恰好在空窗期。
+
+**方法论（已与 `AGENTS.md` §4 对齐）**：并发驱动**只会造成假失败，不会造成假通过**。
+所以本文件里"通过"的数字仍然可信；而**任何在并发窗口里得到的失败数字都作废**（本节的 296/7 属此类）。
+跑端到端前先确认没有别的会话在驱动同一页面；宿主优先**附着**，不要另起一个。
+
+### 0.3.2 本仓库的"并发互斥"：这一轮真正踩到的坑（含两个副产物）
+
+**这一轮我同时踩了 `AGENTS.md` §4 的两条**：在别人已有宿主的情况下**又起了一个宿主**，
+并且在别人的 `run-all` 正在跑时做了多次测量。后果不是"白干"，而是**双方的数字都不可信**。
+记录在此，因为它比单个缺陷更贵：
+
+- 同一份 `wwwroot`、同一个 CDP 端口、同一个页面 ⇒ 两个会话互相把页面开走；
+- 我这边表现为：`cdp-plot-accuracy` 10/4（③ 三条全挂）、`cdp-engine-coverage` 296/7（全是 `[超时]`）；
+- 判别"是谁的锅"的**唯一可靠手段**是当场取证：列出 `node.exe` 的用例进程、数宿主进程、
+  以及**核对当前路由是不是自己请求的那一个**（我最后就是靠"`#/plot/vector` 我从来没导航过"定案的）。
+
+**副产物 ①（值得留档的读取坑）**：`window.__mfPlot.view()` 返回的对象，用 CDP 的
+`returnByValue` 直接取会得到 **`{}`**；而同一个对象在页面里 `Object.keys` 与 `JSON.stringify`
+都是完好的（`x0/x1/y0/y1` 齐全）。**这是读取方式的问题，不是产品状态坏了。**
+所以凡是要读这些钩子的对象，一律走 `JSON.stringify(...)` 再在 Node 侧 `JSON.parse`
+（`cdp-plot-accuracy` 已改成这样；新写的 `cdp-plot-workspace` 从一开始就这么写）。
+
+**副产物 ②（用例该有的样子）**：新用例一律**内建干扰检测** —— 每次操作后核对
+`location.hash` 是否仍是自己请求的路由，不一致就打印 `INTERFERENCE` 并把那条判为失败，
+而不是安静地给出错误结论。`cdp-plot-workspace` 与 `cdp-plot-accuracy`（③ 的失败详情里带上
+"当前路由 / PlotPage 是否还挂着 / canvas 数"）都已按这个口径改。
+
+### 0.3.3 B 类任务（补 5 个绘图页的工作区断言）：代码已完成，**验证待空窗**
+
+- **已完成**：新增 `tests/cdp-plot-workspace.mjs`（6 页 × 两个方向：改动→工作区载荷跟着变、
+  离开再回来→控件还原；含按页的 `kind` 校验与干扰检测），并在 `tests/run-all.ps1` 绘图组内登记
+  （`check-ui` 报 `cdp-* 48 个，已登记 48 个`；BOM 已保留、两个解释器都解析通过）。
+- **未完成**：**它一次都还没跑过**。写代码期间另一会话正在跑 `cdp-engine-coverage`（约 45 分钟），
+  此时驱动页面既会污染它、也会得到污染的结果。**按 `AGENTS.md` §4，正确做法是等空窗**。
+  在它跑出数字之前，B14 那 5 页仍然只能算"代码就绪、未验证"。
 
 ## 0. 汇总（按严重度排序）
 

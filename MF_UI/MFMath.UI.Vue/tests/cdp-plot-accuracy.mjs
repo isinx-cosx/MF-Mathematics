@@ -127,9 +127,16 @@ if (!geom) {
   console.error("读不到画布尺寸（渲染进程可能刚被卡住）—— 重启宿主后重跑本套件");
   process.exit(1);
 }
-const realView = await ev(`window.__mfPlot.view()`);
+/* ⚠ **必须走 JSON 字符串读，不能让 CDP 直接序列化那个对象。**
+ * 实测：`returnByValue` 对视图对象会返回 `{}`（而页面内 `Object.keys` / `JSON.stringify`
+ * 都能拿到完整的 x0/x1/y0/y1）—— 于是断言会看到"空视图"并判定几何不可用。
+ * 这是**读取方式的坑，不是产品状态坏了**（同一个对象在页面里是好的）。
+ * 顺带说明：本轮之前这条用例在别处能读到视图，纯属运气 —— 所以这里固定用字符串。 */
+const viewJson = await ev(`JSON.stringify(window.__mfPlot.view() || null)`);
+let realView = null;
+try { realView = JSON.parse(viewJson); } catch { realView = null; }
 if (!(realView && ["x0", "x1", "y0", "y1"].every((k) => Number.isFinite(realView[k])))) {
-  console.error(`__mfPlot.view() 不是合法视图：${JSON.stringify(realView)}`);
+  console.error(`__mfPlot.view() 不是合法视图：${viewJson}`);
   process.exit(1);
 }
 const VIEW = { x0: realView.x0, x1: realView.x1, y0: realView.y0, y1: realView.y1 };
@@ -225,9 +232,22 @@ await ev(`window.__mfZoomErr=null;
 await setExpr("x^2");
 await sleep(2400);
 
+/* 现场快照：③ 的四条断言都依赖"页面仍然是 PlotPage"。
+ * 实测踩过一次：三条一起失败（钩子没了、⤢ 按钮找不到、视图读不到），而画布**还在**
+ * —— 也就是应用跑到**别的绘图路由**上去了（那些页也有 canvas，但没有这个钩子/按钮）。
+ * 因此把"当时在哪个路由、PlotPage 还挂着吗"写进失败详情，别再让人靠猜。 */
+const whereAmI = async () => ev(`(function(){ return {
+  hash: location.hash,
+  plotPage: !!document.querySelector('.desmos-layout'),
+  canvases: document.querySelectorAll('canvas').length,
+  titles: [...document.querySelectorAll('button')].map(b=>b.title).filter(Boolean).slice(0,6).join('|')
+}; })()`);
+const spot = await whereAmI();
+const where = spot ? ` [当前 ${spot.hash} · PlotPage=${spot.plotPage} · canvas=${spot.canvases} · 按钮=${spot.titles}]` : " [现场快照也读不到 —— 渲染进程可能卡住]";
+
 const hookOk = await ev(`!!(window.__mfPlot && window.__mfPlot.view)`);
 check("排障钩子 window.__mfPlot 可用（React 侧已挂上）", hookOk === true,
-  hookOk ? "" : "读不到视图就无法判定 —— 检查 PlotPage 是否仍挂着这个钩子");
+  hookOk ? "" : "读不到视图就无法判定 —— 检查 PlotPage 是否仍挂着这个钩子" + where);
 
 const vBefore = await ev(`window.__mfPlot ? JSON.stringify(window.__mfPlot.view()) : null`);
 const clicked = await ev(`(function(){
@@ -240,10 +260,10 @@ const vAfter = await ev(`window.__mfPlot ? JSON.stringify(window.__mfPlot.view()
 const zoomErr = await ev(`window.__mfZoomErr || ''`);
 
 check("「缩放到适应」按钮存在且可点", clicked === "ok",
-  clicked === "no-button" ? "按 title 找不到按钮" : "");
+  clicked === "no-button" ? "按 title 找不到按钮" + where : "");
 check("点击「缩放到适应」不抛异常", !zoomErr, zoomErr ? "异常：" + zoomErr : "");
 check("「缩放到适应」确实改变了视图", !!vBefore && !!vAfter && vBefore !== vAfter,
-  "before=" + vBefore + " after=" + vAfter);
+  "before=" + vBefore + " after=" + vAfter + where);
 
 console.log(`\nRESULT|cdp-plot-accuracy|${pass}|${fail}`);
 ws.close();

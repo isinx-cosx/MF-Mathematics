@@ -47,6 +47,10 @@ $tests = @(
   "cdp-plot-region", "cdp-plot-p5", "cdp-plot-final", "cdp-plot-asymptote",
   "cdp-plot-extrema", "cdp-plot-extrema-domain", "cdp-plot-3d", "cdp-plot-vector", "cdp-plot-fractal",
   "cdp-complex-modes", "cdp-plot-geometry", "cdp-plot-truth", "cdp-calc-workspace", "cdp-basic-calc",
+  # B14 的往返验证：cdp-workspace 只碰 /plot/2d，3D/复平面/向量场/几何/分形这 5 页的
+  # 工作区载荷是**新设计**的（Vue 版时代没接过），只过了类型检查 —— 这个用例补那一块。
+  # ⚠ 它对"别人同时驱动同一个页面"极敏感（并行会话会互相踩），失败时先看它的 INTERFERENCE 提示。
+  "cdp-plot-workspace",
   "cdp-diff-at-param", "cdp-fractal-orient", "cdp-fractal-clickzoom", "cdp-geometry-line", "cdp-geometry-aspect", "cdp-canvas-theme",
   "cdp-console", "cdp-modes-render",
   # 本轮新增：教程系统 + 数学键盘（18 篇教程目录/正文、引导走查的上一步与暂停、
