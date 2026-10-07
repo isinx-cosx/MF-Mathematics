@@ -1,15 +1,17 @@
 //! main.rs —— MFMath Rust 宿主（**Tauri v2**）
 //!
-//! 从 wry/tao 换到 Tauri：窗口、资产（`frontendDist` 在编译期嵌进 exe）、前端↔宿主
-//! 通道全部改由 Tauri 提供。
+//! 从 wry/tao 换到 Tauri：窗口由 Tauri 建（`create: false`，我们自己在 setup 里取 HWND 做
+//! DWM/窗口操作），页面资产从 exe 同目录的 `wwwroot` 读、映射到 `https://mfmath.local/index.html`。
 //!
-//! **换壳时唯一真正的取舍**：Tauri 没有 `AddHostObjectToScript`，
-//! 前端那套 `window.chrome.webview.hostObjects.sync.<对象>.<方法>` **同步**桥在 Tauri 里
-//! 不存在对应物 —— 只有 Promise 式的 `invoke`。所以：
-//!   · 前端 lib/*/bridge.js 那一层把"取宿主对象"改成"发一条 invoke"（见各 bridge 的 hostObj）；
-//!   · 引擎重活本来就已经走异步 job 通道（jobs.rs），换壳不受影响；
-//!   · 命令层只有一个通用 `call(object, method, args)`，复用 handlers.rs 里那张
-//!     已经跑通全量用例的注册表 —— 10 个桥的逻辑一行都不用动。
+//! **接缝形状（已定，别再改这一条）**：Tauri 没有 `AddHostObjectToScript`，
+//! 但 Tauri 用的就是 WebView2 —— 我们直接走 `with_webview()` → `ICoreWebView2::AddHostObjectToScript`，
+//! 把 `hostobject.rs` 的 COM 对象挂上去，于是前端那套
+//! `window.chrome.webview.hostObjects.sync.<对象>.<方法>` **同步**调用原样可用（见 `hostobject.rs`）。
+//! 这就是当初否掉"全异步 invoke"路线的原因：`mf.Dispatch` 在采样链/绘图网格里是热路径，
+//! 必须同步返回字符串（详见 `docs/LINK-LAYER.md` §5 的历史记录）。
+//!
+//! ⚠ Tauri 的 `invoke` 命令层**已删**（原先的 `commands.rs`）：页面从 `mfmath.local` 调 `invoke`
+//! 会被 Tauri 直接拒，而它想兜底的降级路也救不了 `mf`（`Dispatch` 要同步、`invoke` 只有 Promise）。
 //!
 //! 与 C# 宿主的对外行为保持逐条对齐：无边框窗口（标题栏由页面自绘）、尺寸 1240×820、
 //! 最小 980×640、DWM 圆角/投影、`%LOCALAPPDATA%\MFMath` 数据目录、CDP 调试端口 9222。
