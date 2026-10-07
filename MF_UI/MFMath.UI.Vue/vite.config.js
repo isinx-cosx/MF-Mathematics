@@ -50,6 +50,21 @@ export default defineConfig({
     strictPort: true,
     // React 源码在工程外一层（../MFMath.UI.React/src），dev 要允许读
     fs: { allow: [fileURLToPath(new URL("..", import.meta.url))] },
+    /* ⚠ 监听要**排除 tests/**：Node 26 在加载 ESM 时会在被测文件**旁边**生成
+     * `.<name>.mjs.<pid>.<guid>.tmpdir/<name>.mjs.tmp` 这类临时文件；Vite 默认监听整个
+     * 工程，于是它会去 watch 这些刚建又刚删的文件，命中 **EBUSY（watch 失败）直接把
+     * dev server 打崩**（实测：`npm run dev` 开着时跑用例 ⇒ dev server 退出，
+     * 报 `EBUSY ... tests/.cdp-plot-workspace.mjs.<pid>...tmpdir/...tmp`）。
+     * 顺带排除构建产物与排查用的临时文件 —— 它们都不需要触发 HMR。 */
+    watch: {
+      ignored: [
+        "**/tests/**",
+        "**/dist/**",
+        "**/.buildtmp/**",
+        "**/node_modules/**",
+        "**/.*.mjs.*.tmpdir/**",
+      ],
+    },
   },
   build: {
     outDir: "dist",

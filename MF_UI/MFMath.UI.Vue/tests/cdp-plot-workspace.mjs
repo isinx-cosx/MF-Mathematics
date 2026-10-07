@@ -99,6 +99,22 @@ const readControl = (sel) => ev(`(function(){
   const el = document.querySelector(${JSON.stringify(sel)});
   if (!el) return null;
   return String(el.value); })()`);
+/** 读复选框状态 */
+const readChecked = (sel) => ev(`(function(){
+  const el = document.querySelector(${JSON.stringify(sel)});
+  return el ? !!el.checked : null; })()`);
+/**
+ * 切换复选框 —— **必须真的 click()**。
+ * ⚠ 这一条是实测踩出来的：React 对 checkbox/radio 的 `onChange` **由 `click` 事件触发**
+ * （ChangeEventPlugin 的历史行为，为兼容"IE 只在失焦时发 change"）。直接改 `el.checked`
+ * 再派发 `change`/`input` **不会**触发 React 的 onChange —— 于是"改了但工作区没变"，
+ * 看起来像产品没存，实际是用例写错了事件。
+ */
+const clickControl = (sel) => ev(`(function(){
+  const el = document.querySelector(${JSON.stringify(sel)});
+  if (!el) return 'no-el';
+  el.click();
+  return 'ok'; })()`);
 
 /* 每页：路由（location.hash）、**工作区的键**（store 按 `route.path` 存，没有 `#`）、
  * 控件选择器、写入值、工作区里应当出现的载荷片段（含 kind）。
@@ -115,9 +131,13 @@ const PAGES = [
   { name: "向量场", route: "#/plot/vector", path: "/plot/vector", sel: ".input",
     sentinel: "2*x", kind: "plot-vector", field: (v) => ({ dxInput: v }) },
   { name: "自由几何（吸附开关）", route: "#/plot/geometry", path: "/plot/geometry", sel: ".chk input",
-    sentinel: null, kind: "plot-geometry", field: () => ({ snap: false }) },
-  { name: "分形（迭代次数）", route: "#/plot/fractal", path: "/plot/fractal", sel: "select",
-    sentinel: "512", kind: "plot-fractal", field: () => ({ maxIter: 512 }) },
+    toggle: true, kind: "plot-geometry", field: (v) => ({ snap: v }) },
+  /* ⚠ 分形页的「迭代次数」是 **range 滑块**（`min=30 max=1024 step=10`），不是 select ——
+   * 第一版写成 `select`/`"512"`，结果写进了同一页的「配色方案」下拉（选项里没有 512 ⇒ 值变空 ⇒
+   * 应用侧读到位空值抛异常），于是"能写入控件"报 [异常]、载荷也没更新，看起来像产品没存。
+   * 用 `.slider`（该页第一个 range 就是它）+ 一个合法的 step-10 值。 */
+  { name: "分形（迭代次数滑块）", route: "#/plot/fractal", path: "/plot/fractal", sel: ".slider",
+    sentinel: "520", kind: "plot-fractal", field: (v) => ({ maxIter: Number(v) }) },
 ];
 
 /** 该页工作区载荷里能否找到期望的片段（只比对我们关心的字段） */
@@ -154,10 +174,17 @@ for (const p of PAGES) {
   check(`  ${p.name}：找到可编辑控件（${p.sel}）`, selOk === true, selOk === true ? "" : "控件不在页面上");
   if (selOk !== true) continue;
 
-  /* ① 存：改控件 → 工作区载荷跟着变 */
-  if (p.sentinel === null) {
-    // 布尔型（几何页的吸附默认 true，置反）
-    await ev(`(function(){ const el=document.querySelector(${JSON.stringify(p.sel)}); el.checked=false; el.dispatchEvent(new Event('change',{bubbles:true})); el.dispatchEvent(new Event('input',{bubbles:true})); return 'ok'; })()`);
+  /* ① 存：改控件 → 工作区载荷跟着变。
+   * 布尔型（几何页的吸附）**与极性无关**：先读当前值、切到它的反面、断言落到反面 ——
+   * 这样无论上一轮存的是什么状态，验的都是"改动 → 落盘 → 还原"这条往返，而不是某个固定值。 */
+  let expect = p.sentinel;
+  if (p.toggle) {
+    const before = await readChecked(p.sel);
+    expect = !before;
+    const c = await clickControl(p.sel);
+    const after = await readChecked(p.sel);
+    check(`  ${p.name}：能切换控件（${before} → ${after}）`, c === "ok" && after === expect,
+      c === "ok" ? `期望 ${expect}，实际 ${after}` : String(c));
   } else {
     const w = await writeControl(p.sel, p.sentinel);
     check(`  ${p.name}：能写入控件`, w === "ok", String(w));
@@ -165,7 +192,7 @@ for (const p of PAGES) {
   await sleep(900);
 
   const payload = await evJson(`(window.__mfWorkspace && window.__mfWorkspace.pages ? window.__mfWorkspace.pages()[${JSON.stringify(p.path)}] : null)`);
-  check(`  ${p.name}：改动被写进工作区（键 ${p.path}，kind=${p.kind}）`, payloadMatches(payload, p, p.sentinel === null ? null : p.sentinel),
+  check(`  ${p.name}：改动被写进工作区（键 ${p.path}，kind=${p.kind}）`, payloadMatches(payload, p, expect),
     payload ? `载荷=${JSON.stringify(payload).slice(0, 110)}` : `工作区里没有 ${p.path} 这一页`);
 
   /* ② 还原：离开再回来 → 控件显示改动后的值 */
@@ -179,11 +206,11 @@ for (const p of PAGES) {
     if (now === undefined) break;
     continue;
   }
-  const back = await readControl(p.sel);
-  if (p.sentinel === null) {
-    const checked = await ev(`(function(){ const el=document.querySelector(${JSON.stringify(p.sel)}); return el ? el.checked : null; })()`);
-    check(`  ${p.name}：重挂载后还原了改动（吸附=false）`, checked === false, `实际 checked=${checked}`);
+  if (p.toggle) {
+    const checked = await readChecked(p.sel);
+    check(`  ${p.name}：重挂载后还原了改动（吸附=${expect}）`, checked === expect, `期望 ${expect}，实际 ${checked}`);
   } else {
+    const back = await readControl(p.sel);
     check(`  ${p.name}：重挂载后还原了改动`, String(back) === p.sentinel, `期望 ${JSON.stringify(p.sentinel)}，实际 ${JSON.stringify(back)}`);
   }
 }

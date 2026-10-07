@@ -355,8 +355,49 @@ B10 已决定"24 个重名条目登记可见"，所以是**补齐**而不是删�
    **必须带 `FILE_FLAG_BACKUP_SEMANTICS`**，否则一律拒绝。建议 A 面先核对这一点，
    以及把"持有者判定"改成"pid 不存活即视为空闲"。
 
-⇒ 在这条解决之前，B14 那 4 页只能算"代码就绪、未验证"；`cdp-plot-workspace` 已经写好并登记，
-宿主一能起来就能跑（它自己会报 `INTERFERENCE`；退出码 2 = 宿主不可用）。
+⇒ 宿主起不来这条**没有阻塞住 B14 的验证** —— 下一段说明了绕过办法（同一轮内完成）。
+
+### 0.5.1 B14 那 4 页**已验掉**：`cdp-plot-workspace` **24/0**（6 页 × 两个方向）
+
+宿主起不来，但**工作区往返不依赖宿主**：无宿主时 `settings/bridge.js` 自动降级到 localStorage，
+而 B14 的代码路径（载荷形状、挂载时还原、变更即回写）**完全一样**，差别只在存储后端。
+所以改用**普通浏览器**做 CDP 目标：
+
+1. `npm run dev`（Vite，`http://127.0.0.1:5173/index.html`）—— 用例的页面匹配规则认 `index.html`，无需改代码；
+2. headless Edge：`msedge.exe --headless=new --remote-debugging-port=9222 --user-data-dir=<临时> ...`；
+3. `node tests/cdp-plot-workspace.mjs` ⇒ **`RESULT|cdp-plot-workspace|24|0`**。
+
+**逐页结果**（每页 4 条：找到控件 / 能写入 / 落进工作区的键与 kind / 重挂载后还原）：
+2D、3D 曲面、复平面、向量场、自由几何（吸附）、分形（迭代次数）**全部通过**。
+载荷示例：`/plot/3d` → `{kind:"plot3d",exprInput:"0.5*x+0.25*y",...}`；
+`/plot/fractal` → `{kind:"plot-fractal",maxIter:520,...}`；
+`/plot/geometry` → `{kind:"plot-geometry",shapes:[],tool:"select",snap:false}`。
+
+⚠ **这条结论的边界要说清楚**：验的是"**浏览器 + localStorage 降级**"这一路，
+**没有**在 WebView2 宿主（`sys` 键值桥）上验过。存储后端不同、B14 的代码路径相同；
+等宿主能起来后仍应补跑一次（用例已登记，直接跑即可）。
+
+**首轮跑的 5 条失败全是我的用例写错了控件，不是产品缺陷**（两个教训值得复用）：
+- **React 的复选框必须 `click()`**：React 对 checkbox/radio 的 `onChange` **由 `click` 事件触发**
+  （ChangeEventPlugin 的兼容行为）。我原来直接改 `el.checked` 再派发 `change`/`input` ⇒
+  React 的 onChange 根本不响 ⇒"改了但工作区没变"，看起来像产品没存。
+  （顺带排查：`cdp-appearance` 里两处同样写法**是对的** —— 那是 Vue 壳的页面，`v-model` 正是监听 `change`。
+  全仓库除我之外没有 React 页上这么写的。）
+- **分形页的「迭代次数」是 range 滑块**（`min=30 max=1024 step=10`，`.slider`），不是 select。
+  我按 `select` + `"512"` 去写，结果写进了同一页的「配色方案」下拉（选项里没有 512 ⇒ 值变空 ⇒
+  应用侧抛异常），于是报 `能写入控件 [异常]`。
+  现在用 `.slider` + 合法值 `520`；几何页那条也改成**与极性无关**（读当前值→切反面→断言落盘与还原）。
+
+### 0.5.2 顺带修掉一个真问题：`npm run dev` 开着时跑用例会把 dev server 打崩
+
+**现象**：Vite dev server 退出，日志尾部是
+`EBUSY: ... syscall: 'watch', path: ...\tests\.cdp-plot-workspace.mjs.<pid>.<guid>.tmpdir\cdp-plot-workspace.mjs.tmp`。
+**机制**：Node 26 加载 ESM 时会在**被测文件旁边**生成 `.<name>.<pid>.<guid>.tmpdir/` 临时目录，
+而 Vite 默认监听整个工程（`tests/` 也在其中）⇒ 它去 watch 这些刚建又刚删的文件，命中 EBUSY 就崩。
+**影响**：一边 `npm run dev` 一边跑用例（开发时很常见）会让 dev server 静默退出。
+**修法**：`vite.config.js` 的 `server.watch.ignored` 加上 `**/tests/**`、`**/dist/**`、
+`**/.buildtmp/**`、`**/node_modules/**`、`**/.*.mjs.*.tmpdir/**`。
+**验证**：改完之后**开着 dev server 跑完整套 `cdp-plot-workspace`，5173 仍在监听** ✓（修复前必崩）。
 
 ## 0. 汇总（按严重度排序）
 
