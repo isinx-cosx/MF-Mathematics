@@ -1,13 +1,24 @@
 # MF-Mathematics v2.0
 
 **多功能可视化科学计算 —— Windows 桌面应用。**
-C++ 数学引擎 + Vue 3 界面 + C#/WebView2 宿主，三层在同一目录树内，自包含、可离线运行。
+C++ 数学引擎 + Vue 3 界面 + Rust/Tauri 宿主，三层在同一目录树内，自包含、可离线运行。
+
+> 🚩 **宿主正在迁移（2026-10-07，项目所有者决定）**：**C#/.NET 宿主 `MFMath.Host/` 已废弃** ——
+> 不再接受功能改动，只保留作迁移参考。接替者是 **`MFMath.Host.Rust/`**（Rust/Tauri + WebView2）。
+>
+> - 它的可复现验收步骤：[`MFMath.Host.Rust/docs/ACCEPTANCE.md`](MFMath.Host.Rust/docs/ACCEPTANCE.md)；
+> - 打包（实测能出 NSIS 安装包 **11.11 MiB**）与**尚未真机验证的部分**：[`PACKAGING.md`](MFMath.Host.Rust/docs/PACKAGING.md)；
+> - ⚠ **本文的架构图、快速开始第 3 步、运行命令与部分文档仍写的是那个废弃宿主，尚未重写** ——
+>   在 Rust 宿主"安装 → 启动"的真机验证走完之前，不改成"用 Rust 跑起来"（那等于替没验过的路径背书）。
+>   前端与引擎的构建方式（第 1、2 步）不受影响。
+>
+> 进度与文档债清单见 [`docs/PROJECT-BOARD.md`](docs/PROJECT-BOARD.md)。
 
 微积分、代数、线性代数、概率统计、复分析、实分析、泛函分析、测度论、代数拓扑、数论、数值分析、
 调和分析……**14 个学科视图**，外加 2D/3D/极坐标/复平面/向量场/几何/分形绘图、控制台、联网搜索、
 AI 助手与交互式教程。
 
-> 平台：Windows 10/11（x64） · 宿主：.NET 10 + WPF + WebView2 · 前端：Vue 3 + Vite · 引擎：C++17
+> 平台：Windows 10/11（x64） · 宿主：Rust/Tauri + WebView2（`MFMath.Host.Rust/`）· 前端：Vue 3 + Vite · 引擎：C++17
 
 ---
 
@@ -53,8 +64,9 @@ AI 助手与交互式教程。
 └───────────────┬──────────────────────────────────────────────┘
                 │  window.chrome.webview.hostObjects.sync.mf.Dispatch(name, json)
 ┌───────────────▼──────────────────────────────────────────────┐
-│  MFMath.Host                 C# / WPF + WebView2              │
-│  窗口、桥（mf/ai/con/search/account/update/sys/win）、          │
+│  MFMath.Host (已废弃)        C# / WPF + WebView2              │
+│  MFMath.Host.Rust  现役      Rust/Tauri + WebView2            │
+│  窗口、桥（9 个宿主对象，清单见 ACCEPTANCE.md §2）、             │
 │  凭据只存宿主、HTTP 抓取、组件下载                                │
 └───────────────┬──────────────────────────────────────────────┘
                 │  C ABI：function_exists / math_call（**恰好两个导出**）
@@ -68,12 +80,19 @@ AI 助手与交互式教程。
 **为什么前端一行数学都不算**：所有数值/符号结果都来自引擎。前端只做参数构造、展示与编排。
 这样"结论"只有一个来源，也才谈得上可复现。
 
+> ⚠ **上图里 `MFMath.Host.Rust` 那一层是后加的，整张图还没有重画**（例如宿主对象的清单、
+> 组件下载与推送通道的落点都变了）。属登记在案的文档债，见 `docs/PROJECT-BOARD.md` §3 R7。
+
 ---
 
 ## 快速开始
 
 > ⚠ **仓库不含编译产物**（`MF_Mathematics/build/`、`dist/`、`bin/`、`obj/` 都在 `.gitignore` 里）。
 > 克隆后必须走完下面三步，才能运行 `MFMath.exe`。
+>
+> 🚩 **下面第 3 步与运行命令写的是已废弃的 .NET 宿主**（见文首的迁移说明）。
+> 前端（第 2 步）与引擎（第 1 步）照旧；宿主那一段**待 Rust 侧真机验证走完后重写**，
+> 在此之前不要照着它判断"当前该怎么跑起来" —— 以 `MFMath.Host.Rust/docs/ACCEPTANCE.md` 为准。
 
 ### 前置依赖
 
@@ -81,7 +100,7 @@ AI 助手与交互式教程。
 | --- | --- |
 | 引擎 | CMake ≥ 3.16、Visual Studio（C++ 工具链）、[vcpkg](https://github.com/microsoft/vcpkg) 安装 `symengine` `flint` `gmp` `mpfr` `eigen3` |
 | 前端 | Node.js ≥ 18（`npm`） |
-| 宿主 | .NET SDK 10、WebView2 Runtime（Win11 自带，Win10 需安装） |
+| 宿主 | **Rust** 工具链（`cargo`）+ WebView2 Runtime（Win11 自带，Win10 需安装）。共享库见 `MFMath.Host.Rust/README.md`；~~.NET SDK 10~~ 仅对已废弃的 .NET 宿主还需要 |
 
 ### 三步构建（顺序不可颠倒）
 
@@ -156,9 +175,12 @@ powershell -NoProfile -File MF_UI/MFMath.UI.Vue/tests/run-all.ps1
 | --- | --- |
 | `MF_Mathematics/` | 引擎源码（仅 C++，110 个 `.cpp`）、`CMakeLists.txt` |
 | `MF_Mathematics/tests/` | 16 个 CTest 套件 + 4 个探针（共 19 个可执行目标；`probe_call` 可不起宿主直调引擎） |
-| `MFMath.Host/` | C# 宿主：窗口 + 各 bridge；凭据只存宿主，渲染进程读不到 |
-| `MF_UI/MFMath.UI.Vue/` | Vue 3 前端：`src/`、`tests/`（46 个 CDP 用例 + fixtures）、`tools/`（构建期自检） |
+| **`MFMath.Host.Rust/`** | **现役宿主**：Rust/Tauri + WebView2，9 个宿主对象；`docs/ACCEPTANCE.md` 是验收步骤，`docs/PACKAGING.md` 是打包 |
+| `MFMath.Host/` | 🚩 **已废弃**（C#/WPF 宿主）。不再接受功能改动，只留作迁移参考 —— 下面几份设计文档里凡是指向它的实现说明都已过时，见 `docs/PROJECT-BOARD.md` §3 R7 |
+| `MF_UI/MFMath.UI.Vue/` | Vue 3 前端：`src/`、`tests/`（47 个 CDP 用例 + fixtures）、`tools/`（构建期自检） |
+| `MF_UI/MFMath.UI.React/` | React 绘图组：被 Vue 壳内嵌（`ReactPlotView.vue`），6 个绘图页；独立跑 `npm run check:types` |
 | `docs/` | 设计文档与状态记录（见下表） |
+| `AGENTS.md` · `docs/PROJECT-BOARD.md` | 并行协作规约 · 工作面进度与风险台账 |
 
 ### 引擎的两个目标
 
