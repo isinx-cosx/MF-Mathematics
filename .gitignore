@@ -41,3 +41,14 @@ __pycache__/
 *.bak
 *.orig
 *.tmp
+
+# ── 本机开发临时产物 ──
+# `.tmp-` 前缀一条覆盖全部已知来源：
+#   .tmp-build/                         ← ACCEPTANCE.md §0.1 把 TEMP/TMP 指到仓库内的构建临时区
+#   .tmp-shotA.png / .tmp-shotB.png     ← 前端排查截图
+#   MF_UI/MFMath.UI.Vue/.tmp-*.mjs      ← CDP 排查脚本（含本机绝对路径与本机端点，最不该进历史）
+#   MFMath.Host.Rust/target/*.log       ← 端到端跑批日志（target/ 已被该目录自己的 .gitignore 收容）
+# 它们都是**本机中间产物**，换台机器必然不同；留在 git status 里会淹没真正的改动。
+# 注意：这里是"不入 git"，不是"删文件" —— 可能还有会话在用，清理由使用者自己决定。
+.tmp-*
+.buildtmp/
