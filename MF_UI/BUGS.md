@@ -349,23 +349,28 @@ B10 已决定"24 个重名条目登记可见"，所以是**补齐**而不是删�
    `MY_RIGHTS=[FullControl]`、`WRITE_DAC=True`、`WRITE_OWNER=True`、owner = 当前用户、
    `packageObjects=[]` —— **没有任何权限项需要修复，它也没做任何改动**（skill 对这类结论的要求就是"停止并报告"，
    所以我没有手工改权限）。报告留在 `%LOCALAPPDATA%\MFMath\acl-recovery\acl-report-*.jsonl`。
-4. **`os error 5` 的根因已用 A/B 实验证实：开目录句柄漏了 `FILE_FLAG_BACKUP_SEMANTICS`。**
-   `os error 5` 发生在"获取数据目录句柄"这一步，且**换成全新空目录（`MF_WEBVIEW2_DIR`）同样失败**
-   ⇒ 与目录状态无关。Windows 上开**目录**句柄必须带 `FILE_FLAG_BACKUP_SEMANTICS`，否则一律
-   `ERROR_ACCESS_DENIED(5)`。实测对照（同一台机器、同一目录、同一时刻）：
+4. **`os error 5` 的根因（2026-10-07 二次更正）—— 是"从工作区内启动被沙箱挡住"，不是缺 flag。**
+   > ⚠ **我上一版把这条写成"已证实是漏了 `FILE_FLAG_BACKUP_SEMANTICS`"，那是过度结论，现更正。**
+   > 那个 A/B（`CreateFileW` 开目录不带该 flag → err=5、带上 → 成功）只证明了
+   > **"err 5 可以由这种机制产生"**，并没有证明宿主走的就是这条路。
 
-   ```
-   CreateFileW(dir, GENERIC_READ, share=3, OPEN_EXISTING, flags=0)                  → 失败 err=5
-   CreateFileW(dir, GENERIC_READ, share=3, OPEN_EXISTING, flags=FILE_FLAG_BACKUP_…) → 成功
-   ```
+   **真正的判别实验是"位置"**（同一台机器、同一个 exe、同一份环境变量）：
 
-   同时排除了"环境/沙箱挡子进程"这一可能：**从我的 shell 派生的子进程（node）**
-   在同一个目录里 ① 列目录 ✔ ② 写文件 ✔ ③ 开目录句柄 ✔（Node 内部正是带了那个 flag）。
-   ⇒ 结论：**A 面的"数据目录占用"检查用 `CreateFile` 开目录时少了一个 flag**，
-   加上它就应当能启动（这是 ~1 个 flag 的修法）。
-5. 另外建议把**持有者判定**改成"pid 不存活即视为空闲"：本轮实测到
-   `%LOCALAPPDATA%\MFMath\webview2\.mf-instance` 里留着 `pid=25208`，而那个进程**早已不存在**
-   —— 它仍被报成"被占用"，宿主于是永远起不来，直到有人手工删掉那个文件。
+   | exe 所在位置 | 结果 |
+   |---|---|
+   | `<repo>\MFMath.Host.Rust\target\debug\`（**工作区内**） | `数据目录占用失败 / 拒绝访问 (os error 5)`，窗口创建 0x800700AA |
+   | `%TEMP%\mfhost-run-outside\`（**工作区外**，连同 DLL/wwwroot 一起拷出） | **一次成功**：CDP 起来、`https://mfmath.local/index.html#/` 正常，随后 `node tests/cdp-plot-workspace.mjs` ⇒ **24/0** |
+
+   ⇒ 结论：**本机沙箱不允许"位于工作区内的可执行文件"写工作区外**（宿主需要写
+   `%LOCALAPPDATA%\MFMath\webview2` 与 `.mf-instance`），于是它一启动就撞 err 5。
+   这也解释了**本次会话早些时候为什么能起来** —— 那时跑的是 `%TEMP%\mfhost-run\` 里的副本（工作区外）。
+   A 面新加的提示文案里已经写明了这一点（"把 exe 连同 DLL/wwwroot 拷到工作区外再跑"），与我们实测一致。
+
+   **可操作的结论（对所有人）**：在这个环境里跑宿主/端到端，**先把 exe 与 DLL、wwwroot 拷到工作区外**再启动；
+   直接跑 `target\{debug,release}\mfmath-host-rust.exe` 必然会撞 err 5。
+5. 另外建议把**持有者判定**改成"pid 不存活即视为空闲"：本轮先后实测到
+   `%LOCALAPPDATA%\MFMath\webview2\.mf-instance` 里留着 `pid=25208` 与 `pid=33872`，
+   **两个进程都早已不存在**，却仍被报成"被占用" ⇒ 宿主会一直起不来，直到有人手工删掉那个文件。
 
 ⇒ 宿主起不来这条**没有阻塞住 B14 的验证** —— 下一段说明了绕过办法（同一轮内完成）。
 
@@ -385,9 +390,10 @@ B10 已决定"24 个重名条目登记可见"，所以是**补齐**而不是删�
 `/plot/fractal` → `{kind:"plot-fractal",maxIter:520,...}`；
 `/plot/geometry` → `{kind:"plot-geometry",shapes:[],tool:"select",snap:false}`。
 
-⚠ **这条结论的边界要说清楚**：验的是"**浏览器 + localStorage 降级**"这一路，
-**没有**在 WebView2 宿主（`sys` 键值桥）上验过。存储后端不同、B14 的代码路径相同；
-等宿主能起来后仍应补跑一次（用例已登记，直接跑即可）。
+✅ **边界已关闭（同一轮内补跑）**：上述"浏览器 + localStorage 降级"只是**绕过办法**；
+后来按 A 面的提示把宿主 exe 拷到**工作区外**启动成功，于是**又对着真宿主（WebView2 + `sys` 键值桥）
+跑了一遍同样的用例 ⇒ `RESULT|cdp-plot-workspace|24|0`**（6 页 × 两个方向全绿，宿主跑完仍在运行）。
+所以 B14 现在有**两条路径上的实测证据**：宿主路径 24/0 + 浏览器降级路径 24/0。
 
 **首轮跑的 5 条失败全是我的用例写错了控件，不是产品缺陷**（两个教训值得复用）：
 - **React 的复选框必须 `click()`**：React 对 checkbox/radio 的 `onChange` **由 `click` 事件触发**
