@@ -5,7 +5,8 @@
 > 这份地图同时是**文档建设进度的唯一台账**：`✅` 是已经写好的，`🚧` 是本文档计划里已定名、
 > 尚未动笔的。**不要给 `🚧` 的条目写链接** —— 死链比缺文档更糟。
 
-**最后核对**：2026-10-07 · 计划档位：**标准（35 份）** · 已落地 5 份
+**最后核对**：2026-10-07 · 计划档位：**标准（35 份）** · 已落地 **11 份**
+（层1 两份 · 层5 三份 · **层4 六份**）
 
 ---
 
@@ -51,9 +52,12 @@
 | 某个 action 的参数键名是什么 | `docs/engine/MODULES.md`🚧；**权威源是** [`engine-signatures.json`](../MF_UI/MFMath.UI.Vue/src/lib/ai/engine-signatures.json)（424 个 action） |
 | 前端怎么把界面接到引擎 | `docs/ui/ENGINE-BINDING.md`🚧 |
 | 绘图页是怎么组织的 | `docs/ui/PLOT.md`🚧 |
-| 宿主对象有哪些方法 | `docs/link/OBJECTS.md`🚧；**权威源是**宿主启动日志（9 对象 / 84 方法） |
-| 前端和宿主之间的接缝是什么 | `docs/link/README.md`🚧；现有最全的是 [LINK-LAYER.md](../MFMath.Host.Rust/docs/LINK-LAYER.md) |
-| 凭据存在哪、安不安全 | `docs/link/CREDENTIALS.md`🚧 |
+| 宿主对象有哪些方法 | [link/OBJECTS.md](link/OBJECTS.md)（9 对象 / 84 方法）；**权威源是** `main.rs` 的 `*_SPEC` 与宿主启动日志 |
+| 前端和宿主之间的接缝是什么 | [link/README.md](link/README.md)；迁移过程与历史见 [LINK-LAYER.md](../MFMath.Host.Rust/docs/LINK-LAYER.md)（**工作日志，不是手册**） |
+| 凭据存在哪、安不安全 | [link/CREDENTIALS.md](link/CREDENTIALS.md) |
+| 那些"要联网/要落盘"的功能怎么实现的 | [link/FEATURES.md](link/FEATURES.md)（搜索 / 账号 / 更新 / 备份 / 控制台） |
+| 为什么某个操作会卡住、取消到底取消了什么 | [link/JOBS-PUSH.md](link/JOBS-PUSH.md) |
+| 宿主从 .NET 换到 Rust，什么跟着走 | [link/HOSTS.md](link/HOSTS.md) |
 | 为什么 .NET 宿主被废弃 | [DECISIONS.md](DECISIONS.md) D-006 |
 | 哪些功能明确不做 | [DESIGN-BOUNDARIES.md](DESIGN-BOUNDARIES.md) |
 | 现在还有什么没做完 | [OPEN-ITEMS.md](OPEN-ITEMS.md)（功能）、[PROJECT-BOARD.md](PROJECT-BOARD.md)（进度与风险） |
@@ -94,12 +98,12 @@
 
 | 文件 | 状态 | 回答什么 | 权威源 |
 | --- | --- | --- | --- |
-| `docs/link/README.md` | 🚧 | 接缝是 `AddHostObjectToScript`（**不是 invoke**）、三条契约、为什么同步是硬需求 | LINK-LAYER §1 |
-| `docs/link/OBJECTS.md` | 🚧 | 9 个宿主对象 × 84 个方法的权威表 | 宿主启动日志 + ACCEPTANCE §2 |
-| `docs/link/JOBS-PUSH.md` | 🚧 | 异步 job 通道 + 下行推送信封 `{topic,seq,ts,payload}` | `jobs.rs` / `push.rs` |
-| `docs/link/CREDENTIALS.md` | 🚧 | DPAPI 只存宿主 vs AI 明文 `ai.json`；两个宿主不通用 | LINK-LAYER §8/§9 |
-| `docs/link/FEATURES.md` | 🚧 **接替 4 份存量** | 搜索 / 账号 / 更新 / 设置备份 / 控制台组件（**偿还 R7 债**：那 4 份现存文档写的是已废弃的 .NET 实现） | [ONLINE-SEARCH.md](ONLINE-SEARCH.md) 等 4 份 |
-| `docs/link/HOSTS.md` | 🚧 **接替 LINK-LAYER §9** | 宿主谱系：.NET 已废弃 → Rust 现役、切换与退役条件 | LINK-LAYER §9 |
+| [link/README.md](link/README.md) | ✅ | 接缝是 `AddHostObjectToScript`（**不是 invoke**）、三条契约、为什么同步是硬需求 | LINK-LAYER §1 + `hostobject.rs` |
+| [link/OBJECTS.md](link/OBJECTS.md) | ✅ | **9 个宿主对象 × 84 个方法**的权威表（含 `con` vs `console.rs` 的命名陷阱） | `main.rs:67-216` |
+| [link/JOBS-PUSH.md](link/JOBS-PUSH.md) | ✅ | 异步 job 通道（含"取消是假的"）+ 下行推送信封与**四个实测坑** | `jobs.rs` / `push.rs` |
+| [link/CREDENTIALS.md](link/CREDENTIALS.md) | ✅ | DPAPI 三条纪律 vs AI 明文 `ai.json`；`.bak` 里的明文残留 | `dpapi.rs` / `account.rs` / `search.rs` |
+| [link/FEATURES.md](link/FEATURES.md) | ✅ **替 4 份存量** | 搜索 / 账号 / 更新 / 备份 / 控制台 —— 逐条核对到 Rust 侧，**偿还 R7 债** | `search/console/account/site/update/sys.rs` |
+| [link/HOSTS.md](link/HOSTS.md) | ✅ **替 LINK-LAYER §9** | 宿主谱系：.NET 已废弃 → Rust 现役、什么跟着走什么不跟、三件收尾 | `main.rs` / `AGENTS.md` §2 |
 
 ### 层 2 · 引擎（9 份）
 

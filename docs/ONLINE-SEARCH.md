@@ -1,5 +1,13 @@
 # 联网搜索（宿主侧 C#）
 
+> 🚩 **已退役（2026-10-07）**：本文讲的是**已废弃的 .NET 宿主**实现（`SearchBridge.cs` 等）。
+> **现役 Rust 侧的对应内容见 [`docs/link/FEATURES.md`](link/FEATURES.md) §1** ——
+> 含三个后端、缓存键（v1 的缺陷是键里没有引擎）、六类失败分类与"有意不做"的完整清单。
+>
+> **本文暂不删除**：仓库里还有多处引用它（清单见
+> [`docs/PROJECT-BOARD.md`](PROJECT-BOARD.md) §3 R8），等引用改完再删。
+> **引用本文任何一处数字前，请先核对 `FEATURES.md`。**
+
 > 落地于本轮。**抓取、解析、缓存、凭据全在宿主（C#）**；前端只是一个页面（`/tools/search`）。
 > 三个后端：DuckDuckGo（免密钥）、Wolfram Alpha（自备 App ID）、自定义端点（SearXNG 兼容 JSON）。
 
