@@ -5,8 +5,8 @@
 > 这份地图同时是**文档建设进度的唯一台账**：`✅` 是已经写好的，`🚧` 是本文档计划里已定名、
 > 尚未动笔的。**不要给 `🚧` 的条目写链接** —— 死链比缺文档更糟。
 
-**最后核对**：2026-10-07 · 计划档位：**标准（35 份）** · 已落地 **11 份**
-（层1 两份 · 层5 三份 · **层4 六份**）
+**最后核对**：2026-10-07 · 计划档位：**标准（35 份）** · **全部已落地：35 / 35** ✅
+（层1 两份 · 层5 三份 · 层4 六份 · **层2 九份** · **层3 九份** · **层6 六份**）
 
 ---
 
@@ -44,14 +44,22 @@
 
 | 我想知道 | 读 |
 | --- | --- |
-| 这是什么软件、能做什么 | [README.md](../README.md)（→ 层6 写完后迁往 `docs/manual/README.md`） |
-| 怎么构建 / 怎么跑起来 | [README.md](../README.md) 的「快速开始」；宿主侧以 [ACCEPTANCE.md](../MFMath.Host.Rust/docs/ACCEPTANCE.md) 为准 |
+| 这是什么软件、能做什么 | [manual/README.md](manual/README.md)；功能全表在 [manual/FEATURES.md](manual/FEATURES.md) |
+| 某个功能怎么用（照着做） | [manual/WORKFLOWS.md](manual/WORKFLOWS.md) |
+| 出问题了 | [manual/TROUBLESHOOTING.md](manual/TROUBLESHOOTING.md)、[manual/FAQ.md](manual/FAQ.md) |
+| 怎么构建 / 怎么跑起来 | [manual/INSTALL.md](manual/INSTALL.md)、[README.md](../README.md) 的「快速开始」；宿主侧以 [ACCEPTANCE.md](../MFMath.Host.Rust/docs/ACCEPTANCE.md) 为准 |
 | 为什么前端一行数学都不算 | [DESIGN.md](DESIGN.md) §2 ① |
-| 为什么"算不出来"是真的算不出来 | [DESIGN.md](DESIGN.md) §2 ②、`docs/engine/BOUNDARIES.md`🚧 |
-| 引擎有哪些函数、怎么调 | `docs/engine/README.md`🚧、`docs/engine/CONTRACT.md`🚧 |
-| 某个 action 的参数键名是什么 | `docs/engine/MODULES.md`🚧；**权威源是** [`engine-signatures.json`](../MF_UI/MFMath.UI.Vue/src/lib/ai/engine-signatures.json)（424 个 action） |
-| 前端怎么把界面接到引擎 | `docs/ui/ENGINE-BINDING.md`🚧 |
-| 绘图页是怎么组织的 | `docs/ui/PLOT.md`🚧 |
+| 为什么"算不出来"是真的算不出来 | [DESIGN.md](DESIGN.md) §2 ②、[engine/BOUNDARIES.md](engine/BOUNDARIES.md) |
+| 引擎有哪些函数、怎么调 | [engine/README.md](engine/README.md)、[engine/CONTRACT.md](engine/CONTRACT.md) |
+| 某个 action 的参数键名是什么 | [engine/MODULES.md](engine/MODULES.md)、[engine/CONTRACT.md](engine/CONTRACT.md)；**数字的权威源是** [`engine-signatures.json`](../MF_UI/MFMath.UI.Vue/src/lib/ai/engine-signatures.json)（424 个 action） |
+| 符号 / 数值 / 输入解析分别怎么做 | [engine/SYMBOLIC.md](engine/SYMBOLIC.md)、[engine/NUMERIC.md](engine/NUMERIC.md)、[engine/INPUT.md](engine/INPUT.md) |
+| 引擎的测试与守门断言 | [engine/TESTS.md](engine/TESTS.md) |
+| 前端怎么组织的（目录、路由、i18n） | [ui/ARCHITECTURE.md](ui/ARCHITECTURE.md) |
+| 前端怎么把界面接到引擎 | [ui/ENGINE-BINDING.md](ui/ENGINE-BINDING.md) |
+| 绘图页是怎么组织的 | [ui/PLOT.md](ui/PLOT.md) |
+| AI 面板怎么做的、密钥放哪 | [ui/AI.md](ui/AI.md) |
+| 设置与工作区怎么存 | [ui/SETTINGS-WORKSPACE.md](ui/SETTINGS-WORKSPACE.md) |
+| 构建期有哪些闸门 | [ui/CHECKS.md](ui/CHECKS.md) |
 | 宿主对象有哪些方法 | [link/OBJECTS.md](link/OBJECTS.md)（9 对象 / 84 方法）；**权威源是** `main.rs` 的 `*_SPEC` 与宿主启动日志 |
 | 前端和宿主之间的接缝是什么 | [link/README.md](link/README.md)；迁移过程与历史见 [LINK-LAYER.md](../MFMath.Host.Rust/docs/LINK-LAYER.md)（**工作日志，不是手册**） |
 | 凭据存在哪、安不安全 | [link/CREDENTIALS.md](link/CREDENTIALS.md) |
@@ -105,44 +113,44 @@
 | [link/FEATURES.md](link/FEATURES.md) | ✅ **替 4 份存量** | 搜索 / 账号 / 更新 / 备份 / 控制台 —— 逐条核对到 Rust 侧，**偿还 R7 债** | `search/console/account/site/update/sys.rs` |
 | [link/HOSTS.md](link/HOSTS.md) | ✅ **替 LINK-LAYER §9** | 宿主谱系：.NET 已废弃 → Rust 现役、什么跟着走什么不跟、三件收尾 | `main.rs` / `AGENTS.md` §2 |
 
-### 层 2 · 引擎（9 份）
+### 层 2 · 引擎（9 份）—— 全部 ✅
 
-| 文件 | 状态 | 回答什么 | 权威源 |
-| --- | --- | --- | --- |
-| `docs/engine/README.md` | 🚧 | 两个构建目标、C ABI 恰好两个导出、`/WHOLEARCHIVE` 守门、构建与测试入口 | `CMakeLists.txt`、`api.cpp` |
-| `docs/engine/CONTRACT.md` | 🚧 | args JSON 形状、**键名契约**、必填参数拒绝计算、"未实现"的返回形状 | `api_helpers.h`、BUGS.md B1/B2/B4 |
-| `docs/engine/MODULES.md` | 🚧 | 12 个学科模块逐个：文件/行数/action/能力/边界（**由签名表生成，不手抄**） | `engine-signatures.json`（424） |
-| `docs/engine/SYMBOLIC.md` | 🚧 | 符号层：SymEngine/RCP 边界、化简/求导/积分/极限、pretty 与 LaTeX | `symbolic_util.h` 等 |
-| `docs/engine/NUMERIC.md` | 🚧 | 数值层：`special_numeric`/`complex_numeric`、容差与精度策略 | 同名头文件 |
-| `docs/engine/INPUT.md` | 🚧 | 输入层：`math_input`/`parser_lib` 的归一化与解析（含 `;` 双语义那个坑） | 同名头文件、BUGS.md B2 |
-| `docs/engine/PLOT.md` | 🚧 | 采样与视口契约、分形迭代上限 | `plot_api.cpp`、`fractal_api.cpp` |
-| `docs/engine/BOUNDARIES.md` | 🚧 | 如实的能力边界 + `NOT_EXPOSED` 口径 | check-ui.mjs 的守卫 |
-| `docs/engine/TESTS.md` | 🚧 | 19 个可执行目标 / 16 个 CTest 用例 + 2180 条准确性用例；怎么加一条 | `CMakeLists.txt`、`probe_call` |
+| 文件 | 回答什么 |
+| --- | --- |
+| [engine/README.md](engine/README.md) | 两个构建目标、C ABI 恰好两个导出、`/WHOLEARCHIVE` 守门为什么是**静默**失效、构建与测试入口 |
+| [engine/CONTRACT.md](engine/CONTRACT.md) | args JSON 形状、**键名契约**、必填参数拒绝计算、"未实现"的返回形状 |
+| [engine/MODULES.md](engine/MODULES.md) | 12 个学科模块逐个（**由签名表 + 命令生成**，含未归属的 action 有多少） |
+| [engine/SYMBOLIC.md](engine/SYMBOLIC.md) | 符号层：SymEngine/RCP 边界、化简求导积分极限、pretty 与 LaTeX |
+| [engine/NUMERIC.md](engine/NUMERIC.md) | 数值层：特殊函数与复数、精度与容差策略 |
+| [engine/INPUT.md](engine/INPUT.md) | 输入层：归一化与解析（含 `;` 双语义那个坑） |
+| [engine/PLOT.md](engine/PLOT.md) | 采样与视口契约、分形迭代上限、哪些调用必须同步 |
+| [engine/BOUNDARIES.md](engine/BOUNDARIES.md) | 如实的能力边界 + `NOT_EXPOSED` 口径 |
+| [engine/TESTS.md](engine/TESTS.md) | 可执行目标 / CTest 用例的准确划分、怎么加一条、`count == 424` 守门 |
 
-### 层 3 · 前端（9 份）
+### 层 3 · 前端（9 份）—— 全部 ✅
 
-| 文件 | 状态 | 回答什么 | 权威源 |
-| --- | --- | --- | --- |
-| `docs/ui/README.md` | 🚧 | 两个工程（Vue 壳 + React 绘图组）、`@shared` 共享面、构建链、48 CDP + 3 unit | `package.json`、`tests/` |
-| `docs/ui/ARCHITECTURE.md` | 🚧 | 分层（views/components/lib）、路由与导航表、i18n、样式 | `src/router/`、`src/lib/router/nav.js` |
-| `docs/ui/ENGINE-BINDING.md` | 🚧 | `ENGINE_MAP`/`engineMapExtra`/`calcArgs`/`viewConfigs`/`asyncPolicy` + 可达性守门 | 同名源码、check-ui.mjs |
-| `docs/ui/PLOT.md` | 🚧 | React 6 页 + 共享 plot lib；**Vue 绘图组是冻结的回退资产** | `MFMath.UI.React/src/plot/`、BUGS.md B9 |
-| `docs/ui/AI.md` | 🚧 | 页面直连、SSE、步骤视图、`ai.json` 明文密钥的代价 | `src/lib/ai/`（8 文件 2,372 行） |
-| `docs/ui/TOOLS.md` | 🚧 | 控制台（CPython/MinGW 组件）/ 函数工具箱（424）/ 历史 / 搜索页 | `views/tools/`、`components/console/` |
-| `docs/ui/SETTINGS-WORKSPACE.md` | 🚧 | 设置目录、导入导出、工作区（含 B14 那 6 页载荷形状） | `lib/settings/`、`lib/workspace/` |
-| `docs/ui/TUTORIAL-KEYPAD.md` | 🚧 | 教程系统（18 篇 / 30 targets / `PENDING` 纪律）+ 126 键键盘 | `lib/tutorial/`、`tools/check-ui.mjs` |
-| `docs/ui/CHECKS.md` | 🚧 | 四道构建闸门 + "守卫必须验证过会失败"的规矩 | `npm run check` 的四个脚本 |
+| 文件 | 回答什么 |
+| --- | --- |
+| [ui/README.md](ui/README.md) | 两个工程（Vue 壳 + React 绘图组）、`@shared` 共享面、构建链、测试资产 |
+| [ui/ARCHITECTURE.md](ui/ARCHITECTURE.md) | 分层（views/components/lib）、路由与导航表、i18n、样式 |
+| [ui/ENGINE-BINDING.md](ui/ENGINE-BINDING.md) | 一条计算从界面到引擎的完整链路 + 可达性守门 + `asyncPolicy` 分流 |
+| [ui/PLOT.md](ui/PLOT.md) | React 6 页 + 共享 plot lib + 工作区载荷；**Vue 绘图组是冻结的回退资产** |
+| [ui/AI.md](ui/AI.md) | 页面直连、SSE 分帧、步骤视图、`ai.json` 明文密钥的代价 |
+| [ui/TOOLS.md](ui/TOOLS.md) | 控制台（CPython/MinGW）/ 函数工具箱（424）/ 历史 / 搜索页 |
+| [ui/SETTINGS-WORKSPACE.md](ui/SETTINGS-WORKSPACE.md) | 设置目录、导入导出、工作区（含 B14 那 6 页载荷形状） |
+| [ui/TUTORIAL-KEYPAD.md](ui/TUTORIAL-KEYPAD.md) | 教程系统（18 篇 / 30 targets / `PENDING` 纪律）+ 126 键键盘 |
+| [ui/CHECKS.md](ui/CHECKS.md) | 四道构建闸门 + 逐条守卫 + "守卫必须验证过会失败"的规矩 |
 
-### 层 6 · 全面介绍软件（6 份，用户向）
+### 层 6 · 全面介绍软件（6 份，用户向）—— 全部 ✅
 
-| 文件 | 状态 | 回答什么 |
-| --- | --- | --- |
-| `docs/manual/README.md` | 🚧 | 为谁做、能做什么、**不能做什么** |
-| `docs/manual/FEATURES.md` | 🚧 | 功能全表：14 学科视图（415 模式）、6 类绘图、工具、AI、学习、系统 |
-| `docs/manual/WORKFLOWS.md` | 🚧 | 典型用法：算题、画图、AI 步骤、控制台、导出与工作区 |
-| `docs/manual/INSTALL.md` | 🚧 **受限** | 安装与构建。⚠ **阻塞**：Rust 宿主"安装 → 启动"真机验证未走完（见 PACKAGING.md），在此之前只写现状与验法，不写"照着做就能跑" |
-| `docs/manual/TROUBLESHOOTING.md` | 🚧 | 卡死、字体/KaTeX、组件下载、账号/更新、日志与诊断包 |
-| `docs/manual/FAQ.md` | 🚧 | 常见问题（为什么算不出来、离线承诺、为什么不上报崩溃、许可证） |
+| 文件 | 回答什么 |
+| --- | --- |
+| [manual/README.md](manual/README.md) | 为谁做、能做什么、**不能做什么** |
+| [manual/FEATURES.md](manual/FEATURES.md) | 功能全表（数字由命令数出） |
+| [manual/WORKFLOWS.md](manual/WORKFLOWS.md) | 典型用法，每一步都对应**真实存在**的控件 |
+| [manual/INSTALL.md](manual/INSTALL.md) | ⚠ **受限**：安装与构建。Rust 宿主"安装 → 启动"未真机验证，所以只写现状与验法，**不写"照着做就能跑"** |
+| [manual/TROUBLESHOOTING.md](manual/TROUBLESHOOTING.md) | 按**症状**排查：卡死 / 算不出来 / 字体 / 组件 / 登录更新 / 日志与诊断包 |
+| [manual/FAQ.md](manual/FAQ.md) | 常见问题（为什么算不出来、离线边界、为什么不上报崩溃、许可证） |
 
 ---
 

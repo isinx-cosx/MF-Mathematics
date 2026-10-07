@@ -258,6 +258,16 @@ v2.0 从 `Multifunctional系列/Multifunctional-Mathematics/`（v1，约 1.46 GB
 二进制（`.pyd` / `inner_product.dll`）**已删除**，删前归档在
 `Multifunctional系列/_archive/v1-python-backend-*.zip`（v1 自己的 git 历史里也还在）。
 
-**唯一有意保留的是 `MF_Mathematics/tests/accuracy/`（28 个 `.py`，2180 条准确性用例）** ——
+**唯一有意保留的是那套准确性用例（28 个 `.py`，2180 条）—— 它在 v1 树里，不在本仓库**：
+
+```text
+../Multifunctional-Mathematics/MF_Mathematics/tests/accuracy/     ← 28 个 .py + report.json
+```
+
+> ⚠ **路径要看清楚**：这个目录**在 v2.0 里不存在**（`Test-Path MF_Mathematics/tests/accuracy` = `False`，
+> `git ls-files` 也查不到）。本仓库的 `MF_Mathematics/tests/` 下**只有** `test_*.cpp` 与 `probe_*.cpp`。
+> 早先这句话把路径写成了像是 v2.0 的相对路径，已按实测更正（出处见
+> [`docs/engine/TESTS.md`](docs/engine/TESTS.md) §5.1）。
+
 它是**测试资产**而不是运行时代码：可以对**任意**引擎 DLL 运行（用环境变量 `MF_ACC_DLL` 指定），
 v2 的引擎也能拿它验一遍，所以没跟着一起清掉。其余旧 JS/Python UI、旧 Python/Qt 应用未纳入。

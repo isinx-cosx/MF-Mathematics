@@ -278,6 +278,48 @@ grep -c 'ONLINE-SEARCH\.md|ACCOUNT\.md|UPDATE-CHAIN\.md|SETTINGS-BACKUP\.md'
 
 ---
 
+### R9【中】层2/3/6 批量产出（24 份）之后的产出债汇总
+
+**先说台账原则**：这 24 份文档里有 **21 份自带「已知的文档债」小节**（每份都注明 `文件:行` 与
+"注释说 X，代码做 Y"）。**本文不重复抄它们** —— 那会变成两份互相漂移的清单。
+这里只登记**需要做决定**的那几条，以及管理者本轮**已经修掉**的。
+
+**A. 需要决定：这是产品行为，不是文档措辞**（按影响排序）
+
+| # | 事项 | 证据 | 归属 |
+| --- | --- | --- | --- |
+| 1 | **`erfc_complex = 1 − erf_complex` 在大 \|z\| 时相消失效** | `erfc(5)` 相对偏差 ≈ **1.5e-5**；`erfc(10)` / `erfc(27)` **返回 0 且 `ok=1`**（参考值 2.088e-45 / 5.237e-319）；测试只钉了 `erfc(1)`，**没有回归保护** | 引擎（C 面） |
+| 2 | **教程浮层给用户看一句假话** | `TourOverlay.vue:68-71` 的 `missingReason` **恒真**（`targets.js:130-135`）⇒ "前往该界面"按钮与 **14 条 `TARGET_HINTS` 是死代码**，用户看到"这一步的目标界面还没做"（静态可判定） | 前端（B 面） |
+| 3 | **给用户看的设置说明写错了安全口径** | `settings/catalog.js:22` 的 AI 说明写"**密钥只存宿主（DPAPI）**"，而实际是明文 `ai.json`（同文件 `:70` 自己又写着"明文…不受保护"，**自相矛盾**） | 前端（B 面） |
+| 4 | **两个数字字面量被静默粘连** | `expr_eval("2 3")` → **23**；`math_input.h:549/:960` 的注释只写"数字与数字之间不做乘法"。**静默错值**，而 [BUGS.md](../MF_UI/BUGS.md) 与 [OPEN-ITEMS.md](OPEN-ITEMS.md) **都没登记** | 引擎 / 前端 |
+| 5 | **`engine-signatures.json` 的 `required` 与代码不符** | 例：`expr_eval_grid` 表里要求 `xs/ys/x/y`，代码只读 `expr/xs/ys`（不带 x/y 也能成功）。而这张表被 [docs/README.md](README.md) §2 登记为"参数键名权威源"，下游 AI 工具校验（`validateArgs`）会据此**误判必填** | 引擎 + 前端 |
+| 6 | **三个 ODE 求解器的步数不经上界收口** | `n = max(1, ceil((t_end−t0)/h))`（`ode_solver.cpp:16-19`）不走 `get_int_bounded`；实测 **1e6 步即超出 `probe_call` 的 4 MiB 缓冲**（`exit=3`） | 引擎 |
+| 7 | **pretty 打印仍外泄机器记号** | `simplify_sym` 返回非法的 `(1/2)*/x`；`solve_sym` 的 `delta` 返回 `-4 + a**(-2)`，而同一个量在 `discriminant_sym` 里过了 `pretty_math`（两处**记号不一致**）。与 `symbolic_api.cpp:17` "不再外泄 `a**(-1)`" 的说法相反 | 引擎 |
+
+**B. 文档措辞类** —— 21 份文档各自的债小节已逐条记名，另有**跨到别人领地**的几处需要各自面动手：
+`MFMath.Host.Rust/README.md`（自相矛盾：`:3` 说 10 个对象落地 7 个、`:46` 说全部落地、`:19` 说 9 个，而权威是 **9**）、
+`MFMath.Host.Rust/docs/ACCEPTANCE.md:99-111`（写 run-all "登记在册 **26 组**"，实测 **53**）、
+`docs/STATUS-and-ROADMAP.md`（`token_version`、准确性套件路径、25/0 vs 29/0 三处）。
+
+**C. 管理者本轮已经修掉的（3 处，都在我的领地内）**
+
+1. **根 `README.md` 的准确性用例路径写错**：原文把 `MF_Mathematics/tests/accuracy/` 写得像 v2.0 的路径，
+   而实测该目录**在 v2.0 里不存在**（`Test-Path` = `False`，`git ls-files` 无命中），
+   它在 **v1 树**里（`../Multifunctional-Mathematics/MF_Mathematics/tests/accuracy/`，28 个 `.py` + `report.json`）。
+   已改成显式写清 v1 路径并附实测判据 —— 这条由**三份文档独立指出**，是本轮最实的一处更正；
+2. **`docs/ui/README.md` 与 `docs/ui/CHECKS.md` 的计数过期**：写这批文档期间 B 面落了
+   `unit-history-store.mjs`，`unit-*` 由 3 变 4、登记表由 52 变 **53**（48 cdp + 4 unit + 1 audit-modes）。
+   已改并**写明复核时刻**，另加一句"引用前请重跑命令"；
+3. **`docs/ui/ENGINE-BINDING.md` 的 3 处死链**：`../AGENTS.md` 应为 `../../AGENTS.md`
+   —— 这是**我的编排提示词写错了相对层级**（对 `docs/*/X.md` 而言根在两级之上），已修。
+
+**D. 一条流程发现（值得写下来）**：**Agent 自报的行数不可信。**
+这批 24 份工具回报合计 **8914 行**，我实测是 **6636 行**（差 34%）。
+与本仓库"能生成的绝不手抄"同一条道理：**只要数字不是自己跑出来的，就要实测一遍**。
+处置：批量产出的任何数字，合并前一律由管理者实测复核。
+
+---
+
 ## 4. 决策记录（2026-10-07，项目所有者）
 
 | # | 问题 | 决定 | 我已做的处置 | 还欠什么 |
