@@ -66,8 +66,12 @@ async function mount(key) {
   }
   loading.value = false;
   if (disposed || my !== seq || !host.value) return;   // 已卸载或已被更新的那次取代
+  /* 2d / polar 也**必须**传 routePath（BUGS.md B14/B15）：工作区按 `route.path` 分页存
+   * （`/plot/2d` 与 `/plot/polar` 各一份），导出图片的默认文件名与提示也用它。
+   * 以前这两条只传 gridMode，于是 2D/极坐标页既存不进工作区，导出也不写"导到哪了"。
+   * 其余页本来就在传 routePath。 */
   const props = key === "2d" || key === "polar"
-    ? { gridMode: key === "polar" ? "polar" : "rect" }
+    ? { gridMode: key === "polar" ? "polar" : "rect", routePath: route.path }
     : { routePath: route.path };
   root = createRoot(host.value);
   root.render(createElement(mod.default, props));

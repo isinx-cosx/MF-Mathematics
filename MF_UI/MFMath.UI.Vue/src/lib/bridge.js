@@ -135,6 +135,123 @@ export function engineCall(name, args) {
   }
 }
 
+/* ── 异步通道：重活 ──────────────────────────────────────────────────────────
+ *
+ * 为什么要有它：同步的 engineCall 会**占住渲染进程主线程**，而引擎里确实有能跑到
+ * 秒级甚至更久的动作 —— mandelbrot（1200×1200×1024 ≈ 1.5e9 次迭代）、
+ * complex_grid（resolution ≤1000 → 1e6 点）、expr_eval_grid（工具箱参数自由，
+ * 2000×2000 = 4e6 点），以及 factor_integer / integrate_double / taylor_series
+ * 这类**没有上界**的符号运算。一跑就是"窗口白屏 + 系统判定未响应"。
+ *
+ * 分界线（见 lib/engine/asyncPolicy.js）：**毫秒级走 engineCall，可能重走 engineCallAsync**。
+ *
+ * 返回值与同步版逐条对齐（这样调用点从 sync 换 async 只需要加 await）：
+ *   · 成功 → {isError,value}；失败 → {isError:true,value:"原因"}
+ *   · 没有宿主（浏览器里）→ null
+ *   · 宿主**没有** DispatchJob 方法（旧桥 / C# 宿主还没实现）→ **自动退回同步调用**
+ *     —— 这一条是刻意的：前端不能因为宿主版本旧就不好用。
+ *
+ * 额外能力：
+ *   · opts.onProgress({state, elapsedMs, ms}) —— 界面可以显示"计算中 3.2s"
+ *   · opts.signal（AbortSignal）—— 触发时调 CancelJob；**注意语义**：引擎没有取消钩子，
+ *     宿主只能"停止等待并丢弃结果"，它会把这一步算完。所以文案必须写"已取消等待"，
+ *     不能写"已停止"（这条在 jobs.rs 里有同样的说明）。
+ */
+export function engineCallAsync(name, args, opts = {}) {
+  const mf = bridgeObj();
+  if (!mf) return Promise.resolve(null); // 浏览器：与同步版一致，调用方本来就处理 null
+
+  // 旧桥退回同步（C# 宿主尚未实现 job 通道时的兼容路径）
+  if (typeof mf.DispatchJob !== "function") {
+    return Promise.resolve(engineCall(name, args));
+  }
+
+  let jobId = "";
+  try {
+    const raw = mf.DispatchJob(name, JSON.stringify(args || {}));
+    const r = typeof raw === "string" ? JSON.parse(raw) : raw;
+    if (!r || !r.ok || !r.jobId) {
+      return Promise.resolve({ isError: true, value: "派发后台任务失败: " + (r && r.error ? r.error : "未知原因") });
+    }
+    jobId = r.jobId;
+  } catch (e) {
+    return Promise.resolve(engineCall(name, args)); // 派发不了就退回同步，至少能用
+  }
+
+  const t0 = Date.now();
+  const POLL_MS = 120;
+  return new Promise((resolve) => {
+    let canceled = false;
+    let timer = null;
+
+    const finish = (r) => {
+      if (timer) { clearTimeout(timer); timer = null; }
+      if (opts.signal) { try { opts.signal.removeEventListener("abort", onAbort); } catch { /* 忽略 */ } }
+      resolve(r);
+    };
+    const onAbort = () => {
+      if (canceled) return;
+      canceled = true;
+      try { mf.CancelJob(jobId); } catch { /* 宿主可能已经结束 */ }
+      if (typeof opts.onProgress === "function") opts.onProgress({ state: "canceled", elapsedMs: Date.now() - t0 });
+      finish({ isError: true, value: "已取消等待（引擎会把这一步算完后丢弃结果）", canceled: true });
+    };
+    if (opts.signal) {
+      if (opts.signal.aborted) { onAbort(); return; }
+      try { opts.signal.addEventListener("abort", onAbort); } catch { /* 忽略 */ }
+    }
+
+    const tick = () => {
+      if (canceled) return;
+      let st = null;
+      try {
+        const raw = mf.PollJob(jobId);
+        st = typeof raw === "string" ? JSON.parse(raw) : raw;
+      } catch { /* 下面按未知状态处理 */ }
+      if (!st || st.ok === false) {
+        finish({ isError: true, value: "后台任务状态读取失败: " + (st && st.error ? st.error : "未知原因") });
+        return;
+      }
+      if (st.state === "done" || st.state === "error") {
+        if (typeof opts.onProgress === "function") opts.onProgress({ state: st.state, elapsedMs: st.elapsedMs, ms: st.ms });
+        let out = null;
+        try { out = st.result ? JSON.parse(st.result) : null; } catch { out = null; }
+        finish(out || { isError: true, value: "后台任务返回了无法解析的结果" });
+        return;
+      }
+      if (st.state === "canceled") {
+        finish({ isError: true, value: "已取消等待（引擎会把这一步算完后丢弃结果）", canceled: true });
+        return;
+      }
+      if (typeof opts.onProgress === "function") {
+        opts.onProgress({ state: st.state, elapsedMs: st.elapsedMs || (Date.now() - t0) });
+      }
+      timer = setTimeout(tick, POLL_MS);
+    };
+    tick();
+  });
+}
+
+/** 查后台任务状态（诊断用；正常调用走 engineCallAsync 内部的轮询） */
+export function engineJobPoll(jobId) {
+  const mf = bridgeObj();
+  if (!mf || typeof mf.PollJob !== "function") return null;
+  try {
+    const raw = mf.PollJob(jobId);
+    return typeof raw === "string" ? JSON.parse(raw) : raw;
+  } catch { return null; }
+}
+
+/** 取消后台任务（诊断用；正常调用走 engineCallAsync 的 opts.signal） */
+export function engineJobCancel(jobId) {
+  const mf = bridgeObj();
+  if (!mf || typeof mf.CancelJob !== "function") return null;
+  try {
+    const raw = mf.CancelJob(jobId);
+    return typeof raw === "string" ? JSON.parse(raw) : raw;
+  } catch { return null; }
+}
+
 /**
  * 函数是否存在（能力探测）。
  *
@@ -332,19 +449,50 @@ function winBridge() {
   }
 }
 
+/**
+ * Tauri 的命令通道（换壳后宿主不再注入宿主对象，只有 `invoke`）。
+ *
+ * 为什么要单独一个探测：Tauri 底下**仍然是 WebView2**，所以 `window.chrome.webview`
+ * 依然存在，`hostObjects.sync` 甚至可能是个"看着像对象"的东西 —— 只判它存在会误判成
+ * "有同步桥"，于是窗口按钮点了没反应。所以这里反过来：**Tauri 优先**，同步桥兜底。
+ */
+function tauriInvoke() {
+  try {
+    const t = window.__TAURI_INTERNALS__;
+    return t && typeof t.invoke === "function" ? t.invoke.bind(t) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** 通用桥调用（Tauri）：`invoke("call", {object, method, args})` → Promise<string|null> */
+function tauriHostCall(object, method, args = []) {
+  const invoke = tauriInvoke();
+  if (!invoke) return null;
+  return invoke("call", { object, method, args });
+}
+
 export function windowControlsAvailable() {
-  return winBridge() !== null;
+  return winBridge() !== null || tauriInvoke() !== null;
 }
 
 // 窗口操作失败必须可见：全吞掉的话"点了没反应"就无从排查。
 // 桥不存在（浏览器里）是正常情况，不算错误。
 function callWin(method, ...args) {
   const b = winBridge();
-  if (!b) return;
-  try {
-    b[method](...args);
-  } catch (e) {
-    console.error("[win] " + method + " 调用失败:", e && e.message ? e.message : e);
+  if (b) {
+    try {
+      b[method](...args);
+    } catch (e) {
+      console.error("[win] " + method + " 调用失败:", e && e.message ? e.message : e);
+    }
+    return;
+  }
+  // Tauri：命令是异步的，但最小化/最大化/关闭/拖拽都是"发出去就不管结果"的动作，
+  // 不需要调用点 await —— 这里就地发、失败记日志。
+  const p = tauriHostCall("win", method, args);
+  if (p && typeof p.then === "function") {
+    p.catch((e) => console.error("[win] " + method + " 调用失败:", e && e.message ? e.message : e));
   }
 }
 
@@ -352,8 +500,25 @@ export function winMinimize() { callWin("Minimize"); }
 export function winToggleMaximize() { callWin("ToggleMaximize"); }
 export function winClose() { callWin("Close"); }
 
+/**
+ * 是否最大化。
+ *
+ * 同步桥能直接问；Tauri 的 `invoke` 只能给 Promise，而这个函数被顶栏的按钮图标同步读取 ——
+ * 所以这里**返回上次已知值并异步刷新**：App.vue 在切换最大化后与 resize 时都会再同步一次
+ * （`syncMaximized`），图标自然就跟上了，不必把整条渲染路径改成异步。
+ */
+let lastMaximized = false;
 export function winIsMaximized() {
-  try { return winBridge()?.IsMaximized() === true; } catch { return false; }
+  const b = winBridge();
+  if (b) {
+    try { lastMaximized = b.IsMaximized() === true; } catch { /* 保持上次值 */ }
+    return lastMaximized;
+  }
+  const p = tauriHostCall("win", "IsMaximized", []);
+  if (p && typeof p.then === "function") {
+    p.then((v) => { lastMaximized = v === "true" || v === true; }).catch(() => {});
+  }
+  return lastMaximized;
 }
 
 /** 开始拖动窗口（顶栏空白处 mousedown 时调用）。 */

@@ -1,7 +1,8 @@
 import { useMemo, useRef, useState } from "react";
 import GeometryCanvas from "./GeometryCanvas";
-import type { GeometryApi, Shape, ShapeType } from "./GeometryCanvas";
+import type { GeometryApi, Shape, ShapeDataMap, ShapeDraft, ShapeType } from "./GeometryCanvas";
 import { exportCanvas } from "@shared/plot/exportImage.js";
+import { loadPlotPage, usePlotWorkspace, boolOr, strOr } from "../lib/plotWorkspace";
 import "../styles/plot-geometry.css";
 
 /**
@@ -45,17 +46,16 @@ function makeLabel(type: ShapeType, id: number): string {
 
 /** 图形摘要（列表展示） */
 function shapeSummary(s: Shape): string {
-  const d = s.data as never;
   switch (s.type) {
-    case "point": return `(${d[0].toFixed(2)}, ${d[1].toFixed(2)})`;
+    case "point": return `(${s.data[0].toFixed(2)}, ${s.data[1].toFixed(2)})`;
     case "segment":
     case "vector":
     case "line":
     case "rect":
-      return `(${d[0][0].toFixed(1)}, ${d[0][1].toFixed(1)}) → (${d[1][0].toFixed(1)}, ${d[1][1].toFixed(1)})`;
-    case "circle": return `圆心 (${d[0][0].toFixed(1)}, ${d[0][1].toFixed(1)}) r=${Math.abs(d[1]).toFixed(2)}`;
-    case "ellipse": return `${Math.abs(d[1]).toFixed(2)} × ${Math.abs(d[2]).toFixed(2)}`;
-    case "polygon": return `${d.length} 个顶点`;
+      return `(${s.data[0][0].toFixed(1)}, ${s.data[0][1].toFixed(1)}) → (${s.data[1][0].toFixed(1)}, ${s.data[1][1].toFixed(1)})`;
+    case "circle": return `圆心 (${s.data[0][0].toFixed(1)}, ${s.data[0][1].toFixed(1)}) r=${Math.abs(s.data[1]).toFixed(2)}`;
+    case "ellipse": return `${Math.abs(s.data[1]).toFixed(2)} × ${Math.abs(s.data[2]).toFixed(2)}`;
+    case "polygon": return `${s.data.length} 个顶点`;
     default: return "";
   }
 }
@@ -64,14 +64,39 @@ export default function PlotGeometryPage({ routePath = "#/plot/geometry" }: { ro
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const apiRef = useRef<GeometryApi | null>(null);
 
-  const [tool, setTool] = useState("select");
-  const [shapes, setShapes] = useState<Shape[]>([]);
+  /* 工作区还原（BUGS.md B14）：这一页在 Vue 版时代也没接过工作区，属于补齐。
+   * 形状来自 JSON（用户可手改），所以要**逐项最小校验**：id 必须是数字、type 是字符串、
+   * data 是数组 —— 不合格的整条丢掉（宁少画一个，也不要一个半坏的图形把画布带崩）。 */
+  const saved = loadPlotPage(routePath, "plot-geometry");
+  const restoredShapes = (() => {
+    const raw = saved?.shapes;
+    if (!Array.isArray(raw)) return [] as Shape[];
+    return raw.filter((s) => {
+      if (!s || typeof s !== "object") return false;
+      const o = s as Record<string, unknown>;
+      return Number.isFinite(o.id) && typeof o.type === "string" && Array.isArray(o.data);
+    }) as Shape[];
+  })();
+
+  const [tool, setTool] = useState(() => strOr(saved?.tool, "select"));
+  const [shapes, setShapes] = useState<Shape[]>(restoredShapes);
   const [selectedId, setSelectedId] = useState<number | null>(null);
-  const [snap, setSnap] = useState(true);
-  const [statusText, setStatusText] = useState("就绪");
+  const [snap, setSnap] = useState(() => boolOr(saved?.snap, true));
+  const [statusText, setStatusText] = useState(() => (restoredShapes.length ? `已从工作区还原 ${restoredShapes.length} 个图形` : "就绪"));
   const [undoStack, setUndoStack] = useState<string[]>([]);
   const [redoStack, setRedoStack] = useState<string[]>([]);
-  const nextIdRef = useRef(1);
+  /* ⚠ 还原之后必须把 nextIdRef 推到**下一个空 id** —— 否则新画的图形会与还原出来的某个撞 id：
+   * 撞 id 时两条记录共享同一份状态（改动互相影响、删一条会删掉两条）。
+   * Vue 版 PlotView 就是在同一个坑上踩过一次，注释里写得很清楚，所以这里刻意显式处理。 */
+  const nextIdRef = useRef(restoredShapes.reduce((m, s) => Math.max(m, Number(s.id) || 0), 0) + 1);
+
+  /* 变更即回写工作区；撤销/重做栈是过程状态，不存。 */
+  usePlotWorkspace(routePath, [shapes, tool, snap], () => ({
+    kind: "plot-geometry",
+    shapes,
+    tool,
+    snap,
+  }));
 
   const currentTool = useMemo(() => TOOLS.find((t) => t.id === tool) || TOOLS[0], [tool]);
 
@@ -81,27 +106,51 @@ export default function PlotGeometryPage({ routePath = "#/plot/geometry" }: { ro
     setRedoStack([]);
   };
 
-  const createShape = ({ type, data }: { type: ShapeType; data: unknown }) => {
+  /* 草稿（type + 对应形状的 data）由画布抛出，这里补上 id/颜色/标签。
+   * 直接展开整份草稿：type 与 data 的对应关系原样保留，不需要断言。 */
+  const createShape = (draft: ShapeDraft) => {
     snapshot();
     const id = nextIdRef.current++;
     setShapes((prev) => [...prev, {
-      id, type, data, color: SHAPE_COLOR, label: makeLabel(type, id), visible: true,
+      id, ...draft, color: SHAPE_COLOR, label: makeLabel(draft.type, id), visible: true,
     }]);
     setSelectedId(id);
-    setStatusText(`已创建 ${makeLabel(type, id)}`);
+    setStatusText(`已创建 ${makeLabel(draft.type, id)}`);
   };
 
   const moveShape = ({ id, dx, dy }: { id: number; dx: number; dy: number }) => {
     setShapes((prev) => prev.map((s) => {
       if (s.id !== id) return s;
-      const d = JSON.parse(JSON.stringify(s.data)) as never;
-      const t = s.type;
-      if (t === "point") { d[0] += dx; d[1] += dy; }
-      else if (t === "segment" || t === "vector" || t === "line" || t === "rect") {
-        d[0][0] += dx; d[0][1] += dy; d[1][0] += dx; d[1][1] += dy;
-      } else if (t === "circle" || t === "ellipse") { d[0][0] += dx; d[0][1] += dy; }
-      else if (t === "polygon") for (const p of d) { p[0] += dx; p[1] += dy; }
-      return { ...s, data: d };
+      /* 平移：按类型分别重建一份新的数据数组（等价于原来的 JSON 深拷贝 —— 同样不原地
+       * 改 state 里已有的数组，数值逐位相同）。每个分支里 s.data 都是收窄后的真实形状，
+       * 所以 d[0] / d[0][0] 都是数字，原来的 `as never` 不再需要。 */
+      switch (s.type) {
+        case "point": {
+          const d: ShapeDataMap["point"] = [s.data[0] + dx, s.data[1] + dy];
+          return { ...s, data: d };
+        }
+        case "segment":
+        case "vector":
+        case "line":
+        case "rect": {
+          const d: ShapeDataMap["segment"] = [
+            [s.data[0][0] + dx, s.data[0][1] + dy], [s.data[1][0] + dx, s.data[1][1] + dy],
+          ];
+          return { ...s, data: d };
+        }
+        case "circle": {
+          const d: ShapeDataMap["circle"] = [[s.data[0][0] + dx, s.data[0][1] + dy], s.data[1]];
+          return { ...s, data: d };
+        }
+        case "ellipse": {
+          const d: ShapeDataMap["ellipse"] = [[s.data[0][0] + dx, s.data[0][1] + dy], s.data[1], s.data[2]];
+          return { ...s, data: d };
+        }
+        case "polygon": {
+          const d: ShapeDataMap["polygon"] = s.data.map(([x, y]) => [x + dx, y + dy]);
+          return { ...s, data: d };
+        }
+      }
     }));
   };
 

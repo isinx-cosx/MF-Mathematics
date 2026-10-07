@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import SurfaceCanvas from "./SurfaceCanvas";
 import type { SurfaceGrid, SurfaceView } from "./SurfaceCanvas";
+import { loadPlotPage, usePlotWorkspace, numOr, boolOr, strOr, numsOr } from "../lib/plotWorkspace";
 import ParamSlider from "./ParamSlider";
 import { validate, toEngineExpr } from "@shared/plot/plotMath.js";
 import { linspace } from "@shared/plot/sampling.js";
@@ -62,16 +63,39 @@ export default function Plot3DPage({ routePath = "#/plot/3d" }: { routePath?: st
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [statusText, setStatusText] = useState("就绪");
 
-  const [exprInput, setExprInput] = useState("sin(x)*cos(y)");
+  /* 工作区还原（BUGS.md B14）：形状不符就用默认值，逐项类型检查（文件是用户可手改的）。
+   * 这一页在 Vue 版时代也**没有**接过工作区，所以这是补齐而不是回退。 */
+  const saved = loadPlotPage(routePath, "plot3d");
+  const savedView = saved?.view as Record<string, unknown> | undefined;
+  const [exprInput, setExprInput] = useState(() => strOr(saved?.exprInput, "sin(x)*cos(y)"));
   const [exprError, setExprError] = useState<string | null>(null);
-  const [params, setParams] = useState<Record<string, number>>({});
+  const [params, setParams] = useState<Record<string, number>>(() => numsOr(saved?.params));
   const [paramConfig, setParamConfig] = useState<Record<string, { min: number; max: number; step: number }>>({});
 
-  const [view, setView] = useState<SurfaceView>({ ...DEFAULT_VIEW });
-  const [showSurface, setShowSurface] = useState(true);
-  const [showWireframe, setShowWireframe] = useState(false);
-  const [gridN, setGridN] = useState(48);   // 网格密度（每轴）
-  const [domain, setDomain] = useState(5);  // x,y ∈ [-domain, domain]
+  const [view, setView] = useState<SurfaceView>(() => {
+    const zoom = numOr(savedView?.zoom, DEFAULT_VIEW.zoom);
+    return {
+      yaw: numOr(savedView?.yaw, DEFAULT_VIEW.yaw),
+      pitch: numOr(savedView?.pitch, DEFAULT_VIEW.pitch),
+      zoom: zoom > 0 ? zoom : DEFAULT_VIEW.zoom,   // zoom=0 会让曲面消失，坏值就退回默认
+    };
+  });
+  const [showSurface, setShowSurface] = useState(() => boolOr(saved?.showSurface, true));
+  const [showWireframe, setShowWireframe] = useState(() => boolOr(saved?.showWireframe, false));
+  const [gridN, setGridN] = useState(() => numOr(saved?.gridN, 48));   // 网格密度（每轴）
+  const [domain, setDomain] = useState(() => numOr(saved?.domain, 5)); // x,y ∈ [-domain, domain]
+
+  /* 变更即回写工作区；只存输入与视野，不存算出来的网格。 */
+  usePlotWorkspace(routePath, [exprInput, view, showSurface, showWireframe, gridN, domain, params], () => ({
+    kind: "plot3d",
+    exprInput,
+    view: { ...view },
+    showSurface,
+    showWireframe,
+    gridN,
+    domain,
+    params: { ...params },
+  }));
 
   const [grid, setGrid] = useState<SurfaceGrid | null>(null);
 
@@ -115,6 +139,12 @@ export default function Plot3DPage({ routePath = "#/plot/3d" }: { routePath?: st
     const n = gridN;
     const xs = linspace(-domain, domain, n);
     const ys = linspace(-domain, domain, n);
+    /* ⚠ 这里**刻意保持同步**，是算过的、不是漏接（BUGS.md B5）：
+     * 规模 = n²，而上面 gridN 滑块的 max 是 **96** ⇒ 最多 96² = 9216 个点，
+     * 远低于 asyncPolicy 给 expr_eval_grid 的 2.5e5 阈值 —— 即 shouldRunAsync() 在这一页
+     * 恒为 false，接上后台通道也只会空转（还要把整条调用链拆成 async）。
+     * **将来若把滑块上限提到 500 以上（>2.5e5），必须改成 engineCallAsync**，
+     * 照 PlotFractalPage.tsx 里 mandelbrot 那段（shouldRunAsync + engineCallAsync + 进度）。 */
     const r = engineCall("expr_eval_grid", { expr: surfaceBody, xs, ys, vars: params });
     if (r && !r.isError && Array.isArray(r.value) && r.value.length === n * n) {
       const values = r.value as number[];

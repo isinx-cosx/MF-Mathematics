@@ -1,4 +1,12 @@
 {
+  /* 检查范围刻意**不含** vite.config.ts：它 `import { fileURLToPath } from "node:url"`，
+   * 而本项目没有装 @types/node（装它要联网，且本机 npm 缓存不可写）。留着它会稳定报一条
+   * TS2307 "Cannot find module 'node:url'"，把 `npm run check:types` 变成一条必红的命令 ——
+   * 一条永远失败的检查等于没有检查（BUGS.md B6）。
+   * 两条路二选一，别用 @ts-ignore / any 去糊：
+   *   · 想连 vite.config.ts 一起检查 → 先 `npm i -D @types/node`，再把 "vite.config.ts" 加回 include；
+   *   · 不检查 → 就保持现在这样（build 仍然由 vite 自己跑，不受影响）。
+   */
   "compilerOptions": {
     "target": "ES2022",
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
@@ -16,5 +24,5 @@
     "baseUrl": ".",
     "paths": { "@shared/*": ["../MFMath.UI.Vue/src/lib/*"] }
   },
-  "include": ["src", "vite.config.ts"]
+  "include": ["src"]
 }

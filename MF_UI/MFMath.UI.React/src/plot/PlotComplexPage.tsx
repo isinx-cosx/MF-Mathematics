@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { engineCall, isHosted, plotMode, onAppearanceChange } from "@shared/bridge.js";
+import { engineCall, engineCallAsync, isHosted, plotMode, onAppearanceChange } from "@shared/bridge.js";
+import { shouldRunAsync, describeWork } from "@shared/engine/asyncPolicy.js";
 import { exportCanvas } from "@shared/plot/exportImage.js";
+import { loadPlotPage, usePlotWorkspace, numOr, strOr } from "../lib/plotWorkspace";
+import type { JobProgress } from "../lib/jobProgress";
 import "../styles/plot-complex.css";
 
 /**
@@ -109,15 +112,33 @@ export default function PlotComplexPage({ routePath = "#/plot/complex" }: { rout
   const [statusText, setStatusText] = useState("等待输入函数");
 
   /* ── 参数（默认值与原版一致）── */
-  const [funcExpr, setFuncExpr] = useState("");
-  const [mode, setMode] = useState(0);
-  const [xMin, setXMin] = useState(-5);
-  const [xMax, setXMax] = useState(5);
-  const [yMin, setYMin] = useState(-5);
-  const [yMax, setYMax] = useState(5);
-  const [resolution, setResolution] = useState(200);
+  /* 工作区还原（BUGS.md B14）：这一页在 Vue 版时代也没接过工作区，属于补齐。
+   * 注意 mode 是**下标**（MODES 的顺序），坏值会让它越界，所以 clamp 一下。 */
+  const saved = loadPlotPage(routePath, "plot-complex");
+  const [funcExpr, setFuncExpr] = useState(() => strOr(saved?.funcExpr, ""));
+  const [mode, setMode] = useState(() => {
+    const m = Math.round(numOr(saved?.mode, 0));
+    return m >= 0 && m < MODES.length ? m : 0;
+  });
+  const [xMin, setXMin] = useState(() => numOr(saved?.xMin, -5));
+  const [xMax, setXMax] = useState(() => numOr(saved?.xMax, 5));
+  const [yMin, setYMin] = useState(() => numOr(saved?.yMin, -5));
+  const [yMax, setYMax] = useState(() => numOr(saved?.yMax, 5));
+  const [resolution, setResolution] = useState(() => numOr(saved?.resolution, 200));
   const [busy, setBusy] = useState(false);
   const [hasResult, setHasResult] = useState(false);
+
+  /* 变更即回写工作区；不存算出来的网格（能重算）。 */
+  usePlotWorkspace(routePath, [funcExpr, mode, xMin, xMax, yMin, yMax, resolution], () => ({
+    kind: "plot-complex",
+    funcExpr,
+    mode,
+    xMin,
+    xMax,
+    yMin,
+    yMax,
+    resolution,
+  }));
   /* 换主题要重绘（颜色取自 CSS 变量） */
   const [themeTick, setThemeTick] = useState(0);
 
@@ -135,12 +156,25 @@ export default function PlotComplexPage({ routePath = "#/plot/complex" }: { rout
     return () => { if (typeof off === "function") off(); };
   }, []);
 
-  /* ── 取数：全部来自引擎 ─────────────────────────────────────────────── */
-  const fetchGrid = (): ComplexGrid => {
-    const n = Math.max(2, Math.min(1000, Math.round(resolution)));
-    const r = engineCall("complex_grid", {
-      expr: funcExpr, x0: xMin, x1: xMax, y0: yMin, y1: yMax, nx: n, ny: n,
+  /* ── 取数：全部来自引擎 ───────────────────────────────────────────────
+   * 重的活走后台通道（BUGS.md B5）：`complex_grid` 的规模 = nx×ny，分辨率上限 1000
+   * ⇒ 最多 1e6 个点，超过 asyncPolicy 那条 2.5e5 的线；同步调用会占住渲染主线程
+   * （白屏 + 系统判定"未响应"）。判据与进度显示都走 asyncPolicy，与分形页同一套做法。
+   * 两个 fetch 因此改成 async —— 它们的唯一调用点 `apply()` 本来就是 async，级联只有一个 await。 */
+  const callGrid = async (args: Record<string, unknown>): Promise<unknown> => {
+    if (!shouldRunAsync("complex_grid", args)) return engineCall("complex_grid", args);
+    setStatusText(`计算中… · ${describeWork("complex_grid", args)}`);
+    return engineCallAsync("complex_grid", args, {
+      onProgress: (p: JobProgress) =>
+        setStatusText(`计算中… ${(((p && p.elapsedMs) || 0) / 1000).toFixed(1)}s · ${describeWork("complex_grid", args)}`),
     });
+  };
+
+  const fetchGrid = async (): Promise<ComplexGrid> => {
+    const n = Math.max(2, Math.min(1000, Math.round(resolution)));
+    const r = await callGrid({
+      expr: funcExpr, x0: xMin, x1: xMax, y0: yMin, y1: yMax, nx: n, ny: n,
+    }) as { isError?: boolean; value?: unknown } | null;
     if (!r) throw new Error("桥不可用");
     if (r.isError) throw new Error(String(r.value));
     const v = (r.value || {}) as Record<string, unknown> & { unsupported?: string };
@@ -156,18 +190,18 @@ export default function PlotComplexPage({ routePath = "#/plot/complex" }: { rout
   };
 
   /** 共形映射：水平线（ny=21 行，每行 nx=400 点）与垂直线（nx=21 列，每列 ny=400 点） */
-  const fetchConformalGrids = (): ConfLines => {
+  const fetchConformalGrids = async (): Promise<ConfLines> => {
     const N = 400, L = 21;
-    const mk = (nx: number, ny: number) => {
-      const r = engineCall("complex_grid", {
+    const mk = async (nx: number, ny: number) => {
+      const r = await callGrid({
         expr: funcExpr, x0: xMin, x1: xMax, y0: yMin, y1: yMax, nx, ny,
-      });
+      }) as { isError?: boolean; value?: unknown } | null;
       if (!r || r.isError) throw new Error(r ? String(r.value) : "桥不可用");
       const v = (r.value || {}) as Record<string, unknown> & { unsupported?: string };
       if (v.unsupported) throw new Error(String(v.unsupported));
       return { re: v.re as (number | null)[], im: v.im as (number | null)[], nx: v.nx as number, ny: v.ny as number };
     };
-    return { h: mk(N, L), v: mk(L, N) };
+    return { h: await mk(N, L), v: await mk(L, N) };
   };
 
   /* ── 绘制 ────────────────────────────────────────────────────────────── */
@@ -470,11 +504,11 @@ export default function PlotComplexPage({ routePath = "#/plot/complex" }: { rout
     try {
       // 五模式共用同一块网格；共形映射另外取两组线数据（它的坐标在 w 平面，网格数据用不上）
       if (!reuse) {
-        gridRef.current = fetchGrid();
+        gridRef.current = await fetchGrid();
         confRef.current = null;
         gridKeyRef.current = key;
       }
-      if (m === 4 && !confRef.current) confRef.current = fetchConformalGrids();
+      if (m === 4 && !confRef.current) confRef.current = await fetchConformalGrids();
       setHasResult(true);
       const ms = Math.round(performance.now() - t0);
       const g = gridRef.current!;

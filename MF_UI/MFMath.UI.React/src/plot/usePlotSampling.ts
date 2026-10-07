@@ -3,7 +3,27 @@ import { engineCall, isHosted } from "@shared/bridge.js";
 import { parseExpr } from "@shared/plot/plotMath.js";
 import { adaptiveSample } from "@shared/plot/sampling.js";
 import { viewW, viewH } from "@shared/plot/view.js";
-import type { Sample, UserPoint, View } from "./PlotCanvas";
+import type { ParsedExpr, Sample, UserPoint, View } from "./PlotCanvas";
+
+/**
+ * adaptiveSample 的真实契约。sampling.js 的 JSDoc 把 evalPoints 写成
+ * `(ts:number[]) => Array<[number,number]>`，但它的实现**本来就**把 null 当
+ * "这里断开"处理：端点或中点为 null 时照样加密、并且把 null 本身插进结果数组
+ * （sampling.js:53-67），绘制层再据此断线（1/x 的渐近线、ln x 的定义域外都靠它）。
+ * 本项目统一用 `Sample = [number,number] | null` 表示断点，所以这里按真实契约
+ * 重新声明一次签名（运行时就是同一个函数、同一个参数顺序，不做任何改写）。
+ * 回调也允许直接返回 null（批量求值整批失败时）：adaptiveSample 第一行就会
+ * 判 `!world` 并返回空数组。
+ */
+type AdaptiveSampleFn = (
+  evalPoints: (ts: number[]) => Sample[] | null,
+  t0: number,
+  t1: number,
+  toScreen: (p: [number, number]) => [number, number],
+  opt?: { initial?: number; maxRounds?: number; tolPx?: number; maxPoints?: number }
+) => Sample[];
+
+const sampleAdaptive = adaptiveSample as AdaptiveSampleFn;
 
 export type ExprRow = {
   id: number;
@@ -93,7 +113,8 @@ export function usePlotSampling(
     let okCount = 0, errCount = 0, totalPts = 0;
 
     for (const row of rows) {
-      const p = parseExpr(row.text);
+      /* 按解析结果的真实字段用（op / axis / boundary 只有不等式/区域分支才有） */
+      const p: ParsedExpr = parseExpr(row.text);
       if (!row.text.trim()) continue;
       if (!p.valid) { nextErr[row.id] = p.error || "表达式无法解析"; errCount++; continue; }
 
@@ -119,39 +140,39 @@ export function usePlotSampling(
       if (p.type === "polar") {
         const ts = linspace(0, Math.PI * 2, 300);
         const rs = batchEval(p.radius!, "theta", ts, params);
-        if (rs) got = adaptiveSample(
+        if (rs) got = sampleAdaptive(
           (tt: number[]) => {
             const rr = batchEval(p.radius!, "theta", tt, params);
-            return rr ? tt.map((t, i) => pt(rr[i] * Math.cos(t), rr[i] * Math.sin(t))) : null!;
+            return rr ? tt.map((t, i) => pt(rr[i] * Math.cos(t), rr[i] * Math.sin(t))) : null;
           }, 0, Math.PI * 2, toScreen, opts);
       } else if (p.type === "parametric") {
-        got = adaptiveSample(
+        got = sampleAdaptive(
           (tt: number[]) => {
             const xs = batchEval(p.xsExpr!, "t", tt, params);
             const ys = batchEval(p.ysExpr!, "t", tt, params);
-            return xs && ys ? tt.map((_, i) => pt(xs[i], ys[i])) : null!;
+            return xs && ys ? tt.map((_, i) => pt(xs[i], ys[i])) : null;
           }, sx0, sx1, toScreen, opts);
       } else if (p.type === "vertical") {
-        got = adaptiveSample(
+        got = sampleAdaptive(
           (tt: number[]) => {
             const vs = batchEval(p.body, "y", tt, params);
-            return vs ? tt.map((t, i) => pt(vs[i], t)) : null!;
+            return vs ? tt.map((t, i) => pt(vs[i], t)) : null;
           }, sy0, sy1, toScreen, opts);
       } else if (p.type === "explicit") {
-        got = adaptiveSample(
+        got = sampleAdaptive(
           (tt: number[]) => {
             const vs = batchEval(p.body, "x", tt, params);
-            return vs ? tt.map((t, i) => pt(t, vs[i])) : null!;
+            return vs ? tt.map((t, i) => pt(t, vs[i])) : null;
           }, sx0, sx1, toScreen, opts);
       } else if (p.type === "inequality") {
         /* 不等式 y ≷ f(x) / x ≷ g(y)：**采的是边界曲线**（与 Vue 版同一策略），
          * 所以它计入"引擎采样 N 条曲线"；填充由画布用这批点做（drawInequalities）。 */
         const isY = p.axis === "y";
         const a0 = isY ? sx0 : sy0, a1 = isY ? sx1 : sy1;
-        got = adaptiveSample(
+        got = sampleAdaptive(
           (tt: number[]) => {
             const vals = batchEval(p.boundary!, isY ? "x" : "y", tt, params);
-            return vals ? tt.map((t, i) => (isY ? pt(t, vals[i]) : pt(vals[i], t))) : null!;
+            return vals ? tt.map((t, i) => (isY ? pt(t, vals[i]) : pt(vals[i], t))) : null;
           }, a0, a1, toScreen, opts);
       } else if (p.type === "implicit" || p.type === "region") {
         /* 二元网格：不在这里采，循环后统一走 expr_eval_grid。
@@ -175,7 +196,11 @@ export function usePlotSampling(
     }
 
     /* 二元网格：隐式方程等值线 + 二元不等式区域（Vue 版 sampleGrids 的等价物）。
-     * 180×180 = 32400 点，一次引擎调用拿回整块数据。 */
+     * 180×180 = 32400 点，一次引擎调用拿回整块数据。
+     * ⚠ **刻意保持同步**（BUGS.md B5）：① 32400 远低于 asyncPolicy 给 expr_eval_grid 的
+     * 2.5e5 阈值（shouldRunAsync 恒为 false）；② asyncPolicy.js:12-15 明确要求
+     * "绘图页每条曲线/每行一次的采样保持同步" —— 一条一个 await 会把采样时序拆碎。
+     * 若将来把 GRID_N 提到 500 以上（>2.5e5），要重新评估这一条。 */
     const grids: Record<number, PlotGrid> = {};
     for (const g of gridRows) {
       const xs = linspace(view.x0, view.x1, GRID_N);

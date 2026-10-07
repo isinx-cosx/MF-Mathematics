@@ -23,14 +23,47 @@ import "../styles/geometry-canvas.css";
  */
 
 export type ShapeType = "point" | "segment" | "circle" | "vector" | "line" | "ellipse" | "rect" | "polygon";
-export type Shape = {
-  id: number;
-  type: ShapeType;
-  data: unknown;
-  color: string;
-  label: string;
-  visible: boolean;
+
+/**
+ * 每种图形的 data 真实布局（与创建处 onCreate、以及下面的吸附/命中/绘制代码逐字对应）：
+ *   point                          → [x, y]
+ *   segment / vector / line / rect → [[x1,y1], [x2,y2]]（rect 是对角两点）
+ *   circle                         → [[cx,cy], r]
+ *   ellipse                        → [[cx,cy], rx, ry]
+ *   polygon                        → [[x,y], ...]
+ */
+export type ShapeDataMap = {
+  point: [number, number];
+  segment: [[number, number], [number, number]];
+  vector: [[number, number], [number, number]];
+  line: [[number, number], [number, number]];
+  rect: [[number, number], [number, number]];
+  circle: [[number, number], number];
+  ellipse: [[number, number], number, number];
+  polygon: [number, number][];
 };
+
+/**
+ * 图形。**按 type 区分的可辨识联合**：data 原来是 `unknown`，读取处只能写
+ * `s.data as never` —— `never` 是底类型（没有属性、不能解构），于是后面每个
+ * `d[0]` / `d.length` / 数组解构都报错，类型系统也彻底丢掉了"type 与 data 形状
+ * 对应"这条信息。这里把 type → data 的映射写成映射类型：`switch (s.type)` 的
+ * 每个分支里 data 自动就是该类型的真实形状 —— 既不用断言，也不可能把圆的数据
+ * 当成多边形用。运行时形状一个字节都没变。
+ */
+export type Shape = {
+  [K in ShapeType]: {
+    id: number;
+    type: K;
+    data: ShapeDataMap[K];
+    color: string;
+    label: string;
+    visible: boolean;
+  };
+}[ShapeType];
+
+/** 新建图形时向上抛出的草稿：与 Shape 同一套 type ↔ data 对应关系（id/颜色/标签由页面补） */
+export type ShapeDraft = { [K in ShapeType]: { type: K; data: ShapeDataMap[K] } }[ShapeType];
 export type GeoView = { x0: number; y0: number; x1: number; y1: number };
 export type GeometryApi = { resetView: () => void; cancelConstruction: () => void };
 
@@ -40,7 +73,7 @@ type Props = {
   selectedId: number | null;
   snap: boolean;
   theme?: string;
-  onCreate?: (v: { type: ShapeType; data: unknown }) => void;
+  onCreate?: (v: ShapeDraft) => void;
   onSelect?: (id: number | null) => void;
   onMove?: (v: { id: number; dx: number; dy: number }) => void;
   canvasRef?: RefObject<HTMLCanvasElement | null>;
@@ -114,57 +147,102 @@ function lineViewportIntersection(
 
 type Pt = [number, number];
 
+/* 下面三个函数都按 s.type 分支：switch 让 s.data 跟着收窄成该类型的真实形状，
+ * 所以每个分支里的 d 就是原来的 d（只是不再需要 `as never`）。分支顺序与判据
+ * 与原来的 if/else 链逐条一致。 */
 function shapeSnapPoints(s: Shape): Pt[] {
-  const d = s.data as never, t = s.type, out: Pt[] = [];
-  if (t === "point") out.push([d[0], d[1]]);
-  else if (t === "segment" || t === "vector" || t === "line") {
-    out.push([d[0][0], d[0][1]], [d[1][0], d[1][1]],
-      [(d[0][0] + d[1][0]) / 2, (d[0][1] + d[1][1]) / 2]);   // 两端点 + 中点
-  } else if (t === "circle") {
-    // 原版 arbitrary/geometry_canvas.py:681-685：圆心 + 右端点 + 上端点
-    out.push([d[0][0], d[0][1]], [d[0][0] + d[1], d[0][1]], [d[0][0], d[0][1] + d[1]]);
-  } else if (t === "ellipse") {
-    // 原版 :686-690 把 ((cx,cy),rx,ry) 当成两点解包了（原版自身缺陷），这里不照抄
-    out.push([d[0][0], d[0][1]], [d[0][0] + d[1], d[0][1]], [d[0][0], d[0][1] + d[2]]);
-  } else if (t === "rect") {
-    out.push([d[0][0], d[0][1]], [d[1][0], d[1][1]],
-      [(d[0][0] + d[1][0]) / 2, (d[0][1] + d[1][1]) / 2]);
-  } else if (t === "polygon") {
-    for (let i = 0; i < d.length; i++) {
-      out.push([d[i][0], d[i][1]]);
-      const n = d[(i + 1) % d.length];
-      out.push([(d[i][0] + n[0]) / 2, (d[i][1] + n[1]) / 2]);
+  const out: Pt[] = [];
+  switch (s.type) {
+    case "point": {
+      const d = s.data;
+      out.push([d[0], d[1]]);
+      break;
+    }
+    case "segment":
+    case "vector":
+    case "line": {
+      const d = s.data;
+      out.push([d[0][0], d[0][1]], [d[1][0], d[1][1]],
+        [(d[0][0] + d[1][0]) / 2, (d[0][1] + d[1][1]) / 2]);   // 两端点 + 中点
+      break;
+    }
+    case "circle": {
+      const d = s.data;
+      // 原版 arbitrary/geometry_canvas.py:681-685：圆心 + 右端点 + 上端点
+      out.push([d[0][0], d[0][1]], [d[0][0] + d[1], d[0][1]], [d[0][0], d[0][1] + d[1]]);
+      break;
+    }
+    case "ellipse": {
+      const d = s.data;
+      // 原版 :686-690 把 ((cx,cy),rx,ry) 当成两点解包了（原版自身缺陷），这里不照抄
+      out.push([d[0][0], d[0][1]], [d[0][0] + d[1], d[0][1]], [d[0][0], d[0][1] + d[2]]);
+      break;
+    }
+    case "rect": {
+      const d = s.data;
+      out.push([d[0][0], d[0][1]], [d[1][0], d[1][1]],
+        [(d[0][0] + d[1][0]) / 2, (d[0][1] + d[1][1]) / 2]);
+      break;
+    }
+    case "polygon": {
+      const d = s.data;
+      for (let i = 0; i < d.length; i++) {
+        out.push([d[i][0], d[i][1]]);
+        const n = d[(i + 1) % d.length];
+        out.push([(d[i][0] + n[0]) / 2, (d[i][1] + n[1]) / 2]);
+      }
+      break;
     }
   }
   return out;
 }
 
 function hitTest(s: Shape, mx: number, my: number, th: number): boolean {
-  const d = s.data as never, t = s.type;
-  if (t === "point") return Math.hypot(mx - d[0], my - d[1]) <= th;
-  if (t === "segment" || t === "vector") return distSeg(mx, my, d[0][0], d[0][1], d[1][0], d[1][1]) <= th;
-  if (t === "circle") return Math.abs(Math.hypot(mx - d[0][0], my - d[0][1]) - d[1]) <= th;
-  if (t === "line") return distLine(mx, my, d[0][0], d[0][1], d[1][0], d[1][1]) <= th;
-  if (t === "ellipse") {
-    const [, rx, ry] = d;
-    if (rx < 1e-10 || ry < 1e-10) return false;
-    return Math.abs(Math.hypot((mx - d[0][0]) / rx, (my - d[0][1]) / ry) - 1) * ((rx + ry) / 2) <= th;
-  }
-  if (t === "rect") {
-    const [x1, y1] = d[0], [x2, y2] = d[1];
-    const xmin = Math.min(x1, x2), xmax = Math.max(x1, x2);
-    const ymin = Math.min(y1, y2), ymax = Math.max(y1, y2);
-    const c: Pt[] = [[xmin, ymin], [xmax, ymin], [xmax, ymax], [xmin, ymax]];
-    for (let i = 0; i < 4; i++) {
-      const a = c[i], b = c[(i + 1) % 4];
-      if (distSeg(mx, my, a[0], a[1], b[0], b[1]) <= th) return true;
+  switch (s.type) {
+    case "point": {
+      const d = s.data;
+      return Math.hypot(mx - d[0], my - d[1]) <= th;
     }
-    return false;
-  }
-  if (t === "polygon" && d.length >= 3) {
-    for (let i = 0; i < d.length; i++) {
-      const a = d[i], b = d[(i + 1) % d.length];
-      if (distSeg(mx, my, a[0], a[1], b[0], b[1]) <= th) return true;
+    case "segment":
+    case "vector": {
+      const d = s.data;
+      return distSeg(mx, my, d[0][0], d[0][1], d[1][0], d[1][1]) <= th;
+    }
+    case "circle": {
+      const d = s.data;
+      return Math.abs(Math.hypot(mx - d[0][0], my - d[0][1]) - d[1]) <= th;
+    }
+    case "line": {
+      const d = s.data;
+      return distLine(mx, my, d[0][0], d[0][1], d[1][0], d[1][1]) <= th;
+    }
+    case "ellipse": {
+      const d = s.data;
+      const [, rx, ry] = d;
+      if (rx < 1e-10 || ry < 1e-10) return false;
+      return Math.abs(Math.hypot((mx - d[0][0]) / rx, (my - d[0][1]) / ry) - 1) * ((rx + ry) / 2) <= th;
+    }
+    case "rect": {
+      const d = s.data;
+      const [x1, y1] = d[0], [x2, y2] = d[1];
+      const xmin = Math.min(x1, x2), xmax = Math.max(x1, x2);
+      const ymin = Math.min(y1, y2), ymax = Math.max(y1, y2);
+      const c: Pt[] = [[xmin, ymin], [xmax, ymin], [xmax, ymax], [xmin, ymax]];
+      for (let i = 0; i < 4; i++) {
+        const a = c[i], b = c[(i + 1) % 4];
+        if (distSeg(mx, my, a[0], a[1], b[0], b[1]) <= th) return true;
+      }
+      return false;
+    }
+    case "polygon": {
+      const d = s.data;
+      if (d.length >= 3) {
+        for (let i = 0; i < d.length; i++) {
+          const a = d[i], b = d[(i + 1) % d.length];
+          if (distSeg(mx, my, a[0], a[1], b[0], b[1]) <= th) return true;
+        }
+      }
+      break;
     }
   }
   return false;
@@ -172,35 +250,55 @@ function hitTest(s: Shape, mx: number, my: number, th: number): boolean {
 
 /** 光标到图形的近似距离 —— 照搬原版 _shape_approx_dist（用于"取最近"的选中判定） */
 function shapeApproxDist(s: Shape, mx: number, my: number): number {
-  const d = s.data as never, t = s.type;
-  if (t === "point") return Math.hypot(mx - d[0], my - d[1]);
-  if (t === "segment" || t === "vector") return distSeg(mx, my, d[0][0], d[0][1], d[1][0], d[1][1]);
-  if (t === "circle") return Math.abs(Math.hypot(mx - d[0][0], my - d[0][1]) - d[1]);
-  if (t === "line") return distLine(mx, my, d[0][0], d[0][1], d[1][0], d[1][1]);
-  if (t === "ellipse") {
-    const rx = Math.abs(d[1]), ry = Math.abs(d[2]);
-    if (rx < 0.01 || ry < 0.01) return Infinity;
-    return Math.abs(Math.hypot((mx - d[0][0]) / rx, (my - d[0][1]) / ry) - 1) * ((rx + ry) / 2);
-  }
-  if (t === "rect") {
-    const [x1, y1] = d[0], [x2, y2] = d[1];
-    const xmin = Math.min(x1, x2), xmax = Math.max(x1, x2);
-    const ymin = Math.min(y1, y2), ymax = Math.max(y1, y2);
-    const c: Pt[] = [[xmin, ymin], [xmax, ymin], [xmax, ymax], [xmin, ymax]];
-    let best = Infinity;
-    for (let i = 0; i < 4; i++) {
-      const a = c[i], b = c[(i + 1) % 4];
-      best = Math.min(best, distSeg(mx, my, a[0], a[1], b[0], b[1]));
+  switch (s.type) {
+    case "point": {
+      const d = s.data;
+      return Math.hypot(mx - d[0], my - d[1]);
     }
-    return best;
-  }
-  if (t === "polygon" && d.length >= 2) {
-    let best = Infinity;
-    for (let i = 0; i < d.length; i++) {
-      const a = d[i], b = d[(i + 1) % d.length];
-      best = Math.min(best, distSeg(mx, my, a[0], a[1], b[0], b[1]));
+    case "segment":
+    case "vector": {
+      const d = s.data;
+      return distSeg(mx, my, d[0][0], d[0][1], d[1][0], d[1][1]);
     }
-    return best;
+    case "circle": {
+      const d = s.data;
+      return Math.abs(Math.hypot(mx - d[0][0], my - d[0][1]) - d[1]);
+    }
+    case "line": {
+      const d = s.data;
+      return distLine(mx, my, d[0][0], d[0][1], d[1][0], d[1][1]);
+    }
+    case "ellipse": {
+      const d = s.data;
+      const rx = Math.abs(d[1]), ry = Math.abs(d[2]);
+      if (rx < 0.01 || ry < 0.01) return Infinity;
+      return Math.abs(Math.hypot((mx - d[0][0]) / rx, (my - d[0][1]) / ry) - 1) * ((rx + ry) / 2);
+    }
+    case "rect": {
+      const d = s.data;
+      const [x1, y1] = d[0], [x2, y2] = d[1];
+      const xmin = Math.min(x1, x2), xmax = Math.max(x1, x2);
+      const ymin = Math.min(y1, y2), ymax = Math.max(y1, y2);
+      const c: Pt[] = [[xmin, ymin], [xmax, ymin], [xmax, ymax], [xmin, ymax]];
+      let best = Infinity;
+      for (let i = 0; i < 4; i++) {
+        const a = c[i], b = c[(i + 1) % 4];
+        best = Math.min(best, distSeg(mx, my, a[0], a[1], b[0], b[1]));
+      }
+      return best;
+    }
+    case "polygon": {
+      const d = s.data;
+      if (d.length >= 2) {
+        let best = Infinity;
+        for (let i = 0; i < d.length; i++) {
+          const a = d[i], b = d[(i + 1) % d.length];
+          best = Math.min(best, distSeg(mx, my, a[0], a[1], b[0], b[1]));
+        }
+        return best;
+      }
+      break;
+    }
   }
   return Infinity;
 }
@@ -300,7 +398,6 @@ export default function GeometryCanvas({
 
   /* ── 绘制 ── */
   const drawShape = (ctx: CanvasRenderingContext2D, s: Shape, w: number, h: number, v: GeoView) => {
-    const d = s.data as never, t = s.type;
     const selected = s.id === selectedId;
     // 选中高亮色 = 原版 HIGHLIGHT_COLOR #3b82f6（用 #e74c3c 会与色板首色同色系，难分辨）
     const color = selected ? "#3b82f6" : s.color;
@@ -311,90 +408,118 @@ export default function GeometryCanvas({
     ctx.lineCap = "round";
     const px = (x: number, y: number): Pt => [mapX(v, w, x), mapY(v, h, y)];
 
-    if (t === "point") {
-      const [X, Y] = px(d[0], d[1]);
-      ctx.beginPath(); ctx.arc(X, Y, 5, 0, Math.PI * 2); ctx.fill();
-      if (s.label) {
-        ctx.fillStyle = "#1e293b"; ctx.font = "12px -apple-system, Segoe UI, sans-serif";
-        ctx.textAlign = "left"; ctx.textBaseline = "bottom";
-        ctx.fillText(s.label, X + 7, Y - 6);
+    /* 按类型绘制：switch 让 data 收窄成该类型的真实形状（原来每个分支都要从 `as never` 的
+     * d 上取下标）。分支顺序、分组与判据（polygon 的 length >= 3）与原来的 if/else 链一致。 */
+    switch (s.type) {
+      case "point": {
+        const d = s.data;
+        const [X, Y] = px(d[0], d[1]);
+        ctx.beginPath(); ctx.arc(X, Y, 5, 0, Math.PI * 2); ctx.fill();
+        if (s.label) {
+          ctx.fillStyle = "#1e293b"; ctx.font = "12px -apple-system, Segoe UI, sans-serif";
+          ctx.textAlign = "left"; ctx.textBaseline = "bottom";
+          ctx.fillText(s.label, X + 7, Y - 6);
+        }
+        break;
       }
-    } else if (t === "segment") {
-      const [A, B] = [px(d[0][0], d[0][1]), px(d[1][0], d[1][1])];
-      ctx.beginPath(); ctx.moveTo(A[0], A[1]); ctx.lineTo(B[0], B[1]); ctx.stroke();
-      for (const P of [A, B]) { ctx.beginPath(); ctx.arc(P[0], P[1], 2.5, 0, Math.PI * 2); ctx.fill(); }
-      const dist = Math.hypot(d[1][0] - d[0][0], d[1][1] - d[0][1]);
-      ctx.fillStyle = "#475569"; ctx.font = "11px -apple-system, Segoe UI, sans-serif";
-      ctx.textAlign = "left"; ctx.textBaseline = "bottom";
-      ctx.fillText(`${s.label || ""} (${dist.toFixed(2)})`, (A[0] + B[0]) / 2 + 6, (A[1] + B[1]) / 2 - 6);
-    } else if (t === "vector") {
-      const [A, B] = [px(d[0][0], d[0][1]), px(d[1][0], d[1][1])];
-      ctx.beginPath(); ctx.moveTo(A[0], A[1]); ctx.lineTo(B[0], B[1]); ctx.stroke();
-      const ang = Math.atan2(B[1] - A[1], B[0] - A[0]);
-      const head = 11;
-      ctx.beginPath();
-      ctx.moveTo(B[0], B[1]);
-      ctx.lineTo(B[0] - head * Math.cos(ang - 0.35), B[1] - head * Math.sin(ang - 0.35));
-      ctx.lineTo(B[0] - head * Math.cos(ang + 0.35), B[1] - head * Math.sin(ang + 0.35));
-      ctx.closePath(); ctx.fill();
-      const dx = d[1][0] - d[0][0], dy = d[1][1] - d[0][1];
-      ctx.fillStyle = color; ctx.font = "11px -apple-system, Segoe UI, sans-serif";
-      ctx.textAlign = "left"; ctx.textBaseline = "bottom";
-      ctx.fillText(`${s.label || ""}(${dx.toFixed(2)}, ${dy.toFixed(2)})`, (A[0] + B[0]) / 2 + 6, (A[1] + B[1]) / 2 - 6);
-    } else if (t === "circle") {
-      const [C] = [px(d[0][0], d[0][1])];
-      const rPx = Math.abs(d[1]) * (w / Math.max(v.x1 - v.x0, 1e-12));
-      ctx.beginPath(); ctx.arc(C[0], C[1], rPx, 0, Math.PI * 2); ctx.stroke();
-      ctx.beginPath(); ctx.arc(C[0], C[1], 3, 0, Math.PI * 2); ctx.fill();
-      if (s.label) {
-        ctx.fillStyle = "#475569"; ctx.font = "11px -apple-system, Segoe UI, sans-serif";
-        ctx.textAlign = "left"; ctx.textBaseline = "bottom";
-        ctx.fillText(`${s.label} r=${Math.abs(d[1]).toFixed(2)}`, C[0] + rPx * 0.7, C[1] - rPx * 0.7);
-      }
-    } else if (t === "line") {
-      // 无限直线：与视图矩形求交后绘制（视口四角恒在视口内，用它们当交点会让所有直线退化成一条线段）
-      const [x1, y1] = d[0], [x2, y2] = d[1];
-      const cuts = lineViewportIntersection(x1, y1, x2, y2, v.x0, v.x1, v.y0, v.y1);
-      if (cuts.length >= 2) {
-        const A = px(cuts[0][0], cuts[0][1]), B = px(cuts[1][0], cuts[1][1]);
+      case "segment": {
+        const d = s.data;
+        const [A, B] = [px(d[0][0], d[0][1]), px(d[1][0], d[1][1])];
         ctx.beginPath(); ctx.moveTo(A[0], A[1]); ctx.lineTo(B[0], B[1]); ctx.stroke();
-      }
-    } else if (t === "ellipse") {
-      const [[cx, cy], rx, ry] = d;
-      const sc = w / Math.max(v.x1 - v.x0, 1e-12);
-      const C = px(cx, cy);
-      ctx.beginPath(); ctx.ellipse(C[0], C[1], Math.abs(rx) * sc, Math.abs(ry) * sc, 0, 0, Math.PI * 2); ctx.stroke();
-      ctx.beginPath(); ctx.arc(C[0], C[1], 2.5, 0, Math.PI * 2); ctx.fill();
-      if (s.label) {
+        for (const P of [A, B]) { ctx.beginPath(); ctx.arc(P[0], P[1], 2.5, 0, Math.PI * 2); ctx.fill(); }
+        const dist = Math.hypot(d[1][0] - d[0][0], d[1][1] - d[0][1]);
         ctx.fillStyle = "#475569"; ctx.font = "11px -apple-system, Segoe UI, sans-serif";
         ctx.textAlign = "left"; ctx.textBaseline = "bottom";
-        ctx.fillText(`${s.label} ${Math.abs(rx).toFixed(2)}×${Math.abs(ry).toFixed(2)}`, C[0] + 8, C[1] - 8);
+        ctx.fillText(`${s.label || ""} (${dist.toFixed(2)})`, (A[0] + B[0]) / 2 + 6, (A[1] + B[1]) / 2 - 6);
+        break;
       }
-    } else if (t === "rect") {
-      const [p1, p2] = d;
-      const A = px(p1[0], p1[1]), B = px(p2[0], p2[1]);
-      ctx.strokeRect(Math.min(A[0], B[0]), Math.min(A[1], B[1]), Math.abs(B[0] - A[0]), Math.abs(B[1] - A[1]));
-      const bw = Math.abs(p2[0] - p1[0]), bh = Math.abs(p2[1] - p1[1]);
-      if (s.label) {
-        ctx.fillStyle = "#475569"; ctx.font = "11px -apple-system, Segoe UI, sans-serif";
+      case "vector": {
+        const d = s.data;
+        const [A, B] = [px(d[0][0], d[0][1]), px(d[1][0], d[1][1])];
+        ctx.beginPath(); ctx.moveTo(A[0], A[1]); ctx.lineTo(B[0], B[1]); ctx.stroke();
+        const ang = Math.atan2(B[1] - A[1], B[0] - A[0]);
+        const head = 11;
+        ctx.beginPath();
+        ctx.moveTo(B[0], B[1]);
+        ctx.lineTo(B[0] - head * Math.cos(ang - 0.35), B[1] - head * Math.sin(ang - 0.35));
+        ctx.lineTo(B[0] - head * Math.cos(ang + 0.35), B[1] - head * Math.sin(ang + 0.35));
+        ctx.closePath(); ctx.fill();
+        const dx = d[1][0] - d[0][0], dy = d[1][1] - d[0][1];
+        ctx.fillStyle = color; ctx.font = "11px -apple-system, Segoe UI, sans-serif";
         ctx.textAlign = "left"; ctx.textBaseline = "bottom";
-        ctx.fillText(`${s.label} ${bw.toFixed(2)}×${bh.toFixed(2)}`, Math.min(A[0], B[0]) + 6, Math.min(A[1], B[1]) - 6);
+        ctx.fillText(`${s.label || ""}(${dx.toFixed(2)}, ${dy.toFixed(2)})`, (A[0] + B[0]) / 2 + 6, (A[1] + B[1]) / 2 - 6);
+        break;
       }
-    } else if (t === "polygon" && d.length >= 3) {
-      ctx.beginPath();
-      d.forEach(([X, Y]: Pt, i: number) => {
-        const P = px(X, Y);
-        if (i === 0) ctx.moveTo(P[0], P[1]); else ctx.lineTo(P[0], P[1]);
-      });
-      ctx.closePath(); ctx.stroke();
-      for (const [X, Y] of d as Pt[]) { const P = px(X, Y); ctx.beginPath(); ctx.arc(P[0], P[1], 2.5, 0, Math.PI * 2); ctx.fill(); }
-      if (s.label) {
-        const cxw = (d as Pt[]).reduce((a, p) => a + p[0], 0) / d.length;
-        const cyw = (d as Pt[]).reduce((a, p) => a + p[1], 0) / d.length;
-        const C = px(cxw, cyw);
-        ctx.fillStyle = "#475569"; ctx.font = "11px -apple-system, Segoe UI, sans-serif";
-        ctx.textAlign = "center"; ctx.textBaseline = "middle";
-        ctx.fillText(s.label, C[0], C[1]);
+      case "circle": {
+        const d = s.data;
+        const [C] = [px(d[0][0], d[0][1])];
+        const rPx = Math.abs(d[1]) * (w / Math.max(v.x1 - v.x0, 1e-12));
+        ctx.beginPath(); ctx.arc(C[0], C[1], rPx, 0, Math.PI * 2); ctx.stroke();
+        ctx.beginPath(); ctx.arc(C[0], C[1], 3, 0, Math.PI * 2); ctx.fill();
+        if (s.label) {
+          ctx.fillStyle = "#475569"; ctx.font = "11px -apple-system, Segoe UI, sans-serif";
+          ctx.textAlign = "left"; ctx.textBaseline = "bottom";
+          ctx.fillText(`${s.label} r=${Math.abs(d[1]).toFixed(2)}`, C[0] + rPx * 0.7, C[1] - rPx * 0.7);
+        }
+        break;
+      }
+      case "line": {
+        const d = s.data;
+        // 无限直线：与视图矩形求交后绘制（视口四角恒在视口内，用它们当交点会让所有直线退化成一条线段）
+        const [x1, y1] = d[0], [x2, y2] = d[1];
+        const cuts = lineViewportIntersection(x1, y1, x2, y2, v.x0, v.x1, v.y0, v.y1);
+        if (cuts.length >= 2) {
+          const A = px(cuts[0][0], cuts[0][1]), B = px(cuts[1][0], cuts[1][1]);
+          ctx.beginPath(); ctx.moveTo(A[0], A[1]); ctx.lineTo(B[0], B[1]); ctx.stroke();
+        }
+        break;
+      }
+      case "ellipse": {
+        const d = s.data;
+        const [[cx, cy], rx, ry] = d;
+        const sc = w / Math.max(v.x1 - v.x0, 1e-12);
+        const C = px(cx, cy);
+        ctx.beginPath(); ctx.ellipse(C[0], C[1], Math.abs(rx) * sc, Math.abs(ry) * sc, 0, 0, Math.PI * 2); ctx.stroke();
+        ctx.beginPath(); ctx.arc(C[0], C[1], 2.5, 0, Math.PI * 2); ctx.fill();
+        if (s.label) {
+          ctx.fillStyle = "#475569"; ctx.font = "11px -apple-system, Segoe UI, sans-serif";
+          ctx.textAlign = "left"; ctx.textBaseline = "bottom";
+          ctx.fillText(`${s.label} ${Math.abs(rx).toFixed(2)}×${Math.abs(ry).toFixed(2)}`, C[0] + 8, C[1] - 8);
+        }
+        break;
+      }
+      case "rect": {
+        const d = s.data;
+        const [p1, p2] = d;
+        const A = px(p1[0], p1[1]), B = px(p2[0], p2[1]);
+        ctx.strokeRect(Math.min(A[0], B[0]), Math.min(A[1], B[1]), Math.abs(B[0] - A[0]), Math.abs(B[1] - A[1]));
+        const bw = Math.abs(p2[0] - p1[0]), bh = Math.abs(p2[1] - p1[1]);
+        if (s.label) {
+          ctx.fillStyle = "#475569"; ctx.font = "11px -apple-system, Segoe UI, sans-serif";
+          ctx.textAlign = "left"; ctx.textBaseline = "bottom";
+          ctx.fillText(`${s.label} ${bw.toFixed(2)}×${bh.toFixed(2)}`, Math.min(A[0], B[0]) + 6, Math.min(A[1], B[1]) - 6);
+        }
+        break;
+      }
+      case "polygon": {
+        const d = s.data;
+        if (d.length < 3) break;
+        ctx.beginPath();
+        d.forEach(([X, Y]: Pt, i: number) => {
+          const P = px(X, Y);
+          if (i === 0) ctx.moveTo(P[0], P[1]); else ctx.lineTo(P[0], P[1]);
+        });
+        ctx.closePath(); ctx.stroke();
+        for (const [X, Y] of d) { const P = px(X, Y); ctx.beginPath(); ctx.arc(P[0], P[1], 2.5, 0, Math.PI * 2); ctx.fill(); }
+        if (s.label) {
+          const cxw = d.reduce((a, p) => a + p[0], 0) / d.length;
+          const cyw = d.reduce((a, p) => a + p[1], 0) / d.length;
+          const C = px(cxw, cyw);
+          ctx.fillStyle = "#475569"; ctx.font = "11px -apple-system, Segoe UI, sans-serif";
+          ctx.textAlign = "center"; ctx.textBaseline = "middle";
+          ctx.fillText(s.label, C[0], C[1]);
+        }
+        break;
       }
     }
   };
@@ -577,7 +702,10 @@ export default function GeometryCanvas({
             if (phase === "idle") { setTempPts([p]); setPhase("awaitSecond"); }
             else {
               if (Math.hypot(p[0] - tempPts[0][0], p[1] - tempPts[0][1]) > 1e-9) {
-                onCreate?.({ type: tool as ShapeType, data: [tempPts[0], p] });
+                /* tool 在这一组里已被 switch 收窄成 "segment"|"vector"|"line"，
+                 * 与 ShapeDraft 的 type ↔ data 对应关系一致（原来写 `tool as ShapeType`
+                 * 会把 type 放宽成全部 8 种，反而对不上 data）。 */
+                onCreate?.({ type: tool, data: [tempPts[0], p] });
               }
               setPhase("idle"); setTempPts([]);
             }

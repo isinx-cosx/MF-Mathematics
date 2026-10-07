@@ -20,7 +20,8 @@
  */
 import { computed, ref } from "vue";
 import SIGNATURES from "../../lib/ai/engine-signatures.json";
-import { engineCall, isHosted } from "../../lib/bridge.js";
+import { engineCall, engineCallAsync, isHosted } from "../../lib/bridge.js";
+import { shouldRunAsync, describeWork } from "../../lib/engine/asyncPolicy.js";
 import { ENGINE_MAP } from "../../lib/engine/engineMap.js";
 import { EXTRA_MAP } from "../../lib/engine/engineMapExtra.js";
 
@@ -82,6 +83,11 @@ const picked = ref("");
 const values = ref({});
 const result = ref(null);
 const lastMs = ref(0);
+/** 「强制后台」：喂给 asyncPolicy 的 opt.force（自动判据说快、实际很慢时的逃生口） */
+const forceAsync = ref(false);
+/** 后台运行中（界面要能看出"还没回来"，而不是以为卡死了） */
+const running = ref(false);
+const progressText = ref("");
 
 const filtered = computed(() => {
   const q = query.value.trim().toLowerCase();
@@ -106,7 +112,17 @@ function pick(fn) {
   values.value = v;
 }
 
-function call() {
+/**
+ * 调引擎。**默认按 asyncPolicy 自动分流**：规模可判的（矩阵乘法等）超过阈值、
+ * 以及那 28 个没有上界的符号/数值动作（积不出上界的积分、因式分解、泰勒展开…），
+ * 一律走后台通道 —— 同步调用会占住渲染进程主线程，本页又能调**任意** action，
+ * 一次 `expand((x+1)^10000000)` 就足以让窗口白屏并被系统判定"未响应"。
+ *
+ * 「强制后台」勾选（opt.force）给的是逃生口：判据说"这个很快"但实际很慢时（或反过来）
+ * 用户能自己决定 —— 这也正是 asyncPolicy.shouldRunAsync 里 `opt.force` 的用途。
+ * engineCallAsync 在无宿主/老宿主上会自动退回同步，所以这条路径是安全的。
+ */
+async function call() {
   const c = current.value;
   if (!c) return;
   const args = {};
@@ -123,12 +139,28 @@ function call() {
       args[p.key] = raw;
     }
   }
+  const async_ = shouldRunAsync(c.fn, args, { force: forceAsync.value });
+  running.value = true;
+  progressText.value = async_ ? `后台运行中… · ${describeWork(c.fn, args)}` : "";
   const t0 = performance.now();
-  const res = engineCall(c.fn, args);
+  let res;
+  try {
+    res = async_
+      ? await engineCallAsync(c.fn, args, {
+          onProgress: (st) => {
+            const sec = ((st && st.elapsedMs) || 0) / 1000;
+            progressText.value = `后台运行中… ${sec.toFixed(1)}s · ${describeWork(c.fn, args)}`;
+          },
+        })
+      : engineCall(c.fn, args);
+  } finally {
+    running.value = false;
+    progressText.value = "";
+  }
   lastMs.value = Math.round(performance.now() - t0);
   result.value = res === null
     ? { localError: "没有连上本地引擎（本页只在 MFMath.exe 里可用）" }
-    : { isError: !!res.isError, value: res.value, args };
+    : { isError: !!res.isError, value: res.value, args, async: async_ };
 }
 
 function reset() {
@@ -136,14 +168,22 @@ function reset() {
   for (const k of Object.keys(values.value)) values.value[k] = "";
 }
 
-/** 测试/排障钩子：CDP 里够不到模块作用域 */
+/** 测试/排障钩子：CDP 里够不到模块作用域。
+ *  ⚠ `call` 现在是 **async**（引擎调用可能走后台通道），所以它返回 Promise；
+ *  CDP 侧要用 `awaitPromise: true` 取值（本项目的测试脚手架本来就是这么求值的）。 */
 try {
   window.__mfToolbox = {
     size: () => CATALOG.length,
     missing: () => CATALOG.filter((c) => !c.inModeTable).map((c) => c.fn),
     modules: () => MODULES,
     pick: (fn) => { pick(fn); return current.value?.fn ?? ""; },
-    call: (fn, args) => { pick(fn); for (const [k, v] of Object.entries(args || {})) values.value[k] = String(v); call(); return result.value; },
+    call: async (fn, args) => {
+      pick(fn);
+      for (const [k, v] of Object.entries(args || {})) values.value[k] = String(v);
+      await call();
+      return result.value;
+    },
+    setForceAsync: (v) => { forceAsync.value = !!v; },
   };
 } catch { /* 忽略 */ }
 </script>
@@ -206,9 +246,17 @@ try {
           </div>
 
           <div class="tb-actions">
-            <button class="btn btn-primary" data-toolbox="call" :disabled="!hosted" @click="call">调用引擎</button>
+            <button class="btn btn-primary" data-toolbox="call" :disabled="!hosted || running" @click="call">
+              {{ running ? "调用中…" : "调用引擎" }}
+            </button>
             <button class="btn btn-ghost" data-toolbox="reset" @click="reset">清空</button>
-            <span v-if="result" class="tb-ms">{{ lastMs }} ms</span>
+            <!-- 逃生口：自动判据说"快"但实际很慢时，用户可以强制走后台通道（见 call() 的说明） -->
+            <label class="tb-force" title="勾上后一律走后台任务通道：界面不会被占住，慢函数也能看着进度等">
+              <input type="checkbox" v-model="forceAsync" data-toolbox="force-async" />
+              <span>强制后台</span>
+            </label>
+            <span v-if="progressText" class="tb-ms" data-toolbox="progress">{{ progressText }}</span>
+            <span v-else-if="result" class="tb-ms">{{ lastMs }} ms<template v-if="result.async"> · 后台通道</template></span>
           </div>
 
           <div v-if="result" class="tb-result" :class="{ bad: result.isError || result.localError }" data-toolbox="result">
@@ -257,6 +305,8 @@ try {
 .tb-inp { padding: 6px 8px; border-radius: 7px; border: 1px solid var(--border, #d8dbe0);
   background: var(--bg-elev, #fff); color: var(--text, #222); font-size: 12.5px; }
 .tb-actions { display: flex; align-items: center; gap: 8px; margin-top: 12px; }
+/* 「强制后台」：勾选框与说明文字排一行，颜色随主题 */
+.tb-force { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--text-muted); cursor: pointer; }
 .tb-ms { font-size: 11.5px; color: var(--text-dim, #8a8f98); }
 .tb-result { margin-top: 12px; border-top: 1px solid var(--border, #d8dbe0); padding-top: 10px; }
 .tb-rhead { margin: 0 0 6px; font-size: 12px; color: var(--text-dim, #8a8f98); }

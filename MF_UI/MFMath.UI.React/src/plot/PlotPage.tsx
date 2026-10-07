@@ -7,8 +7,9 @@ import { usePlotSampling } from "./usePlotSampling";
 import { parseExpr, validate } from "@shared/plot/plotMath.js";
 import { colorAt } from "@shared/plot/colors.js";
 import { engineCall, isHosted } from "@shared/bridge.js";
-import { defaultView, fitBounds } from "@shared/plot/view.js";
+import { defaultView, fitBounds, viewW, viewH, DEFAULT_X_MIN, DEFAULT_X_MAX } from "@shared/plot/view.js";
 import { exportCanvas } from "@shared/plot/exportImage.js";
+import { loadPlotPage, isViewLike, usePlotWorkspace } from "../lib/plotWorkspace";
 import { prettyNum, textLatex } from "../lib/plotText";
 import MathLatex from "../components/MathLatex";
 import "../styles/plot-view.css";
@@ -50,24 +51,69 @@ type SymbolicExtremum = {
 
 let nextId = 1;
 
+/**
+ * 初始视图。defaultView() 在 TS 里的返回类型带着 `| null`：那是 JS 侧 prefs 的类型
+ * （「绘图默认范围」的四个输入框都可以留空，类型上都是 number|null）。
+ * 但 view.js:21-27 只在 plotRangeState() === "fixed"（四项都填好、且 min<max）时才
+ * 返回那份固定范围，返回时四项必然都是数字；否则它自己按宽高比算出数字 ——
+ * 两种情况拿到的都是完整视图。这里把这条不变式写成显式判断（数值原样使用，
+ * 一个字节都不改）：万一真拿到 null（正常路径不可达），退回等比自动视图 ——
+ * 与 view.js 的默认分支用同一组常量、同一套算法。
+ */
+function initialView(w: number, h: number): View {
+  const v = defaultView(w, h);
+  if (typeof v.x0 === "number" && typeof v.x1 === "number"
+    && typeof v.y0 === "number" && typeof v.y1 === "number") {
+    return { x0: v.x0, x1: v.x1, y0: v.y0, y1: v.y1 };
+  }
+  const halfY = ((DEFAULT_X_MAX - DEFAULT_X_MIN) / 2) * (h / Math.max(w, 1));
+  return { x0: DEFAULT_X_MIN, x1: DEFAULT_X_MAX, y0: -halfY, y1: halfY };
+}
+
 /** 2D 函数绘图页（照抄 Vue 版 PlotView.vue 的模板与样式，只把渲染层换成 React） */
 export default function PlotPage({
   gridMode = "rect" as "rect" | "polar",
   onStatusText,
+  routePath = "#/plot/2d",
 }: {
   gridMode?: "rect" | "polar";
   /** 采样状态回传给外壳的状态栏（Vue 版由 App 持有 statusText） */
   onStatusText?: (t: string) => void;
+  /** 本页路由。工作区按 `route.path` 分页存（2d 与 polar 各一份），
+   *  导出文件名也用它 —— 所以必须由外层如实传进来，不能在本页写死（BUGS.md B14/B15）。 */
+  routePath?: string;
 }) {
-  const [rows, setRows] = useState<Expr[]>([
-    { id: nextId++, text: "y=x^2", color: colorAt(0), visible: true, error: null },
-  ]);
-  const [activeId, setActiveId] = useState<number | null>(1);
-  const [view, setView] = useState<View>(() => defaultView(800, 600));
+  /* ── 工作区还原（BUGS.md B14）──────────────────────────────────────────────
+   * 载荷形状与 Vue 版 PlotView.vue 的 capturePlot() **逐字一致**（`kind:"plot"` +
+   * expressions/view/gridMode/showGrid/params），这样老工作区文件照样能读、
+   * `pages()["/plot/2d"].view` 这些断言也继续成立。
+   * 还原放在 useState 的**惰性初值**里（不是 effect）：首帧就带着还原值渲染，
+   * 于是"默认值盖掉还原内容"这个问题从根上不存在。 */
+  const saved = loadPlotPage(routePath, "plot");
+  const savedExprs = Array.isArray(saved?.expressions) ? (saved!.expressions as { text?: unknown; color?: unknown; visible?: unknown }[]) : null;
+  const [rows, setRows] = useState<Expr[]>(() =>
+    savedExprs && savedExprs.length
+      ? savedExprs.map((e, i) => ({
+          id: nextId++,
+          text: String(e.text ?? ""),
+          color: typeof e.color === "string" ? e.color : colorAt(i),
+          visible: e.visible !== false,
+          error: null,
+        }))
+      : [{ id: nextId++, text: "y=x^2", color: colorAt(0), visible: true, error: null }]
+  );
+  const [activeId, setActiveId] = useState<number | null>(() => rows[0]?.id ?? 1);
+  const [view, setView] = useState<View>(() =>
+    isViewLike(saved?.view) ? (saved!.view as View) : initialView(800, 600)
+  );
   const [size, setSize] = useState({ w: 0, h: 0 });
-  const [showGrid, setShowGrid] = useState(true);
-  const [mode, setMode] = useState<"rect" | "polar">(gridMode);
-  const [paramValues, setParamValues] = useState<Record<string, number>>({});
+  const [showGrid, setShowGrid] = useState(() => saved?.showGrid !== false);
+  const [mode, setMode] = useState<"rect" | "polar">(() =>
+    saved?.gridMode === "polar" ? "polar" : saved?.gridMode === "rect" ? "rect" : gridMode
+  );
+  const [paramValues, setParamValues] = useState<Record<string, number>>(() =>
+    saved?.params && typeof saved.params === "object" ? { ...(saved.params as Record<string, number>) } : {}
+  );
   const [paramConfig, setParamConfig] = useState<Record<string, { min: number; max: number; step: number }>>({});
   const [intersectionList, setIntersectionList] = useState<(Intersection & { exact?: boolean })[]>([]);
   const [intersectionNotice, setIntersectionNotice] = useState("");
@@ -98,10 +144,26 @@ export default function PlotPage({
     return out;
   }, [paramNames, paramValues]);
 
+  /* 聚焦的那条曲线画粗一点（与 Vue 版 PlotView.vue:95 一致）。
+   * ⚠ 这一段以前传的是 `emphasis: r.emphasis` —— 而**全 React 工程没有任何地方给它赋过值**，
+   * 于是画布侧 `PlotCanvas.tsx:224` 那句 `ctx.lineWidth = c.emphasis ? 4 : 2.5` 永远走 else 分支：
+   * 字段有人消费、却没人生产（BUGS.md B13）。现在由这里产生。 */
   const curves: Curve[] = useMemo(
-    () => rows.map((r) => ({ id: r.id, text: r.text, color: r.color, visible: r.visible, emphasis: r.emphasis })),
-    [rows]
+    () => rows.map((r) => ({ id: r.id, text: r.text, color: r.color, visible: r.visible, emphasis: r.id === activeId })),
+    [rows, activeId]
   );
+
+  /* 变更即回写工作区（对应 Vue 版 PlotView.vue:701 的 `watch([...], () => setPage(...))`）。
+   * 只存"你在编辑什么"：表达式、视野、网格/极坐标、参数值；**结果一律不存**（能重算）。
+   * ⚠ deps 必须覆盖所有会被存下来的状态，否则会出现"改了但不落盘"。 */
+  usePlotWorkspace(routePath, [rows, view, mode, showGrid, paramValues], () => ({
+    kind: "plot",
+    expressions: rows.map((r) => ({ text: r.text, color: r.color, visible: r.visible })),
+    view: { x0: view.x0, x1: view.x1, y0: view.y0, y1: view.y1 },
+    gridMode: mode,
+    showGrid,
+    params: { ...params },
+  }));
 
   const { samples, userPoints, status, grids, addUserPoint, moveUserPoint, clearUserPoints } =
     usePlotSampling(rows, view, params, size);
@@ -113,15 +175,43 @@ export default function PlotPage({
    * 少了这一步，画布是竖的而视野还是按 4:3 算的 —— 表现为"曲线贴不上坐标、
    * 上下两边大片空白"，几何类断言（cdp-plot-accuracy / truth / extrema-domain）会成片失败。
    * 只在第一次拿到真实尺寸时设，之后用户平移缩放不再被覆盖。 */
-  const sizedRef = useRef(false);
+  const sizedRef = useRef(!!saved);   // 从工作区还原过视野 → 首次拿到真实尺寸时**不要**再覆盖它
   useEffect(() => {
     if (sizedRef.current || size.w <= 0 || size.h <= 0) return;
     sizedRef.current = true;
-    setView(defaultView(size.w, size.h));
+    setView(initialView(size.w, size.h));
   }, [size.w, size.h]);
 
-  /* 采样状态 → 外壳状态栏 */
-  useEffect(() => { onStatusText?.(status.text); }, [status.text, onStatusText]);
+  /* 页内状态行：**采样状态与导出结果共用一行**（与 Vue 版一致）。
+   * 为什么要一个本地 state 而不是直接渲染 status.text：导出结果需要能暂时盖住采样状态，
+   * 否则用户刚点完导出、采样一刷新就把"已导出图片：…"冲掉了（BUGS.md B15）。 */
+  const [line, setLine] = useState(() => (saved ? "已从工作区还原" : ""));
+  const showLine = (msg: string) => { setLine(msg); onStatusText?.(msg); };
+  useEffect(() => {
+    setLine(status.text);
+    onStatusText?.(status.text);
+  }, [status.text, onStatusText]);
+
+  /* 测试/排障钩子 `window.__mfPlot` —— 与项目里 `__mfWorkspace` / `__mfPrefs` /
+   * `__mfSanitize` / `__mfPush` 同一做法：CDP 够不到 React 的 state，而这些状态
+   * 恰恰是端到端最需要能读的东西。
+   *
+   * 为什么必须暴露「视图」：视图 {x0,x1,y0,y1} 是缩放/平移/「缩放到适应」这类交互
+   * **唯一**可观测的结果。只靠数像素证明不了"视图真的变了"（曲线在原地也能有像素），
+   * 于是 BUGS.md B3 那种"按钮点了抛异常、视图纹丝不动"的缺陷没有任何用例抓得住。
+   *
+   * 刻意**不写依赖数组**：每次渲染都重跑，闭包里的 view/size/status 才不会过期。 */
+  const viewRef = useRef(view);
+  useEffect(() => {
+    viewRef.current = view;
+    try {
+      (window as unknown as { __mfPlot?: unknown }).__mfPlot = {
+        view: () => viewRef.current,
+        size: () => size,
+        status: () => status.text,
+      };
+    } catch { /* 非浏览器环境忽略 */ }
+  });
 
   /** 校验：解析失败就写在行内（对齐 Desmos） */
   const validateAll = useCallback(() => {
@@ -289,7 +379,10 @@ export default function PlotPage({
      * 采样范围是视图的 1.5 倍，里面的离群值（e^x 在 x=15 处 y≈3.3e6）会把范围算爆，
      * 等比修正再把量级搬到另一轴 —— 点「缩放到适应」后 x0 变成 -2.7e6、
      * 整条曲线塌成一条线（cdp-plot-truth 的"适应后曲线仍然可见/仍有横向展开"两条）。 */
-    const v = view.value;
+    /* ⚠ 这里必须用 React 的 state 值本身：`view` 是 useState 的值，不是 Vue 的 ref
+     * （写成 view.value 会得到 undefined，紧接着的 v.x0 就抛 TypeError）。
+     * 本行曾是 Vue 版 PlotView.vue 搬迁时漏改的残留，见 BUGS.md B3。 */
+    const v = view;
     const padX = viewW(v) * 0.02, padY = viewH(v) * 0.02;
     const all: [number, number][] = [];
     const inside: [number, number][] = [];
@@ -313,13 +406,21 @@ export default function PlotPage({
 
   const resetView = () => {
     const cv = canvasRef.current;
-    setView(defaultView(cv?.clientWidth ?? size.w, cv?.clientHeight ?? size.h));
+    setView(initialView(cv?.clientWidth ?? size.w, cv?.clientHeight ?? size.h));
   };
 
+  /* 导出图片。**必须把结果显示出来**（BUGS.md B15）：只调 exportCanvas() 不管返回值，
+   * 用户就完全不知道导到哪去了、失败也没有原因 —— 正是套件里"不是静默"那两条断言抓的东西。
+   * 另外 routePath 以前写死成 "#/plot/2d"，于是极坐标页导出的默认文件名也是 plot-2d（已改用它传进来的真路由）。 */
   const exportImage = () => {
     const cv = canvasRef.current;
     if (!cv) return;
-    exportCanvas(cv, { routePath: "#/plot/2d", defaultName: "plot" });
+    const r = exportCanvas(cv, { routePath, defaultName: mode === "polar" ? "polar-plot" : "plot", note: mode === "polar" ? "极坐标" : "2D 函数" });
+    showLine(
+      r.ok
+        ? `已导出图片：${r.path}（${r.width}×${r.height}，${Math.round((r.bytes || 0) / 1024)} KB）`
+        : (r.canceled ? "已取消导出" : `导出失败：${r.error}`)
+    );
   };
 
   /** 曲线在给定自变量取值处的函数值（引擎求值，带参数）—— 拖动点吸附用 */
@@ -497,7 +598,7 @@ export default function PlotPage({
           </div>
         )}
 
-        <div className="side-status">{status.text}</div>
+        <div className="side-status">{line}</div>
       </aside>
 
       {/* 右侧：画布 + 浮动视图控制（Desmos 右上角按钮） */}

@@ -11,6 +11,33 @@ import "../styles/plot-canvas.css";
 
 export type View = { x0: number; x1: number; y0: number; y1: number };
 export type Sample = [number, number] | null;
+
+/**
+ * parseExpr() 的解析结果。plotMath.js 的 JSDoc `@returns` 只列了公共字段，
+ * 而实现里 inequality / region 这两类分支**额外挂了** op / axis / boundary
+ * （见 plotMath.js:140-177：axis 取 "y"/"x"/"xy"，inequality 另有 boundary 边界表达式）。
+ * 这里把这几个"按类型才出现"的字段按实际情况声明成可选：类型没对上时访问它们
+ * 得到 undefined，与运行时一致，不需要断言也不需要删掉访问。
+ */
+export type ParsedExpr = {
+  type: string;
+  valid: boolean;
+  error: string | null;
+  var: string;
+  body: string;
+  radius: string | null;
+  xsExpr: string | null;
+  ysExpr: string | null;
+  params: string[];
+  display: string;
+  /** 不等式/区域的比较运算符（parseExpr 已把 >= / <= 归一成 ≥ / ≤） */
+  op?: ">" | "<" | "≥" | "≤";
+  /** 不等式的分界轴："y" = y ≷ f(x)，"x" = x ≷ g(y)；区域为 "xy" */
+  axis?: "x" | "y" | "xy";
+  /** 不等式的边界表达式（引擎写法） */
+  boundary?: string;
+};
+
 export type Curve = {
   id: number;
   text?: string;
@@ -238,7 +265,7 @@ function drawRegions(
 ) {
   for (const c of curves) {
     if (c.visible === false) continue;
-    const p = parseExpr(c.text);
+    const p: ParsedExpr = parseExpr(c.text);
     if (!p || p.type !== "region" || !p.valid) continue;
     const g = grids[c.id];
     if (!g || !g.values) continue;
@@ -335,7 +362,7 @@ function drawImplicits(
 ) {
   for (const c of curves) {
     if (c.visible === false) continue;
-    const p = parseExpr(c.text);
+    const p: ParsedExpr = parseExpr(c.text);
     if (!p || p.type !== "implicit" || !p.valid) continue;
     const g = grids[c.id];
     if (!g) continue;
@@ -351,7 +378,7 @@ function drawInequalities(
 ) {
   for (const c of curves) {
     if (c.visible === false) continue;
-    const p = parseExpr(c.text);
+    const p: ParsedExpr = parseExpr(c.text);
     if (!p || p.type !== "inequality" || !p.valid) continue;
     const pts = samples[c.id];
     if (!pts || pts.length < 2) continue;

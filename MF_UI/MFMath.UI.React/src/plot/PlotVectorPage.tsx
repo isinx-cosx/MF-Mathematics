@@ -6,6 +6,7 @@ import { toEngineExpr, validate } from "@shared/plot/plotMath.js";
 import { linspace } from "@shared/plot/sampling.js";
 import { engineCall, isHosted } from "@shared/bridge.js";
 import { exportCanvas } from "@shared/plot/exportImage.js";
+import { loadPlotPage, usePlotWorkspace, numOr, boolOr, strOr, numsOr, isViewLike } from "../lib/plotWorkspace";
 import "../styles/plot-vector-view.css";
 
 /**
@@ -61,8 +62,10 @@ export default function PlotVectorPage({ routePath = "#/plot/vector" }: { routeP
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [statusText, setStatusText] = useState("就绪");
 
-  const [dxInput, setDxInput] = useState("-y");
-  const [dyInput, setDyInput] = useState("x");
+  /* 工作区还原（BUGS.md B14）：这一页在 Vue 版时代也没接过工作区，属于补齐。 */
+  const saved = loadPlotPage(routePath, "plot-vector");
+  const [dxInput, setDxInput] = useState(() => strOr(saved?.dxInput, "-y"));
+  const [dyInput, setDyInput] = useState(() => strOr(saved?.dyInput, "x"));
   const [dxError, setDxError] = useState<string | null>(null);
   const [dyError, setDyError] = useState<string | null>(null);
 
@@ -70,17 +73,33 @@ export default function PlotVectorPage({ routePath = "#/plot/vector" }: { routeP
   const dyBody = useMemo(() => bodyOf(dyInput), [dyInput]);
 
   const paramNames = useMemo(() => collectParams([dxBody, dyBody]), [dxBody, dyBody]);
-  const [params, setParams] = useState<Record<string, number>>({});
+  const [params, setParams] = useState<Record<string, number>>(() => numsOr(saved?.params));
   const [paramConfig, setParamConfig] = useState<Record<string, { min: number; max: number; step: number }>>({});
 
-  const [view, setView] = useState<FieldView>({ x0: -5, y0: -5, x1: 5, y1: 5 });
-  const [density, setDensity] = useState(21);      // 每轴箭头数
+  const [view, setView] = useState<FieldView>(() =>
+    isViewLike(saved?.view) ? { ...(saved!.view as FieldView) } : { x0: -5, y0: -5, x1: 5, y1: 5 }
+  );
+  const [density, setDensity] = useState(() => numOr(saved?.density, 21));      // 每轴箭头数
   /* 原版 vector_field/workspace.py:185 的 quiver 用单位方向向量 (U/M, V/M) + 颜色编码模长，
    * 即"等长箭头"是原版默认行为；默认 false（长度随模长伸缩）与原版不符。 */
-  const [normalize, setNormalize] = useState(true);
-  const [colorByMagnitude, setColorByMagnitude] = useState(true);
-  const [showGrid, setShowGrid] = useState(true);
-  const [arrowScale, setArrowScale] = useState(0);  // 0 = 自动
+  const [normalize, setNormalize] = useState(() => boolOr(saved?.normalize, true));
+  const [colorByMagnitude, setColorByMagnitude] = useState(() => boolOr(saved?.colorByMagnitude, true));
+  const [showGrid, setShowGrid] = useState(() => boolOr(saved?.showGrid, true));
+  const [arrowScale, setArrowScale] = useState(() => numOr(saved?.arrowScale, 0));  // 0 = 自动
+
+  /* 变更即回写工作区；不存算出来的向量场数据。 */
+  usePlotWorkspace(routePath, [dxInput, dyInput, view, density, normalize, colorByMagnitude, showGrid, arrowScale, params], () => ({
+    kind: "plot-vector",
+    dxInput,
+    dyInput,
+    view: { ...view },
+    density,
+    normalize,
+    colorByMagnitude,
+    showGrid,
+    arrowScale,
+    params: { ...params },
+  }));
 
   const [field, setField] = useState<VectorFieldData | null>(null);
 
@@ -121,6 +140,10 @@ export default function PlotVectorPage({ routePath = "#/plot/vector" }: { routeP
     const xs = linspace(view.x0, view.x1, n);
     const ys = linspace(view.y0, view.y1, n);
     const need = n * n;
+    /* ⚠ 这两处**刻意保持同步**，是算过的、不是漏接（BUGS.md B5）：
+     * 规模 = n²，density 滑块 max = **41** ⇒ 最多 41² = 1681 个点，远低于 asyncPolicy
+     * 给 expr_eval_grid 的 2.5e5 阈值（shouldRunAsync 恒为 false，接异步只会空转）。
+     * **将来若把上限提到 500 以上（>2.5e5），两处都要改成 engineCallAsync**。 */
     const rdx = engineCall("expr_eval_grid", { expr: dxBody, xs, ys, vars: params });
     const rdy = engineCall("expr_eval_grid", { expr: dyBody, xs, ys, vars: params });
     if (rdx && !rdx.isError && rdy && !rdy.isError &&

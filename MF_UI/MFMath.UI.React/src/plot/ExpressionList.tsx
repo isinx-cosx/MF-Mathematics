@@ -10,6 +10,13 @@ export type Expr = {
   color: string;
   visible: boolean;
   error?: string | null;
+  /** 强调显示（画布把线加粗、区域填充更实）。
+   *  原版 Vue（views/plot/PlotView.vue:95）由「当前选中行」产生它
+   *  （`emphasis: row.id === activeId`）；本移植版的 PlotPage 只做透传
+   *  （`emphasis: r.emphasis`），表达式列表这一侧还没有产生方。
+   *  字段保留是因为画布侧 PlotCanvas 的 Curve.emphasis 仍在消费它
+   *  （undefined 即普通线宽），且它是一个可选字段、不产生任何运行时行为。 */
+  emphasis?: boolean;
 };
 
 type Props = {

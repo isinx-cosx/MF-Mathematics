@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { engineCall, isHosted } from "@shared/bridge.js";
+import { engineCall, engineCallAsync, isHosted } from "@shared/bridge.js";
+import { describeWork, shouldRunAsync } from "@shared/engine/asyncPolicy.js";
 import { exportCanvas } from "@shared/plot/exportImage.js";
+import { loadPlotPage, usePlotWorkspace, numOr, boolOr, strOr } from "../lib/plotWorkspace";
+import type { JobProgress } from "../lib/jobProgress";
 import "../styles/plot-fractal.css";
 
 /**
@@ -15,6 +18,9 @@ import "../styles/plot-fractal.css";
  */
 
 type View = { xmin: number; xmax: number; ymin: number; ymax: number };
+
+/* 后台任务进度的载荷形状见 ../lib/jobProgress —— 复平面页也要用同一份，
+ * 所以抽出去了（原来这里有一份本地定义，两处容易各改一半）。 */
 
 /** 复平面窗口。原版 plot/fractal/workspace.py:137-138 默认 x∈[-2,2]、y∈[-1.5,1.5]，
  *  且 origin="lower" 约定 y 向上（ymin 在屏幕下方）。 */
@@ -81,18 +87,42 @@ export default function PlotFractalPage({ routePath = "#/plot/fractal" }: { rout
   const ctxRef = useRef<CanvasRenderingContext2D | null>(null);
   const sizeRef = useRef({ w: 0, h: 0 });
   const dragRef = useRef<{ x: number; y: number; v: View; fx: number; fy: number; moved: boolean } | null>(null);
+  /** 正在跑的后台分形任务：新一次渲染会 abort 上一次（拖拽/缩放时不必手动取消） */
+  const jobAbortRef = useRef<AbortController | null>(null);
 
-  const [view, setView] = useState<View>({ ...DEFAULT_VIEW });
+  /* 工作区还原（BUGS.md B14）：这一页在 Vue 版时代也没接过工作区，属于补齐。
+   * 视野要**保持合法**（xmin<xmax、ymin<ymax），坏值退回默认 —— 否则画布会塌成 0 宽。 */
+  const saved = loadPlotPage(routePath, "plot-fractal");
+  const savedFv = saved?.view as Record<string, unknown> | undefined;
+  const [view, setView] = useState<View>(() => {
+    const v: View = {
+      xmin: numOr(savedFv?.xmin, DEFAULT_VIEW.xmin),
+      xmax: numOr(savedFv?.xmax, DEFAULT_VIEW.xmax),
+      ymin: numOr(savedFv?.ymin, DEFAULT_VIEW.ymin),
+      ymax: numOr(savedFv?.ymax, DEFAULT_VIEW.ymax),
+    };
+    return v.xmin < v.xmax && v.ymin < v.ymax ? v : { ...DEFAULT_VIEW };
+  });
   /** 原版默认迭代 256（下拉 [64,128,256,512,1024] 的第 3 项，workspace.py:135,173） */
-  const [maxIter, setMaxIter] = useState(256);
-  const [scheme, setScheme] = useState("classic");
-  const [smooth, setSmooth] = useState(true);
+  const [maxIter, setMaxIter] = useState(() => numOr(saved?.maxIter, 256));
+  const [scheme, setScheme] = useState(() => strOr(saved?.scheme, "classic"));
+  const [smooth, setSmooth] = useState(() => boolOr(saved?.smooth, true));
   /** 渲染分辨率上限（保证交互流畅；越大越清晰） */
-  const [maxSide, setMaxSide] = useState(560);
+  const [maxSide, setMaxSide] = useState(() => numOr(saved?.maxSide, 560));
   const [statusText, setStatusText] = useState("就绪");
 
-  /** 引擎计算 + 图像渲染 */
-  const render = useCallback(() => {
+  /* 变更即回写工作区；不存算出来的分形像素（能重算）。 */
+  usePlotWorkspace(routePath, [view, maxIter, scheme, smooth, maxSide], () => ({
+    kind: "plot-fractal",
+    view: { ...view },
+    maxIter,
+    scheme,
+    smooth,
+    maxSide,
+  }));
+
+  /** 引擎计算 + 图像渲染（重活走异步，见下面的分流） */
+  const render = useCallback(async () => {
     const ctx = ctxRef.current;
     const cv = canvasRef.current;
     if (!ctx || !cv) return;
@@ -120,11 +150,30 @@ export default function PlotFractalPage({ routePath = "#/plot/fractal" }: { rout
     const w = Math.max(32, Math.round(cssW * scale));
     const h = Math.max(32, Math.round(cssH * scale));
 
-    const t0 = performance.now();
-    const r = engineCall("mandelbrot", {
+    const args = {
       xmin: view.xmin, xmax: view.xmax, ymin: view.ymin, ymax: view.ymax,
       width: w, height: h, max_iter: maxIter,
-    });
+    };
+    /* 重活走异步：规模 = w×h×max_iter，1200×1200×1024 ≈ 1.5e9 次迭代会把渲染进程主线程
+     * 占满（窗口白屏 + 系统判定"未响应"）。分流依据见 shared/engine/asyncPolicy.js。
+     * 新一次渲染先 abort 上一次 —— 拖拽/缩放时不需要用户手动点取消。 */
+    jobAbortRef.current?.abort();
+    const ac = new AbortController();
+    jobAbortRef.current = ac;
+    const t0 = performance.now();
+    let r;
+    if (shouldRunAsync("mandelbrot", args)) {
+      setStatusText(`计算中… 0.0s · ${describeWork("mandelbrot", args)}`);
+      r = await engineCallAsync("mandelbrot", args, {
+        signal: ac.signal,
+        onProgress: (p: JobProgress) =>
+          setStatusText(`计算中… ${((p.elapsedMs || 0) / 1000).toFixed(1)}s · ${describeWork("mandelbrot", args)}`),
+      });
+      // 已被更新的一次渲染取代：直接收手，别把上一张图盖回来
+      if (ac.signal.aborted || (r && r.canceled)) return;
+    } else {
+      r = engineCall("mandelbrot", args);
+    }
     const dt = performance.now() - t0;
 
     if (!r || r.isError || !Array.isArray(r.value) || r.value.length !== w * h) {
