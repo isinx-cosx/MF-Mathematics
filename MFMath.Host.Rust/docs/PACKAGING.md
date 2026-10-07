@@ -78,6 +78,16 @@ node "$cli\node_modules\@tauri-apps\cli\tauri.js" build --bundles nsis --config 
 
 ## 3. 我**没能**验证的部分（如实写明）
 
+> **先说验到的**：release 构建的**无头自检**跑通了 —— 把 `mfmath-host-rust.exe` 与 6 个 DLL 放到
+> **工作区外**（`%TEMP%\mfhost-release`）后：`--selftest-common` **10/0**、`--selftest-jobs` **5/5**。
+> 也就是说 release profile 下引擎 DLL 能加载、job 通道能用、DPAPI/sha256/zip/HTTP 都正常。
+>
+> ⚠ 反过来，**在工作区内跑**（如 `target\release\…`）会看到 `--selftest-common` **9/1**，
+> 失败项是 zip 往返的 `拒绝访问 (os error 5)` —— 因为那段自检写的是
+> `logging::data_dir()/selftest-tmp`（即 `%LOCALAPPDATA%\MFMath\`，见 `selftest.rs:75`），
+> 而**从工作区内起的进程写不了工作区外**。这是环境限制，不是 release 缺陷；
+> 验收时按 `ACCEPTANCE.md` §0.2 把它们拷到工作区外再跑。
+
 | 想验的 | 结果 |
 | --- | --- |
 | 静默安装到指定目录 | ❌ **两次都失败**：`Start-Process … /S /D=<dir>` 报 `ERROR_CANCELLED`（"操作已被用户取消"）；改用 `& <setup> /S /D=<dir>` 则静默不生效、`$LASTEXITCODE` 为空、目标目录没被创建 |
