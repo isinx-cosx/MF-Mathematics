@@ -39,6 +39,10 @@ function usable(x) {
 /** 首次调用时从存储读入；force=true 强制重读（设置页"重新加载"用） */
 export function loadHistory(force = false) {
   if (loaded && !force) return entries.value;
+  /* ⚠ 强制重读之前**必须**先把待写内容落盘：否则 reload 会用旧文件覆盖内存、
+   * 随后那个待触发的定时器再把旧内容写回，刚记的条目就永久没了（详见 flush 的说明）。
+   * 顺序不能反 —— 先读后写等于把内存里的新状态直接丢掉。 */
+  if (force) flush();
   loaded = true;
   errorText.value = "";
   const r = storeRead(NAME);
@@ -60,14 +64,37 @@ export function loadHistory(force = false) {
   return entries.value;
 }
 
+/**
+ * 立刻把待写内容落盘（并取消定时器）；没有待写内容时是空操作。
+ *
+ * 为什么必须有它（这原先是**静默丢数据**的竞态，`docs/FRONTEND-FIXES.md` §5 只标了"未验证"）：
+ * 写盘是**延后 250ms** 的，而 `loadHistory(true)`（设置页"重新加载"）会**从磁盘读入并覆盖内存**。
+ * 两者撞在一起时：
+ *   · `record()` 之后 250ms 内 reload：reload 先用**旧文件**覆盖内存，随后待触发的定时器
+ *     又把这份旧内容写回盘 ⇒ 刚记的那条**永久消失**（内存与磁盘都没有了）；
+ *   · `clearAll()` 之后 250ms 内 reload：被清掉的条目**复活**并被写回盘 ⇒"清空历史"失效。
+ * 所以规矩是：**重新读之前先把待写内容落盘**，让"盘上"与"内存"先一致。
+ *
+ * 顺带解决另一处：关窗时那 250ms 内的改动会丢。桥是**同步**宿主调用
+ * （`hostObjects.sync.sys`），所以 `pagehide` 里写是来得及的（无宿主时走 localStorage，同样来得及）。
+ */
+function flush() {
+  if (!saveTimer) return;
+  clearTimeout(saveTimer);
+  saveTimer = null;
+  const r = storeWrite(NAME, { version: 1, entries: entries.value.slice(0, MAX) });
+  if (r && r.ok === false) errorText.value = r.error || "写入历史失败";
+}
+
 /** 合并写入：250ms 内多次记录只落一次盘，避免连点计算时频繁写文件 */
 function persist() {
   if (saveTimer) clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => {
-    saveTimer = null;
-    const r = storeWrite(NAME, { version: 1, entries: entries.value.slice(0, MAX) });
-    if (r && r.ok === false) errorText.value = r.error || "写入历史失败";
-  }, 250);
+  saveTimer = setTimeout(flush, 250);
+}
+
+/* 关窗/切页前补一次落盘（见 flush 的说明）。模块级只挂一次。 */
+if (typeof window !== "undefined") {
+  window.addEventListener("pagehide", flush);
 }
 
 /**

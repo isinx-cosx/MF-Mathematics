@@ -54,6 +54,23 @@ const fallbackText = computed({
   set: (v) => emit("update:modelValue", v),
 });
 
+/**
+ * 排队切换语言：同一时刻只有一个在跑，且排队期间被取代的请求直接跳过。
+ * 抽成函数是因为**有两个调用点**：watch(language)，以及 boot() 结束时的对账（见下）。
+ */
+function queueSetLanguage(lang) {
+  const seq = ++langSeq;
+  langChain = langChain
+    .then(async () => {
+      // 顺序判断必须放在 await **之前**：等到 setLanguage 返回时 reconfigure
+      // 早就 dispatch 完了，那时再判已经晚了（旧写法就是这个毛病）。
+      if (seq !== langSeq) return;   // 排队期间已被更新的切换取代 → 本次作废
+      if (!handle) return;
+      await handle.setLanguage(lang);
+    })
+    .catch(() => { /* 某一门语言包加载失败不该毒化整条链、也不该卡住后续切换 */ });
+}
+
 async function boot() {
   // 只动态 import：静态 import 会把编辑器打进主包，把懒加载的意义抵消掉
   let mod = null;
@@ -69,11 +86,13 @@ async function boot() {
   if (disposed) return;                 // 动态 import 期间已卸载：不必再建
   await nextTick();
   if (disposed) return;
+  /* 记下"创建时用的语言"：下面要跟创建结束后的 props 对账（见 boot 末尾） */
+  const bootLang = props.language;
   try {
     const created = await mod.createEditor({
       parent: host.value,
       doc: props.modelValue,
-      language: props.language,
+      language: bootLang,
       candidates: props.candidates,
       onRun: () => emit("run"),
       onChange: (text) => emit("update:modelValue", text),
@@ -90,6 +109,11 @@ async function boot() {
     // 挂成 DOM 属性而不是全局变量，够用又不污染 window。
     host.value.__mfEditor = handle;
     ready.value = true;
+    /* ⚠ 补一次语言对账。boot() 是**异步**的（要先把编辑器内核 import 进来），而
+     * watch(language) 里有一句 `if (!handle) return;` —— 若用户在这段加载窗口里切了语言，
+     * 那次切换会被**丢掉**，编辑器就停在"创建那一刻"的语言上，直到再切一次才醒过来。
+     * 这里比对创建时的语言与当前 props，不一致就补一次（走同一条串行链，不与后续切换打架）。 */
+    if (props.language !== bootLang) queueSetLanguage(props.language);
   } catch (e) {
     if (!props.allowFallback) throw e;
     fallback.value = true;
@@ -116,18 +140,7 @@ watch(() => props.modelValue, (v) => {
 watch(() => props.candidates, (v) => { handle?.setCandidates?.(v); });
 
 // 切语言 → 换语法扩展（只下载那门语言的包）
-watch(() => props.language, (lang) => {
-  const seq = ++langSeq;
-  langChain = langChain
-    .then(async () => {
-      // 顺序判断必须放在 await **之前**：等到 setLanguage 返回时 reconfigure
-      // 早就 dispatch 完了，那时再判已经晚了（旧写法就是这个毛病）。
-      if (seq !== langSeq) return;   // 排队期间已被更新的切换取代 → 本次作废
-      if (!handle) return;
-      await handle.setLanguage(lang);
-    })
-    .catch(() => { /* 某一门语言包加载失败不该毒化整条链、也不该卡住后续切换 */ });
-});
+watch(() => props.language, (lang) => { queueSetLanguage(lang); });
 
 defineExpose({ focus: () => handle?.focus() });
 </script>

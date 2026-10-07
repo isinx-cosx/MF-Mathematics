@@ -101,6 +101,11 @@ export const EXTRA_MAP = {
   "解方程/组": { fn: "solve_sym", module: "symbolic", args: [VAR_X, EXPR] },
   // 不等式组：输入用 `;` 分隔多条，引擎收 string 数组
   "解不等式/组": { fn: "solve_inequality_system", module: "algebra", args: [{ key: "ineqs", type: "string_array", opt: false }] },
+  /* ⚠ 同一个引擎函数的**旧名字**。它原先只有 fn、`args: []`（生成块里的坏条目）——
+   * 界面上选不到它（真正的入口是上面的 `解不等式/组`），但一旦被选到就会**一个参数都不发**。
+   * 它仍在 check-ui 的 DUPLICATE_NAME_GROUPS 登记里（BUGS.md B10 的决定是"登记可见"），
+   * 所以这里补齐参数、让它至少是个**能用的**重名条目，而不是坏的。 */
+  "解不等式组": { fn: "solve_inequality_system", module: "algebra", args: [{ key: "ineqs", type: "string_array", opt: false }] },
   // 这两个是"恒等式清单"式结果（引擎返回现成的条目），无需参数
   "三角恒等式": { fn: "trig_basic_identities", module: "algebra", args: [] },
   "组合恒等式": { fn: "comb_identities", module: "algebra", args: [] },
