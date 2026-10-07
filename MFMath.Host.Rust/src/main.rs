@@ -236,6 +236,20 @@ fn webview_data_dir() -> std::path::PathBuf {
 /// 数据目录锁文件的句柄：**必须活到进程结束** —— 句柄一丢，占用就释放了。
 static INSTANCE_GUARD: std::sync::OnceLock<std::fs::File> = std::sync::OnceLock::new();
 
+/// 单实例闸门的结果。**三种情况必须分开**（2026-10-07 踩过一次）：
+/// 把"我写不进去"错报成"被别人占着"，会让一个本可启动的宿主硬性起不来，
+/// 而且给出的是一个**错误的原因**。
+enum DirLock {
+    /// 拿到了占用权（句柄必须活到进程结束）
+    Held(std::fs::File),
+    /// 确实被另一个实例占着（`ERROR_SHARING_VIOLATION`）→ 值得硬性失败并说清是谁
+    Busy(String),
+    /// 目录不可写等**其它**原因（`ERROR_ACCESS_DENIED` 等）→ **不阻止启动**：
+    /// 从工作区内的 `target\debug` 启动就会这样（本机沙箱不允许工作区内进程写工作区外），
+    /// 那时宿主仍然能起，只是设置/日志写不进去 —— 别把这种情形变成"启动失败"。
+    Unavailable(String),
+}
+
 /// 同一个 WebView2 数据目录**只能有一个实例**在用（WebView2 对该目录是独占的，
 /// 第二个实例会以 `HRESULT(0x800700AA)`＝"请求的资源在使用中"收场）。
 ///
@@ -248,10 +262,12 @@ static INSTANCE_GUARD: std::sync::OnceLock<std::fs::File> = std::sync::OnceLock:
 ///     这正是"看文件在不在"的做法不能用的原因；
 ///   · 锁文件里写着持有者的 pid，报错时能直接说清是谁占着。
 /// 返回的 `File` 必须活到进程结束（调用方存进 static）。
-fn lock_webview_dir(dir: &std::path::Path) -> Result<std::fs::File, String> {
+fn lock_webview_dir(dir: &std::path::Path) -> DirLock {
     use std::io::Write;
     use std::os::windows::fs::OpenOptionsExt;
-    std::fs::create_dir_all(dir).map_err(|e| format!("建数据目录失败：{e}"))?;
+    if let Err(e) = std::fs::create_dir_all(dir) {
+        return DirLock::Unavailable(format!("建数据目录 {} 失败：{e}", dir.display()));
+    }
     let lock = dir.join(".mf-instance");
     match std::fs::OpenOptions::new()
         .read(true)
@@ -266,15 +282,26 @@ fn lock_webview_dir(dir: &std::path::Path) -> Result<std::fs::File, String> {
             // 记账：谁占着这个目录（报错时给下一个实例看）
             let _ = f.set_len(0);
             let _ = f.write_all(format!("pid={}\n", std::process::id()).as_bytes());
-            Ok(f)
+            DirLock::Held(f)
         }
         Err(e) => {
+            // ERROR_SHARING_VIOLATION(32) = 真的有人占着；其余（多为 ERROR_ACCESS_DENIED=5，
+            // 例如从工作区内的 target\debug 启动）是**本进程写不进去**，不是别人占着。
+            let code = e.raw_os_error().unwrap_or(0);
+            if code != 32 {
+                return DirLock::Unavailable(format!(
+                    "打不开锁文件 {}：{e}（os error {code}）。\
+                     若你是从工作区内的 target\\debug 启动的，本机沙箱不允许它写工作区外 —— \
+                     把 exe 连同 DLL/wwwroot 拷到工作区外再跑。",
+                    lock.display()
+                ));
+            }
             let holder = std::fs::read_to_string(&lock)
                 .ok()
                 .map(|s| s.trim().to_string())
                 .filter(|s| !s.is_empty())
                 .unwrap_or_else(|| "（读不到持有者信息）".to_string());
-            Err(format!(
+            DirLock::Busy(format!(
                 "WebView2 数据目录正被另一个实例占用：{}（{holder}）\n原始错误：{e}",
                 dir.display()
             ))
@@ -405,10 +432,13 @@ fn main() {
             /* 同目录单实例闸门（见 lock_webview_dir 的注释）：**在建窗口之前**判定，
              * 否则只会拿到一个看不出原因的 0x800700AA。句柄存进 static，活到进程结束。 */
             match lock_webview_dir(&data_dir) {
-                Ok(guard) => {
+                DirLock::Held(guard) => {
                     let _ = INSTANCE_GUARD.set(guard);
                 }
-                Err(msg) => fail_with_reason("WebView2 数据目录占用", &msg),
+                DirLock::Busy(msg) => fail_with_reason("WebView2 数据目录占用", &msg),
+                /* 写不进去（例如从工作区内的 target\debug 启动）**不阻止启动** ——
+                 * 那只影响单实例检查，宿主本身还能跑（只是设置/日志落不了盘）。 */
+                DirLock::Unavailable(msg) => note(&format!("跳过单实例检查：{msg}")),
             }
 
             /* UI 从哪来：优先 exe 同目录的 `wwwroot`（= dist 的拷贝，与 C# 宿主同一份），
