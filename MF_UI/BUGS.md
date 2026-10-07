@@ -417,6 +417,38 @@ B10 已决定"24 个重名条目登记可见"，所以是**补齐**而不是删�
 `**/.buildtmp/**`、`**/node_modules/**`、`**/.*.mjs.*.tmpdir/**`。
 **验证**：改完之后**开着 dev server 跑完整套 `cdp-plot-workspace`，5173 仍在监听** ✓（修复前必崩）。
 
+### 0.6 全量端到端：**2205 pass / 0 fail**（2026-10-07 12:0x，绘图组迁 React 之后**第一次全绿**）
+
+```
+pwsh -NoProfile -ExecutionPolicy Bypass -File tests\run-all.ps1 -NoLaunch
+==== TOTAL: 2205 pass / 0 fail ====      exit 0
+```
+
+**前置条件（这个环境里必须这么起宿主，否则必然假失败）**：
+1. `npm run build`（`$env:TEMP` 指到工程内，绕开 esbuild 临时目录被拒）；
+2. `node MFMath.Host.Rust/tools/sync-wwwroot.mjs --dest <工作区外的 wwwroot>`；
+3. **把 exe 连同 DLL、`python/`、`cpp/`、wwwroot 一起拷到工作区外**（如 `%TEMP%\mfhost-run-outside`）再启动
+   —— 见 §0.5 ⑤：本机沙箱不允许"位于工作区内的可执行文件"写工作区外；
+   ⚠ **`python/` 与 `cpp/` 一个都不能少**（见下方"教训"）；
+4. 宿主起来后 `run-all.ps1 -NoLaunch` 附着上去（`findPage` 只认 URL 含 `mfmath.local|index.html` 的页面）。
+
+**这一遍的关键结果**：`cdp-engine-coverage` **393/0** —— 它此前那次 296/7（7 条 `[超时]`）
+**确系并发污染**（详见 §0.2 第 5 条与 §0.3.1）；干净环境下全绿。
+另外 `cdp-plot-workspace` **24/0**、`cdp-calc-workspace` **65/0**、`unit-history-store` **5/0** 都在列。
+
+**教训：宿主副本必须完整。** 第一次全量跑（只拷了 exe + DLL + wwwroot）得到 `2196 / 9`，
+9 条失败分布在 3 个套件；补上 `python/`、`cpp/` 后**三个套件全部转绿**
+（`cdp-console` 63/3 → **66/0**、`cdp-push` 19/1 → **20/0**、`cdp-calc-workspace` 60/5 → **65/0**）：
+
+| 套件 | 残缺副本 | 补全后 | 说明 |
+|---|---|---|---|
+| cdp-calc-workspace | 60 / 5 | **65 / 0** | 那 5 条（`解方程/组` 无结果、弹窗滚动/高度、键名中文化、复制文本）**未能单独复现**（单独跑、按前序顺序跑都是 65/0） |
+| cdp-console | 63 / 3 | **66 / 0** | 直因清楚：`应用目录缺少 python\mfmath.py（控制台无法调用引擎）` |
+| cdp-push | 19 / 1 | **20 / 0** | 直因清楚：组件安装失败留下的 `python-3.13.15.staging` |
+
+⚠ 诚实说明：`cdp-calc-workspace` 那 5 条我**只做到"补全副本后不再出现"**，
+没有证明"残缺副本 → 那 5 条"的机制（它不是 python 相关路径）。**若将来再次单独出现，按真缺陷追**。
+
 ## 0. 汇总（按严重度排序）
 
 | # | 级别 | 状态 | 位置 | 一句话 |
