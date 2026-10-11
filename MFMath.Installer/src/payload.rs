@@ -1,6 +1,6 @@
 //! 载荷：从自身尾部取出内嵌归档，或读取旁置归档；解压并生成清单。
 
-use std::io::{Read, Seek, SeekFrom, Write};
+use std::io::{Read, Seek, Write};
 use std::path::{Path, PathBuf};
 
 use anyhow::{bail, Context, Result};
@@ -16,8 +16,6 @@ impl<T: Read + Seek> ReadSeek for T {}
 pub const MAGIC: &[u8; 16] = b"MFMATH-INSTALLER";
 /// 尾部长度的字节数（u64 小端）。
 const LEN_BYTES: u64 = 8;
-/// 尾部总长 = 长度字段 + 标记。
-pub const TRAILER_LEN: u64 = LEN_BYTES + MAGIC.len() as u64;
 
 /// 归档内记录载荷元信息的文件名。安装时不会被释放到安装目录。
 pub const META_ENTRY: &str = "payload-meta.json";
@@ -88,12 +86,29 @@ impl Payload {
                 continue;
             }
             let raw = entry.name().to_string();
-            if raw == META_ENTRY {
+            if raw == META_ENTRY || raw == crate::webview2::BOOTSTRAPPER_ENTRY {
                 continue;
             }
             names.push(safe_relative_path(&raw)?.to_string_lossy().replace('\\', "/"));
         }
         Ok(names)
+    }
+
+    /// 把归档里的**单个**条目释放到指定文件。条目不存在时返回 `Ok(false)`。
+    ///
+    /// 用于那些不该进安装目录的附属程序（例如 WebView2 引导程序）。
+    pub fn extract_entry(&self, name: &str, dest: &Path) -> Result<bool> {
+        let mut zip = zip::ZipArchive::new(self.reader()?)?;
+        let mut entry = match zip.by_name(name) {
+            Ok(e) => e,
+            Err(_) => return Ok(false),
+        };
+        if let Some(parent) = dest.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        let mut f = std::fs::File::create(dest)?;
+        std::io::copy(&mut entry, &mut f)?;
+        Ok(true)
     }
 
     /// 把归档释放到目标目录。返回写入的文件数。
@@ -106,7 +121,7 @@ impl Payload {
         for i in 0..zip.len() {
             let mut entry = zip.by_index(i)?;
             let raw = entry.name().to_string();
-            if raw == META_ENTRY {
+            if raw == META_ENTRY || raw == crate::webview2::BOOTSTRAPPER_ENTRY {
                 continue;
             }
             let rel = safe_relative_path(&raw)
@@ -149,37 +164,49 @@ fn safe_relative_path(raw: &str) -> Result<PathBuf> {
     Ok(out)
 }
 
-/// 读自身尾部的内嵌载荷。没有标记时返回 `None`。
+/// 在缓冲里查找**最后一处**尾部标记，返回 `(载荷起点, 载荷长度)`。
+///
+/// 不能只看文件末尾：Authenticode 签名会把证书表追加到文件末尾，正好落在
+/// 标记之后。从后往前扫可以穿过证书表找到标记，签名与未签名两种情况都能用。
+fn find_trailer(data: &[u8]) -> Option<(usize, u64)> {
+    let magic_len = MAGIC.len();
+    let len_bytes = LEN_BYTES as usize;
+    if data.len() < magic_len + len_bytes {
+        return None;
+    }
+    let mut idx = data.len() - magic_len;
+    loop {
+        if &data[idx..idx + magic_len] == MAGIC {
+            let len_start = idx.checked_sub(len_bytes)?;
+            let len = u64::from_le_bytes(data[len_start..idx].try_into().ok()?);
+            if len > 0 {
+                if let Some(start) = len_start.checked_sub(len as usize) {
+                    return Some((start, len));
+                }
+            }
+        }
+        if idx == 0 {
+            return None;
+        }
+        idx -= 1;
+    }
+}
+
+/// 读自身的内嵌载荷。没有标记时返回 `None`。
 fn read_embedded(exe: &Path) -> Result<Option<Vec<u8>>> {
-    let mut f = std::fs::File::open(exe)?;
-    let total = f.metadata()?.len();
-    if total <= TRAILER_LEN {
-        return Ok(None);
+    let data = std::fs::read(exe)?;
+    match find_trailer(&data) {
+        Some((start, len)) => Ok(Some(data[start..start + len as usize].to_vec())),
+        None => Ok(None),
     }
-    f.seek(SeekFrom::End(-(TRAILER_LEN as i64)))?;
-    let mut trailer = [0u8; TRAILER_LEN as usize];
-    f.read_exact(&mut trailer)?;
-    let (len_part, magic_part) = trailer.split_at(LEN_BYTES as usize);
-    if magic_part != MAGIC {
-        return Ok(None);
-    }
-    let payload_len = u64::from_le_bytes(len_part.try_into().unwrap());
-    if payload_len == 0 || payload_len + TRAILER_LEN > total {
-        bail!("自身尾部的载荷长度不可信（声明 {payload_len} 字节，文件共 {total} 字节）");
-    }
-    let offset = total - TRAILER_LEN - payload_len;
-    f.seek(SeekFrom::Start(offset))?;
-    let mut buf = vec![0u8; payload_len as usize];
-    f.read_exact(&mut buf)?;
-    Ok(Some(buf))
 }
 
 /// 把归档追加到安装器副本的尾部，产出单文件安装器。
 pub fn build_self_extracting(installer: &Path, archive: &[u8], out: &Path) -> Result<()> {
     let mut data = std::fs::read(installer)?;
-    // 若安装器自身已带载荷（重复打包），先截掉旧的尾部与归档。
-    if let Some(existing) = embedded_len(&data)? {
-        data.truncate(data.len() - (existing + TRAILER_LEN) as usize);
+    // 若安装器自身已带载荷（重复打包），先把旧的载荷与标记截掉。
+    if let Some((start, _)) = find_trailer(&data) {
+        data.truncate(start);
     }
     data.extend_from_slice(archive);
     data.extend_from_slice(&(archive.len() as u64).to_le_bytes());
@@ -188,19 +215,6 @@ pub fn build_self_extracting(installer: &Path, archive: &[u8], out: &Path) -> Re
     f.write_all(&data)?;
     f.sync_all()?;
     Ok(())
-}
-
-/// 从字节缓冲里读内嵌载荷长度。
-fn embedded_len(data: &[u8]) -> Result<Option<u64>> {
-    if (data.len() as u64) <= TRAILER_LEN {
-        return Ok(None);
-    }
-    let tail = &data[data.len() - TRAILER_LEN as usize..];
-    let (len_part, magic_part) = tail.split_at(LEN_BYTES as usize);
-    if magic_part != MAGIC {
-        return Ok(None);
-    }
-    Ok(Some(u64::from_le_bytes(len_part.try_into().unwrap())))
 }
 
 /// 安装清单，写入安装目录，供更新链与自检使用。

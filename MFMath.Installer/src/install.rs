@@ -52,6 +52,10 @@ pub fn run(opts: &Options) -> Result<()> {
     let dir = opts.dir.clone();
     util::say(&format!("安装目标：{}", dir.display()));
 
+    // WebView2 缺失时程序起不来，先确认它在。失败只报告，不阻断安装。
+    let bootstrapper = crate::webview2::stage_bootstrapper(&payload)?;
+    crate::webview2::ensure(bootstrapper.as_deref())?;
+
     // 覆盖安装前先结束正在运行的主程序，否则它的文件删不掉。
     stop_running_main();
     prepare_target(&dir, opts.force)?;

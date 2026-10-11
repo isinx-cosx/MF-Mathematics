@@ -12,6 +12,7 @@ mod registry;
 mod shortcut;
 mod uninstall;
 mod util;
+mod webview2;
 
 use std::path::PathBuf;
 
@@ -25,6 +26,7 @@ Multifunctional-Mathematics 安装器
   mfmath-installer /uninstall [选项]      卸载
   mfmath-installer --pack <载荷目录> <输出 exe> [--version <版本>]
                                           打包（发布用）
+  mfmath-installer --webview2-status      查看 WebView2 Runtime 探测结果
 
 安装选项：
   /S                  静默安装，不输出
@@ -50,6 +52,7 @@ struct Args {
     from_temp: bool,
     pack: Option<(PathBuf, PathBuf)>,
     version: Option<String>,
+    webview2_status: bool,
     help: bool,
 }
 
@@ -63,6 +66,7 @@ fn parse() -> Result<Args> {
         from_temp: false,
         pack: None,
         version: None,
+        webview2_status: false,
         help: false,
     };
     let argv: Vec<String> = std::env::args().skip(1).collect();
@@ -75,6 +79,7 @@ fn parse() -> Result<Args> {
             "/uninstall" | "--uninstall" => a.uninstall = true,
             "/purge" | "--purge" => a.purge = true,
             "/force" | "--force" => a.force = true,
+            "--webview2-status" => a.webview2_status = true,
             "--from-temp" => a.from_temp = true,
             "/?" | "-h" | "--help" => a.help = true,
             "--pack" => {
@@ -152,6 +157,14 @@ fn has_console() -> bool {
 }
 
 fn run(args: &Args) -> Result<()> {
+    if args.webview2_status {
+        match webview2::installed_version() {
+            Some(v) => util::say(&format!("WebView2 Runtime 已安装：{v}")),
+            None => util::say("未检测到 WebView2 Runtime。"),
+        }
+        return Ok(());
+    }
+
     if let Some((dir, out)) = &args.pack {
         let version = args.version.clone().unwrap_or_else(|| "2.0.0".to_string());
         return pack::run(dir, out, &version);

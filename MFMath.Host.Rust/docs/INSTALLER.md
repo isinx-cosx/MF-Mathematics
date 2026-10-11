@@ -13,8 +13,8 @@
 | 安装目录 | `%LOCALAPPDATA%\Programs\Multifunctional-Mathematics\` |
 | 主程序文件名 | `Multifunctional-Mathematics.exe` |
 | 目标平台 | Windows 10 / 11 x64 |
-| 载荷未压缩体积 | 43.09 MB（实测） |
-| 产物体积 | **11.03 MB**（xz / LZMA2 实测）；zip / deflate 为 15.71 MB |
+| 载荷未压缩体积 | 44.98 MB（实测，含 WebView2 引导程序） |
+| 产物体积 | **18.14 MB**（zip / deflate 实测）。改用 xz / LZMA2 可降到约 13 MB，代价是新增一个解压依赖 |
 | 实现语言 | Rust（与宿主共用工具链） |
 
 选择自解压单 exe 而非 MSI 或 NSIS：安装逻辑、目录结构、WebView2 处理全部由本仓库掌握，不依赖第三方安装框架。NSIS 方案的三个具体问题记录在第 9 节。
@@ -38,6 +38,7 @@
 | 控制台 Python 门面 | `python/mfmath.py` | 24 KB |
 | 控制台 C++ 门面 | `cpp/mfmath.hpp`、`cpp/mfmath_autorun.hpp` | 含上 |
 | 快捷方式图标 | `icons/icon.ico` | 0.12 MB |
+| WebView2 引导程序 | `MicrosoftEdgeWebview2Setup.exe`（不释放到安装目录） | 1.77 MB |
 
 6 个引擎相关 DLL 合计 21.78 MB。
 
@@ -98,18 +99,57 @@
 
 ## 5. WebView2 处理
 
-策略：**内嵌 Evergreen 引导程序**（Tauri 的 `embedBootstrapper` 模式），约 1.8 MB。
+宿主用 WebView2 承载界面。Windows 11 自带 Runtime；Windows 10 可能没有，缺失时程序起不来。安装包**内嵌**微软的 Evergreen 引导程序（1.77 MB），安装时按需静默运行。
 
-流程：
+### 探测
 
-1. 读注册表检测已安装的 Evergreen Runtime 版本。检测位置：
-   `HKLM\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}` 的 `pv` 值，
-   以及 `HKCU\Software\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}` 的 `pv` 值。
-2. 键存在且 `pv` 非空非 `0.0.0.0` → 视为已安装，跳过。
-3. 否则运行内嵌的 `MicrosoftEdgeWebview2Setup.exe /silent /install`。
-4. 引导程序自身需要联网下载 Runtime；失败时**不阻断安装**，改为在完成页提示用户手动安装 WebView2，并给出微软下载页地址。
+读注册表三处，任一处的 `pv` 非空且不是 `0.0.0.0` 即视为已安装：
 
-Windows 11 自带 WebView2 Runtime，此分支通常不触发。
+| 位置 | 说明 |
+| --- | --- |
+| `HKLM\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}` | **本机 Runtime 登记在这里** |
+| `HKLM\SOFTWARE\Microsoft\EdgeUpdate\Clients\{…}` | 部分安装方式登记在 64 位视图 |
+| `HKCU\Software\Microsoft\EdgeUpdate\Clients\{…}` | 每用户安装 |
+
+**必须显式写 `WOW6432Node`**：Runtime 的登记信息在 32 位视图里，而安装器是 64 位进程，直接读 `SOFTWARE\Microsoft\…` 会走 64 位视图、读不到。本机实测只有 `WOW6432Node` 那处存在。
+
+### 缺失时的处理
+
+```
+未安装
+  └─ 从载荷抽出 MicrosoftEdgeWebview2Setup.exe 到 %TEMP%
+     └─ 以 /silent /install 运行
+        ├─ 成功 → 复查注册表并报告版本
+        └─ 失败 / 退出码非 0 / 引导程序缺失
+                 → 打印微软下载地址，**安装照常继续**
+```
+
+引导程序只在需要时运行，**不会被释放到安装目录**，也不进 `manifest.json`。它需要联网下载 Runtime；没有网络时走到上面的失败分支。
+
+查看本机探测结果：
+
+```powershell
+.\MFMath.Installer\target\release\mfmath-installer.exe --webview2-status
+```
+
+### 诊断开关
+
+两个环境变量用于验证这条路，正常运行不需要：
+
+| 变量 | 作用 |
+| --- | --- |
+| `MF_WEBVIEW2_ASSUME_MISSING=1` | 强制走"未安装"分支，忽略探测结果 |
+| `MF_WEBVIEW2_BOOTSTRAPPER=<路径>` | 用指定的引导程序替代载荷里的那份 |
+
+### 实测
+
+| 场景 | 结果 |
+| --- | --- |
+| 本机（Runtime 149.0.4022.80 已装） | 报出版本并跳过；引导程序未进安装目录、未进清单 |
+| 强制缺失 + 假引导程序 | 以 `/silent /install` 调用（回读参数确认），随后复查并报出版本 |
+| 强制缺失 + 引导程序不存在 | 打印手动安装地址，安装继续，退出码 0 |
+
+因本机 Runtime 已安装，"运行真实引导程序完成一次全新安装"这一支**未在本机验证**。
 
 ## 6. 卸载与用户数据
 
@@ -171,18 +211,84 @@ Cargo 包名保持 `mfmath-host-rust`（`../Cargo.toml`），构建产物与开�
 | `/uninstall /S` | 静默卸载 |
 | `/uninstall /S /purge` | 静默卸载并删除用户数据 |
 
-## 9. 签名要求
+## 9. 代码签名
 
-安装包与主程序都需要 Authenticode 签名，否则 Windows SmartScreen 会拦下并显示「Windows 已保护你的电脑」。
+未签名的安装包与主程序会被 Windows SmartScreen 拦下（「Windows 已保护你的电脑」）。签名是消除它的**必要条件**，但不是充分条件，见下文"声誉"。
 
-| 项 | 做法 |
+### 需要签哪些文件
+
+| 文件 | 为什么 |
 | --- | --- |
-| 签名对象 | 安装器 exe、`Multifunctional-Mathematics.exe` |
-| 摘要算法 | SHA-256 |
-| 时间戳 | 必须。缺少时间戳的签名在证书过期后失效 |
-| 工具 | `signtool sign /fd sha256 /tr <时间戳服务器> /td sha256` |
+| 成品安装包 `Multifunctional-Mathematics_<版本>_x64-setup.exe` | 用户下载后第一次双击的就是它 |
+| 包内主程序 `mfmath-host-rust.exe` | 装完启动的是它；不签就会在启动时再被拦一次 |
 
-证书就位前，安装包功能不受影响，SmartScreen 提示无法消除。
+`tools/build-setup.ps1` 已按这个顺序签名：先签载荷里的主程序，打包，再签成品安装包。
+
+**不要签 WebView2 引导程序** —— 那是微软的二进制，签它会破坏微软自己的签名。
+
+### 已实现的签名接口
+
+```powershell
+# 证书在证书存储 / 硬件令牌里（OV、EV 常见形态）
+.\MFMath.Installer\tools\build-setup.ps1 -CertThumbprint <指纹>
+
+# 证书是 .pfx 文件
+.\MFMath.Installer\tools\build-setup.ps1 -PfxPath <证书.pfx> -PfxPassword <密码>
+
+# 换时间戳服务
+.\MFMath.Installer\tools\build-setup.ps1 -CertThumbprint <指纹> -TimestampUrl http://timestamp.sectigo.com
+```
+
+脚本会自动在 Windows SDK 里找 `signtool.exe`，签完用 `signtool verify /pa` 复查。
+
+### 签名与载荷标记的关系
+
+安装器把载荷追加在自身文件尾部，并靠尾部标记定位它。而 Authenticode 签名会把**证书表追加到文件末尾** —— 正好落在标记之后。
+
+因此载荷定位用的是**从后往前扫描标记**，而不是"只看最后 24 字节"。这样签名前、签名后都能找到载荷。
+
+自签名证书端到端实测：签名的安装包正常安装、主程序带签名、`--selftest-jobs` 5/5。
+
+### 证书怎么选
+
+自 2023 年 6 月起，CA/B 论坛要求代码签名证书的私钥存放在 **FIPS 140-2 / CC 认证的硬件**里（USB 令牌或云 HSM），新证书**不再提供可自由导出的 .pfx**。因此采购时拿到的是"令牌 + 证书"或"云签名服务"。
+
+| 方案 | 量级 | 特点 |
+| --- | --- | --- |
+| Azure Trusted Signing（微软云签名） | 约每月 10 美元 | 最省事：无需硬件、原生支持 CI。个人开发者在美国/加拿大/欧盟/英国可申请 |
+| OV 证书 | 约每年 200–400 美元 | 验证企业身份。私钥在令牌或云 HSM |
+| EV 证书 | 约每年 400–700 美元 | 验证更严（法人、地址、电话），**SmartScreen 声誉立刻生效** |
+
+**个人开发者**通常拿不到普通 OV 证书（多数 CA 要求企业主体），可行的是 Azure Trusted Signing 或个别对个人开放的 CA。采购前先确认对方是否接受个人申请。
+
+### 采购与签发的流程
+
+1. 选 CA 或 Azure Trusted Signing，提交申请；
+2. 通过身份核验（企业营业执照，或个人身份证件 + 地址/电话核验），通常需要几个工作日；
+3. 拿到证书：硬件令牌寄到，或云签名服务开通；
+4. 把令牌插入（或用云签名），按上面的命令签名。
+
+### 时间戳为什么必须有
+
+签名带时间戳后，即使证书过期，**已经发布的安装包依然有效**；没有时间戳的签名在证书到期当天全部失效。脚本默认用 `http://timestamp.digicert.com`。
+
+### 声誉：签名不完全等于没有提示
+
+SmartScreen 的判定基于**证书声誉**与**文件哈希**：
+
+- EV 证书：声誉立即生效，通常不弹提示；
+- OV 证书：新证书**没有声誉**，头几天到几周仍可能弹提示，随下载量积累逐步消除；
+- 换新证书、重新编译都会重置哈希，但证书声誉会延续。
+
+这与"之前某次构建没有提示"并不矛盾：那通常是因为哈希/证书已经有积累的声誉。
+
+### 现状
+
+| 项 | 状态 |
+| --- | --- |
+| 签名接入（脚本 + 顺序 + 时间戳） | 已实现 |
+| 与载荷标记的兼容性 | 已用真实签名验证（自签名证书端到端） |
+| 真实证书 | **没有**。未签名发布时 SmartScreen 提示无法消除 |
 
 ### NSIS 方案被替换的原因
 
@@ -202,9 +308,9 @@ Cargo 包名保持 `mfmath-host-rust`（`../Cargo.toml`），构建产物与开�
 | 2 | 释放核心：解压到安装目录、主程序改名、写 `manifest.json` | 装完能直接运行主程序 | **已验证** |
 | 3 | 系统集成：开始菜单快捷方式、卸载注册表键、`uninstall.exe` | 安装与卸载闭环，卸载后无残留 | **已验证** |
 | 4 | 静默参数：`/S`、`/D=`、`/uninstall`、`/purge` | 静默装与静默卸可用 | **已验证** |
-| 5 | WebView2 检测与内嵌引导程序 | 删除 WebView2 后仍能安装 | 未开始 |
+| 5 | WebView2 检测与内嵌引导程序 | 删除 WebView2 后仍能安装 | **已验证**（本机 Runtime 已装，全新安装那一支未验） |
 | 6 | 打包流水线：一条命令产出成品 exe | 单命令可重复出包 | **已验证**（`tools/build-setup.ps1`） |
-| 7 | 签名接入 | 证书就位后签名，SmartScreen 不再拦截 | 未开始 |
+| 7 | 签名接入 | 证书就位后签名，SmartScreen 不再拦截 | **接入已验证**（自签名端到端）；真实证书待采购 |
 
 ## 11. 未验证项
 
@@ -283,10 +389,11 @@ cargo build --release --offline --manifest-path ..\MFMath.Installer\Cargo.toml
 
 ### 打包
 
-一条命令出包（收集载荷 + 压缩 + 内嵌）：
+一条命令出包（收集载荷 + 下载引导程序 + 压缩 + 内嵌，可选签名）：
 
 ```powershell
 .\MFMath.Installer\tools\build-setup.ps1
+.\MFMath.Installer\tools\build-setup.ps1 -CertThumbprint <证书指纹>
 ```
 
 产物 `MFMath.Installer\target\release\Multifunctional-Mathematics_<版本>_x64-setup.exe`。
@@ -300,6 +407,33 @@ cargo build --release --offline --manifest-path ..\MFMath.Installer\Cargo.toml
 实测：载荷 43.21 MB（114 个文件）→ 压缩 **15.75 MB** → 成品安装包 **16.46 MB**（含 685 KB 安装器逻辑）。
 
 只有 `--pack` 产出的安装包能直接安装。安装器的编译产物本身不含载荷，直接运行会提示改用打包脚本。
+
+### 第 5 期：WebView2
+
+探测与三条分支的实测结果见第 5 节。要点：
+
+| 检查 | 结果 |
+| --- | --- |
+| `--webview2-status` 与注册表比对 | 一致（`149.0.4022.80`），且证实只有 `WOW6432Node` 那处存在 |
+| Runtime 已装时 | 报版本并跳过 |
+| 强制缺失 + 假引导程序 | 以 `/silent /install` 调用（回读参数确认），随后复查并报版本 |
+| 强制缺失 + 无引导程序 | 打印手动安装地址，安装继续，退出码 0 |
+| 引导程序是否进安装目录 | 否；也不在 `manifest.json` 里（清单仍为 115 条） |
+
+### 第 7 期：签名
+
+用 7 天有效期的**自签名证书**跑通整条链路：
+
+| 检查 | 结果 |
+| --- | --- |
+| 签名载荷里的主程序 | 成功 |
+| 签名成品安装包 | 成功 |
+| 时间戳 | 成功（链路中出现 DigiCert 时间戳响应者） |
+| `signtool verify /pa` | 报 `certificate chain … terminated in a root` —— 自签名证书的预期结果，非流水线问题 |
+| **签名后的安装包装机能装吗** | **能**。安装成功、退出码 0、主程序在位、`--selftest-jobs` 5/5 |
+| 装出来的主程序 | 带签名 |
+
+这一条同时验证了"签名追加的证书表落在载荷标记之后"不会影响载荷定位。
 
 ### 第 2 期：释放核心
 
