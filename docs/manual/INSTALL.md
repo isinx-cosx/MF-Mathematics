@@ -9,12 +9,9 @@
 | 项 | 内容 |
 | --- | --- |
 | 仓库内容 | 只有源码，不含编译产物与安装包 |
-| 当前可用路径 | 三步构建 + 直接运行 exe，这是唯一被实测跑通的路径 |
-| 安装包状态 | 能出 NSIS 安装包，但「装完能启动」尚未在真机上验证 |
-
-安装包的「安装 → 启动」是尚未验证的事项。能出包（`tauri build --bundles nsis` 产出安装器），
-但安装后的目录布局、安装与卸载、从安装目录启动都没有真机验证记录。原因是打包环境里无法启动
-安装器（`Start-Process` 报 `ERROR_CANCELLED`）。
+| 从源码跑 | 三步构建 + 直接运行 exe，见第 3、4 节 |
+| 安装包 | 自写安装器，可一条命令出包；安装、卸载、快捷方式、卸载项均已实测 |
+| 签名 | **未签名**。首次运行会出现 Windows SmartScreen 提示，处理方式见第 6 节 |
 
 ## 2. 前置依赖
 
@@ -99,21 +96,50 @@ Start-Process "$run\mfmath-host-rust.exe"
 | `MF_WEBVIEW2_DIR` | 指定 WebView2 用户数据目录 |
 | `MF_ENGINE_BIN` | 覆盖引擎 DLL 的源目录 |
 
-## 6. 安装包现状
+## 6. 安装包
 
-能出包，命令见 [PACKAGING.md](../../MFMath.Host.Rust/docs/PACKAGING.md)。打包需要内联覆盖
-`resources`，漏掉会装出只有 exe 的包（白屏且算不了数）。当前 `tauri.conf.json` 的 `bundle.active`
-仍是 `false`。
+安装器是自写程序（`MFMath.Installer/`），一条命令出包：
 
-未验证的部分照 [PACKAGING.md](../../MFMath.Host.Rust/docs/PACKAGING.md) 记录：安装目录布局、
-安装与卸载、从安装目录启动。真机验证要走的五步：
+```powershell
+.\MFMath.Installer\tools\build-setup.ps1
+```
 
-1. 双击安装器按提示安装（每用户，不需要管理员）。
-2. 打开安装目录，确认 exe、6 个引擎 DLL、`wwwroot\index.html`、`python\`、`cpp\`。
-3. 启动后确认页面 URL 是 `https://mfmath.local/index.html`，日志里有 9 个宿主对象且没有 `ai`，
-   随手算一条能出数。
-4. 附着跑一遍端到端用例（`run-all.ps1 -NoLaunch`）。
-5. 卸载后程序目录清空，`%LOCALAPPDATA%\MFMath`（设置、日志、组件、工作区）保留。
+产出 `MFMath.Installer\target\release\Multifunctional-Mathematics_<版本>_x64-setup.exe`（约 18 MB）。
+安装器本身的说明、命令行参数与验收记录见
+[INSTALLER.md](../../MFMath.Host.Rust/docs/INSTALLER.md)。
+
+安装行为：
+
+| 项 | 取值 |
+| --- | --- |
+| 安装位置 | `%LOCALAPPDATA%\Programs\Multifunctional-Mathematics\`（每用户，不需要管理员） |
+| 主程序 | `Multifunctional-Mathematics.exe` |
+| 快捷方式 | 开始菜单与桌面各一份 |
+| 卸载入口 | 「设置 → 应用 → 已安装的应用」，或安装目录里的 `uninstall.exe` |
+| 用户数据 | `%LOCALAPPDATA%\MFMath`，卸载默认保留 |
+
+安装包自带 WebView2 引导程序：系统缺少 Runtime 时会静默安装它，Windows 11 通常不需要。
+
+### 首次运行的安全提示
+
+安装包**没有数字签名**，因此首次运行时 Windows 可能显示「Windows 已保护你的电脑」（SmartScreen）。
+
+继续运行的方法：
+
+1. 点击提示框里的「**更多信息**」；
+2. 出现「仍要运行」按钮后点击它。
+
+如果提示来自浏览器下载，则是「**保留**」→「显示更多」→「仍然保留」。
+
+**为什么没有签名**：代码签名证书需要按年付费并通过身份核验，本项目暂未采购。签名解决的是
+"发布者可识别"，不改变软件本身的行为。**校验文件有没有被改过，用发布页面公布的 SHA-256 比对**
+（出包脚本会打印该值）：
+
+```powershell
+Get-FileHash .\Multifunctional-Mathematics_2.0.0_x64-setup.exe -Algorithm SHA256
+```
+
+哈希与发布页公布的一致，就说明文件在传输途中没有被替换。
 
 ## 7. 构建后的闸门
 

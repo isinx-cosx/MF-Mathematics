@@ -159,6 +159,10 @@ if ($doSign) {
 $setupMb = (Get-Item $setup).Length / 1MB
 Write-Host ("`n安装包：{0}" -f $setup)
 Write-Host ("体积：{0:N2} MB（压缩率 {1:P0}）" -f $setupMb, (1 - $setupMb / $sizeMb))
+
+# 未签名发布时，这个哈希是用户核对文件未被替换的唯一依据，发布页要一并公布。
+Write-Host ("SHA-256：{0}" -f (Get-FileHash $setup -Algorithm SHA256).Hash)
+
 if ($doSign) {
     & $signTool verify /pa /v $setup | Select-String 'Successfully verified|Issued to|SHA1 hash'
 }
