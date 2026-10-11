@@ -195,11 +195,11 @@ Cargo 包名保持 `mfmath-host-rust`（`../Cargo.toml`），构建产物与开�
 | 阶段 | 内容 | 完成标准 | 状态 |
 | --- | --- | --- | --- |
 | 1 | 载荷收集与压缩：把第 2 节清单打成 payload | 产出 payload 归档，记录压缩比 | **已验证**，见第 12 节 |
-| 2 | 释放核心：解压到安装目录、主程序改名、写 `manifest.json` | 装完能直接运行主程序 | 未开始 |
-| 3 | 系统集成：开始菜单快捷方式、卸载注册表键、`uninstall.exe` | 安装与卸载闭环，卸载后无残留 | 未开始 |
-| 4 | 静默参数：`/S`、`/D=`、`/uninstall`、`/purge` | 静默装与静默卸可用 | 未开始 |
+| 2 | 释放核心：解压到安装目录、主程序改名、写 `manifest.json` | 装完能直接运行主程序 | **已验证** |
+| 3 | 系统集成：开始菜单快捷方式、卸载注册表键、`uninstall.exe` | 安装与卸载闭环，卸载后无残留 | **部分验证**：卸载闭环已验证；快捷方式与注册表写入被开发机沙箱拒绝，待在普通终端复验 |
+| 4 | 静默参数：`/S`、`/D=`、`/uninstall`、`/purge` | 静默装与静默卸可用 | **已验证**（`--purge` 的删除动作受同一沙箱限制） |
 | 5 | WebView2 检测与内嵌引导程序 | 删除 WebView2 后仍能安装 | 未开始 |
-| 6 | 打包流水线：一条命令产出成品 exe | 单命令可重复出包 | 未开始 |
+| 6 | 打包流水线：一条命令产出成品 exe | 单命令可重复出包 | **基础能力已验证**，见第 13 节；自动化脚本未做 |
 | 7 | 签名接入 | 证书就位后签名，SmartScreen 不再拦截 | 未开始 |
 
 ## 11. 未验证项
@@ -249,3 +249,94 @@ tar.exe -xf payload.tar.xz -C <解压目录>
 自检在**工作区内**运行时，`--selftest-common` 的「打包到解包往返」一项会以 `拒绝访问 (os error 5)` 失败；把同一份载荷放到用户可写的目录（如 `%LOCALAPPDATA%\Temp`）后该项通过。
 
 结论：**主程序运行所在的目录必须对当前用户可写**。安装目标 `%LOCALAPPDATA%\Programs\MF-Mathematics\` 满足该条件。
+
+## 13. 实现与第 2–4 期验证记录
+
+### 代码位置与构建
+
+安装器是独立 crate，位于 [`../../MFMath.Installer/`](../../MFMath.Installer/)：
+
+| 文件 | 职责 |
+| --- | --- |
+| `src/main.rs` | 命令行解析与三种模式的分发 |
+| `src/payload.rs` | 尾部内嵌载荷的读写、zip 解压、清单生成 |
+| `src/install.rs` | 安装流程 |
+| `src/uninstall.rs` | 卸载流程与自删除 |
+| `src/shortcut.rs` | 快捷方式（COM `IShellLink`） |
+| `src/registry.rs` | 卸载注册表项（`winreg`） |
+| `src/pack.rs` | 把载荷目录封成单文件安装器 |
+| `src/util.rs` | 路径、输出、哈希、静默开关 |
+
+构建（宿主所在目录提供 cargo 源替换配置）：
+
+```powershell
+cd MFMath.Host.Rust
+cargo build --release --offline --manifest-path ..\MFMath.Installer\Cargo.toml
+```
+
+产物 `MFMath.Installer\target\release\mfmath-installer.exe`，**685 KB**，编译零警告。依赖只用宿主已缓存的 crate（`zip`、`serde_json`、`sha2`、`winreg`、`walkdir`、`windows`），可离线构建。
+
+### 打包
+
+```powershell
+.\MFMath.Installer\target\release\mfmath-installer.exe --pack <载荷目录> <输出 exe> --version 2.0.0
+```
+
+实测：载荷 43.21 MB（114 个文件）→ 压缩 **15.75 MB** → 成品安装包 **16.42 MB**（含 685 KB 安装器逻辑）。
+
+### 第 2 期：释放核心
+
+| 检查 | 结果 |
+| --- | --- |
+| 释放文件数 | 114 |
+| 主程序改名 `mfmath-host-rust.exe` → `Multifunctional-Mathematics.exe` | 成功，旧名不再存在 |
+| 撤回用卸载器 `uninstall.exe` | 写入成功 |
+| `manifest.json` | `product` / `version` / 114 条逐文件 sha256 均正确 |
+| 装好的主程序无头自检 | `--selftest-jobs` **5 / 5 通过**，退出码 0 |
+
+### 第 3 期：系统集成
+
+| 检查 | 结果 |
+| --- | --- |
+| 卸载：从安装目录外的副本执行 | 安装目录完整删除，退出码 0 |
+| 卸载：保留用户数据 | 保留 `%LOCALAPPDATA%\MFMath`，输出中明确说明 |
+| 卸载：清理快捷方式与注册表项 | 两项均报告成功 |
+| 安装：写开始菜单与桌面快捷方式 | **被开发机沙箱拒绝**（见下） |
+| 安装：写卸载注册表项 | **被开发机沙箱拒绝**（见下） |
+
+### 第 4 期：静默参数
+
+| 参数 | 结果 |
+| --- | --- |
+| `/S` | 静默安装零输出，退出码 0，文件正确落盘 |
+| `/D=<路径>` | 生效，与 `--dir` 等价 |
+| `/uninstall` | 生效；临时目录不可写时降级为原地卸载并说明 |
+| `/uninstall` + `--purge` | 执行到删除用户数据一步，如实报告结果 |
+
+### 开发机沙箱的限制
+
+以下操作在本会话中被拒绝，**都是环境限制而非代码缺陷**：安装器进程（工作区内新编译的二进制）只能写工作区内路径。
+
+| 操作 | 目标位置 | 结果 |
+| --- | --- | --- |
+| 写快捷方式 | `%APPDATA%\Microsoft\Windows\Start Menu\Programs\`、桌面 | `拒绝访问 (os error 5)` |
+| 写卸载注册表项 | `HKCU\Software\...\Uninstall\` | `拒绝访问 (os error 5)` |
+| 复制卸载器到临时目录 | `%TEMP%` | `拒绝访问 (os error 5)` |
+| 登记自删除 | `HKLM` 的 `PendingFileRenameOperations` | `拒绝访问 (0x80070005)` |
+| 删除用户数据（`--purge`） | `%TEMP%` 下的隔离目录 | `拒绝访问 (os error 5)` |
+
+对照实验：同一会话里 PowerShell 对上述四个位置（含 `HKCU`）的同类写入**全部成功**，说明不是 ACL 问题，而是沙箱对非白名单二进制的写入范围限制。
+
+因此第 3 期的快捷方式与注册表两项**尚未在真机验证**。复验方法（在普通终端执行，无需管理员）：
+
+```powershell
+# 1) 安装
+.\MFMath.Installer\target\release\mfmath-installer.exe --dir "$env:LOCALAPPDATA\Programs\MF-Mathematics"
+# 2) 检查开始菜单与桌面是否出现 Multifunctional-Mathematics 快捷方式
+# 3) 检查「设置 → 应用 → 已安装的应用」是否出现 Multifunctional-Mathematics
+# 4) 卸载
+& "$env:LOCALAPPDATA\Programs\MF-Mathematics\uninstall.exe" /uninstall
+# 5) 复查：快捷方式消失、注册表项消失、安装目录消失、%LOCALAPPDATA%\MFMath 保留
+```
+
+为适应受限环境，安装器对快捷方式与注册表的失败按**非致命**处理并逐条报告；卸载对自删除失败同样按非致命处理，因此卸载结果不受影响。
