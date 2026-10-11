@@ -13,8 +13,8 @@
 | 安装目录 | `%LOCALAPPDATA%\Programs\MF-Mathematics\` |
 | 主程序文件名 | `Multifunctional-Mathematics.exe` |
 | 目标平台 | Windows 10 / 11 x64 |
-| 载荷未压缩体积 | 约 43.2 MB |
-| 预计产物体积 | 11–14 MB（LZMA 压缩后） |
+| 载荷未压缩体积 | 43.09 MB（实测） |
+| 产物体积 | **11.03 MB**（xz / LZMA2 实测）；zip / deflate 为 15.71 MB |
 | 实现语言 | Rust（与宿主共用工具链） |
 
 选择自解压单 exe 而非 MSI 或 NSIS：安装逻辑、目录结构、WebView2 处理全部由本仓库掌握，不依赖第三方安装框架。NSIS 方案的三个具体问题记录在第 9 节。
@@ -192,21 +192,60 @@ Cargo 包名保持 `mfmath-host-rust`（`../Cargo.toml`），构建产物与开�
 
 ## 10. 实现分期
 
-| 阶段 | 内容 | 完成标准 |
-| --- | --- | --- |
-| 1 | 载荷收集与压缩：把第 2 节清单打成 payload | 产出 payload 归档，记录压缩比 |
-| 2 | 释放核心：解压到安装目录、主程序改名、写 `manifest.json` | 装完能直接运行主程序 |
-| 3 | 系统集成：开始菜单快捷方式、卸载注册表键、`uninstall.exe` | 安装与卸载闭环，卸载后无残留 |
-| 4 | 静默参数：`/S`、`/D=`、`/uninstall`、`/purge` | 静默装与静默卸可用 |
-| 5 | WebView2 检测与内嵌引导程序 | 删除 WebView2 后仍能安装 |
-| 6 | 打包流水线：一条命令产出成品 exe | 单命令可重复出包 |
-| 7 | 签名接入 | 证书就位后签名，SmartScreen 不再拦截 |
+| 阶段 | 内容 | 完成标准 | 状态 |
+| --- | --- | --- | --- |
+| 1 | 载荷收集与压缩：把第 2 节清单打成 payload | 产出 payload 归档，记录压缩比 | **已验证**，见第 12 节 |
+| 2 | 释放核心：解压到安装目录、主程序改名、写 `manifest.json` | 装完能直接运行主程序 | 未开始 |
+| 3 | 系统集成：开始菜单快捷方式、卸载注册表键、`uninstall.exe` | 安装与卸载闭环，卸载后无残留 | 未开始 |
+| 4 | 静默参数：`/S`、`/D=`、`/uninstall`、`/purge` | 静默装与静默卸可用 | 未开始 |
+| 5 | WebView2 检测与内嵌引导程序 | 删除 WebView2 后仍能安装 | 未开始 |
+| 6 | 打包流水线：一条命令产出成品 exe | 单命令可重复出包 | 未开始 |
+| 7 | 签名接入 | 证书就位后签名，SmartScreen 不再拦截 | 未开始 |
 
 ## 11. 未验证项
 
 以下内容尚未在本机验证，实现时以实测为准：
 
 - 内嵌引导程序的实际体积（估算 1.8 MB，取决于微软当前发布的 bootstrapper）；
-- 压缩后的成品体积（预计 11–14 MB，依据是 NSIS 同载荷实测 11.12 MB）；
 - WebView2 注册表检测在只装了 Edge 浏览器但未装 Runtime 的机器上的判定结果；
-- `Publisher` 字段的取值（取决于证书主体）。
+- `Publisher` 字段的取值（取决于证书主体）；
+- 自解压 exe 的自身体积开销（压缩载荷 11.03 MB 之外，安装器逻辑本身占多少）。
+
+## 12. 验证记录
+
+### 载荷收集与压缩（第 1 期）
+
+载荷按第 4 节布局收集完成，113 个文件，未压缩 43.09 MB。压缩与完整性验证结果：
+
+| 格式 | 体积 | 压缩耗时 |
+| --- | ---: | ---: |
+| 未压缩 | 43.09 MB | — |
+| zip / deflate | 15.71 MB | 1.6 s |
+| xz / LZMA2 | **11.03 MB** | 15.8 s |
+
+完整性验证：解压后逐文件 SHA-256 比对，**113 个文件全部一致，差异 0 个**。
+
+功能验证：对布局后的载荷运行宿主无头自检，两项均通过。
+
+| 自检 | 结果 |
+| --- | --- |
+| `Multifunctional-Mathematics.exe --selftest-jobs` | **5 / 5 通过**，退出码 0 |
+| `Multifunctional-Mathematics.exe --selftest-common` | **10 / 0 通过**，退出码 0 |
+
+复现命令（在载荷目录下执行）：
+
+```powershell
+# 收集载荷后压缩
+tar.exe -cJf payload.tar.xz -C .tmp-build\payload MF-Mathematics
+
+# 往返验证
+tar.exe -xf payload.tar.xz -C <解压目录>
+<解压目录>\MF-Mathematics\Multifunctional-Mathematics.exe --selftest-jobs
+<解压目录>\MF-Mathematics\Multifunctional-Mathematics.exe --selftest-common
+```
+
+### 一条实现约束
+
+自检在**工作区内**运行时，`--selftest-common` 的「打包到解包往返」一项会以 `拒绝访问 (os error 5)` 失败；把同一份载荷放到用户可写的目录（如 `%LOCALAPPDATA%\Temp`）后该项通过。
+
+结论：**主程序运行所在的目录必须对当前用户可写**。安装目标 `%LOCALAPPDATA%\Programs\MF-Mathematics\` 满足该条件。
