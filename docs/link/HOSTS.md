@@ -5,12 +5,11 @@
 
 ## 1. 运行形态
 
-产品只有一个现役宿主：`MFMath.Host.Rust/`（Rust + Tauri v2 + WebView2）。C# 宿主 `MFMath.Host/` 已停止演进，保留在树中作迁移参考；涉及宿主行为的说明以 Rust 宿主为准（[README.md](../../README.md)）。
+产品只有一个宿主：`MFMath.Host.Rust/`（Rust + Tauri v2 + WebView2）。早期的 C# / WPF + WebView2 宿主已从仓库移除。
 
 | 宿主 | 路径 | 状态 |
 | --- | --- | --- |
 | Rust / Tauri v2 + WebView2 | `MFMath.Host.Rust/` | 现役 |
-| C# / WPF + WebView2 | `MFMath.Host/` | 已停止演进，保留作迁移参考 |
 
 窗口与进程形态：
 
@@ -53,7 +52,7 @@ Select-String -Path MFMath.Host.Rust/src/main.rs -Pattern "selftest-jobs|selftes
 | `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS` | 追加浏览器参数 | 宿主未设置时设为 `--remote-debugging-port=9222` | `Select-String -Path MFMath.Host.Rust/src/main.rs -Pattern "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS"` |
 | `MF_HOST_EXE` | `run-all.ps1` 指定被测宿主 exe | 无 | `Select-String -Path MF_UI/MFMath.UI.Vue/tests/run-all.ps1 -Pattern "MF_HOST_EXE"` |
 
-`run-all.ps1` 未设 `MF_HOST_EXE` 时的默认候选是 `MFMath.Host\bin\Release\net10.0-windows\MFMath.exe`（`Select-String -Path MF_UI/MFMath.UI.Vue/tests/run-all.ps1 -Pattern 'MFMath\\Host\\bin\\Release'`）。该路径指向已停止演进的 C# 宿主；在 Rust 宿主上跑批需先设 `MF_HOST_EXE`。
+`run-all.ps1` 未设 `MF_HOST_EXE` 时的默认候选是 `MFMath.Host.Rust\target\release\mfmath-host-rust.exe`（`Select-String -Path MF_UI/MFMath.UI.Vue/tests/run-all.ps1 -Pattern 'mfmath-host-rust'`）。
 
 ## 3. 数据目录
 

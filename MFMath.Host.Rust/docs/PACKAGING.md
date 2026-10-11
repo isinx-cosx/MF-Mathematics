@@ -23,7 +23,7 @@
 | --- | --- | --- |
 | 引擎 6 个 DLL（`mf_mathematics.dll` + symengine/flint/gmp/mpfr/pthreadVC3） | exe 同目录 | **21.78 MB** |
 | `MF_UI/MFMath.UI.Vue/dist` | `wwwroot/` | **3.90 MB**（73 个文件） |
-| `MFMath.Host/python`、`MFMath.Host/cpp` | `python/`、`cpp/` | 1 + 2 个文件 |
+| `MFMath.Host.Rust/console/python`、`MFMath.Host.Rust/console/cpp` | `python/`、`cpp/` | 1 + 2 个文件 |
 
 **打包器不认识这三样**：Tauri 只把 exe（和 `bundle.resources` 列出的东西）放进安装包。
 不配 `resources` 的话，装出来的包**只有 exe** —— 页面白屏（没有 `wwwroot`）、算不了数（没有 DLL）、

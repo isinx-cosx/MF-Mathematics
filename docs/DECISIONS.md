@@ -103,9 +103,9 @@ Select-String -Path MF_UI/MFMath.UI.Vue/tools/check-ui.mjs -Pattern "FROZEN_VUE_
 
 ## 宿主是 Rust 与 Tauri
 
-背景：桌面外壳早期是 C# / WPF + WebView2（`MFMath.Host/`），第二次实现是 Rust + Tauri v2 + WebView2（`MFMath.Host.Rust/`）。两套并存意味着同一份桥面契约有两处实现。
+背景：桌面外壳早期是 C# / WPF + WebView2，第二次实现是 Rust + Tauri v2 + WebView2（`MFMath.Host.Rust/`）。两套并存意味着同一份桥面契约有两处实现。
 
-决定：现役宿主只有 `MFMath.Host.Rust/`；`MFMath.Host/` 不再演进，保留作迁移参考。接缝形状固定：
+决定：宿主只有 `MFMath.Host.Rust/`；早期的 C# / WPF 宿主已从仓库移除。接缝形状固定：
 
 - 窗口手工创建（`tauri.conf.json` 里 `create: false`），因为 Tauri 会强制指定 WebView2 数据目录，而 `app_local_data_dir()` 走 known-folder API、不读 `LOCALAPPDATA` 环境变量。宿主用 `data_directory()` 指定 `webview_data_dir()`。
 - 宿主对象走 COM：`with_webview()` 取 `ICoreWebView2` 再 `AddHostObjectToScript`，前端的同步调用原样可用。这否掉全异步 `invoke` 路线，`mf.Dispatch` 是采样链与绘图网格的热路径。Tauri 的 `invoke` 命令层已删。
@@ -127,7 +127,7 @@ Select-String -Path MF_UI/MFMath.UI.Vue/tools/check-ui.mjs -Pattern "FROZEN_VUE_
 
 窗口行为与 C# 宿主对齐：无边框、1240×820、最小 980×640、DWM 圆角与投影、数据目录 `%LOCALAPPDATA%\MFMath`、CDP 端口 9222。
 
-代价：C# 宿主里的实现细节（桥面契约、DPAPI、搜索解析器）不再维护。`tests/run-all.ps1` 的宿主解析顺序是 `$env:MF_HOST_EXE` 再到 `..\..\..\MFMath.Host\bin\Release\net10.0-windows\MFMath.exe`，默认候选指向 C# 宿主产物；驱动 Rust 宿主需显式设 `MF_HOST_EXE` 或用 `-NoLaunch` 附着到已运行进程。安装到启动的路径尚未在真机验证，打包步骤见 [`PACKAGING.md`](../MFMath.Host.Rust/docs/PACKAGING.md)。
+代价：早期的 C# 宿主实现细节（桥面契约、DPAPI、搜索解析器）不再维护。`tests/run-all.ps1` 的宿主解析顺序是 `$env:MF_HOST_EXE` 再到 `..\..\..\MFMath.Host.Rust\target\release\mfmath-host-rust.exe`。安装到启动的路径尚未在真机验证，打包步骤见 [`PACKAGING.md`](../MFMath.Host.Rust/docs/PACKAGING.md)。
 
 现状：无头自检 `--selftest-jobs` 与 `--selftest-common` 不需要 WebView2，验收基线见 [`ACCEPTANCE.md`](../MFMath.Host.Rust/docs/ACCEPTANCE.md)。
 

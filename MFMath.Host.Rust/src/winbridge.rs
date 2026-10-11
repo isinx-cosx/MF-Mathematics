@@ -1,5 +1,5 @@
 //! winbridge.rs —— 窗口与文件对话框桥（JS 侧 `hostObjects.sync.win`）
-//! 对照 C# `MFMath.Host/WindowBridge.cs` 逐条实现。
+//! 对照 已移除的 C# 宿主的 WindowBridge.cs 逐条实现。
 //!
 //! **为什么文件对话框放在宿主**：页面里既不能弹系统对话框，也不能写任意路径。
 //! 工作区"另存为 / 从文件打开"、导出设置、导出图片都要走这里。

@@ -1,4 +1,4 @@
-﻿# One-click regression: launch host with CDP port, run all verification scripts, summarize.
+# One-click regression: launch host with CDP port, run all verification scripts, summarize.
 # Usage (Windows PowerShell 5.1 or PowerShell 7):
 #   powershell -ExecutionPolicy Bypass -File run-all.ps1
 #   powershell -ExecutionPolicy Bypass -File run-all.ps1 -NoLaunch      # attach to a host you started
@@ -23,13 +23,13 @@ $ErrorActionPreference = "Continue"
 # 路径优先级：环境变量 MF_HOST_EXE → 三层相对路径；都拿不到就给一句能照着做的提示。
 $hostExe = $env:MF_HOST_EXE
 if (-not $hostExe) {
-  $cand = Join-Path $PSScriptRoot "..\..\..\MFMath.Host\bin\Release\net10.0-windows\MFMath.exe"
+  $cand = Join-Path $PSScriptRoot "..\..\..\MFMath.Host.Rust\target\release\mfmath-host-rust.exe"
   if (Test-Path $cand) { $hostExe = (Resolve-Path $cand).Path }
 }
 if (-not $hostExe) {
-  Write-Host "Host not found: 期望 <v2.0>\MFMath.Host\bin\Release\net10.0-windows\MFMath.exe" -ForegroundColor Red
-  Write-Host "  先构建它：dotnet build -c Release <v2.0>\MFMath.Host" -ForegroundColor Red
-  Write-Host "  或用环境变量指定：`$env:MF_HOST_EXE = '<...>\MFMath.exe'" -ForegroundColor Red
+  Write-Host "Host not found: 期望 <v2.0>\MFMath.Host.Rust\target\release\mfmath-host-rust.exe" -ForegroundColor Red
+  Write-Host "  先构建它：cargo build --release <v2.0>\MFMath.Host.Rust" -ForegroundColor Red
+  Write-Host "  或用环境变量指定：`$env:MF_HOST_EXE = '<...>\mfmath-host-rust.exe'" -ForegroundColor Red
   exit 1
 }
 $tests = @(

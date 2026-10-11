@@ -1,5 +1,5 @@
 //! sys.rs —— 设置面板用的宿主桥（JS 侧是 `hostObjects.sync.sys`）
-//! 对照 C# `MFMath.Host/SettingsBridge.cs` 逐条实现：报路径、查文件在不在、
+//! 对照 已移除的 C# 宿主的 SettingsBridge.cs 逐条实现：报路径、查文件在不在、
 //! 读写设置 JSON、打开目录、导出诊断包。不含数学、不含窗口、不含进程。
 //!
 //! 三条安全/健壮性规则（C# 版注释里记的就是踩过的坑，这里一条不少）：

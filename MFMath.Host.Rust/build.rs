@@ -131,10 +131,10 @@ fn sync_runtime_assets() {
      *   · C++ 侧靠 `mfmath.hpp` + `mfmath_autorun.hpp`（`#include` 起引擎）。
      * 少了它们，控制台能起、组件却装不上（报"应用目录缺少 python\mfmath.py"）。
      *
-     * ⚠ 来源是 **C# 宿主项目目录**：这三个文件在仓库里只有那一份，两个宿主共用，
-     * 它们本身就是"用户代码怎么调到引擎"的对外契约 —— 要改就两边一起想。
+     * 来源是本目录的 `console/`（此前在 C# 宿主项目里，宿主废弃后迁到此处）。
+     * 这三个文件是"用户代码怎么调到引擎"的对外契约，改动需兼顾两侧。
      */
-    for (src_rel, dst_rel) in [("MFMath.Host/python", "python"), ("MFMath.Host/cpp", "cpp")] {
+    for (src_rel, dst_rel) in [("console/python", "python"), ("console/cpp", "cpp")] {
         let src = root.join(src_rel);
         if src.is_dir() {
             if let Err(e) = copy_tree(&src, &profile.join(dst_rel), &format!("控制台门面（{dst_rel}/）")) {

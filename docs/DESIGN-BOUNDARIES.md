@@ -90,7 +90,7 @@
 | 符号层如实拒绝 | 求不出初等原函数、部分不定式极限、复变不定积分时返回「未实现」或错误信封 | 一个错误的原函数比「未实现」危害大 | `MF_Mathematics/calculus/integrals.cpp` |
 | 多语言只覆盖界面层 | 导航、模式名、参数弹窗标签、结果字段、键盘分类已中英双语；页面正文与教程正文仍是中文 | 覆盖面逐步扩大，不是没做 | `MF_UI/MFMath.UI.Vue/tools/check-ui.mjs` 输出各 i18n 行的缺口计数 |
 | Vue 绘图组冻结 | 7 条 `/plot/*` 路由指向 React，Vue 版 6 个文件保留为回退资产，不参与构建、不在类型检查范围 | 删除更干净但失去回退；冻结 + 断言不许悄悄接回 | `MF_UI/MFMath.UI.Vue/tools/check-ui.mjs` 的 `FROZEN_VUE_PLOT_FILES` |
-| C# 宿主已停止演进 | `MFMath.Host/` 保留作迁移参考，不是现役实现 | 现役宿主只有 `MFMath.Host.Rust/` | 涉及宿主行为的说明以 Rust 侧为准（[`link/HOSTS.md`](link/HOSTS.md)） |
+| 宿主只有 Rust 实现 | 早期的 C# / WPF 宿主已从仓库移除 | 现役宿主只有 `MFMath.Host.Rust/` | 宿主行为见 [`link/HOSTS.md`](link/HOSTS.md) |
 
 「多语言只覆盖界面层」同时出现在「能力上限」与「推迟」两节没有冲突：其界面层覆盖是设计现状（能力上限），其页面正文与教程正文的迁移是推迟。两节各写各的那一半。
 

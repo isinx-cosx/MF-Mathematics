@@ -1,6 +1,6 @@
 //! con.rs —— 控制台桥（JS 侧：`hostObjects.sync.con`）
 //!
-//! 对照实现：C# `MFMath.Host\ConsoleBridge.cs`（899 行）+ `ComponentDownload.cs`（207 行）。
+//! 对照实现：已移除的 C# 宿主的 ConsoleBridge.cs（899 行）+ `ComponentDownload.cs`（207 行）。
 //! 逐条搬运，**包括注释里记下来的那些坑**；与 C# 的有意差异集中列在本文件末尾。
 //!
 //! 职责：把"跑一段用户代码"这件事放在宿主侧做（进程、文件、组件），而不是浏览器里。

@@ -1,6 +1,6 @@
 //! dpapi.rs —— 密钥保护的**唯一实现**（AI 的 API Key、搜索的 Wolfram App ID、账号 token 共用）
 //!
-//! 对照 C# `MFMath.Host/Dpapi.cs` 逐条实现。**必须逐字兼容**：迁移期两个宿主共用同一份
+//! 对照 已移除的 C# 宿主的 Dpapi.cs 逐条实现。**必须逐字兼容**：迁移期两个宿主共用同一份
 //! 设置文件（`%LOCALAPPDATA%\MFMath\settings`），C# 写的 `ai.json` 要能被 Rust 解开、
 //! 反之亦然 —— 所以下面每一处细节都不是随便选的。
 //!

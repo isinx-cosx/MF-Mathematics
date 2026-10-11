@@ -232,10 +232,9 @@ powershell -NoProfile -File MF_UI/MFMath.UI.Vue/tests/run-all.ps1
 | 路径 | 内容 |
 | --- | --- |
 | [`MF_Mathematics/`](MF_Mathematics/) | 引擎：C++17，110 个 `.cpp`（不含 `build/` 与 `tests/`）；`tests/` 下 19 个可执行目标 |
-| [`MFMath.Host.Rust/`](MFMath.Host.Rust/) | 现役宿主：Rust + Tauri + WebView2，9 个宿主对象；`build.rs` 负责同步引擎与 UI |
+| [`MFMath.Host.Rust/`](MFMath.Host.Rust/) | 现役宿主：Rust + Tauri + WebView2，9 个宿主对象；`build.rs` 负责同步引擎与 UI；`console/` 下是控制台的 Python/C++ 门面 |
 | [`MF_UI/MFMath.UI.Vue/`](MF_UI/MFMath.UI.Vue/) | Vue 3 界面：`src/`（107 个文件）、`tests/`（48 个 CDP 用例）、`tools/`（构建期闸门） |
 | [`MF_UI/MFMath.UI.React/`](MF_UI/MFMath.UI.React/) | React 绘图组，经 `@shared` 别名复用 Vue 侧 `src/lib/` 下与框架无关的模块 |
-| [`MFMath.Host/`](MFMath.Host/) | 早期 C#/.NET 宿主，已停止演进，保留作迁移参考 |
 | [`docs/`](docs/) | 文档，入口是 [`docs/README.md`](docs/README.md) |
 | [`tools/`](tools/) | 仓库级小工具 |
 
@@ -261,7 +260,7 @@ powershell -NoProfile -File MF_UI/MFMath.UI.Vue/tests/run-all.ps1
 - **多语言只覆盖界面层**：导航、顶栏、14 个学科视图的模式名、参数弹窗标签、结果字段、键盘分类已中英双语，可在「设置 → 外观 → 界面语言」切换并记忆；页面正文与教程正文仍是中文。迁移方法是把要翻的文本包一层 `t()` 并补 `src/lib/i18n/en-*.js`，`npm run check` 会拦住漏译。
 - **安装包的「安装 → 启动」路径未验证**：宿主可出 NSIS 安装包（`tauri.conf.json` 的 `bundle` 段，见 [`MFMath.Host.Rust/docs/PACKAGING.md`](MFMath.Host.Rust/docs/PACKAGING.md)），但「装完能启动」没有真机验证记录。「三步构建 + 直接运行 exe」是当前唯一可依据的路径。
 - **崩溃只本地记录，不联网上报**：写入 `%LOCALAPPDATA%\MFMath\logs\`，由用户在「设置 → 存储与数据 → 导出诊断包」主动交出。
-- **C# 宿主 `MFMath.Host/` 已停止演进**：保留在树中作迁移参考，不是现役实现；涉及宿主行为的说明以 `MFMath.Host.Rust/` 为准（[`docs/link/HOSTS.md`](docs/link/HOSTS.md)）。
+- **宿主只有一个**：`MFMath.Host.Rust/`（Rust + Tauri + WebView2）。早期的 C#/.NET 宿主已从仓库移除。
 
 ## 与 v1 的关系
 

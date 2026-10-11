@@ -35,14 +35,12 @@
 | **B · 前端** | `MF_UI/MFMath.UI.Vue/**`、`MF_UI/MFMath.UI.React/**`、`MF_UI/BUGS.md` | Vue：`npm run check`（types + 引擎签名 + UI 自检）→ `npm run build`；React：`npm run check:types`；端到端：`tests/run-all.ps1 -NoLaunch` |
 | **C · 引擎 / 全局文档** | `MF_Mathematics/**`、`docs/**`、`README.md`、`AGENTS.md` | 引擎：`cmake --build … --config Release` → `ctest … --output-on-failure` → `probe_call.exe list_functions` 的 `count` 应为 **424** |
 
-> 🚩 **`MFMath.Host/`（C#/.NET 宿主）已废弃** —— 2026-10-07 由项目所有者决定。
-> 它**不是任何一面的管辖范围**：不再接受功能改动，只保留作迁移参考。
-> - 想要它里面的实现细节（桥面契约、DPAPI、搜索解析器）时**可以读**，但**不要改**；
+> **`MFMath.Host/`（C#/.NET 宿主）已移除** —— 2026-10-07 由项目所有者决定废弃，随后从仓库删除。
+> 现役宿主只有 **`MFMath.Host.Rust/`**（A 面）。控制台的 Python/C++ 门面已迁到
+> `MFMath.Host.Rust/console/`。
 > - `docs/` 里 `ACCOUNT.md`、`ONLINE-SEARCH.md`、`AI-ASSISTANT.md`、`UPDATE-CHAIN.md`、
 >   `SETTINGS-BACKUP.md`、`MIGRATION-GAPS.md`、`STATUS-and-ROADMAP.md` 仍把它写成**现役实现**，
->   这些是**已登记的文档债**（`docs/PROJECT-BOARD.md` §3 R7），引用前先核对 Rust 侧；
-> - 现役宿主是 **`MFMath.Host.Rust/`**（A 面）。**"C# 宿主也是现役"这个说法已经不成立**，
->   见到就改。
+>   引用前先核对 Rust 侧；
 
 **跨面的改动必须写清**：例如改了 `MF_Mathematics/` 的键名契约，A/B 两面的用例都可能失效 ——
 在提交信息里点名"影响了哪一面"，必要时由管理者协调（B1/B2 就是这一类）。
@@ -68,8 +66,6 @@
 - **type**：`feat` `fix` `docs` `chore` `test` `refactor` `perf`
 - **scope**：
   - `engine`（`MF_Mathematics`）、`host-rust`（`MFMath.Host.Rust`）
-  - `host-dotnet`（`MFMath.Host`）—— **已废弃，原则上不应再出现这个 scope**；
-    真要动它（例如补一句"已废弃"的说明），提交信息里必须写明理由
   - `ui`（Vue 壳/通用）、`plot`（React 绘图组）
   - `tests`、`docs`，多条线时用 `ui,tests,docs` 这种并列写法（仓库里已有先例 `8c4ac48`）
 - **一次提交一件事**。文档与代码如果是一件事的两半，可以同一次提交（`d71b457` 就是这样）。
@@ -115,7 +111,6 @@
 `node_modules/`、`*.log`。**特别注意**：
 
 - `MF_UI/MFMath.UI.Vue/.tmp-*.mjs` 这类排查脚本里有**本机绝对路径与本机端点**；
-- `MFMath.Host/` 的凭据走 DPAPI 存用户目录，**不要**把任何凭据写进源码或测试 fixture；
 - 编译产物一律不入 git（`README.md` 已说明理由：可重建，且会让历史迅速膨胀）。
 
 ---
