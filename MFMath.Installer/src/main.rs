@@ -30,6 +30,8 @@ Multifunctional-Mathematics 安装器
   /S                  静默安装，不输出
   /D=<路径>           指定安装目录（必须放在最后，路径不加引号）
   --dir <路径>        同上，写法更宽松
+  /force              目标目录已有本产品以外的文件时，仍就地覆盖
+                      （只覆盖同名文件；不加此项时安装器会拒绝）
 
 卸载选项：
   /S                  静默卸载
@@ -44,6 +46,7 @@ struct Args {
     dir: Option<PathBuf>,
     uninstall: bool,
     purge: bool,
+    force: bool,
     from_temp: bool,
     pack: Option<(PathBuf, PathBuf)>,
     version: Option<String>,
@@ -56,6 +59,7 @@ fn parse() -> Result<Args> {
         dir: None,
         uninstall: false,
         purge: false,
+        force: false,
         from_temp: false,
         pack: None,
         version: None,
@@ -70,6 +74,7 @@ fn parse() -> Result<Args> {
             "/s" | "--silent" | "-s" => a.silent = true,
             "/uninstall" | "--uninstall" => a.uninstall = true,
             "/purge" | "--purge" => a.purge = true,
+            "/force" | "--force" => a.force = true,
             "--from-temp" => a.from_temp = true,
             "/?" | "-h" | "--help" => a.help = true,
             "--pack" => {
@@ -163,7 +168,7 @@ fn run(args: &Args) -> Result<()> {
         if !args.from_temp {
             // 运行中的 exe 删不掉自己所在的目录，优先转到临时副本里执行；
             // 临时目录不可写时退回原地卸载。
-            if uninstall::respawn_from_temp(&dir)? {
+            if uninstall::respawn_from_temp(&dir, args.purge, args.silent)? {
                 return Ok(());
             }
         }
@@ -175,6 +180,7 @@ fn run(args: &Args) -> Result<()> {
 
     install::run(&install::Options {
         dir: args.dir.clone().unwrap_or_else(util::default_install_dir),
+        force: args.force,
     })
 }
 

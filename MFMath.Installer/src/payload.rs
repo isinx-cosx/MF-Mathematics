@@ -51,7 +51,10 @@ impl Payload {
             return Ok(Payload::Sidecar(sidecar));
         }
         bail!(
-            "找不到载荷。安装器尾部没有内嵌归档，同目录也没有 payload.zip（查找位置：{}）",
+            "找不到载荷。\n\
+             这是安装器的编译产物，本身不含载荷，只有 --pack 产出的单文件安装包才能直接安装。\n\
+             要产出安装包：.\\MFMath.Installer\\tools\\build-setup.ps1\n\
+             （安装器在同目录查找的旁置归档是 payload.zip，位置：{}）",
             sidecar.display()
         )
     }
@@ -73,6 +76,24 @@ impl Payload {
         let mut text = String::new();
         entry.read_to_string(&mut text)?;
         Ok(serde_json::from_str(&text)?)
+    }
+
+    /// 归档里的文件条目（相对路径，已校验安全），不含元信息条目。
+    pub fn entry_names(&self) -> Result<Vec<String>> {
+        let mut zip = zip::ZipArchive::new(self.reader()?)?;
+        let mut names = Vec::new();
+        for i in 0..zip.len() {
+            let entry = zip.by_index(i)?;
+            if entry.is_dir() {
+                continue;
+            }
+            let raw = entry.name().to_string();
+            if raw == META_ENTRY {
+                continue;
+            }
+            names.push(safe_relative_path(&raw)?.to_string_lossy().replace('\\', "/"));
+        }
+        Ok(names)
     }
 
     /// 把归档释放到目标目录。返回写入的文件数。
@@ -201,30 +222,31 @@ pub struct ManifestFile {
 }
 
 /// 扫描安装目录生成清单。
-pub fn build_manifest(dir: &Path, meta: &Meta, installed_at: &str) -> Result<Manifest> {
+///
+/// `owned` 只列出**本产品释放的文件**（归档条目名 + 安装时新增的文件）。
+/// 不能扫描整个目录：安装目录里可能存在本产品以外的文件（实测本机的
+/// `%LOCALAPPDATA%\Programs\MF-Mathematics\` 里就有 v1 的主程序与卸载器），
+/// 把它们写进清单会导致卸载时被一并删除。
+pub fn build_manifest(
+    dir: &Path,
+    meta: &Meta,
+    installed_at: &str,
+    owned: &[String],
+) -> Result<Manifest> {
     let mut files = Vec::new();
-    for entry in walkdir::WalkDir::new(dir).into_iter().filter_map(Result::ok) {
-        if !entry.file_type().is_file() {
+    for rel in owned {
+        let path = dir.join(rel.replace('/', "\\"));
+        if !path.is_file() {
             continue;
         }
-        let path = entry.path();
-        let name = path.file_name().and_then(|s| s.to_str()).unwrap_or("");
-        // 卸载器与清单本身不进清单：它们随安装而变化。
-        if name == util::UNINSTALL_EXE_NAME || name == util::MANIFEST_NAME {
-            continue;
-        }
-        let rel = path
-            .strip_prefix(dir)
-            .unwrap_or(path)
-            .to_string_lossy()
-            .replace('\\', "/");
         files.push(ManifestFile {
-            path: rel,
-            bytes: entry.metadata()?.len(),
-            sha256: util::sha256_file(path)?,
+            path: rel.clone(),
+            bytes: std::fs::metadata(&path)?.len(),
+            sha256: util::sha256_file(&path)?,
         });
     }
     files.sort_by(|a, b| a.path.cmp(&b.path));
+    files.dedup_by(|a, b| a.path == b.path);
     Ok(Manifest {
         product: meta.product.clone(),
         version: meta.version.clone(),

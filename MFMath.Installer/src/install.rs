@@ -2,14 +2,15 @@
 
 use std::path::{Path, PathBuf};
 
-use anyhow::{Context, Result};
+use anyhow::{bail, Context, Result};
 
-use crate::payload::{self, Payload};
-use crate::util;
+use crate::payload::{self, Payload};use crate::util;
 use crate::{registry, shortcut};
 
 pub struct Options {
     pub dir: PathBuf,
+    /// 目标目录里已有本产品以外的文件时，是否仍然继续。
+    pub force: bool,
 }
 
 /// 本机当前的本地时间，`YYYY-MM-DDTHH:MM:SS`。
@@ -51,12 +52,9 @@ pub fn run(opts: &Options) -> Result<()> {
     let dir = opts.dir.clone();
     util::say(&format!("安装目标：{}", dir.display()));
 
-    // 覆盖安装：先结束进程并清掉旧文件。安装目录只放程序文件，不含用户数据。
+    // 覆盖安装前先结束正在运行的主程序，否则它的文件删不掉。
     stop_running_main();
-    if dir.exists() {
-        util::remove_dir_all(&dir)
-            .with_context(|| format!("清理旧安装目录失败：{}", dir.display()))?;
-    }
+    prepare_target(&dir, opts.force)?;
     std::fs::create_dir_all(&dir)
         .with_context(|| format!("创建安装目录失败：{}", dir.display()))?;
 
@@ -95,7 +93,21 @@ pub fn run(opts: &Options) -> Result<()> {
     }
 
     let installed_at = now_local();
-    let manifest = payload::build_manifest(&dir, &meta, &installed_at)
+    // 清单只登记本产品释放的文件；归档里叫 BUILT_EXE_NAME 的那条在安装时已改名。
+    let mut owned: Vec<String> = payload
+        .entry_names()
+        .context("读取载荷文件清单失败")?
+        .into_iter()
+        .map(|n| {
+            if n == util::BUILT_EXE_NAME {
+                util::MAIN_EXE_NAME.to_string()
+            } else {
+                n
+            }
+        })
+        .collect();
+    owned.push(util::UNINSTALL_EXE_NAME.to_string());
+    let manifest = payload::build_manifest(&dir, &meta, &installed_at, &owned)
         .context("生成安装清单失败")?;
     let manifest_path = dir.join(util::MANIFEST_NAME);
     std::fs::write(&manifest_path, serde_json::to_vec_pretty(&manifest)?)
@@ -128,6 +140,107 @@ pub fn run(opts: &Options) -> Result<()> {
         util::warn("有一步未完成，见上面的警告。");
     }
     Ok(())
+}
+
+/// 安装前的目标目录检查与清理。
+///
+/// 安装目录里可能有**本产品以外**的东西 —— 实测本机的
+/// `%LOCALAPPDATA%\Programs\MF-Mathematics\` 里就装着 v1（132 MB 的主程序加
+/// 它自己的卸载器）。因此这里绝不无条件清空目录：
+///
+/// * 目录不存在或为空 —— 直接安装；
+/// * 目录里有我们自己的 `manifest.json` —— 按旧清单只删我们登记过的文件，属覆盖升级；
+/// * 其余情况 —— 默认**拒绝**，列出看到的内容，让用户换目录或显式 `--force`；
+///   即使 `--force`，也只覆盖同名文件，不动其它文件。
+fn prepare_target(dir: &Path, force: bool) -> Result<()> {
+    if !dir.is_dir() {
+        return Ok(());
+    }
+    let entries: Vec<std::fs::DirEntry> = std::fs::read_dir(dir)
+        .with_context(|| format!("读取目标目录失败：{}", dir.display()))?
+        .filter_map(Result::ok)
+        .collect();
+    if entries.is_empty() {
+        return Ok(());
+    }
+
+    let manifest_path = dir.join(util::MANIFEST_NAME);
+    if manifest_path.is_file() {
+        match read_manifest(&manifest_path) {
+            Ok(old) => {
+                util::say(&format!(
+                    "检测到既有安装（版本 {}），按清单清理旧文件。",
+                    old.version
+                ));
+                for f in &old.files {
+                    let target = dir.join(f.path.replace('/', "\\"));
+                    // 只删清单登记过、且确实在目标目录内的文件。
+                    if target.starts_with(dir) {
+                        let _ = std::fs::remove_file(&target);
+                    }
+                }
+                remove_empty_dirs(dir);
+                return Ok(());
+            }
+            Err(e) => {
+                if !force {
+                    bail!(
+                        "目标目录里有本产品的清单，但读不出来：{e}\n\
+                         不敢据此清理。请换一个 --dir，或加 --force 就地覆盖。"
+                    );
+                }
+                util::warn(&format!("既有清单无法读取（{e}），按 --force 继续。"));
+                return Ok(());
+            }
+        }
+    }
+
+    let mut names: Vec<String> = entries
+        .iter()
+        .map(|e| e.file_name().to_string_lossy().to_string())
+        .collect();
+    names.sort();
+    let total = names.len();
+    let shown = names.iter().take(8).cloned().collect::<Vec<_>>().join("、");
+    let suffix = if total > 8 {
+        format!("（共 {total} 项）")
+    } else {
+        String::new()
+    };
+
+    if !force {
+        bail!(
+            "目标目录已有内容，且不是本产品安装的：\n  {}\n  {}{}\n\
+             安装器不删除不认识的文​​件。请改用其它 --dir，\
+             或加 --force 在本目录就地覆盖（原有文件保持不动）。",
+            dir.display(),
+            shown,
+            suffix
+        );
+    }
+    util::warn(&format!(
+        "目标目录已有内容（{shown}{suffix}），按 --force 就地覆盖；原有文件保持不动。"
+    ));
+    Ok(())
+}
+
+fn read_manifest(path: &Path) -> Result<payload::Manifest> {
+    let text = std::fs::read_to_string(path)?;
+    Ok(serde_json::from_str(&text)?)
+}
+
+/// 删掉目录里已经空了的子目录（只在下层，避免误删目标目录本身）。
+fn remove_empty_dirs(dir: &Path) {
+    for entry in walkdir::WalkDir::new(dir)
+        .min_depth(1)
+        .contents_first(true)
+        .into_iter()
+        .filter_map(Result::ok)
+    {
+        if entry.file_type().is_dir() {
+            let _ = std::fs::remove_dir(entry.path());
+        }
+    }
 }
 
 /// 把构建产物名改成面向用户的主程序名。
