@@ -10,7 +10,7 @@
 | --- | --- |
 | 交付形态 | 单个 exe，尾部内嵌压缩后的载荷 |
 | 安装模式 | 每用户安装，不请求管理员权限 |
-| 安装目录 | `%LOCALAPPDATA%\Programs\MF-Mathematics\` |
+| 安装目录 | `%LOCALAPPDATA%\Programs\Multifunctional-Mathematics\` |
 | 主程序文件名 | `Multifunctional-Mathematics.exe` |
 | 目标平台 | Windows 10 / 11 x64 |
 | 载荷未压缩体积 | 43.09 MB（实测） |
@@ -76,7 +76,7 @@
 安装后：
 
 ```
-%LOCALAPPDATA%\Programs\MF-Mathematics\
+%LOCALAPPDATA%\Programs\Multifunctional-Mathematics\
 ├── Multifunctional-Mathematics.exe    主程序
 ├── mf_mathematics.dll                 引擎
 ├── symengine-0.14.dll
@@ -125,7 +125,7 @@ Windows 11 自带 WebView2 Runtime，此分支通常不触发。
 卸载注册表键位置：
 
 ```
-HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall\MF-Mathematics
+HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall\Multifunctional-Mathematics
 ```
 
 写入的字段：
@@ -148,11 +148,13 @@ HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall\MF-Mathematics
 | 主程序文件 | `Multifunctional-Mathematics.exe` |
 | 开始菜单快捷方式 | `Multifunctional-Mathematics` |
 | 卸载项显示名 | `Multifunctional-Mathematics` |
-| 安装目录 | `MF-Mathematics` |
+| 安装目录 | `Multifunctional-Mathematics` |
 | 用户数据目录 | `%LOCALAPPDATA%\MFMath` |
-| 卸载注册表键 | `...\Uninstall\MF-Mathematics` |
+| 卸载注册表键 | `...\Uninstall\Multifunctional-Mathematics` |
 
-主程序名与安装目录名不一致是有意为之：安装目录沿用仓库与既有产物的短名 `MF-Mathematics`，主程序与所有面向用户的显示名使用全名 `Multifunctional-Mathematics`。
+所有面向用户与面向系统的名字一律用全名 `Multifunctional-Mathematics`，只有用户数据目录沿用 `MFMath`（宿主与既有的设置/日志路径都按它定位）。
+
+v1 的安装目录是 `%LOCALAPPDATA%\Programs\MF-Mathematics\`，与本产品的目录不同，两者可以并存。
 
 Cargo 包名保持 `mfmath-host-rust`（`../Cargo.toml`），构建产物与开发脚本沿用该名（`../docs/ACCEPTANCE.md`、`../../MF_UI/MFMath.UI.Vue/tests/run-all.ps1` 都按它定位）。改名由安装器在释放阶段完成，避免波及开发流程。
 
@@ -250,7 +252,7 @@ tar.exe -xf payload.tar.xz -C <解压目录>
 
 自检在**工作区内**运行时，`--selftest-common` 的「打包到解包往返」一项会以 `拒绝访问 (os error 5)` 失败；把同一份载荷放到用户可写的目录（如 `%LOCALAPPDATA%\Temp`）后该项通过。
 
-结论：**主程序运行所在的目录必须对当前用户可写**。安装目标 `%LOCALAPPDATA%\Programs\MF-Mathematics\` 满足该条件。
+结论：**主程序运行所在的目录必须对当前用户可写**。安装目标 `%LOCALAPPDATA%\Programs\Multifunctional-Mathematics\` 满足该条件。
 
 ## 13. 实现与第 2–4 期验证记录
 
@@ -320,7 +322,7 @@ cargo build --release --offline --manifest-path ..\MFMath.Installer\Cargo.toml
 | 图标 | `<安装目录>\icon.ico,0` |
 | 位置 | 开始菜单 `Programs\` 与桌面各一份 |
 
-卸载注册表项（`HKCU\...\Uninstall\MF-Mathematics`）：
+卸载注册表项（`HKCU\...\Uninstall\Multifunctional-Mathematics`）：
 
 | 字段 | 值 |
 | --- | --- |
@@ -357,15 +359,18 @@ cargo build --release --offline --manifest-path ..\MFMath.Installer\Cargo.toml
 
 ### 安装目录里可能有别的东西
 
-实测本机的默认安装目录 `%LOCALAPPDATA%\Programs\MF-Mathematics\` **已经装着 v1**：
+默认安装目录定为 `%LOCALAPPDATA%\Programs\Multifunctional-Mathematics\`，而不是 v1 用的 `%LOCALAPPDATA%\Programs\MF-Mathematics\`。原因是实测发现后者**已经装着 v1**：
 
 ```
+%LOCALAPPDATA%\Programs\MF-Mathematics\
 Multifunctional-Mathematics-v1.0.exe   132.20 MB
 unins000.exe                             4.30 MB
 unins000.dat
 ```
 
-这与"安装目录只放本产品的程序文件"的假设冲突。若安装器按覆盖升级的先清空目录，就会把 v1 整个删掉。为此安装器与卸载器都按下面的规则处理：
+若 v2 沿用该目录并按覆盖升级先清空，就会把 v1 整个删掉。改用独立目录后两者互不干扰，用户升级到 v2 时 v1 仍然可用。
+
+`--dir` 仍可指向任意位置，所以安装器与卸载器都保留了下面的保护规则：
 
 | 情况 | 行为 |
 | --- | --- |
@@ -380,8 +385,8 @@ unins000.dat
 
 | 检查 | 结果 |
 | --- | --- |
-| 目录内有 v1 时默认安装 | 拒绝，列出 v1 的 3 个文件，退出码 1，v1 完好 |
-| 加 `/force` 安装 | 成功；v1 的 3 个文件仍在 |
+| `--dir` 指向含 v1 的目录 | 拒绝，列出 v1 的 3 个文件，退出码 1，v1 完好 |
+| 同上加 `/force` | 成功；v1 的 3 个文件仍在 |
 | 与 v1 共存时的清单条目数 | 115（114 载荷 + `uninstall.exe`），**不含 v1 的文件** |
 | 卸载后 | 本产品 115 个文件全删；v1 的 3 个文件与目录本身都保留 |
 | 重复安装同版本 | 识别为既有安装并覆盖，退出码 0 |

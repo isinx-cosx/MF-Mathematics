@@ -15,14 +15,17 @@ pub fn is_silent() -> bool {
 }
 
 pub const PRODUCT_NAME: &str = "Multifunctional-Mathematics";
-pub const INSTALL_DIR_NAME: &str = "MF-Mathematics";
+/// 安装目录名。与 v1 的 `MF-Mathematics` 区分开：v1 用的是
+/// `%LOCALAPPDATA%\Programs\MF-Mathematics\`，两者互不干扰。
+pub const INSTALL_DIR_NAME: &str = "Multifunctional-Mathematics";
 pub const USER_DATA_DIR_NAME: &str = "MFMath";
 pub const MAIN_EXE_NAME: &str = "Multifunctional-Mathematics.exe";
 /// 构建产物名。安装时改名为 `MAIN_EXE_NAME`。
 pub const BUILT_EXE_NAME: &str = "mfmath-host-rust.exe";
 pub const UNINSTALL_EXE_NAME: &str = "uninstall.exe";
 pub const MANIFEST_NAME: &str = "manifest.json";
-pub const UNINSTALL_KEY: &str = r"Software\Microsoft\Windows\CurrentVersion\Uninstall\MF-Mathematics";
+pub const UNINSTALL_KEY: &str =
+    r"Software\Microsoft\Windows\CurrentVersion\Uninstall\Multifunctional-Mathematics";
 
 /// 带刷新的输出。安装器是交互式程序，输出不能留在缓冲区里。
 pub fn say(msg: &str) {
@@ -53,7 +56,7 @@ pub fn roaming_app_data() -> PathBuf {
         .unwrap_or_else(|| PathBuf::from("."))
 }
 
-/// 默认安装目录：`%LOCALAPPDATA%\Programs\MF-Mathematics`。
+/// 默认安装目录：`%LOCALAPPDATA%\Programs\Multifunctional-Mathematics`。
 pub fn default_install_dir() -> PathBuf {
     local_app_data().join("Programs").join(INSTALL_DIR_NAME)
 }

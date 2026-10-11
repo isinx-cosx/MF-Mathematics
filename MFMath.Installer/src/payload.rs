@@ -224,8 +224,8 @@ pub struct ManifestFile {
 /// 扫描安装目录生成清单。
 ///
 /// `owned` 只列出**本产品释放的文件**（归档条目名 + 安装时新增的文件）。
-/// 不能扫描整个目录：安装目录里可能存在本产品以外的文件（实测本机的
-/// `%LOCALAPPDATA%\Programs\MF-Mathematics\` 里就有 v1 的主程序与卸载器），
+/// 不能扫描整个目录：`--dir` 可以指向任何位置，那里可能有本产品以外的文件
+/// （v1 就装在 `%LOCALAPPDATA%\Programs\MF-Mathematics\`，含主程序与卸载器），
 /// 把它们写进清单会导致卸载时被一并删除。
 pub fn build_manifest(
     dir: &Path,

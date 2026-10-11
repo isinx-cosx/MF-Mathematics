@@ -144,9 +144,10 @@ pub fn run(opts: &Options) -> Result<()> {
 
 /// 安装前的目标目录检查与清理。
 ///
-/// 安装目录里可能有**本产品以外**的东西 —— 实测本机的
-/// `%LOCALAPPDATA%\Programs\MF-Mathematics\` 里就装着 v1（132 MB 的主程序加
-/// 它自己的卸载器）。因此这里绝不无条件清空目录：
+/// 默认安装目录是 `%LOCALAPPDATA%\Programs\Multifunctional-Mathematics\`，
+/// 与 v1 的 `%LOCALAPPDATA%\Programs\MF-Mathematics\`（132 MB 的主程序加它自己的
+/// 卸载器）不是同一处，两者互不干扰。但 `--dir` 可以指向任何位置，因此这里绝不
+/// 无条件清空目录：
 ///
 /// * 目录不存在或为空 —— 直接安装；
 /// * 目录里有我们自己的 `manifest.json` —— 按旧清单只删我们登记过的文件，属覆盖升级；
