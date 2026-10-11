@@ -1,220 +1,218 @@
-# 宿主对象与方法表（9 × 84）
+# 宿主对象参考
 
-> **本文只回答一个问题：宿主到底暴露了哪些对象、哪些方法、什么参数。**
->
-> 契约与接缝见 [README.md](README.md)；异步与推送见 [JOBS-PUSH.md](JOBS-PUSH.md)。
+> 本文列出宿主对外暴露的对象、方法、参数与返回类型。权威源是 [`main.rs`](../../MFMath.Host.Rust/src/main.rs) 的 `*_SPEC` 常量表与 `HOST_OBJECTS` 注册表、[`handlers.rs`](../../MFMath.Host.Rust/src/handlers.rs) 的 `call()` 分发。
+> 接缝机制见 [README.md](README.md)，异步与下行通道见 [JOBS-PUSH.md](JOBS-PUSH.md)，凭据边界见 [CREDENTIALS.md](CREDENTIALS.md)。
 
-**核对时间**：2026-10-07
-**权威源**：`MFMath.Host.Rust/src/main.rs:67-216`（`*_SPEC` 方法表 + `HOST_OBJECTS` 注册表）
-**交叉验证**：宿主启动日志会逐个打印对象与方法数；[`ACCEPTANCE.md`](../../MFMath.Host.Rust/docs/ACCEPTANCE.md) §2 的基线表与本文一致
+## 1. 概览
 
----
+宿主注册 9 个对象、84 个方法，全部经同一份 COM 实现（`hostobject.rs`）挂到 `ICoreWebView2::AddHostObjectToScript`。前端按 `window.chrome.webview.hostObjects.sync.<对象>.<方法>(…)` 同步调用。
 
-## 0. 一句话
+| 对象 | 方法数 | 用途 |
+| --- | --- | --- |
+| `mf` | 16 | 引擎调用、后台任务、具名符号封装 |
+| `sys` | 8 | 设置存储、引擎报告、诊断导出 |
+| `diag` | 1 | 前端异常写入宿主日志 |
+| `win` | 9 | 窗口操作与文件对话框 |
+| `push` | 3 | 下行通道的诊断与自测 |
+| `update` | 6 | 更新提示 |
+| `account` | 19 | 用户系统 |
+| `search` | 12 | 联网搜索 |
+| `con` | 10 | 控制台与可选组件 |
 
-**9 个对象 / 84 个方法**，全部注册在同一个通用 `IDispatch` 上：
+方法表（`*_SPEC`）与 `handlers.rs` 的 `match` 分支一一对应；表里有而 `handlers.rs` 没有的方法，调用时得到"没有这个方法"的错误信封。
 
-| 对象 | 方法数 | 一句话 | 前端模块 |
-| --- | --- | --- | --- |
-| [`mf`](#1-mf--引擎桥16) | **16** | 引擎桥（同步 + 异步 job 通道 + 8 个具名符号封装） | `lib/bridge.js` |
-| [`sys`](#2-sys--设置与存储8) | **8** | 设置 / 存储 / 诊断包 | `lib/settings/bridge.js`、`settings/io.js` |
-| [`diag`](#3-diag--前端异常入日志1) | **1** | 前端异常写进宿主日志 | `lib/diagnostics/errors.js` |
-| [`win`](#4-win--窗口与文件对话框9) | **9** | 窗口操作 + 文件对话框 | `lib/bridge.js`、`lib/settings/io.js` |
-| [`push`](#5-push--下行推送3) | **3** | 宿主 → 页面推送（**旁路**） | `lib/push.js` |
-| [`update`](#6-update--更新链6) | **6** | 更新检查（只提示，下载交给浏览器） | `lib/update/bridge.js` |
-| [`account`](#7-account--用户系统19) | **19** | 登录 / 注册 / 续期 / 历史 | `lib/account/bridge.js` |
-| [`search`](#8-search--联网搜索12) | **12** | 联网搜索（慢活，结果走推送） | `lib/search/bridge.js` |
-| [`con`](#9-con--控制台与组件10) | **10** | 控制台 + 可选组件安装 | `lib/console/bridge.js` |
-| | **84** | | |
+```powershell
+# 每个对象的方法数，与总数 84
+$src = Get-Content MFMath.Host.Rust/src/main.rs -Raw
+$parts = [regex]::Split($src, 'const (\w+_SPEC)')
+for ($i = 1; $i -lt $parts.Count; $i += 2) {
+  "{0} = {1}" -f $parts[$i], ([regex]::Matches($parts[$i + 1], 'MethodSpec \{')).Count
+}
+(Select-String -Path MFMath.Host.Rust/src/main.rs -Pattern 'MethodSpec \{').Count
+```
 
-> ⚠ **`ai` 不在这张表里，这是刻意的。** AI 已整体搬到 TS 页面直连，宿主不再有 `ai` 对象 ——
-> 见 [CREDENTIALS.md](CREDENTIALS.md) 与 [DECISIONS.md](../DECISIONS.md) D-004。
-> 因此"宿主对象 10 个"这种说法**已经全面过时**，见到就改。
-
----
-
-## 1. `mf` —— 引擎桥（16）
+## 2. `mf` —— 引擎桥（16）
 
 | 方法 | 参数 | 返回 | 说明 |
 | --- | --- | --- | --- |
-| `Dispatch` | `name`, `argsJson` | JSON 文本 | **主入口**：调引擎的任意 action（424 个） |
-| `Ready` | — | 布尔 | 引擎可用？ |
-| `Version` | — | JSON 文本 | 引擎版本 |
-| `FunctionExists` | `name` | 布尔 | 该 action 是否注册（**守门用**：`count == 424` 的探针走它） |
-| `DispatchJob` | `name`, `argsJson` | JSON 文本 | 派发**后台任务**，立刻回 `{ok, jobId}` —— 见 [JOBS-PUSH.md](JOBS-PUSH.md) |
-| `PollJob` | `jobId` | JSON 文本 | 查任务状态 |
-| `CancelJob` | `jobId` | JSON 文本 | **只停止等待并丢弃结果**（引擎没有取消钩子） |
-| `JobStats` | — | JSON 文本 | 任务通道自检/诊断（**C# 侧没有这个**，Rust 新增） |
-| `SolveSymbolic` | `expr`, `var` | JSON 文本 | ┐ |
-| `DiscriminantSymbolic` | `expr`, `var` | JSON 文本 | │ |
-| `FactorSymbolic` | `expr`, `var` | JSON 文本 | │ |
-| `CompareExpr` | `a`, `b` | JSON 文本 | │ **8 个具名符号封装** |
-| `SimplifySymbolic` | `expr` | JSON 文本 | │ 前端**不走**它们； |
-| `ExtremaSymbolic` | `expr`, `var` | JSON 文本 | │ 端到端用例与 C# 公开 API 在用 |
-| `FreeSymbols` | `expr` | JSON 文本 | │ |
-| `Differentiate` | `expr`, `var` | JSON 文本 | ┘ |
+| `Dispatch` | `name`, `argsJson` | Str | 调用引擎任意 action，透传参数 JSON |
+| `Ready` | — | Bool | 引擎可用，当前恒为 `true` |
+| `Version` | — | Str | 宿主版本标识字符串 |
+| `FunctionExists` | `name` | Bool | 引擎是否注册该 action |
+| `DispatchJob` | `name`, `argsJson` | Str | 入队后台任务，立即返回 jobId |
+| `PollJob` | `jobId` | Str | 查询任务状态 |
+| `CancelJob` | `jobId` | Str | 停止等待并丢弃结果 |
+| `JobStats` | — | Str | 任务通道诊断 |
+| `SolveSymbolic` | `expr`, `var` | Str | 具名封装，映射 `solve_sym` |
+| `DiscriminantSymbolic` | `expr`, `var` | Str | 映射 `discriminant_sym` |
+| `FactorSymbolic` | `expr`, `var` | Str | 映射 `factor_sym` |
+| `CompareExpr` | `a`, `b` | Str | 映射 `compare_expr` |
+| `SimplifySymbolic` | `expr` | Str | 映射 `simplify_sym` |
+| `ExtremaSymbolic` | `expr`, `var` | Str | 映射 `extrema_sym` |
+| `FreeSymbols` | `expr` | Str | 映射 `free_symbols_of` |
+| `Differentiate` | `expr`, `var` | Str | 映射 `diff` |
 
-**只用 4 个**：前端实际使用的只有 `Dispatch` / `Ready` / `Version` / `FunctionExists`
-（外加异步通道那三个）。其余 8 个是**为兼容 C# 公开 API 与用例**保留的。
+`Dispatch` 是通用透传入口：引擎新增 action 不改宿主。异步通道由 `DispatchJob` / `PollJob` / `CancelJob` / `JobStats` 构成，派发语义见 [JOBS-PUSH.md](JOBS-PUSH.md)。
 
----
+后 8 个是 C# `MathBridge` 公开 API 的具名封装，均为薄包装：把位置参数拼成 JSON 后走与 `Dispatch` 相同的通路，缺省 `var` 补 `"x"`。封装名到引擎 action 的映射在 `handlers.rs` 的 `SYMBOLIC_ALIASES` 常量里（`Select-String -Path MFMath.Host.Rust/src/handlers.rs -Pattern "SYMBOLIC_ALIASES"`）。
 
-## 2. `sys` —— 设置与存储（8）
-
-| 方法 | 参数 | 返回 | 说明 |
-| --- | --- | --- | --- |
-| `Info` | — | JSON 文本 | 版本 / 目录 / 能力 |
-| `EngineReport` | — | JSON 文本 | 引擎诊断（路径、加载状态） |
-| `StoreList` | — | JSON 文本 | 存储里有哪几份 |
-| `StoreRead` | `name` | JSON 文本 | 读一份（**`ai.json` 也走它**） |
-| `StoreWrite` | `name`, `json` | JSON 文本 | 写一份 |
-| `StoreDelete` | `name` | JSON 文本 | 删一份 |
-| `OpenPath` | `path` | JSON 文本 | 在资源管理器里打开（**不是任意 shell 执行**） |
-| `ExportDiagnostics` | — | JSON 文本 | 导出诊断包（用户主动；**不会自动上传**） |
-
-> `ai` 不再是宿主对象之后，**AI 的配置与密钥仍由 `StoreRead` / `StoreWrite` 读写** ——
-> 也就是说"密钥不进宿主"这件事**只对了一半**：宿主不解析它，但**能读到那份文件**。
-> 准确的边界见 [CREDENTIALS.md](CREDENTIALS.md)。
-
----
-
-## 3. `diag` —— 前端异常入日志（1）
+## 3. `sys` —— 设置与存储（8）
 
 | 方法 | 参数 | 返回 | 说明 |
 | --- | --- | --- | --- |
-| `Front` | `level`, `message` | 无 | 前端未捕获异常写进宿主日志（对照 C# `LogBridge`） |
+| `Info` | — | Str | 版本、目录、能力 |
+| `EngineReport` | — | Str | 引擎路径与加载状态 |
+| `StoreList` | — | Str | 存储中已有几份 |
+| `StoreRead` | `name` | Str | 读一份存储 |
+| `StoreWrite` | `name`, `json` | Str | 写一份存储 |
+| `StoreDelete` | `name` | Str | 删一份存储 |
+| `OpenPath` | `path` | Str | 在资源管理器中打开路径 |
+| `ExportDiagnostics` | — | Str | 导出诊断包 |
 
-> 曾有一条 Tauri 命令 `front_log` 的并行路径，**已删** —— 现在只有这一个入口。
+存储读写是 `ai.json` 等配置文件的通道；宿主不解析该文件的内容，边界见 [CREDENTIALS.md](CREDENTIALS.md)。
 
----
-
-## 4. `win` —— 窗口与文件对话框（9）
-
-| 方法 | 参数 | 返回 | 说明 |
-| --- | --- | --- | --- |
-| `Minimize` | — | 无 | |
-| `ToggleMaximize` | — | 无 | |
-| `IsMaximized` | — | 布尔 | |
-| `Close` | — | 无 | |
-| `StartDrag` | — | 无 | 自绘标题栏用 |
-| `SetChromeBackground` | `color` | 无 | |
-| `SaveTextFile` | `title`, `defaultName`, `filter`, `content`, `path` | JSON 文本 | `path` 非空则**跳过原生对话框** —— 端到端用例靠这个跑完整链路又不弹窗 |
-| `OpenTextFile` | `title`, `filter`, `path` | JSON 文本 | 同上 |
-| `SaveBinaryFile` | `title`, `defaultName`, `filter`, `base64`, `path` | JSON 文本 | 导出图片走它 |
-
-> ⚠ **`main.rs:102` 的注释说"10 个方法一个不少"，实际是 9 个 —— 注释过时了。**
-> 少掉的是 `Restore`：C# 侧有，但**两侧前端都没有任何调用点**，所以删掉
-> （[`ACCEPTANCE.md`](../../MFMath.Host.Rust/docs/ACCEPTANCE.md) §2 的记录与代码一致：`win` = **9**）。
-> `IsMaximized` 是这 9 个里唯一的 `RetKind::Bool`。
-
----
-
-## 5. `push` —— 下行推送（3）
+## 4. `diag` —— 前端异常入日志（1）
 
 | 方法 | 参数 | 返回 | 说明 |
 | --- | --- | --- | --- |
-| `Info` | — | JSON 文本 | 宿主侧推送计数（已发 / 失败 / 最后一条主题）—— 页面不用再猜"是宿主没发还是我没收到" |
-| `Emit` | `topic`, `payloadJson` | JSON 文本 | 页面**主动**发一条（用于往返自检） |
-| `Ready` | — | 布尔 | |
+| `Front` | `level`, `message` | Empty | 前端异常写入宿主同一份日志 |
 
-信封、主题清单与四个实现坑见 [JOBS-PUSH.md](JOBS-PUSH.md)。
+前端异常的唯一入口是 `diag.Front`，落点在 `logging::front`（`Select-String -Path MFMath.Host.Rust/src/handlers.rs -Pattern '"Front"'`）。
 
----
-
-## 6. `update` —— 更新链（6）
+## 5. `win` —— 窗口与文件对话框（9）
 
 | 方法 | 参数 | 返回 | 说明 |
 | --- | --- | --- | --- |
-| `Info` | — | JSON 文本 | |
-| `Check` | — | JSON 文本 | 检查新版本 |
-| `OpenDownloadPage` | `url` | JSON 文本 | 把下载页交给**默认浏览器** |
-| `PreviewDownloadUrl` | `url` | JSON 文本 | 预览将打开的地址（用户可见） |
-| `CancelAll` | — | 无 | |
-| `SelfCheck` | — | JSON 文本 | |
+| `Minimize` | — | Empty | 最小化 |
+| `ToggleMaximize` | — | Empty | 切换最大化 |
+| `IsMaximized` | — | Bool | 是否最大化 |
+| `Close` | — | Empty | 关闭窗口 |
+| `StartDrag` | — | Empty | 自绘标题栏拖拽 |
+| `SetChromeBackground` | `color` | Empty | 设置标题栏背景色 |
+| `SaveTextFile` | `title`, `defaultName`, `filter`, `content`, `path` | Str | 保存文本到用户选定文件 |
+| `OpenTextFile` | `title`, `filter`, `path` | Str | 从用户选定文件读文本 |
+| `SaveBinaryFile` | `title`, `defaultName`, `filter`, `base64`, `path` | Str | 保存二进制（图片导出） |
 
-> **没有**任何自动下载 / 执行安装包的入口 —— 这是 [DECISIONS.md](../DECISIONS.md) 里
-> "更新只提示"那条决定的落点，也是安全属性。
+文件对话框三个方法的 `path` 参数是自动化钩子：非空时跳过系统对话框直接读写该路径，为空时弹 Win32 通用对话框（`winbridge.rs` 的 `pick_target`，`Select-String -Path MFMath.Host.Rust/src/winbridge.rs -Pattern "fn pick_target"`）。
 
----
-
-## 7. `account` —— 用户系统（19）
-
-| 方法 | 参数 | 返回 | 说明 |
-| --- | --- | --- | --- |
-| `Info` | — | JSON 文本 | **脱敏**：只有 `hasToken` 这类字段，**不含 token 本身** |
-| `Configure` | `json` | JSON 文本 | 站点地址等配置 |
-| `ClearLocal` | — | JSON 文本 | 清本地登录态 |
-| `Login` | `username`, `password` | JSON 文本 | |
-| `LoginEx` | `json` | JSON 文本 | 前端实际用的是它 |
-| `Logout` | — | JSON 文本 | |
-| `RefreshProfile` | — | JSON 文本 | |
-| `RefreshToken` | — | JSON 文本 | 静默续期 |
-| `EnsureFresh` | `thresholdSec` | **布尔** | 剩余有效期低于阈值就续期 |
-| `Register` | `json` | JSON 文本 | |
-| `SendCode` | `email` | JSON 文本 | |
-| `VerifyCode` | `username`, `code` | JSON 文本 | |
-| `ResendCode` | `username`, `email` | JSON 文本 | |
-| `ChangePassword` | `oldPassword`, `newPassword` | JSON 文本 | |
-| `LoginHistory` | — | JSON 文本 | |
-| `SiteVersion` | — | JSON 文本 | 站点版本（含 sha256/size 后可用于更新链） |
-| `Busy` | — | **布尔** | |
-| `CancelAll` | — | 无 | |
-| `SelfCheck` | — | JSON 文本 | 含一条**"信息不泄漏"**的断言，见 [CREDENTIALS.md](CREDENTIALS.md) §3 |
-
----
-
-## 8. `search` —— 联网搜索（12）
+## 6. `push` —— 下行推送（3）
 
 | 方法 | 参数 | 返回 | 说明 |
 | --- | --- | --- | --- |
-| `Info` | — | JSON 文本 | 只暴露 `hasWolframKey` 这类布尔，**不含密钥** |
-| `Configure` | `json` | JSON 文本 | 端点覆盖等 |
-| `SetWolframKey` | `key` | JSON 文本 | 写进宿主（**DPAPI 密文**） |
-| `ClearWolframKey` | — | JSON 文本 | |
-| `Start` | `json` | JSON 文本 | 发起搜索 —— **慢活，结果不走返回值而走推送** |
-| `Cancel` | `requestId` | JSON 文本 | |
-| `CancelAll` | — | JSON 文本 | |
-| `Busy` | — | **布尔** | |
-| `OpenUrl` | `url` | JSON 文本 | 交给默认浏览器 |
-| `CacheStats` | — | JSON 文本 | 缓存命中 / 条目数 |
-| `ClearCache` | — | JSON 文本 | |
-| `SelfCheck` | — | JSON 文本 | |
+| `Info` | — | Str | 宿主侧推送计数（已发、失败、最后主题） |
+| `Emit` | `topic`, `payloadJson` | Str | 页面主动发一条，用于往返自检 |
+| `Ready` | — | Bool | 通道是否就绪 |
 
-> `search` 为什么必须走推送：它是**秒级**的活，同步返回会把渲染进程冻住几秒
-> （`main.rs:157-159` 原话）。搜索结果主题见 [JOBS-PUSH.md](JOBS-PUSH.md) §3。
+信封与主题清单见 [JOBS-PUSH.md](JOBS-PUSH.md)。真实推送由各业务桥发出，此对象只承担诊断与自测。
 
----
-
-## 9. `con` —— 控制台与组件（10）
+## 7. `update` —— 更新链（6）
 
 | 方法 | 参数 | 返回 | 说明 |
 | --- | --- | --- | --- |
-| `Components` | — | JSON 文本 | 可选组件清单（含 `available` 与体积） |
-| `SetDownloadBase` | `url` | JSON 文本 | 下载基址覆盖 |
-| `Install` | `name` | **裸 id 字符串**（`"job3"`） | ⚠ 不是 JSON |
-| `Uninstall` | `name` | JSON 文本 | |
-| `CancelInstall` | `jobId` | JSON 文本 | |
-| `InstallStatus` | `jobId` | JSON 文本 | |
-| `Start` | `language`, `code`, `stdin` | **裸 id 字符串**（`"run4"`） | ⚠ 不是 JSON |
-| `Poll` | `runId` | JSON 文本 | |
-| `Stop` | `runId` | JSON 文本 | |
-| `StopAll` | — | JSON 文本 | |
+| `Info` | — | Str | 更新状态 |
+| `Check` | — | Str | 检查新版本 |
+| `OpenDownloadPage` | `url` | Str | 把下载页交给默认浏览器 |
+| `PreviewDownloadUrl` | `url` | Str | 预览将打开的地址 |
+| `CancelAll` | — | Empty | 取消全部在途请求 |
+| `SelfCheck` | — | Str | 自检 |
 
-### 9.1 ⚠ 命名陷阱：模块叫 `console.rs`，对象名必须是 `con`
+宿主不提供自动下载或执行安装包的入口。
 
-前端写的是 `hostObjects.sync.con`，那是**契约**。而 Rust 模块文件只能叫 `console.rs` ——
-因为 Windows 把 `con` 当**保留设备名**，`src/con.rs` 这种文件 **git 索引不了**：
-`git add` 会报 `open("src/con.rs"): No such file or directory`，**而文件明明在磁盘上**。
-留着它就等于这个桥**永远进不了版本库**。
+## 8. `account` —— 用户系统（19）
 
----
+| 方法 | 参数 | 返回 | 说明 |
+| --- | --- | --- | --- |
+| `Info` | — | Str | 脱敏登录态，含 `hasToken` 一类字段 |
+| `Configure` | `json` | Str | 站点地址等配置 |
+| `ClearLocal` | — | Str | 清本地登录态 |
+| `Login` | `username`, `password` | Str | 登录 |
+| `LoginEx` | `json` | Str | 登录（JSON 参数） |
+| `Logout` | — | Str | 登出 |
+| `RefreshProfile` | — | Str | 刷新资料 |
+| `RefreshToken` | — | Str | 静默续期 |
+| `EnsureFresh` | `thresholdSec` | Bool | 剩余有效期低于阈值则续期，默认 300 秒 |
+| `Register` | `json` | Str | 注册 |
+| `SendCode` | `email` | Str | 发送验证码 |
+| `VerifyCode` | `username`, `code` | Str | 校验验证码 |
+| `ResendCode` | `username`, `email` | Str | 重发验证码 |
+| `ChangePassword` | `oldPassword`, `newPassword` | Str | 改密 |
+| `LoginHistory` | — | Str | 登录历史 |
+| `SiteVersion` | — | Str | 站点版本（含 sha256/size） |
+| `Busy` | — | Bool | 是否有在途请求 |
+| `CancelAll` | — | Empty | 取消全部在途请求 |
+| `SelfCheck` | — | Str | 自检，含"信息不泄漏"断言 |
 
-## 10. 跨对象的四条约定
+token 只保存在宿主，页面只见脱敏字段。`EnsureFresh` 的 `thresholdSec` 经 `variant_to_arg` 以数字读入，缺省补 300（`Select-String -Path MFMath.Host.Rust/src/handlers.rs -Pattern 'unwrap_or\(300\)'`）。
 
-1. **参数一律 `VT_BSTR`**：前端宿主对象调用本来就只传字符串（`main.rs:60`）。
-   数字要自己转成字符串传，布尔用真布尔返回（`RetKind::Bool`）。
-2. **返回 `RetKind` 只有三种**：`Str`（JSON 文本）、`Bool`（真布尔）、`Empty`（无返回）。
-   其它类型**刻意不预留**（`handlers.rs` 的原话："其余类型等用到再加，**不预留**"）。
-3. **两份表必须同步**：`main.rs` 的 `MethodSpec` 表里有、`handlers.rs` 里没有的方法，
-   调用时拿到"没有这个方法"的**错误信封** —— 报错，不是静默。
-4. **错误一律 `{"isError":true,"value":"…"}`**，与前端 `parse()` 那一层解耦。
+## 9. `search` —— 联网搜索（12）
+
+| 方法 | 参数 | 返回 | 说明 |
+| --- | --- | --- | --- |
+| `Info` | — | Str | 只暴露 `hasWolframKey` 一类布尔 |
+| `Configure` | `json` | Str | 端点覆盖等 |
+| `SetWolframKey` | `key` | Str | 写入宿主，DPAPI 密文 |
+| `ClearWolframKey` | — | Str | 清除密钥 |
+| `Start` | `json` | Str | 发起搜索，结果走推送 |
+| `Cancel` | `requestId` | Str | 取消单次请求 |
+| `CancelAll` | — | Str | 取消全部 |
+| `Busy` | — | Bool | 是否有在途请求 |
+| `OpenUrl` | `url` | Str | 交给默认浏览器 |
+| `CacheStats` | — | Str | 缓存命中与条目数 |
+| `ClearCache` | — | Str | 清缓存 |
+| `SelfCheck` | — | Str | 自检 |
+
+`Start` 立即返回，结果经下行通道推回；同步等待网络会阻塞渲染进程数秒。App ID 只保存在宿主，页面只见 `hasWolframKey`，边界见 [CREDENTIALS.md](CREDENTIALS.md)。
+
+## 10. `con` —— 控制台与组件（10）
+
+| 方法 | 参数 | 返回 | 说明 |
+| --- | --- | --- | --- |
+| `Components` | — | Str | 可选组件清单 |
+| `SetDownloadBase` | `url` | Str | 下载基址覆盖 |
+| `Install` | `name` | Str（裸 id） | 安装组件，返回 `job{n}` |
+| `Uninstall` | `name` | Str | 卸载组件 |
+| `CancelInstall` | `jobId` | Str | 取消安装 |
+| `InstallStatus` | `jobId` | Str | 查询安装状态 |
+| `Start` | `language`, `code`, `stdin` | Str（裸 id） | 运行代码，返回 `run{n}` |
+| `Poll` | `runId` | Str | 增量取输出 |
+| `Stop` | `runId` | Str | 停止运行 |
+| `StopAll` | — | Str | 停止全部运行 |
+
+`Install` 与 `Start` 返回裸 id 字符串（`"job{n}"` / `"run{n}"`），不是 JSON 信封（`Select-String -Path MFMath.Host.Rust/src/console.rs -Pattern 'format!\("(job|run)\{\}"'`）。`Start` 的 `language` 缺省为 `"python"`（`Select-String -Path MFMath.Host.Rust/src/handlers.rs -Pattern 'unwrap_or\("python"\)'`）。跑代码走异步：`Start` 立即返回 runId，输出经 `Poll` 增量取。
+
+对象名为 `con`，模块文件为 `console.rs`。原因是 Windows 把 `con` 视为保留设备名，`src/con.rs` 无法加入 git 索引，因此文件名与注册名不同（`main.rs` 的 `mod console` 与 `HOST_OBJECTS` 里的 `"con"`）。
+
+## 11. 返回类型与参数约定
+
+| 返回 | VARIANT 类型 | 前端收到的值 | 方法数 |
+| --- | --- | --- | --- |
+| `Str` | `VT_BSTR` | 字符串（约定为 JSON 文本） | 69 |
+| `Bool` | `VT_BOOL` | 布尔 | 7 |
+| `Empty` | `VT_EMPTY` | 无返回 | 8 |
+
+```powershell
+"Str   = " + (Select-String -Path MFMath.Host.Rust/src/main.rs -Pattern 'ret: RetKind::Str').Count
+"Bool  = " + (Select-String -Path MFMath.Host.Rust/src/main.rs -Pattern 'ret: RetKind::Bool').Count
+"Empty = " + (Select-String -Path MFMath.Host.Rust/src/main.rs -Pattern 'ret: RetKind::Empty').Count
+```
+
+参数方向声明一律 `VT_BSTR`；`variant_to_arg` 另接受 `VT_I4`、`VT_R8`、`VT_BOOL`、`VT_EMPTY`，`account.EnsureFresh` 的 `thresholdSec` 走数字。`Str` 的约定内容是 JSON 文本，例外是 `con.Install` 与 `con.Start` 的裸 id 字符串。
+
+失败统一返回 `{"isError":true,"value":"原因"}`，由 `handlers.rs` 的 `err_envelope()` 生成（`Select-String -Path MFMath.Host.Rust/src/handlers.rs -Pattern "fn err_envelope"`）。前端只判 `isError`，不区分失败来自哪个对象或哪一层。
+
+## 12. 未注册的 `ai` 对象
+
+宿主不暴露 `ai` 对象。AI 功能由页面直接连接，宿主侧不存在对应桥；AI 的配置与密钥仍经 `sys.StoreRead` / `sys.StoreWrite` 读写存储文件，宿主不解析其内容。边界见 [CREDENTIALS.md](CREDENTIALS.md)。
+
+## 13. 核对
+
+```powershell
+# 对象数与方法总数
+(Select-String -Path MFMath.Host.Rust/src/main.rs -Pattern '^\s+\("\w+", \w+_SPEC\),').Count   # 9
+(Select-String -Path MFMath.Host.Rust/src/main.rs -Pattern 'MethodSpec \{').Count              # 84
+
+# 引擎注册的 action 数（需要已构建的 Release 产物）
+& MF_Mathematics/build/bin/Release/probe_call.exe list_functions   # value.count = 424
+```
+
+取信顺序：`HOST_OBJECTS` 与各 `*_SPEC`（`main.rs`）→ `call()` 的分发（`handlers.rs`）→ 启动日志（每个对象注册时打印"宿主对象 `<名>` 已注册（`<n>` 个方法）"）。宿主验收的基线表见 [`ACCEPTANCE.md`](../../MFMath.Host.Rust/docs/ACCEPTANCE.md)。

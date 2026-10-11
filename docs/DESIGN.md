@@ -1,137 +1,160 @@
 # 设计理念
 
-> **本文只回答一个问题：这个项目为什么是这个样子 —— 哪些选择是刻意的。**
->
-> 读代码之前先读它。**否则你会把设计当缺陷**：会想去"修"那个故意返回"未实现"的积分接口，
-> 或者想给前端补一个"快速估算"。
->
-> 与其它文档的分工：[DECISIONS.md](DECISIONS.md) 记**具体的决定**（哪一天、什么代价）；
-> [DESIGN-BOUNDARIES.md](DESIGN-BOUNDARIES.md) 记**明确不做的事**；本文记**贯穿全部决定的那几条理念**。
+> 本文说明这个软件为什么是这个形状：哪些选择是刻意的、每条选择由哪段代码保证、违反之后如何被检出。
+> 与兄弟文档的分工：[`DESIGN-BOUNDARIES.md`](DESIGN-BOUNDARIES.md) 登记明确不做、推迟与尚未验证的事项；
+> [`DECISIONS.md`](DECISIONS.md) 记录逐条决定及其代价；产品门面在 [`../README.md`](../README.md)。
 
-**核对时间**：2026-10-07
+## 设计目标
 
----
+全部设计指向同一个目标：让「结论」只有一个来源，且可复现、可证伪。数学工具最坏的失败方式不是报错，而是给出一个看似正确的错误答案。六条理念分别守住「结论」的不同侧面：
 
-## 1. 一句话
-
-这个项目的每一条设计，最后都指向同一个目标：**让"结论"只有一个来源，而且可复现、可证伪。**
-
-数学工具最坏的失败方式不是报错，是**给出一个看起来对的错答案**。本项目的绝大部分"别扭"，
-都是在防这一件事。
-
----
-
-## 2. 六条理念
-
-### ① 单一计算来源：前端一行数学都不算
-
-**机制**：所有数值/符号结果都来自 `mf_mathematics.dll`。前端只做**参数构造 → 展示 → 编排**：
-`src/lib/engine/calcArgs.js` 把用户输入变成 args JSON，`lib/bridge.js` 调
-`window.chrome.webview.hostObjects.sync.mf.Dispatch(name, json)`，结果由 `lib/engine/resultFormat.js`
-与 `resultModel.js` 决定怎么显示。**渲染层没有任何"顺便算一下"的余地。**
-
-**为什么**：如果前端也能算，同一个问题就会有两个来源 —— 一个来自引擎，一个来自 JS 的浮点。
-两者不一致时，用户没有办法判断哪个对。v1 的失败正是这个形状：Python 后端 + 旧 JS UI 并存，
-同一个功能两处实现（`README.md` 的「与 v1 的关系」）。
-
-**违反它会怎样**：`tests/cdp-ai.mjs` 里有一条专门的硬约束 —— 假端点故意回 `1+1=3`，
-断言界面**不得**把它当计算结果（`:8`、`:696`「AI 不得成为计算源」）。
-这是唯一一条"防的不是 bug、而是架构退化"的用例。
-
-### ② 不编造结果：算不出来就说算不出来
-
-**机制**（三个层次）：
-
-- **数学上如实**：不定积分 `∫xˣ dx`、`∫sin(x)/x dx`、`∫e^{−x²}dx` 返回**"未实现"**，
-  而不是硬凑一个式子 —— 它们确实不是初等函数；
-- **接口上如实**：未识别的拓扑空间名**报错**，而不是返回 `π₁(输入)` 这种看着像答案的占位串；
-- **构建上如实**：`/WHOLEARCHIVE` 一旦失效，导出数依然漂亮（DLL 照常加载、`function_exists`
-  照常能调），但**每个 action 都返回"未找到函数"**。这种失效是**静默的**，所以用一条守门断言
-  顶住：`probe_call.exe list_functions '{}'` 的 `count` 必须是 **424**。
-
-**为什么**：一个错误的原函数比"未实现"危险得多。用户看到"未实现"会换条路；
-看到一个错的闭式解，他会拿它去算别的东西。
-
-**这条理念的代价，如实写**：用户会觉得"这软件连这个都不会"。这是**有意的取舍** —— 见
-[DESIGN-BOUNDARIES.md](DESIGN-BOUNDARIES.md) 的「能力边界」。
-
-### ③ 每一个修复都要留下"为什么"与"怎么证明"
-
-**机制**（两层）：
-
-- **数学层**：18 条积分规则每条都配一条**求导自证** —— 对结果求导、再与原式数值比对（容差 `1e-9`）。
-  这条自证抓到过一次真实错误：写 `∫cos³x` 时把 `−sin³x/3` 写成了 `+`，以 `maxrel=0.635` 当场失败；
-- **工程层**：`tools/check-ui.mjs` 的每条守卫都**验证过"它会失败"** —— 临时制造一个违反，
-  确认自检报错并 `exit 1`，然后还原。只写一条永远为真的断言，等于没写。
-
-**违反它会怎样（真实案例）**：`tests/cdp-plot-accuracy.mjs` 曾经存在，但**没登记进 `run-all.ps1`**
-（BUGS.md **B7**）—— 于是它永远不会被执行，而它判据里把视口**写死**成 ±10×±10
-（真实视口的 y 跨度 = `20·h/w`）。这个错误在文件里躺了很久，直到有人真的跑了一次才发现。
-
-> 结论：**"写了测试"和"测试在跑"是两件事**；"断言存在"和"断言会失败"也是两件事。
-
-### ④ 结论必须能追溯到产物与时刻
-
-**机制**：见 [AGENTS.md](../AGENTS.md) §5。结论写成"**2026-10-07 10:00 在 <产物> 上实测**"，
-而不是"应该是这样"。
-
-**这条不是洁癖，是账**。本仓库为此付过两次学费：
-
-| 翻车 | 当时的结论 | 后来的真相 |
+| 结论 | 唯一来源 | 追溯方式 |
 | --- | --- | --- |
-| `BUGS.md` §0.2 | 把 88+37+27 条失败归给"宿主没有那个桥" | 归因过期了 —— 并行提交（`9c1ad1a`、`eafd482`）已经把 AI 改成页面直连，用最新提交重建后**逐条转绿** |
-| `BUGS.md` §0.3.1 | 把 296/7 归给"长会话累积、内存不回收" | 真因是**并发驱动**：同一时刻两个宿主共用一份 CDP 端口，页面被另一个会话开走了 |
+| 数值或符号结果 | 引擎注册表 | 结果 JSON 信封 `{"isError","value"}` |
+| 一次改动是否成立 | 一条可复跑的判据 | 构建期自检 + CTest + CDP 用例 |
+| 一次失败是否产品缺陷 | 失败分类（产品 / 判据 / 环境） | 失败点所在的那一层 |
 
-两次都是**从失败事实直接跳到原因**，而中间那一步（"我当时测的是哪份产物"）没记。
-所以现在要求：**失败要分类**（产品缺陷 / 用例自身判据错 / 环境没准备好），三类不许混写。
+## 六条理念
 
-### ⑤ 离线是承诺，边界要写清楚
+### ① 计算来源唯一：前端一行数学都不算
 
-**机制**：断网后**本地计算、绘图、教程、控制台全部照常**；只有**联网搜索 / 账号 / AI** 需要网络。
-这条边界写在 `README.md` 的「离线承诺」里，并且是可验收的（`tests/cdp-*` 里对着假端点跑，
-不依赖真网络）。
+全部数值与符号结果出自引擎的函数注册表，入口是 `mf::registry::dispatch()`
+（`Select-String -Path MF_Mathematics/registry.cpp -Pattern "dispatch"`）。跨进程边界只有两个 C ABI 函数：`math_call` 与 `function_exists`
+（`Select-String -Path MF_Mathematics/api.cpp -Pattern 'extern "C"'`，命中 2 处）。前端只做参数构造、调用与展示：输入转成 args JSON 在 `src/lib/engine/calcArgs.js`，展示格式化在 `src/lib/engine/resultFormat.js`。调用点收敛在 `src/lib/bridge.js` 的 `engineCall()`，它落到 `window.chrome.webview.hostObjects.sync.mf.Dispatch`
+（`Select-String -Path MF_UI/MFMath.UI.Vue/src/lib/bridge.js -Pattern "hostObjects"`）。渲染层不存在自行计算的入口。
 
-**同一个理念的延伸 —— 隐私上的默认**：宿主把崩溃与前端未捕获异常写进
-`%LOCALAPPDATA%\MFMath\logs\`（`crash-*.log` + `app.log`），可通过「设置 → 存储与数据 →
-导出诊断包」**由用户主动**交出。**不联网上报** —— 数学工具的用户不该因为一次崩溃被上传任何东西。
-见 [DECISIONS.md](DECISIONS.md) D-008。
+验证方法：端到端用例里有一条防架构退化的断言，假端点故意返回 `1+1=3`，断言界面不得把它当作计算结果。假端点由用例自行拉起，不依赖真网络
+（`Select-String -Path MF_UI/MFMath.UI.Vue/tests/cdp-ai.mjs -Pattern "1\+1=3"`；假端点是 [`../MF_UI/MFMath.UI.Vue/tests/fake-ai-server.mjs`](../MF_UI/MFMath.UI.Vue/tests/fake-ai-server.mjs)）。
 
-### ⑥ 让失效看得见，而不是让它不出现
+边界：没有宿主进程就没有数学。取不到桥时 `engineCall()` 与 `engineCallAsync()` 都返回 `null`（`Select-String -Path MF_UI/MFMath.UI.Vue/src/lib/bridge.js -Pattern "if \(!mf\) return"`）。浏览器预览因此只是界面开发用的壳，不是可用的计算环境。
 
-**机制**：这个项目里有大量"**刻意保留的可见失效**"，而不是悄悄兜底：
+### ② 结果不臆造：算不出来就说算不出来
 
-| 手法 | 例子 |
+机制分四层：
+
+| 层 | 做法 | 定位命令 |
+| --- | --- | --- |
+| 符号上如实 | 求不出初等原函数时 `integrate_indefinite()` 返回字符串 `"未实现"` | `Select-String -Path MF_Mathematics/calculus/integrals.cpp -Pattern '"未实现"'` |
+| 数值上设安全阀 | `make_fv()` 对绝对值大于 `1e12` 的函数值抛错，防止极点附近采出量级有限的假值 | `Select-String -Path MF_Mathematics/calculus/integrals.cpp -Pattern "1e12"` |
+| 积分前提校验 | `collect_denominators()` 与 `denominator_roots()` 找瑕点，`antiderivative_unbounded_near()` 判断该侧是否收敛，发散即抛错 | `Select-String -Path MF_Mathematics/calculus/integrals.cpp -Pattern "antiderivative_unbounded_near"` |
+| 接口上如实 | 未注册的 action 返回 `{"isError":true,"value":"未找到函数: <name>"}`；handler 抛出的 `std::exception` 由 `make_handler()` 转成错误信封 | `Select-String -Path MF_Mathematics/registry.cpp -Pattern "未找到函数"`；`Select-String -Path MF_Mathematics/api_helpers.h -Pattern "make_handler"` |
+
+不可返回的路径同样堵死：`make_handler()` 额外接住 `catch (...)`
+（`Select-String -Path MF_Mathematics/api_helpers.h -Pattern "catch \(\.\.\.\)"`）。非标准异常若穿过 `extern "C"` 边界，会终止整个宿主进程，而不是一次可恢复的调用失败。
+
+构建上如实：每个 `*_api.cpp` 靠一个没有外部引用的全局注册器登记自己。不加 `/WHOLEARCHIVE` 时链接器会丢弃整个目标文件，注册表变空；这种失效是静默的——DLL 照常加载、`function_exists` 照常可调，只是每个 action 都返回「未找到函数」。守门判据是数出来的 action 数：
+
+```powershell
+& MF_Mathematics\build\bin\Release\probe_call.exe list_functions '{}'   # count 应为 424
+```
+
+`/WHOLEARCHIVE` 的写法在 [`../MF_Mathematics/CMakeLists.txt`](../MF_Mathematics/CMakeLists.txt) 的 `target_link_options`（`Select-String -Path MF_Mathematics/CMakeLists.txt -Pattern "WHOLEARCHIVE"`）。当前 `count` 是 424，随引擎新增 action 变化，用上面的命令复跑。
+
+验证方法：引擎 CTest 全绿（`ctest --test-dir MF_Mathematics/build -C Release --output-on-failure`）加上面的 `count == 424`。不定积分规则另有求导自证，见理念 ③。
+
+### ③ 修改可验证：每个修复都留下「为什么」与「怎么证明」
+
+数学层：待证结论自己证明自己。18 条不定积分规则每条配一条求导自证——对结果求导、再与原式在若干点上数值比对，判据是相对误差 `1e-9`。自证函数是 `antideriv_self_checks_out()`
+（`Select-String -Path MF_Mathematics/tests/test_calculus.cpp -Pattern "1e-9"`）。当前规则数是 18，随新增规则变化，复跑：
+
+```powershell
+(Select-String -Path MF_Mathematics/tests/test_calculus.cpp -Pattern 'antideriv_self_checks_out\("').Count
+```
+
+工程层：每条守卫先证明「它会失败」。[`../MF_UI/MFMath.UI.Vue/tools/check-ui.mjs`](../MF_UI/MFMath.UI.Vue/tools/check-ui.mjs) 的每条断言在入库前经过一次反向验证：临时制造一个违反，确认自检报错并 `exit 1`，再还原。只写一条永远为真的断言等于没写。
+
+登记与执行双向对照：端到端用例 `tests/cdp-*.mjs` 与 `run-all.ps1` 的登记双向校验，任一侧多出来即失败（`Select-String -Path MF_UI/MFMath.UI.Vue/tools/check-ui.mjs -Pattern "NOT_IN_SUITE"`）。这条拦住「写了用例却永远不跑」：当前 `cdp-*.mjs` 是 48 个，登记 48 个，随用例增减变化，由 `node tools/check-ui.mjs` 复跑。
+
+### ④ 结论可追溯：失败先分类，再归因
+
+结论写成「在哪个产物上、用什么命令、什么时刻实测」，而不是「应该是这样」。失败事实与原因之间隔着一步「当时测的是哪份产物」，这一步不记，归因就会过期。
+
+失败先分成三类，三类不混写：
+
+| 类别 | 判据 | 处理 |
+| --- | --- | --- |
+| 产品缺陷 | 干净产物上、无并发驱动时仍可复现 | 修产品，并留下可复跑判据 |
+| 用例自身判据错 | 与产品行为一致，是断言写错 | 改用例 |
+| 环境没准备好 | 依赖的产物 / 端口 / 权限不在位 | 记明缺什么，不记为产品缺陷 |
+
+第三条有实例：异步 job 通道的无头自检原先「派一个 600×600 分形 → 睡 250 ms → 取消」，而本机这个活约 253 ms 跑完，取消打在已完成上，用例随机变红而产品没有问题。这是测试自身制造的竞态。改法是轮询到任务真的在跑再取消，与机器快慢无关。实现是 `wait_running()`
+（`Select-String -Path MFMath.Host.Rust/src/jobs.rs -Pattern "fn wait_running"`）。
+
+验证方法：无头自检 `mfmath-host-rust.exe --selftest-jobs` 覆盖派活 → 串行排队 → 轮询 → 完成 → 取消（排队中 / 运行中）五条语义；端到端在真实宿主会话里跑 `powershell -NoProfile -File MF_UI/MFMath.UI.Vue/tests/run-all.ps1 -NoLaunch`。端到端只跑一套，否则用例互相踩，套件自己会打印 `INTERFERENCE` 提示。
+
+### ⑤ 离线范围与隐私默认
+
+离线边界可验收。断网后本地计算、绘图、教程、控制台照常；只有联网搜索、账号与 AI 助手需要网络。涉及网络的用例一律跑在自带的假端点上，因此判据本身不需要真网络。
+
+隐私默认不上报。崩溃与前端未捕获异常写进 `%LOCALAPPDATA%\MFMath\logs\`：`app.log`（单文件上限 2 MB，轮转成 `app.1.log`）与 `crash-*.log`（环境 + 异常 + 最近 200 行 `app.log` 尾部，只留最近 20 个）。常量是 `MAX_BYTES`、`CRASH_TAIL_LINES`、`KEEP_CRASH_FILES`
+（`Select-String -Path MFMath.Host.Rust/src/logging.rs -Pattern "MAX_BYTES|KEEP_CRASH_FILES"`）。不联网上报。交出日志是用户的一个动作：「设置 → 存储与数据 → 导出诊断包」调用宿主的 `ExportDiagnostics`（`Select-String -Path MFMath.Host.Rust/src/main.rs -Pattern "ExportDiagnostics"`）。
+
+### ⑥ 失效可见：不静默兜底
+
+项目里有一批刻意保留的可见失效，共同点是「不悄悄兜底」。机制与判据：
+
+| 手法 | 机制 | 落点 |
+| --- | --- | --- |
+| 显式登记 + 双向校验 | 引擎有映射、页面选不到的模式必须登记进 `NOT_EXPOSED_GROUPS`；登记了却又能选到的报「过时条目」 | `check-ui.mjs` 的 `NOT_EXPOSED` |
+| 重名不静默 | 功能可达但名字选不到的模式登记进 `DUPLICATE_NAME_GROUPS`；同一模式名挂到两个视图登记进 `CROSS_VIEW_DUP_OK` | `check-ui.mjs` 的 `DUPLICATE_NAME_GROUPS` / `CROSS_VIEW_DUP_OK` |
+| 冻结要看得见 | Vue 绘图组 6 个文件是冻结的回退资产，白名单逐一对应，且必须仍然无人 import | `check-ui.mjs` 的 `FROZEN_VUE_PLOT_FILES` |
+| 参数契约不许静默失效 | 由 `get_interval` 读区间的 handler 固定列在 `INTERVAL_FNS`，其 args 缺少 `interval` 键即失败 | `check-ui.mjs` 的 `INTERVAL_FNS` |
+| 默认路径要能过 | 概率表类模式必须能用弹窗自带默认值构造出非空表 | `check-ui.mjs` 的 `prob_table` 段 |
+| 降级要可见 | 取消在引擎层做不到真停，界面文案是「已停止等待」，不写「已停止」 | `jobs.rs` 的 `cancel_job()` |
+| 慢活不许假死 | 重活走后台任务通道：`DispatchJob` 入队即返回 jobId，界面用 `PollJob` 轮询 | `jobs.rs` 的 `dispatch_job()` / `poll_job()` |
+
+这些判据是自检的输出。单独复跑命令（在 `MF_UI/MFMath.UI.Vue/` 下执行）：
+
+```powershell
+node tools/check-ui.mjs
+```
+
+当前输出中随代码变化的数字：
+
+| 项目 | 当前值 |
 | --- | --- |
-| 显式登记 + 双向校验 | `check-ui.mjs` 的 `NOT_EXPOSED`：引擎里有映射但页面选不到的模式必须**写明原因**登记；反过来，登记了却又能选到的会报**"过时条目，请删除"**（`:213-249`） |
-| 冻结要看得见 | Vue 绘图组是"冻结的回退资产"：允许存在，但**不许被悄悄重新接上**，白名单 + 禁止被 import（`:348-407`，BUGS.md B9） |
-| 拒绝而不是兜底 | 必填参数缺失时**不调引擎**，直接说清缺什么、怎么补（BUGS.md B4；原先是静默填 `0`/`[0,0]`/`[]` 然后算出一个"看起来正常"的结果） |
-| 降级要可见 | 自定义端点失效时"退回内置站点"这件事**要能被看到**，不是静默切换 |
+| 引擎模式可达性 | 映射 415 个 / 页面并集 391 个 / 取不到 0 个 |
+| 区间参数契约 | 10 个 handler / 命中 10 个 / 缺 interval 0 个 |
+| 概率表契约 | 4 个模式 / 空表 0 个 |
+| 冻结的 Vue 绘图组 | 6/6 个文件在位，被 import 0 处 |
+| 重名模式登记 | 已登记 24 个，未登记 0 个 |
+| 跨视图重名 | 2 处（已登记 2，未登记 0） |
+| i18n 弹窗字段 | 186 条唯一标签，缺译文 0 条 |
+| i18n 结果标签 | 78 个字段，缺译文 0 条 |
+| 数学键盘 | 6 分类 / 126 键 |
+| 端到端用例 | cdp-* 48 个，已登记 48 个 |
 
-**为什么**：静默兜底会把"我不知道"变成"我猜了一个"，正好是理念 ② 要防的东西。
+## 判据汇总
 
----
+| 理念 | 机制落点 | 验证命令 | 通过判据 |
+| --- | --- | --- | --- |
+| ① 计算来源唯一 | `math_call` / `function_exists`；`engineCall()` | `Select-String -Path MF_Mathematics/api.cpp -Pattern 'extern "C"'` | 导出面恰好 2 个函数 |
+| ② 结果不臆造 | `"未实现"`；`1e12` 安全阀；瑕点检测；错误信封 | `& MF_Mathematics\build\bin\Release\probe_call.exe list_functions '{}'` | `count` = 424 |
+| ③ 修改可验证 | `antideriv_self_checks_out()`；`check-ui.mjs` | `ctest --test-dir MF_Mathematics/build -C Release --output-on-failure` | 全绿 |
+| ④ 结论可追溯 | 失败分类；`wait_running()` | `mfmath-host-rust.exe --selftest-jobs` | `RESULT\|selftest-jobs\|PASS` |
+| ⑤ 离线与隐私 | `logging.rs`；`ExportDiagnostics` | `Select-String -Path MFMath.Host.Rust/src/logging.rs -Pattern "MAX_BYTES"` | 2 MB 轮转、崩溃留 20 个 |
+| ⑥ 失效可见 | `NOT_EXPOSED` / `FROZEN_VUE_PLOT_FILES` / `INTERVAL_FNS` | `node tools/check-ui.mjs`（在 `MF_UI/MFMath.UI.Vue/` 下） | `exit 0`，缺口计数为 0 |
 
-## 3. 理念之间的张力（都是真的，别只写好处）
+## 理念之间的取舍
 
-理念不是免费的。下面是**已知的代价**，写在这里是为了避免有人把它们当成"没做好"：
+理念不是免费的。下表是「选了哪边、代价是什么」：
 
-| 张力 | 选了哪边 | 代价（实测/已登记） |
+| 取舍 | 选择 | 代价 |
 | --- | --- | --- |
-| **单一来源 vs 启动依赖** | 计算全在引擎 | 没有宿主就没有数学。`run-all.ps1` 换个机器就报 `Host not found`（BUGS.md 脚手架②） |
-| **安全 vs 便利** | 一般凭据：DPAPI 只存宿主，渲染进程读不到 | AI 的密钥是**例外**：改成页面直连后明文存 `ai.json`（LINK-LAYER §8）。**代价写清**：同机其它进程可读；两个宿主之间不通用（§9.2） |
-| **同步 vs 异步** | 判据是**规模**，不是"重不重" | `complex_grid` / `expr_eval_grid` 阈值 `2.5e5`（`asyncPolicy.js:29-30`）；但**绘图页每条曲线一次的采样刻意保持同步**（await 会把采样时序拆碎），改上界就必须改回异步 |
-| **迁移速度 vs 静默损失** | 绘图组 Vue → React 快速迁移 | 掉过三块**没人发现**的功能：`emphasis` 从不设置（B13）、工作区完全没接（B14）、导出结果不再上报（B15）。共同点：**"改了但没测"**，迁完只过了类型检查 |
-| **冻结 vs 删除** | Vue 绘图组保留为回退资产 | 仓库里有一份**不可达但必须维护**的代码（B9）。删除更干净，但失去回退；所以选择"冻结 + 断言不许悄悄接回" |
+| 单一来源 vs 启动依赖 | 计算全在引擎 | 没有宿主进程就没有数学；纯浏览器里 `engineCall()` 返回 `null` |
+| 同步 vs 异步 | 判据是规模，不是「重不重」 | 阈值是数出来的工作量：`mandelbrot` 1.5e8、`complex_grid` 2.5e5、`expr_eval_grid` 2.5e5、`matrix_multiply` 2e6（`Select-String -Path MF_UI/MFMath.UI.Vue/src/lib/engine/asyncPolicy.js -Pattern "1.5e8"`）。绘图页每条曲线一次的采样保持同步，改上界就必须改回异步 |
+| 串行 vs 吞吐 | 引擎调用串行执行 | 一次只跑一个重活。引擎里除 `numerical/numerical_integration.cpp` 的一个 `thread_local` 外没有同步原语，`math_call` 是无锁的 dispatch + `memcpy`，并发会踩 FLINT / SymEngine 的全局缓存 |
+| 可取消 vs 引擎不改 | 取消只做到「停止等待 + 丢弃结果」 | 工作线程会把这一步算完。界面文案因此受限为「已取消等待」；真停只能靠进程边界 |
+| 冻结 vs 删除 | Vue 绘图组迁到 React 后，6 个文件保留为回退资产 | 仓库里有一份不参与构建、不在类型检查范围的代码。删除更干净，但失去回退，所以选「冻结 + 断言不许悄悄接回」 |
 
-> **一条给未来的话**：上表里"迁移速度 vs 静默损失"那一行，是**唯一一类靠 review 拦不住的损失** ——
-> 它不报错、不失败，只是功能不见了。防线只有一条：**迁移时同一步骤里补断言**。
+引擎的注册边界不允许出现 `std::string` / `std::vector` / `SymEngine::RCP`。两个 C ABI 函数只收发 `const char*` 与调用方给的缓冲区，缓冲区不够就返回 `-1`
+（`Select-String -Path MF_Mathematics/api.cpp -Pattern "out_size"`）。同一理由的另一面在 `make_handler()`：任何异常都必须在那里被接住，不能穿过 `extern "C"`。
 
----
+## 使用这份文档
 
-## 4. 怎么用这份文档
-
-- 想改架构 → 先看本文 §2 的理念是否允许；不允许就别改，改了要更新本文与 [DECISIONS.md](DECISIONS.md)；
-- 觉得某个行为"像 bug" → 先查 [DESIGN-BOUNDARIES.md](DESIGN-BOUNDARIES.md)（可能是**刻意不做**）；
-- 发现本文与代码不一致 → **以代码为准**，然后改本文（本文的权威性来自及时更新，不来自它的标题）；
-- 想加一条理念 → 它必须满足两条：**代码里有对应机制**、**违反时有可复跑的判据**。
-  只有前者那是口号，只有后者那是测试。
+- 想改架构：先看「六条理念」是否允许；不允许就不改，改了要同步更新本文与 [`DECISIONS.md`](DECISIONS.md)。
+- 觉得某个行为像缺陷：先查 [`DESIGN-BOUNDARIES.md`](DESIGN-BOUNDARIES.md)，它区分明确不做 / 推迟 / 能力边界 / 尚未验证，并写明推翻每一条需要什么证据。
+- 发现本文与代码不一致：以代码为准，然后改本文。
+- 想加一条理念：它必须同时满足两条——代码里有对应机制、违反时有可复跑判据。
+- 想知道某个数字怎么来的：数字旁边就是命令；行号会漂，命令不会。
+- 安装包路径的现状：宿主能出 NSIS 安装包，但「安装 → 启动」这一步没有真机记录。已实测跑通的路径是 [`../README.md`](../README.md)「快速开始」的三步构建加直接运行 exe。要把它转成已验证结论，在真机装一次并留下启动成功的证据（打包细节见 [`../MFMath.Host.Rust/docs/PACKAGING.md`](../MFMath.Host.Rust/docs/PACKAGING.md)）。

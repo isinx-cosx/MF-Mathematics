@@ -1,184 +1,158 @@
-# 凭据边界：什么加密、什么明文、为什么
+# 凭据与隐私
 
-> **本文只回答一个问题：用户的密钥与登录态存在哪、什么形式、谁能读到。**
->
-> 契约见 [README.md](README.md)；方法清单见 [OBJECTS.md](OBJECTS.md)；
-> 决策背景见 [DECISIONS.md](../DECISIONS.md) D-004。
+> 本文说明三类凭据的落盘形式与页面可见范围、DPAPI 的规则与适用范围、AI 密钥的明文存储代价、导出与诊断的排除规则、日志的位置与内容。
+> 桥面契约与方法清单见 [README.md](README.md) 与 [OBJECTS.md](OBJECTS.md)，宿主分工见 [HOSTS.md](HOSTS.md)。
+> 权威源是 [`dpapi.rs`](../../MFMath.Host.Rust/src/dpapi.rs)、[`account.rs`](../../MFMath.Host.Rust/src/account.rs)、[`search.rs`](../../MFMath.Host.Rust/src/search.rs)、[`sys.rs`](../../MFMath.Host.Rust/src/sys.rs)、[`logging.rs`](../../MFMath.Host.Rust/src/logging.rs)；AI 密钥的读写位于页面 [`bridge.js`](../../MF_UI/MFMath.UI.Vue/src/lib/ai/bridge.js) 与 [`relay.ts`](../../MF_UI/MFMath.UI.Vue/src/lib/ai/relay.ts)。
 
-**核对时间**：2026-10-07
-**权威源**：`MFMath.Host.Rust/src/dpapi.rs`、`account.rs`、`search.rs`、`logging.rs`；前端 `src/lib/ai/relay.ts`、`src/lib/settings/io.js`
+## 1. 三类凭据的落盘形式
 
----
+| 凭据 | 文件与字段 | 落盘形式 | 写入者 | 页面可读到 |
+| --- | --- | --- | --- | --- |
+| 登录 token | `%LOCALAPPDATA%\MFMath\settings\account.json` 的 `token_protected` | DPAPI 密文（base64） | `account.rs` 的 `store_token` | `loggedIn`、`tokenSource`（`dpapi` / `memory` / `none`） |
+| Wolfram App ID | `search.json` 的 `wolfram_key_protected` | DPAPI 密文（base64） | `search.rs` 的 `set_wolfram_key` | `hasWolframKey`、`wolframKeySource` |
+| AI API Key | `ai.json` 的 `apiKey` | 明文 | 页面 `bridge.js` 的 `aiSetKey`（经 `sys.StoreWrite`） | 明文本身，显示在设置面板的输入框 |
 
-## 0. 一句话
+前两类的脱敏由断言守住：
 
-**同一份设置目录里，两种截然不同的待遇：**
+- `account.rs` 的 `self_check` 断言 `info()` 的返回文本不含 `access_token`、不含 `tokenProtected`、不含 token 本体。
+- `search.rs` 的 `info()` 只返回 `hasWolframKey` 与 `wolframKeySource`，不返回 App ID 与密文。
 
-| 数据 | 形式 | 谁写的 | 页面能看见什么 |
-| --- | --- | --- | --- |
-| 账号 token | **DPAPI 密文**（base64 blob） | 宿主 `account.rs:188` | 只有 `hasToken` 这类布尔 |
-| 搜索 Wolfram App ID | **DPAPI 密文** | 宿主 `search.rs:1693` | 只有 `hasWolframKey` 布尔 |
-| **AI 的 API Key** | **明文** | **页面**（经 `sys.StoreWrite`） | **明文本身** |
+```powershell
+Select-String -Path MFMath.Host.Rust/src/account.rs -Pattern "tokenProtected|access_token"
+Select-String -Path MFMath.Host.Rust/src/search.rs  -Pattern "hasWolframKey|wolframKeySource"
+```
 
-最后一行是刻意的例外，不是遗漏 —— 见 §2。**它也是这套边界里唯一"降级"过的地方。**
+设置文件的写入方：`ai`、`ai-chat`、`history`、`workspace`、`update` 由页面写，`account`、`search` 由宿主写。
 
----
+```powershell
+Get-ChildItem MF_UI -Recurse -Include *.js,*.ts,*.vue | Select-String -Pattern "StoreWrite\("
+```
 
-## 1. DPAPI 的三条纪律（`dpapi.rs` 文件头，一条不少）
+## 2. DPAPI 的规则与适用范围
 
-`dpapi.rs` 是密钥保护的**唯一实现**。三条纪律：
+`dpapi.rs` 是密钥保护的唯一实现，`protect` 返回 base64 的 DPAPI blob，`unprotect` 接受同一形式。规则如下。
 
-| # | 纪律 | 为什么 |
+| 规则 | 实现 | 后果 |
 | --- | --- | --- |
-| ① | **只在当前用户下可解**（**不传** `CRYPTPROTECT_LOCAL_MACHINE`） | 换用户就解不开，密文不能跨用户搬运 |
-| ② | **禁止弹 UI**（`CRYPTPROTECT_UI_FORBIDDEN`） | 加解密不能因为系统状态弹窗；**失败就如实报告失败** |
-| ③ | **失败绝不降级成明文落盘** | 调用方在 `protect` 返回 `None` 时**只把密钥留在内存里**，并明确告诉用户"本次会话有效、重启后需要重填" |
+| 只在当前用户下可解 | 不传 `CRYPTPROTECT_LOCAL_MACHINE` | 换 Windows 用户后密文解不开，密文不可跨用户搬运 |
+| 加解密不弹界面 | 传 `CRYPTPROTECT_UI_FORBIDDEN` | 系统状态异常时返回失败，不阻塞调用方 |
+| 失败不降级为明文 | 调用方在 `protect` 返回 `None` 时只把值留在内存 | 磁盘上不出现明文；本次运行可用，重启后需重填 |
+| 不传 optional entropy | `CryptProtectData` / `CryptUnprotectData` 的 entropy 参数为 `None` | 同一用户下由同一实现写出的密文互相可解，两个宿主可共用一份设置文件 |
+| 描述串不参与解密 | 常量 `DESCR` 只写入 blob 元数据 | 校验失败时按 `None` 处理，不做内容推断 |
 
-另外两条**格式约束**（同样不是随便选的）：
+失败路径的具体表现：`account.rs` 的 `store_token` 返回 `(false, warning)`，登录响应带 `warning` 字段并在 `lastErrorKind` 记为 `dpapi`；`search.rs` 的 `set_wolfram_key` 返回 `{"persisted": false, "warning": …}`。两条警告都写明值只保留在本次运行的内存里。
 
-- **不传 optional entropy**（C# 传的是 `IntPtr.Zero`）—— 熵一变，同机同用户的密文就**互相解不开**，
-  而"两个宿主共用同一份设置文件"正是迁移期的主要用法；
-- 密文是 **base64 的 DPAPI blob**（不是 hex、不是裸字节）—— `ai.json` 里历史上的
-  `apiKeyProtected` 字段存的就是它。
+`account.Info()` 与 `search.Info()` 的 `dpapiAvailable` 字段不是读标志位，而是调用 `dpapi::selftest()` 做一次完整的 `protect` 加 `unprotect` 往返。
 
-**验证手段**：`selftest.rs:39-48` 有一条 DPAPI 往返探针（`--selftest-common`，期望 **10/0**），
-`account.Info()` 里还会报 `dpapiAvailable`（`account.rs:248`）。
+适用范围由调用点决定，`protect` / `unprotect` 共 6 处、`selftest` 共 3 处：
 
-> ⚠ **注意 `Info()` 每次调用都真的做一次 DPAPI 往返**：它里面的 `dpapi::selftest()`
-> 不是读标志位，而是**真的 protect + unprotect 一次探针串**（`dpapi.rs:129-135`）。
-> 所以 `account` 自检的 ⑥ 项断言"`Info()` < 50 ms"（`account.rs:869-884`）**同时也在量 DPAPI 的开销**。
+```powershell
+(Select-String -Path MFMath.Host.Rust/src/*.rs -Pattern "dpapi::(protect|unprotect)").Count   # 期望 6
+Select-String -Path MFMath.Host.Rust/src/*.rs -Pattern "dpapi::(protect|unprotect)"
+(Select-String -Path MFMath.Host.Rust/src/*.rs -Pattern "dpapi::selftest").Count              # 期望 3
+```
 
-> ⚠ **`dpapi.rs` 的文件头已经过时**：`dpapi.rs:1` 把"AI 的 API Key"列为 DPAPI 的三类用户之一，
-> `dpapi.rs:18` 还写"`ai.json` 里 `apiKeyProtected` 存的就是它"。**AI 的密钥已经不走 DPAPI 了**
-> （改成明文，见 §2；旧字段由前端主动删除，`lib/ai/bridge.js:275-293`）。
-> 实测确认当前调用点只有两处：`account.rs:183/188`、`search.rs:1598/1693`
-> （外加 `selftest.rs` 与 `account.rs:887` 的自检）。
-> 这是 [PROJECT-BOARD.md](../PROJECT-BOARD.md) §3 R7 那一类问题的一个新实例，**已登记给 A 面**。
+调用点是 `account.rs` 的 `resolve_token` 与 `store_token`、`search.rs` 的 `resolve_key` 与 `set_wolfram_key`、[`selftest.rs`](../../MFMath.Host.Rust/src/selftest.rs) 的往返探针。AI 密钥不在其中。
 
----
+清除路径覆盖对象相同：`account.clear_local` 清空内存 token 与 `token_protected`；`search.clear_wolfram_key` 清空内存 App ID 与密文。
 
-## 2. AI 为什么是明文（唯一的一次降级）
+## 3. AI 密钥：明文存储与代价
 
-**2026-10-07，项目所有者决定**：AI 整体搬到 TS 页面直连（[DECISIONS.md](../DECISIONS.md) D-004）。
-于是 `ai.json` 的 `apiKey` **没有任何加密**。
+AI 请求由页面直接发往用户配置的端点，密钥由 `ai.json` 的 `apiKey` 字段提供，不经过宿主，也不经过 DPAPI。
 
-### 2.1 代价（五条，都是真的）
+读取与写入路径：
 
-1. **密钥明文落盘**：换用户、拷贝文件、看备份都能直接读到；
-2. **密钥常驻页面内存**：每次请求都要用它拼 `Authorization`，所以**会话期间一直在渲染进程里**
-   —— 不只是录入那一瞬；
-3. **旧版的 DPAPI 密文解不开了**：老用户 `apiKeyProtected` 里的密文，页面侧**没有 DPAPI 可调**。
-   现在的处理是**如实提示"请在设置里重填一次"**，并且 `hasKey=false`（**不假装还有密钥**）；
-4. **"中继路径闸门"这条安全属性消失**：以前宿主只接受相对路径、绝对地址一律拒
-   （防止密钥被发到任意地址）。现在端点由用户配的 `baseUrl` 决定 —— 闸门转移到 §2.2；
-5. **只实测过 DeepSeek 与 GitHub**：**不能**说"所有服务商都能直连"（企业代理、按域白名单的服务商仍可能不行）。
+- `refreshAiConfig` 从 `ai.json` 取 `apiKey`，置 `hasKey`、`keySource`、`keyPersisted`；若只剩旧版 `apiKeyProtected` 密文则置 `hasKey = false`、`legacyProtectedKey = true`，并给出在设置里重填一次的提示。
+- `refreshAiConfig` 构造页面状态时删除 `apiKey` 与 `apiKeyProtected` 两个字段，密钥另行交给运输层。
+- `aiSetKey` 写入明文 `apiKey` 并删除 `apiKeyProtected`；`aiClearKey` 删除两者。
 
-### 2.2 换地方但仍然生效的两条闸门
+```powershell
+Select-String -Path MF_UI/MFMath.UI.Vue/src/lib/ai/bridge.js -Pattern "next.apiKey = k|delete next.apiKeyProtected|legacyProtectedKey"
+```
 
-**闸门一：绝不做"地址不认识就退回内置站点"的规范化。**
-这是原先宿主侧特意绕开 `site.rs` 的理由，换到 TS 后由 `relay.ts` 的
-`isUsableBaseUrl` / `joinBasePath` 承担：
+代价与对应事实：
 
-- 只接受 **http/https 绝对地址**；
-- 路径必须以**单个 `/`** 开头；
-- 拼接结果必须与 `baseUrl` **同源**；
-- 否则报 `config` 错。
-
-`ai.SelfCheck()` 里**有一项专门验它**（含"错误信息里不出现内置站点域名"）。
-
-**闸门二：导出 / 诊断**整份**剥掉**密钥字段。**三处实现，逻辑一致**：
-
-| 位置 | 做法 |
+| 代价 | 事实 |
 | --- | --- |
-| `settings/io.js`（前端导出备份） | `CREDENTIAL_FILES = ["ai","account","search"]` **整份排除**，并把名字写进包里的 `excluded` |
-| `settings/io.js`（前端） | `SECRET_FIELD` 正则再命中 `apiKey` 等字段名 —— **双保险** |
-| `sys.rs:282`、`292-297`（宿主导出诊断包） | `CREDENTIAL_STEMS = ["ai","account","search"]`，**外加**"文件名含 `secret`"的兜底 |
+| 密钥以明文落盘 | 能读到 `ai.json`、能拿到文件备份或磁盘镜像的人可直接取用 |
+| 密钥常驻页面内存 | `relay.ts` 以模块级 `creds` 持有密钥，每次请求用它组 `Authorization: Bearer`，会话期间一直存在 |
+| 旧版密文无法解出 | 页面侧没有 DPAPI 可调，`hasKey` 为 `false`，界面如实提示重填，不显示为已配置 |
+| 端点由用户填写的地址决定 | 闸门在 `relay.ts`：`isUsableBaseUrl` 只接受 http/https 绝对地址；`joinBasePath` 要求路径以单个 `/` 开头、不含空白与控制字符、拼接结果与 `baseUrl` 同源，否则抛 `RelayError('config')`，不做退回内置站点的规范化 |
+| 服务商兼容性未逐一验证 | 设置面板提供 DeepSeek、OpenAI、Ollama 三个预设；可用性由"测试连接"实测，它发一条 `max_tokens` 为 1 的请求；企业代理与按域白名单的服务商未做验证 |
 
-> 📌 **这里的注释记着一个真实的坑**（`sys.rs:278-281`）：宿主原先**只按"文件名含 `secret`"跳**，
-> 而 `ai.json` / `account.json` / `search.json` **一个都不含 `secret`** —— 等于没跳，
-> 会把 API Key、登录态、Wolfram App ID 整份打进诊断包。
-> **"过滤规则写对了"和"过滤规则真的命中"是两件事** —— 与 [DESIGN.md](../DESIGN.md) §2 ③ 同一族教训。
+```powershell
+Select-String -Path MF_UI/MFMath.UI.Vue/src/lib/ai/relay.ts -Pattern "isUsableBaseUrl|joinBasePath|RelayError\('config'"
+```
 
-否则备份包会把明文密钥带出去。
+## 4. 导出与诊断的排除规则
 
-### 2.3 ⚠ 一处**没被这两道闸门覆盖**的残留：`.bak` 里可能有明文密钥
+两处实现按同一份文件清单排除凭据，清单之外的设置文件按字段名再剥一遍。
 
-`StoreWrite` 的落盘流程是"**先备份、再临时文件、再原子替换**"（`sys.rs:208-219`）：
-覆盖前把原文件复制成 `<name>.json.bak`。起因是 v1 直接 `open(path,"w")`，
-**写一半崩掉下次必然 JSONDecodeError**。
-
-但 **`StoreDelete` 只删 `<name>.json`，不删 `.bak`**（`sys.rs:222-232`），
-全仓库也没有任何清理 `.bak` 的逻辑。于是：
-
-| 事实 | 后果 |
-| --- | --- |
-| `ai.json` 的 `.bak` 里是**明文 `apiKey`** | 磁盘上留下一份明文 |
-| `StoreList` 只列 `.json`（`sys.rs:126-128`） | 界面上**看不到**它 |
-| 诊断包只收 `.json`（`sys.rs:287`） | 导出时**也不会**带上它 |
-
-**所以这不是泄漏到外部，是"删了以后磁盘上还留着"** —— 对共享机器上的用户是有意义的差别：
-他以为"清掉本地登录态 / 删除 AI 配置"就干净了，实际 `ai.json.bak` 还在。
-**准确的说法**：`StoreDelete` ≠ 抹除；要真正抹掉得手工删 `<name>.json.bak`。
-
-> 这条属**待修**（不是待澄清）：要么删除时一并清 `.bak`，要么在界面上说明。
-> 归属 B 面（`sys` 是宿主对象，但触发它的是前端设置面板）—— 已登记，
-> 见 [PROJECT-BOARD.md](../PROJECT-BOARD.md) §3 R7 的同类清单。
-
-### 2.3 一条仍然成立的自检：`account` 的信息不泄漏
-
-`account.rs:855` 附近有一条断言：`account.Info()` 的返回文本里**不得包含 `tokenProtected`**
-（即密文字段本身）。也就是说"给页面看的视图"经过一次**显式检查**，不是靠自觉。
-
----
-
-## 3. 两个宿主之间的可移植性
-
-| 数据 | 能否跟着用户走 | 原因 |
+| 位置 | 规则 | 记录 |
 | --- | --- | --- |
-| `search.json`（含 Wolfram App ID）、`account.json`（token）、`update.json`、窗口 / 工作区 / 历史 | ✅ **能** | 字段同名、格式相同；Rust 侧还给每个字段加了 PascalCase `alias`，对齐 C# 的 `PropertyNameCaseInsensitive` |
-| **`ai.json` 的密钥** | ❌ **不能** | C# 写的是 `apiKeyProtected`（DPAPI 密文），Rust/TS 侧读的是 `apiKey`（明文）—— **两种形式互不通用** |
+| 页面备份导出（`io.js` 的 `buildBundle`） | `CREDENTIAL_FILES` 为 `["ai","account","search"]`，整份排除 | 包内 `excluded` 列出被排除的文件名 |
+| 页面备份导出（同上） | `SECRET_FIELD` 为正则 `(protected\|password\|passwd\|secret\|token\|api[-_]?key)`，命中键名即剥离 | 包内 `stripped` 列出被剥离的字段名 |
+| 页面备份导入（`applyBundle`） | 跳过 `CREDENTIAL_FILES` 中的文件，不覆盖本机现存的密钥 | 被跳过的名字进入返回值 `skipped` |
+| 宿主诊断包（`sys.rs` 的 `export_diagnostics`） | `CREDENTIAL_STEMS` 为 `["ai","account","search"]`，按文件名主干排除；另有文件名含 `secret` 的兜底条件 | 被排除的文件不进包 |
 
-**结论**：从 C# 宿主演进过来的用户，**只有 AI 这一项要重填密钥**，其余配置不用动。
-这是架构变更的直接后果，**不是 bug**（[HOSTS.md](HOSTS.md) §3）。
+```powershell
+Select-String -Path MF_UI/MFMath.UI.Vue/src/lib/settings/io.js -Pattern "CREDENTIAL_FILES =|SECRET_FIELD ="
+Select-String -Path MFMath.Host.Rust/src/sys.rs -Pattern "CREDENTIAL_STEMS"
+```
 
----
+诊断包的收集范围是 `settings` 目录下所有以 `.json` 结尾的文件（`account.json`、`search.json`、`ai.json` 除外），加上宿主与环境信息、引擎产物清单、设置文件清单、`app.log` 尾部和最近一个崩溃文件的全文。设置文件清单只含文件名、字节数与修改时间。
 
-## 4. 日志与崩溃：本地、不上报
+```powershell
+Select-String -Path MFMath.Host.Rust/src/sys.rs -Pattern "logging::tail|ends_with\(.\.json.\)"
+```
+
+两项不在上述规则覆盖范围内，按现状记录：
+
+| 项 | 现状 | 验证方法 |
+| --- | --- | --- |
+| `<name>.json.bak` | `store_write` 在覆盖前把旧文件复制为 `<name>.json.bak`；`store_delete` 只删除 `<name>.json`。全仓库没有清理 `.bak` 的代码，因此写入过 AI 密钥的机器上可能留下含明文 `apiKey` 的 `ai.json.bak`。`store_list` 与诊断包都只收 `.json`，界面上看不到该文件 | 运行 `Select-String -Path MFMath.Host.Rust/src/*.rs -Pattern "\.bak"`，命中只有 `store_write` 的复制处；再在设置面板保存一次密钥并清除，检查 `%LOCALAPPDATA%\MFMath\settings` 下是否仍有 `ai.json.bak` |
+| `ai-chat.json` | 会话记录由 `bridge.js` 以 `CHAT_STORE = "ai-chat"` 写入，内容为最终消息文本，不在 `CREDENTIAL_FILES` 名单内，因此会进入页面导出的备份包 | 对照 `CHAT_STORE` 与 `CREDENTIAL_FILES` 两个常量，或导出一次备份后检查包内 `files` 的键名 |
+
+```powershell
+Select-String -Path MFMath.Host.Rust/src/sys.rs -Pattern "json.bak|fn store_delete"
+Select-String -Path MF_UI/MFMath.UI.Vue/src/lib/ai/bridge.js -Pattern "const CHAT_STORE|StoreWrite\(CHAT_STORE"
+```
+
+## 5. 日志的位置与内容
 
 | 项 | 事实 |
 | --- | --- |
-| 目录 | `%LOCALAPPDATA%\MFMath\logs`（**一定可写**） |
-| 常规日志 | `app.log`，单文件上限 **2 MB**，轮转成 `app.1.log` |
-| 崩溃日志 | `crash-*.log`：环境 + 异常 + **`app.log` 尾部 200 行** —— 单文件即可复盘；**只留最近 20 个** |
-| 与旧宿主的关系 | **共用同一个 `app.log`**，所以两边的时间线对得上；"导出诊断包"要能把日志尾部一起带走 |
-| **上报** | **不联网上报**（[DECISIONS.md](../DECISIONS.md) D-008）。只有用户主动"导出诊断包"才会交出去 |
-
-> 设计意图写在 [DESIGN.md](../DESIGN.md) §2 ⑤：数学工具的用户不该因为一次崩溃被上传任何东西。
-
----
-
-## 5. 这段边界怎么复查
+| 根目录 | `%LOCALAPPDATA%\MFMath`（`logging::data_dir`），设置文件在其 `settings` 子目录 |
+| 日志目录 | `%LOCALAPPDATA%\MFMath\logs`（`logging::dir`） |
+| 常规日志 | `app.log`，单文件上限 2 MB，超过后整体改名为 `app.1.log`，只保留一代 |
+| 崩溃日志 | `crash-<yyyyMMdd-HHmmss>.log`：时间、来源、版本、系统、程序目录、日志目录、异常文本与 backtrace、`app.log` 尾部 200 行；只保留最近 20 个 |
+| 尾部读取上限 | 读日志尾部时最多读 256 KB |
+| 前端异常 | 未捕获异常、未处理的 Promise 异常与 Vue 组件异常经 `diag.Front` 写入同一个 `app.log`，前缀为 `[前端]`；每个会话上限 50 条，按文本去重 |
+| 字段脱敏 | 日志写入不做键名或值的过滤，写入内容是异常文本、截断后的栈与页面路由 |
+| 上报 | `logging.rs` 不发起任何网络调用；日志内容只在本机，仅在用户主动导出诊断包时写入数据目录下的 `diagnostics-<yyyyMMdd-HHmmss>.txt` |
 
 ```powershell
-# ① DPAPI 往返（无头，不起窗口）：期望 10/0
-& $run\mfmath-host-rust.exe --selftest-common
-
-# ② 当前只有两处 DPAPI 调用点（AI 不该在列表里）
-Select-String -Path MFMath.Host.Rust\src\*.rs -Pattern 'dpapi::(protect|unprotect)'
-
-# ③ 导出/诊断是否剥掉密钥字段
-Select-String -Path MF_UI\MFMath.UI.Vue\src\lib\settings\io.js -Pattern 'CREDENTIAL_FILES|SECRET_FIELD'
+Select-String -Path MFMath.Host.Rust/src/logging.rs -Pattern "const (MAX_BYTES|KEEP_CRASH_FILES|CRASH_TAIL_LINES|TAIL_CHUNK)"
+Select-String -Path MF_UI/MFMath.UI.Vue/src/lib/diagnostics/errors.js -Pattern "MAX_PER_SESSION"
+Select-String -Path MFMath.Host.Rust/src/logging.rs -Pattern "http|reqwest|TcpStream"   # 期望无输出
 ```
 
-**判据**：② 应该只有 `account.rs`、`search.rs`、`selftest.rs` 三处。**出现 `ai.rs` 就说明有回退。**
+## 6. 复查清单
 
----
+```powershell
+# DPAPI 调用点数量与分布：期望 6 处，位于 account.rs / search.rs / selftest.rs
+Select-String -Path MFMath.Host.Rust/src/*.rs -Pattern "dpapi::(protect|unprotect)"
 
-## 6. 如果哪天要回退 AI（回退点在哪）
+# AI 密钥的读写路径：应为明文写入 apiKey，并删除 apiKeyProtected
+Select-String -Path MF_UI/MFMath.UI.Vue/src/lib/ai/bridge.js -Pattern "apiKey"
 
-回退点很清晰：宿主侧恢复 `ai` 对象（revert 删它的那一笔），前端把 `relay.ts` 换回"经 `ai.Begin` 转发字节"，
-密钥回到 DPAPI 密文。
+# 备份与诊断的排除名单：两侧都应覆盖 ai / account / search
+Select-String -Path MF_UI/MFMath.UI.Vue/src/lib/settings/io.js -Pattern "CREDENTIAL_FILES|SECRET_FIELD"
+Select-String -Path MFMath.Host.Rust/src/sys.rs -Pattern "CREDENTIAL_STEMS|secret"
 
-> ⚠ **但要先回答一个问题**：那时用户的密钥**已经明文存在 `ai.json` 里了** ——
-> 回退时要么重新加密一次（读明文 → DPAPI → 写回），要么**承认"已经明文过"**。
-> 这个选择不能靠技术默认，得由所有者拍板。
+# 日志上限、崩溃文件保留数与前端异常上限
+Select-String -Path MFMath.Host.Rust/src/logging.rs -Pattern "MAX_BYTES|KEEP_CRASH_FILES|CRASH_TAIL_LINES"
+Select-String -Path MF_UI/MFMath.UI.Vue/src/lib/diagnostics/errors.js -Pattern "MAX_PER_SESSION"
+```
+
+DPAPI 的往返可由宿主自检直接验证：`--selftest-common` 覆盖 `selftest.rs` 中的探针，`account.SelfCheck()` 与 `search.SelfCheck()` 各自报告 `dpapiAvailable`。

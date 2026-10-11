@@ -1,198 +1,209 @@
-# 决策记录（ADR）
+# 架构决策
 
-> **本文只回答一个问题：某个看起来奇怪的设计，是哪一天、谁、为什么定的，代价是什么。**
->
-> 每条都必须写**代价** —— 只写好处的"决策记录"不是记录，是宣传。
-> 理念层面的东西在 [DESIGN.md](DESIGN.md)；明确不做的事在 [DESIGN-BOUNDARIES.md](DESIGN-BOUNDARIES.md)。
-
-**核对时间**：2026-10-07
-
-**日期写法**：能证实的写日期；证不到的写"（日期不可考）"并给出处。**不猜。**
-
----
+> 本文记录已落地的架构决策与各自代价，每条按「背景 / 决定 / 代价」陈述。设计原则见 [`DESIGN.md`](DESIGN.md)，明确不做与未验证的部分见 [`DESIGN-BOUNDARIES.md`](DESIGN-BOUNDARIES.md)；实现入口是 [`engine/README.md`](engine/README.md)、[`ui/ARCHITECTURE.md`](ui/ARCHITECTURE.md) 与 [`link/README.md`](link/README.md)。
 
 ## 索引
 
-| 编号 | 决定 | 日期 | 状态 |
-| --- | --- | --- | --- |
-| [D-001](#d-001-引擎用-c17--symengine但-dll-边界只暴露两个-c-abi-函数) | 引擎用 C++17 + SymEngine，DLL 边界只暴露**两个** C ABI 函数 | 日期不可考 | 生效 |
-| [D-002](#d-002-前端不承担任何计算) | 前端不承担任何计算 | 日期不可考 | 生效 |
-| [D-003](#d-003-用-wholearchive-保证注册表并配-count--424-守门) | 用 `/WHOLEARCHIVE` 保证注册表，并配 `count == 424` 守门 | 日期不可考 | 生效 |
-| [D-004](#d-004-ai-从宿主中继改为页面直连密钥明文存-aijson) | AI 从宿主中继改为**页面直连**，密钥明文存 `ai.json` | **2026-10-07** | 生效 |
-| [D-005](#d-005-绘图组从-vue-迁到-reactvue-绘图组冻结为回退资产) | 绘图组从 Vue 迁到 React；Vue 绘图组**冻结**为回退资产 | 2026-10 前后 | 生效 |
-| [D-006](#d-006-宿主从-netwpf-迁到-rusttauri并废弃-net-宿主) | 宿主从 .NET/WPF 迁到 Rust/Tauri，**废弃 .NET 宿主** | **2026-10-07** | 生效 |
-| [D-007](#d-007-用构建期自检拦下运行时几乎不可察觉的问题) | 用**构建期自检**拦下"运行时几乎不可察觉"的问题 | 日期不可考 | 生效 |
-| [D-008](#d-008-崩溃只本地记录不上报) | 崩溃只本地记录，**不上报** | 日期不可考 | 生效 |
-| [D-009](#d-009-复用站点能力不重建后端) | 复用站点能力，**不重建后端** | 日期不可考 | 生效 |
-| [D-010](#d-010-跑端到端前必须独占宿主与-cdp-端口) | 跑端到端前必须**独占**宿主与 CDP 端口 | **2026-10-07** | 生效 |
-| [D-011](#d-011-不提供-license保留所有权利) | 不提供 LICENSE（保留所有权利） | 日期不可考 | 生效 |
-| [D-012](#d-012-引擎模式要么可达要么显式登记) | 引擎模式要么可达、要么显式登记 | 日期不可考 | 生效 |
+| 决定 | 内容 | 主要代价 |
+| --- | --- | --- |
+| [C ABI 只导出两个函数](#c-abi-只导出两个函数) | 数学实现在静态库，共享库只含 `api.cpp` | 每次调用序列化 JSON，错误靠字符串约定 |
+| [前端不计算](#前端不计算) | 数值与符号结果只来自引擎 | 没有宿主就没有数学，交互多一次跨进程往返 |
+| [注册表靠 /WHOLEARCHIVE 保留](#注册表靠-wholearchive-保留) | 自注册对象必须全量纳入 | 失效静默，需数字守门 |
+| [AI 由页面直连](#ai-由页面直连) | AI 归前端，密钥明文存 ai.json | 密钥同机可读 |
+| [绘图组由 React 实现](#绘图组由-react-实现) | 7 条绘图路由指向 React，Vue 版冻结 | 留下一份不可达但需维护的代码 |
+| [宿主是 Rust 与 Tauri](#宿主是-rust-与-tauri) | 现役宿主 `MFMath.Host.Rust/`，9 个宿主对象 | 早期 C# 宿主不再演进 |
+| [构建期自检](#构建期自检) | `npm run check` 拦运行期难察觉的失效 | 自检本身是要维护的代码 |
+| [崩溃只写本地](#崩溃只写本地) | 日志与崩溃写在用户数据目录，不上报 | 看不到线上崩溃分布 |
+| [复用站点端点](#复用站点端点) | 账号、版本检测等打既有站点 | 受站点发布节奏牵制 |
+| [不提供许可证](#不提供许可证) | 仓库根无 LICENSE，保留所有权利 | 他人不能合法复制、修改、分发 |
 
----
+## C ABI 只导出两个函数
 
-## D-001 引擎用 C++17 + SymEngine，但 DLL 边界只暴露两个 C ABI 函数
+背景：符号计算由 SymEngine（连同 FLINT、GMP、MPFR）承担，线性代数由 Eigen 承担。这些库的接口包含 C++ 模板、`SymEngine::RCP` 智能指针与标准库容器，跨工具链没有稳定的 C++ ABI。
 
-- **背景**：符号计算需要 SymEngine（+ flint / gmp / mpfr），而 Eigen 用于线性代数。
-  这些库的接口都是 C++ 模板与 `RCP` 智能指针。
-- **决定**：数学实现全部放进 **STATIC** 目标 `mf_mathematics_core`；**SHARED** 目标
-  `mf_mathematics` 里**只有 `api.cpp`**，导出**恰好两个** C ABI 函数：
-  `function_exists` 与 `math_call`。
-- **为什么**：DLL 边界不暴露 `std::string` / `std::vector` / `SymEngine::RCP` ——
-  跨编译器的 C++ ABI 是**没有标准**的，一旦暴露，宿主就必须和引擎用同一套工具链与运行库，
-  换 VS 版本就可能静默错乱。用 C ABI + JSON 字符串，把这条耦合砍掉。
-- **代价**：① 每次调用都要**序列化/反序列化 JSON**，热循环里有开销；
-  ② 错误只能靠**字符串约定**传递，没有类型系统帮你拦（这就是 B1/B2 "键名契约失配"能发生的原因）；
-  ③ 接口自省能力弱，所以需要 [D-003](#d-003-用-wholearchive-保证注册表并配-count--424-守门) 那条守门。
-- **现状**：`api.cpp` 只有 22 行；`api.h` 18 行。契约细节见 `docs/engine/CONTRACT.md`🚧。
-- **出处**：`MF_Mathematics/CMakeLists.txt`、`api.cpp`、`README.md` 的「引擎的两个目标」。
+决定：数学实现全部放进 STATIC 目标 `mf_mathematics_core`（别名 `MFMath::engine`）。SHARED 目标 `mf_mathematics`（别名 `MFMath::cabi`）只编译 `api.cpp` 一个翻译单元，导出两个 C ABI 函数：
 
-## D-002 前端不承担任何计算
+| 导出 | 签名 | 契约 |
+| --- | --- | --- |
+| `function_exists` | `bool function_exists(const char* function_name)` | 查询注册表；空指针返回 `false` |
+| `math_call` | `int math_call(const char* name, const char* args_json, char* out_buffer, int out_size)` | 成功返回结果 JSON 字节数；参数为空、`out_size <= 0` 或缓冲区装不下「结果 + 结尾 `'\0'`」时返回 `-1` |
 
-- **背景**：v1 是 Python 后端 + 旧 JS UI 并存，同一个功能两处实现。
-- **决定**：所有数值/符号结果只来自引擎；前端只做参数构造、展示与编排。
-- **代价**：① 没有宿主就没有数学（`Host not found` 是这条决定的直接后果）；
-  ② 每次交互多一次跨进程字符串往返，重活必须走异步通道（见 [D-010](#d-010-跑端到端前必须独占宿主与-cdp-端口) 之外的
-  `asyncPolicy`）；③ 前端不能"顺手优化一下"任何中间结果，哪怕只是格式化。
-- **现状**：`tests/cdp-ai.mjs` 有一条硬约束守着它（假端点回 `1+1=3`，界面不得当真）。
-- **出处**：`README.md`「为什么前端一行数学都不算」；[DESIGN.md](DESIGN.md) §2 ①。
+`MF_BUILD_DLL` 只由 `mf_mathematics` 定义，`mf_export.h` 的 `MF_API` 因此只在该目标上触发导出。`api.cpp` 22 行、`api.h` 18 行。
 
-## D-003 用 `/WHOLEARCHIVE` 保证注册表，并配 `count == 424` 守门
+代价：每次调用在边界序列化与反序列化 JSON，采样与绘图网格为此付出开销。错误靠返回 JSON 里的 `isError` 之类的键表达，编译期不校验键名。`function_exists` 只回答有无，不回答参数形状，这是签名表副本与注册表守门存在的原因。
 
-- **背景**：每个 `*_api.cpp` 靠一个**没有外部引用的全局注册器**自注册。若自己另建导出 DLL
-  并链 `MFMath::engine`，链接器会把这些目标文件**整个丢弃**。
-- **决定**：**必须**加 `/WHOLEARCHIVE`；并设一条守门断言：
-  `probe_call.exe list_functions '{}'` 的 `count` 必须是 **424**。
-- **代价 / 为什么必须有守门**：这种失效是**静默的** —— DLL 照常加载、`function_exists` 照常能调，
-  只是**每个 action 都返回"未找到函数"**。没有 `count == 424` 这条断言，你只会在用户报障时才知道。
-- **现状**：424 这个数的权威源是 `MF_UI/MFMath.UI.Vue/src/lib/ai/engine-signatures.json`（94.5 KB）——
-  连 AI 的工具表也是从它生成的，所以**引擎签名与 AI 工具表逐字一致**。
-- **出处**：`README.md` 的 ⚠ 段；`MF_Mathematics/registry.hpp`、`introspect_api.cpp`。
+```powershell
+(Get-Content MF_Mathematics\api.cpp | Measure-Object -Line).Lines   # 22
+(Get-Content MF_Mathematics\api.h | Measure-Object -Line).Lines     # 18
+Select-String -Path MF_Mathematics/CMakeLists.txt -Pattern "MFMath::engine|MFMath::cabi"
+```
 
-## D-004 AI 从宿主中继改为**页面直连**，密钥明文存 `ai.json`
+## 前端不计算
 
-- **背景**：原先 AI 走宿主中继（`ai` 宿主对象），密钥由宿主 DPAPI 保管。
-- **决定**（**2026-10-07，用户决定**）：**AI 归 TS** —— 页面直接发请求（SSE 流式、可中断），
-  密钥**明文**存在 `ai.json`；宿主侧的 `ai` 桥被拆除（宿主对象 10 → 9）。
-- **为什么**：AI 是**唯一**一个"请求形状由前端决定、且要流式"的功能，放进一个
-  只能同步字符串往返的链接层（[D-001](#d-001-引擎用-c17--symengine但-dll-边界只暴露两个-c-abi-函数)）
-  会被反复拉伸变形；中继层没有独立价值。
-- **代价（写清，别只写好处）**：
-  ① **安全性下降** —— DPAPI 换成明文，同机其它进程可读；
-  ② **两个宿主之间不通用** —— 换宿主（.NET ↔ Rust）时 AI 配置**不跟着走**（LINK-LAYER §9.2）；
-  ③ 实现者原先把这条写错过，§8.1 里如实更正了。
-- **现状**：`src/lib/ai/` 8 个文件 / 2,372 行；`tests/cdp-ai.mjs` 覆盖（曾实测 **160/0**）。
-- **出处**：`LINK-LAYER.md` §8（含 §8.5「如果哪天要回退」）；提交 `9c1ad1a`、`eafd482`。
+背景：早期版本是「Python 后端 + 旧 JS 界面」并存，同一功能在两处各有一份实现，结果可以不一致。
 
-## D-005 绘图组从 Vue 迁到 React；Vue 绘图组**冻结**为回退资产
+决定：所有数值与符号结果只来自引擎。前端只构造参数、展示结果、编排调用。桥面是同步字符串往返 `window.chrome.webview.hostObjects.sync.mf.Dispatch(name, argsJson)`；长任务走 `mf` 对象上的异步通道（`DispatchJob` / `PollJob` / `CancelJob` / `JobStats`），由 `lib/bridge.js` 的 `engineCallAsync` 依 `DispatchJob` 是否存在决定分流。
 
-- **背景**：Vue 壳里内嵌一个独立的 React 绘图工程（`MF_UI/MFMath.UI.React`，22 文件 / 5,546 行）。
-- **决定**：绘图页改由 React 实现；**Vue 版绘图组不删除，冻结为回退资产** —— 允许存在，
-  但**不许被悄悄重新接上**（白名单 + "被 import 就报错"）。
-- **代价（这条决定的账最厚）**：
-  - 仓库里留下一份**不可达但必须维护**的代码；
-  - 迁移过程掉过**三块没人发现**的功能：`emphasis` 从不设置（**B13**，聚焦曲线不加粗）、
-    绘图组**完全没接工作区**（**B14**，7 个页面的内容不会被保存/还原）、
-    2D/极坐标页**不再报导出结果**（**B15**，导出成功或失败都没有反馈）；
-  - 共同点：**"改了但没测"** —— 迁完只过了类型检查，而这几处只在**真跑一次**之后才看得见。
-- **为什么仍不删**：删除更干净，但失去回退路径；所以选择"冻结 + 断言"。
-- **现状**：B13/B14/B15 已修并补了断言（B14 的 5 个页面由 `tests/cdp-plot-workspace.mjs` 覆盖，
-  该用例**当时尚未跑出数字**，见 [PROJECT-BOARD.md](PROJECT-BOARD.md) §3 R1 结尾）。
-- **出处**：`MF_UI/BUGS.md` B9 / B13 / B14 / B15；`tools/check-ui.mjs:348-407`。
+代价：没有宿主就没有数学，「宿主未就绪」直接表现为算不出结果。每次交互多一次跨进程字符串往返；不写成异步的调用会冻结渲染进程，绘图与长计算必须显式走异步。前端不优化中间结果，包括格式化与补精度。
 
-## D-006 宿主从 .NET/WPF 迁到 Rust/Tauri，**并废弃 .NET 宿主**
+现状：`tests/cdp-ai.mjs` 用假端点对默认请求回 `1+1=3`，断言界面不得当作计算结果；同文件另有对照断言要求引擎算出 `1+1=2`。
 
-- **背景**：原宿主是 C# / WPF + WebView2（`MFMath.Host/`）。Rust 宿主
-  （`MFMath.Host.Rust/`，Tauri + WebView2）此前处于"迁移中"状态，两侧并存。
-- **决定**（**2026-10-07，项目所有者原话："`.NET 是废弃的东西`"**）：
-  `MFMath.Host/` **不再是任何工作面的管辖范围** —— 不再接受功能改动，只留作迁移参考；
-  现役宿主只有 Rust 侧（9 个宿主对象 / 84 个方法）。
-- **代价**：
-  ① **多份文档仍在讲已废弃的实现** —— 已登记为文档债（[PROJECT-BOARD.md](PROJECT-BOARD.md) §3 **R7**，
-  8 处），其中 `AI-ASSISTANT.md` 描述的是一个**已经不存在的** AI 桥；
-  ② `run-all.ps1` 解析宿主的**默认路径仍指向 .NET 宿主**（`:26`），改默认值需要一次跨面改动；
-  ③ **"安装 → 启动"这条真机路径尚未验证**（见 [PACKAGING.md](../MFMath.Host.Rust/docs/PACKAGING.md) §3），
-  所以 README 的快速开始暂时**没有**改写成 Rust —— 不替没验过的路径背书。
-- **现状**：迁移后的验收基线见 [ACCEPTANCE.md](../MFMath.Host.Rust/docs/ACCEPTANCE.md)。
-- **出处**：所有者决定（2026-10-07）；`AGENTS.md` §2；`LINK-LAYER.md` §9。
+```powershell
+Select-String -Path MF_UI/MFMath.UI.Vue/tests/cdp-ai.mjs -Pattern "1\+1=3|1\+1=2"
+Select-String -Path MF_UI/MFMath.UI.Vue/src/lib/bridge.js -Pattern "engineCallAsync|DispatchJob"
+```
 
-## D-007 用**构建期自检**拦下"运行时几乎不可察觉"的问题
+## 注册表靠 /WHOLEARCHIVE 保留
 
-- **背景**：有些缺陷不报错、不崩溃，只是"点了没反应"或"改了没生效"。
-  v1 有过 **34/66 个教程目标控件根本不存在**，却被标记"已完成"。
-- **决定**：把这类问题放进 `npm run check` 的**构建期自检**（`tools/check-ui.mjs`），
-  并附加一条元规矩：**每条守卫都必须验证过"它会失败"**。
-- **代价**：① 自检本身成了需要维护的代码（32.7 KB）—— 加一个界面就要同步加登记；
-  ② 自检**刻意不去读引擎源码**（那是树外路径，会让它在别的机器上跑不动），
-  所以它检查的是**登记表**而不是真源码，登记表写错它抓不到。
-- **现状**：已覆盖 —— 教程目标、键盘键位/键面、引擎映射重复键、**模式可达性**（`NOT_EXPOSED` 双向校验，
-  首次跑出 **64 个**"有映射但选不到"，现已清零）、区间参数契约、概率表契约、用例登记、冻结资产、i18n 漏译。
-- **出处**：`tools/check-ui.mjs`（`npm run check` 的第三段）；`README.md` 的「构建期自检」。
+背景：每个 `*_api.cpp` 用一个没有外部引用的全局对象自注册（`struct Registrar { Registrar() { register_all(); } }; const Registrar g_xxx_registrar;`）。链接静态库时，链接器只抽取解决了未定义符号的目标文件，这些注册器会被整体丢弃。
 
-## D-008 崩溃只本地记录，**不上报**
+决定：`mf_mathematics` 链接时加 `target_link_options(mf_mathematics PRIVATE "/WHOLEARCHIVE:$<TARGET_FILE:mf_mathematics_core>")`，并配数字守门：`list_functions` 返回的 `count` 是 424。断言写在 `tests/cdp-settings.mjs` 与 `MFMath.Host.Rust/tools/verify-spike.mjs`。
 
-- **背景**：桌面应用通常会接一个 crash reporting 服务。
-- **决定**：崩溃与前端未捕获异常写进 `%LOCALAPPDATA%\MFMath\logs\`（`crash-*.log` + `app.log`），
-  并可通过「设置 → 存储与数据 → 导出诊断包」**由用户主动**交出。**不联网上报。**
-- **为什么**："数学工具的用户不该因为一次崩溃被上传任何东西。"
-- **代价**：① 我们**看不见**线上崩溃分布，只能等用户报；② 每次排障都要引导用户导日志；
-  ③ 隐私与可观测性之间的选择是**不可两全**的，这里选了隐私。
-- **现状**：诊断包导出可用（`sys` 宿主对象的方法之一）。
-- **出处**：`README.md` 的「已知边界」。
+代价：失效是静默的：DLL 照常加载，`function_exists` 照常能调，只是每个 action 都返回「未找到函数」。没有 `count` 断言，问题只会在用户报障时暴露。自建导出 DLL 并链 `MFMath::engine` 的消费方要自己重复加这一个链接选项。
 
-## D-009 复用站点能力，**不重建后端**
+现状：注册表在 Release 产物上是 424；引擎签名表副本 `MF_UI/MFMath.UI.Vue/src/lib/ai/engine-signatures.json` 是 96,794 字节 / 424 条，由 `tools/engine-signatures.mjs --check` 从 `MF_Mathematics/` 源码重建后对账。
 
-- **背景**：账号、组件清单、版本检测需要服务端。v1 有一套自建后端。
-- **决定**：**全部复用站点端点**（`mf-vis-science.cn`）；不重建用户系统，不重写下载能力，
-  不复用 v1 已废弃的 HTTP 层。
-- **代价**：① **客户端受站点发布节奏牵制** —— 线上未部署时功能就是半成品
-  （[OPEN-ITEMS.md](OPEN-ITEMS.md) §1 就是一个实例：`/api/token/refresh` 线上返回 404）；
-  ② 契约漂移由客户端承担（降级行为必须自己写好）。
-- **现状**：站点侧改动"已提交但未部署"，见 [OPEN-ITEMS.md](OPEN-ITEMS.md) §1。
-- **出处**：`docs/ACCOUNT.md`、[OPEN-ITEMS.md](OPEN-ITEMS.md) §5。
+```powershell
+& MF_Mathematics\build\bin\Release\probe_call.exe list_functions '{}'   # value.count = 424
+Select-String -Path MF_Mathematics/CMakeLists.txt -Pattern "WHOLEARCHIVE"
+npm --prefix MF_UI/MFMath.UI.Vue run check:signatures   # 源码 424 条 / 表 424 条
+```
 
-## D-010 跑端到端前必须**独占**宿主与 CDP 端口
+## AI 由页面直连
 
-- **背景**：48 个 CDP 用例跑在**一个真实的宿主会话**里，通过**一份** CDP 端口驱动页面。
-- **决定**（**2026-10-07**）：把"跑之前确认没有别的会话在驱动同一页面"从建议升级为**前置条件**
-  （[AGENTS.md](../AGENTS.md) §4）；用例自身也要检测干扰并打印 `INTERFERENCE`。
-- **为什么**：它已经**真的兑现过一次** —— 同一时刻起了两个 `mfmath-host-rust.exe`，
-  两个会话共用一个页面，结果是**一整套看起来像产品回归的假失败**
-  （`cdp-plot-accuracy` 设 `#/plot/2d` 却读到 `#/plot/vector`、`#/plot/fractal`），
-  并且**双向污染**：对方的跑批数字同样不可信。
-- **代价**：并行度下降 —— 端到端必须排队跑；长用例 `cdp-engine-coverage`（约 45 分钟）
-  要单独占一个时间窗，且**中途 Ctrl-C 会留下未取消的后台任务，让页面之后永久阻塞**。
-- **现状**：风险台账 [PROJECT-BOARD.md](PROJECT-BOARD.md) §3 **R1**（结案）/ **R4**。
-- **出处**：`MF_UI/BUGS.md` §0.3.1 的更正与 §0.3.2；提交 `b8872fa`。
+背景：AI 是唯一「请求形状由前端决定、且必须流式」的功能：请求体由页面组装，回复逐段显示，用户可中途停止。把它放进只能同步字符串往返的链接层无法满足流式与中断需求。
 
-## D-011 不提供 LICENSE（保留所有权利）
+决定：AI 整体归前端 TypeScript 侧：`src/lib/ai/` 下 8 个文件 / 2,372 行。页面直接发请求，SSE 分帧与中断都在 TS 里。凭据 `apiKey` 明文存 `%LOCALAPPDATA%\MFMath\settings\ai.json`，读写只借 `sys` 宿主对象，宿主侧没有 `ai` 桥（9 个宿主对象里不含 `ai`）。
 
-- **背景**：开源仓库通常带 MIT/Apache-2.0 等许可。
-- **决定**：**暂不提供许可证**，依默认版权规则**未经作者许可不得复制、修改或分发**。
-- **为什么**：作者保留后续授权方式的选择权 —— 这是**有意的**，不是忘了加。
-- **代价**：① 别人**不能合法**地拿去用/改/分发，包括公司内评估；
-  ② 仓库放在公开平台上但没有许可，容易让人误以为是开源（README 必须显式说明）。
-- **出处**：`README.md` 的「已知边界」最后一条。
+代价：DPAPI 密文换成明文文件，同机其它进程可读走密钥。界面把来源标成 `keySource: "file"`，只说明事实，不替用户保管。
 
-## D-012 引擎模式要么可达、要么显式登记
+现状：`tests/cdp-ai.mjs` 覆盖工具调用、SSE 分帧与「AI 不得成为计算源」。配置文件路径从 `sys.Info()` 的 `settingsDir` 拼出，读不到时退化成字面量路径并如实报错。
 
-- **背景**：引擎有 **424** 个 action，页面上能选到的模式（`ENGINE_MAP`）少于这个数。
-  中间那批"有实现但界面点不到"的模式，既不是 bug 也不是功能。
-- **决定**：判据收紧为**双向校验** —— 每个模式**要么能在某个页面选到**，
-  **要么显式登记进 `NOT_EXPOSED` 并写明原因**；登记了却又能选到的，报**"过时条目，请删除"**。
-- **为什么**：这项自检第一次跑就抓出 **64 个**"引擎有映射、页面根本选不到"的模式 ——
-  在此之前它们是**静默**的：`check-ui` 只打印"取不到 0 个"，看起来一切正常。
-- **代价**：① 每一个新模式都要在"接上界面"和"写清为什么不接"之间做个决定，**没有第三条路**；
-  ② 登记表需要维护，过时条目会让自检失败（这是**有意的**）。
-- **现状**：`NOT_EXPOSED` **现已为空**（每个引擎映射都能在某页面选到）；
-  另有 24 个**参数表悬空**的模式名字单独登记（`:324`）。
-- **出处**：`tools/check-ui.mjs:202-255`；`MF_UI/BUGS.md` B10。
+```powershell
+(Get-ChildItem MF_UI/MFMath.UI.Vue/src/lib/ai -Recurse -File -Include *.ts,*.js | Get-Content | Measure-Object -Line).Lines
+Select-String -Path MF_UI/MFMath.UI.Vue/src/lib/ai/bridge.js -Pattern "aiConfigPath|keySource"
+Select-String -Path MFMath.Host.Rust/src/main.rs -Pattern "HOST_OBJECTS"
+```
 
----
+## 绘图组由 React 实现
 
-## 怎么加一条 ADR
+背景：Vue 外壳内嵌独立 React 绘图工程（`MF_UI/MFMath.UI.React/`），它与外壳共用 `MFMath.UI.Vue/src/lib` 下与框架无关的纯 JS 计算 / 绘图库。绘图页有 7 个：2D、极坐标、3D、复平面、向量场、几何、分形。
 
-1. **先确认它是个决定，不是实现细节**。判据：**存在被放弃的替代方案**。没有替代方案 = 没得选 = 不是 ADR。
-2. **必须写代价**。写不出代价，说明你还没想清楚 —— 那就先别记。
-3. **日期**：能证实的写；证不到的写"（日期不可考）"并给出处。**不猜日期。**
-4. **出处**给到 `文件:行`、提交号或另一份文档的小节。
-5. 加完更新 §索引。
+决定：7 条 `/plot/*` 路由全部指向 `components/plot-react/ReactPlotView.vue`，由它按页面键动态 import 对应 React 组件。Vue 版 `src/views/plot/` 的 6 个 `.vue` 文件不删除，冻结为回退资产：不参与构建、不在类型检查范围、没有用例覆盖。冻结靠 `tools/check-ui.mjs` 的 `FROZEN_VUE_PLOT_FILES` 双向断言：目录里出现白名单外的文件或白名单文件消失，自检失败；同时确认没有文件 import 它们。
+
+代价：仓库留有一份不可达但需维护的代码，删除更干净但失去回退路径。迁移期只过类型检查不真跑，会漏掉只在运行期可见的失效；相关回归判据在 `tests/cdp-plot-*.mjs` 与 `tests/cdp-plot-workspace.mjs`。
+
+现状：自检输出「冻结的 Vue 绘图组：6/6 个文件在位，被 import 0 处」。React 工程 `src/` 下 37 个源文件 / 6,340 行，独立跑 `npm run check:types`（`tsc --noEmit`）。
+
+```powershell
+npm --prefix MF_UI/MFMath.UI.React run check:types
+(Get-ChildItem MF_UI/MFMath.UI.React/src -Recurse -File | Get-Content | Measure-Object -Line).Lines
+Select-String -Path MF_UI/MFMath.UI.Vue/tools/check-ui.mjs -Pattern "FROZEN_VUE_PLOT_FILES"
+```
+
+## 宿主是 Rust 与 Tauri
+
+背景：桌面外壳早期是 C# / WPF + WebView2（`MFMath.Host/`），第二次实现是 Rust + Tauri v2 + WebView2（`MFMath.Host.Rust/`）。两套并存意味着同一份桥面契约有两处实现。
+
+决定：现役宿主只有 `MFMath.Host.Rust/`；`MFMath.Host/` 不再演进，保留作迁移参考。接缝形状固定：
+
+- 窗口手工创建（`tauri.conf.json` 里 `create: false`），因为 Tauri 会强制指定 WebView2 数据目录，而 `app_local_data_dir()` 走 known-folder API、不读 `LOCALAPPDATA` 环境变量。宿主用 `data_directory()` 指定 `webview_data_dir()`。
+- 宿主对象走 COM：`with_webview()` 取 `ICoreWebView2` 再 `AddHostObjectToScript`，前端的同步调用原样可用。这否掉全异步 `invoke` 路线，`mf.Dispatch` 是采样链与绘图网格的热路径。Tauri 的 `invoke` 命令层已删。
+- UI 资产从 exe 同目录的 `wwwroot` 读，映射到 `https://mfmath.local/index.html`；`MF_WWWROOT` 可指向别处，`wwwroot` 缺失时退回 Tauri 内嵌资产。不内置 Vite dev server 集成。
+
+宿主对象表 `HOST_OBJECTS` 共 9 项 / 84 个方法：
+
+| 对象 | 方法数 | 内容 |
+| --- | ---: | --- |
+| `mf` | 16 | 引擎调用与异步 job 通道 |
+| `sys` | 8 | 设置、存储、诊断包导出 |
+| `diag` | 1 | 前端异常写入宿主日志 |
+| `win` | 9 | 窗口操作与文件对话框 |
+| `push` | 3 | 宿主到页面推送 |
+| `update` | 6 | 更新检查，只提示不自动安装 |
+| `account` | 19 | 用户系统，token 只在宿主 |
+| `search` | 12 | 联网搜索，App ID 只在宿主 |
+| `con` | 10 | 控制台与可选组件 |
+
+窗口行为与 C# 宿主对齐：无边框、1240×820、最小 980×640、DWM 圆角与投影、数据目录 `%LOCALAPPDATA%\MFMath`、CDP 端口 9222。
+
+代价：C# 宿主里的实现细节（桥面契约、DPAPI、搜索解析器）不再维护。`tests/run-all.ps1` 的宿主解析顺序是 `$env:MF_HOST_EXE` 再到 `..\..\..\MFMath.Host\bin\Release\net10.0-windows\MFMath.exe`，默认候选指向 C# 宿主产物；驱动 Rust 宿主需显式设 `MF_HOST_EXE` 或用 `-NoLaunch` 附着到已运行进程。安装到启动的路径尚未在真机验证，打包步骤见 [`PACKAGING.md`](../MFMath.Host.Rust/docs/PACKAGING.md)。
+
+现状：无头自检 `--selftest-jobs` 与 `--selftest-common` 不需要 WebView2，验收基线见 [`ACCEPTANCE.md`](../MFMath.Host.Rust/docs/ACCEPTANCE.md)。
+
+```powershell
+Select-String -Path MFMath.Host.Rust/src/main.rs -Pattern "MethodSpec \{ name:" | Measure-Object
+Select-String -Path MFMath.Host.Rust/src/main.rs -Pattern "HOST_OBJECTS"
+& MFMath.Host.Rust\target\release\mfmath-host-rust.exe --selftest-common
+```
+
+## 构建期自检
+
+背景：有一类缺陷不报错不崩溃：控件不存在却标「已完成」，模式有引擎映射却选不到，参数填了但引擎没收到，i18n 键漏译文。它们运行期表现成「点了没反应」，人工点查不可靠。
+
+决定：这类问题统一放进构建期自检。`npm run check` 的顺序是 `check:types` → `check:signatures` → `check:args` → `check:ui`，其中 `check:ui` 跑 `tools/build-tutorials.mjs`、`tools/check-ui.mjs`、`tools/check-examples.mjs`。当前实跑输出（exit 0）的关键行：
+
+| 检查项 | 结果 |
+| --- | --- |
+| 引擎模式可达性 | 映射 415 个 / 页面并集 391 个 / 取不到 0 个 |
+| 区间参数契约 | 10 个 handler / 命中 10 个 / 缺 interval 0 个 |
+| 冻结的 Vue 绘图组 | 6/6 个文件在位，被 import 0 处 |
+| 重名模式登记 | 已登记 24 个，未登记 0 个 |
+| i18n 模式名 | 415 个模式，缺译文 0 个 |
+| 教程引用 target | 30 个（已实现 30，待实现 0） |
+| 数学键盘 | 6 分类 / 126 键 |
+| 端到端用例 | cdp-* 48 个，已登记 48 个 |
+
+代价：自检本身是要维护的代码，`tools/check-ui.mjs` 35,468 字节；加界面、模式或 i18n 键都要同步登记。`check-ui.mjs` 不读引擎源码（那是树外路径），检查的是登记表，登记表写错它抓不到；真正读引擎源码对账的是 `tools/engine-signatures.mjs`。运行期才可见的行为（布局、绘制、交互时序）靠端到端用例，构建期自检替代不了。
+
+```powershell
+npm --prefix MF_UI/MFMath.UI.Vue run check
+(Get-Item MF_UI/MFMath.UI.Vue/tools/check-ui.mjs).Length
+```
+
+## 崩溃只写本地
+
+背景：桌面应用通常接崩溃上报服务，把崩溃、设备信息与调用栈汇总到服务端。数学工具的使用内容可以反推用户在研究什么。
+
+决定：崩溃与前端未捕获异常只写本地。日志目录是 `%LOCALAPPDATA%\MFMath\logs`，常规日志写 `app.log`（单文件 2 MB 轮转成 `app.1.log`），崩溃另写 `crash-*.log`（含环境、异常、backtrace 与最近 200 行 `app.log` 尾部），崩溃文件只留最近 20 个。用户可在「设置 → 存储与数据 → 导出诊断包」主动交出（`sys` 对象的 `ExportDiagnostics`）。不上报。
+
+代价：看不到线上崩溃分布，只能等用户报障。排障需引导用户导出日志。隐私与可观测性不可兼得，这里选隐私。
+
+```powershell
+Select-String -Path MFMath.Host.Rust/src/logging.rs -Pattern "MAX_BYTES|KEEP_CRASH_FILES|CRASH_TAIL_LINES"
+Select-String -Path MFMath.Host.Rust/src/main.rs -Pattern "install_panic_hook"
+```
+
+## 复用站点端点
+
+背景：账号、组件清单、版本检测需要服务端。早期版本有一套自建后端。
+
+决定：这些能力复用既有站点的 HTTP 端点，默认基址 `https://mf-vis-science.cn`（`MFMath.Host.Rust/src/site.rs` 的 `DEFAULT_BASE_URL`，超时默认 20 s，`normalize_base_url` 负责规范化）。端点路径以 `MFMath.Host.Rust/src/account.rs` 与 `site.rs` 为准：
+
+| 用途 | 路径 |
+| --- | --- |
+| 登录 / 登出 / 当前用户 | `/api/login`、`/api/logout`、`/api/me` |
+| 注册与验证码 | `/api/register`、`/api/send-code`、`/api/verify-code`、`/api/resend-code` |
+| 凭据续期与其它 | `/api/token/refresh`、`/api/change-password`、`/api/login-history`、`/api/version` |
+
+代价：客户端受站点发布节奏牵制，线上未部署某路由时对应功能就是半成品，降级行为需由客户端写好并在界面说明。契约漂移由客户端承担。
+
+现状：站点部署状态需从客户端核对，不凭印象写。本环境对该域名的外连未建立，因此本文不给出线上状态结论，只给出核对方法：对一个已部署的 `POST` 端点，期望返回不是 404。
+
+```powershell
+Select-String -Path MFMath.Host.Rust/src/account.rs -Pattern "/api/"
+Invoke-WebRequest -Method Post -Uri https://mf-vis-science.cn/api/token/refresh -SkipHttpErrorCheck
+```
+
+## 不提供许可证
+
+背景：公开仓库通常带 MIT / Apache-2.0 一类许可证，读者默认公开即可自由使用。
+
+决定：仓库根没有 `LICENSE` 或 `COPYING` 文件，依默认版权规则保留所有权利：未经作者许可不得复制、修改或分发。README 的「许可证」一节显式写明这一点。
+
+代价：他人不能合法使用、修改或分发，包括评估，需先取得作者许可。仓库放在公开平台却没有许可证，易被误认为开源，因此 README 显式说明。这是作者保留后续授权选择权，不是漏加文件。
+
+```powershell
+Get-ChildItem -File | Where-Object { $_.Name -match 'LICENSE|COPYING' }
+Select-String -Path README.md -Pattern "许可证"
+```
