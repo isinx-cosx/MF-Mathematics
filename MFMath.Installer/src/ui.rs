@@ -92,6 +92,14 @@ static STATE: Mutex<Option<State>> = Mutex::new(None);
 static WORKING: AtomicBool = AtomicBool::new(false);
 static PROGRESS_POS: AtomicIsize = AtomicIsize::new(0);
 
+/// 当前在哪一页。主按钮的含义随页变化，必须明确记录：
+/// 选项页是「安装/卸载」，完成页是「关闭」。
+/// （曾经用 `WORKING` 兼职表示页面，结果完成页点「关闭」又触发了一次安装。）
+const PAGE_OPTIONS: isize = 0;
+const PAGE_WORKING: isize = 1;
+const PAGE_DONE: isize = 2;
+static PAGE: AtomicIsize = AtomicIsize::new(PAGE_OPTIONS);
+
 static ICON_CTL: AtomicIsize = AtomicIsize::new(0);
 static TITLE_CTL: AtomicIsize = AtomicIsize::new(0);
 static SUBTITLE_CTL: AtomicIsize = AtomicIsize::new(0);
@@ -237,6 +245,7 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) 
             let text = Box::from_raw(lp.0 as *mut String);
             let ok = wp.0 == 0;
             WORKING.store(false, Ordering::SeqCst);
+            PAGE.store(PAGE_DONE, Ordering::SeqCst);
             unsafe {
                 let _ = KillTimer(Some(hwnd), TIMER_PROGRESS);
                 let pb = h(&PROGRESS_CTL);
@@ -282,11 +291,15 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) 
                     }
                 }
                 ID_BTN_PRIMARY => {
-                    if WORKING.load(Ordering::SeqCst) {
-                        // 干活期间主按钮是灰的，走到这里说明已完成 → 关窗。
-                        let _ = DestroyWindow(hwnd);
-                    } else {
-                        begin_work(hwnd);
+                    match PAGE.load(Ordering::SeqCst) {
+                        // 完成页：关窗。
+                        PAGE_DONE => {
+                            let _ = DestroyWindow(hwnd);
+                        }
+                        // 选项页：开始干活。
+                        PAGE_OPTIONS => begin_work(hwnd),
+                        // 干活期间按钮是灰的，正常点不到。
+                        _ => {}
                     }
                 }
                 ID_BTN_CANCEL => {
@@ -361,6 +374,7 @@ fn begin_work(hwnd: HWND) {
     }
 
     WORKING.store(true, Ordering::SeqCst);
+    PAGE.store(PAGE_WORKING, Ordering::SeqCst);
     PROGRESS_POS.store(0, Ordering::SeqCst);
     show_options_page(false);
     set_text(h(&STEP_CTL), if is_uninstall { "正在卸载…" } else { "正在安装…" });
