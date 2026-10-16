@@ -17,7 +17,7 @@
 
 ---
 
-## 1. 一句话状态
+## 1. 当前状态
 
 **代码在快速推进，文档在追赶，git 有 59 个提交没推（D2：决定先不推）。**
 
@@ -105,7 +105,7 @@
 **我的判断（未定案，需 B 面复跑确认）**：失败特征集中在
 **"字体传输量 0 KB"、"KaTeX 一个字都没渲染"、"分形页 `no-btn`（按钮不存在）"** ——
 这更像**被测页面产物不对**（旧 `dist` / 没重新同步的 `wwwroot` / 跑的不是最新 `wwwroot`），
-而不是 6 处互不相关的功能同时回归。`BUGS.md` §0.2 自己也写了同类的坑（沙箱、`TEMP`、esbuild 收尾失败）。
+而不是 6 处互不相关的功能同时回归。`BUGS.md` §0.2 自己也写了同类的问题（沙箱、`TEMP`、esbuild 收尾失败）。
 另一条同样成立的解释：**`BUGS.md` 的那份"全绿"是在另一个产物上跑的**（写在本次跑批之前）。
 
 **无论哪种，都不能靠推断结案** —— 需要一次产物时间戳与跑批结果都记录在案的复跑。
@@ -371,7 +371,7 @@ grep -c 'ONLINE-SEARCH\.md|ACCOUNT\.md|UPDATE-CHAIN\.md|SETTINGS-BACKUP\.md'
 
 1. **README 的 CTest 数字自相矛盾**：原文写"16 个 CTest 套件 + 4 个探针（共 19 个可执行目标）"，
    而实测是 **19 个可执行目标 = 15 个 `test_*.cpp` + 4 个 `probe_*.cpp`，其中 16 个注册进 CTest**
-   （`grep add_test MF_Mathematics/CMakeLists.txt` 得 16 条）。两个划分被混在一句话里 —— 已更正。
+   （`grep add_test MF_Mathematics/CMakeLists.txt` 得 16 条）。两个划分被混在同一句里 —— 已更正。
 2. **README 的"无安装包"已过期**：Rust 侧实测**能**出 NSIS 包（11.11 MiB），只是"安装 → 启动"未验证。
    已改成"能出，但没验过"，并保留"三步构建仍是唯一被实测跑通的路径"这句 ——
    见 [PACKAGING.md](../MFMath.Host.Rust/docs/PACKAGING.md) 与 [DESIGN-BOUNDARIES.md](DESIGN-BOUNDARIES.md) §5。

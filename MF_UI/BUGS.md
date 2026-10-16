@@ -135,7 +135,7 @@
 | # | 状态 | 做了什么 | 怎么验的 |
 |---|---|---|---|
 | **B14** | ✅ **已修** | 新增 `MFMath.UI.React/src/lib/plotWorkspace.ts`（`loadPlotPage` / `savePlotPage` / `usePlotWorkspace` + 一组"工作区文件是用户可手改的"取值守卫），并给 **6 个绘图页全部接上**：2D/极坐标（`kind:"plot"`，载荷形状与 Vue 版 `capturePlot()` **逐字一致**，老工作区文件仍可读）、3D、复平面、向量场、几何、分形。`ReactPlotView.vue` 现在给 2D/极坐标也传 `routePath`（工作区按 `route.path` 分页存，以前这两页只传了 `gridMode`，所以连存的键都没有） | `cdp-workspace` **21/4 → 25/0**、`cdp-shortcuts-prefs` **22/1 → 23/0** ✅ |
-| **B15** | ✅ **已修** | `PlotPage` 的 `exportImage()` 原先**丢掉 `exportCanvas()` 的返回值**。现在把结果写进页内状态行（`已导出图片：<路径>（尺寸，大小）` / `已取消导出` / `导出失败：<原因>`），并顺手修掉写死的 `routePath:"#/plot/2d"`（极坐标页导出的文件名也是它）。另外 5 页**本来就报**导出结果，不用改 | `cdp-export-image` **43/2 → 45/0** ✅ |
+| **B15** | ✅ **已修** | `PlotPage` 的 `exportImage()` 原先**丢掉 `exportCanvas()` 的返回值**。现在把结果写进页内状态行（`已导出图片：<路径>（尺寸，大小）` / `已取消导出` / `导出失败：<原因>`），并一并修掉写死的 `routePath:"#/plot/2d"`（极坐标页导出的文件名也是它）。另外 5 页**本来就报**导出结果，不用改 | `cdp-export-image` **43/2 → 45/0** ✅ |
 | **B13** | ✅ **已修**（推翻了先前"只留记录"的决定） | `PlotPage.tsx` 的 `curves` memo：`emphasis: r.emphasis` → `emphasis: r.id === activeId`。字段的**消费方一直都在**（`PlotCanvas.tsx:224` 的 `lineWidth = c.emphasis ? 4 : 2.5`），缺的是生产方 | `tsc` 通过；绘图组 12 条套件全绿（含几何/极值/连续性） |
 | **B5** | ✅ **已完成** | ① 复平面页：`fetchGrid`/`fetchConformalGrids` 改 async + `shouldRunAsync`/`engineCallAsync`/进度——它的唯一调用点 `apply()` **本来就是 async**，级联只有一个 `await`（`complex_grid` 分辨率上限 1000 ⇒ 最多 1e6 点，真的会越过 2.5e5 阈值）。② 3D / 向量场 / 网格采样三处**刻意保持同步并写明理由**：规模分别是 96²=9216、41²=1681、180²=32400，都由 UI 自己的滑块上界封住、**恒低于** 2.5e5 阈值（`shouldRunAsync` 恒 false，接异步只是空转），并注明"若把上界提到 500 以上必须改回异步"。③ 抽出共用的 `lib/jobProgress.ts`（`JobProgress` 原先只在分形页有一份本地定义） | `cdp-complex-modes` 21/0 ✅、`cdp-plot-extrema*` / `cdp-plot-3d` / `cdp-plot-vector` 全绿 |
 | **B4** | ✅ **已完成**（含前置的样本补齐） | ① **先补样本**：探针查出只有 **10 个页面模式**（不是原先估的 32 个）会走到"必填兜底"，已全部补进 `mode-samples.mjs`（段序 = args 声明顺序，每条都用**真引擎**验过）。② 再把 `CalcView` 的"兜底后照算 + 一句警告"改成**拒绝计算**：`missingRequiredText()` 给出"缺哪些参数 + 怎么补"（有弹窗的指弹窗、没弹窗的指 `;` 分段语法），不再调用引擎。③ 随之删掉已无用的 `warn` 字段 / 模板分支 / `.cb-warn` 样式 / 旧译文，新增 3 条 i18n | 影响面复测 **10 → 0**；`audit-modes` **393/0**（真引擎）；`cdp-calc-workspace` 65/0、`cdp-modes-render` 190/0、`cdp-basic-calc` 41/0、`cdp-engine-solve` 13/0 ✅ |
@@ -451,7 +451,7 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File tests\run-all.ps1 -NoLaunch
 
 ## 0. 汇总（按严重度排序）
 
-| # | 级别 | 状态 | 位置 | 一句话 |
+| # | 级别 | 状态 | 位置 | 摘要 |
 |---|---|---|---|---|
 | **B1** | **P1** | ✅ 已修 | `lib/engine/engineMapExtra.js` + `real_analysis_api.cpp:35` | **10 个可达模式的「区间」参数永远无效**，恒定 `[0,1]`：键名契约失配，用户填了也不生效 |
 | **B2** | **P1** | ✅ 已修 | `lib/engine/engineMapExtra.js` + `calcArgs.js` | 概率四模式：`;` 双语义 + 字段错位 ⇒ **弹窗自带的默认示例直接点计算就是错的**；另含 B2③ `解不等式/组` 被截断 |
@@ -746,7 +746,7 @@ function fallbackOf(type) {
   任何测试用它）。
 
 **仍未接（建议单独一轮）**：React 的 `PlotComplexPage` / `Plot3DPage` / `PlotVectorPage`
-与 `usePlotSampling:204`。之所以不顺手改：
+与 `usePlotSampling:204`。之所以不一并修改：
 - `PlotComplexPage.fetchGrid` / `fetchConformalGrids` 是**同步函数且会 throw**，被绘制路径
   直接调用；改成 async 会级联到整条绘制链（573 行的画布组件），属结构性重构而非接线；
 - `asyncPolicy.js:12-15` 明确要求"**绘图页每条曲线一次的采样保持同步**"（毫秒级，且 await
@@ -1131,7 +1131,7 @@ Hahn-Banach 延拓 → Hahn-Banach定理       解不等式组      → 解不�
 > 关于"顺带给 `ReactPlotView` 接上 `onStatusText`"：**没做**，原因说清楚 ——
 > 外壳的状态栏由 Vue 的 `App.vue` 用 `statusText` 这个 ref 持有，React 子树拿不到它；
 > 硬接要么写 DOM（`#statusText`，会被 Vue 下次渲染覆盖，属 hack）、要么为此引一个 store/事件通道，
-> 收益只是"同一句话多显示一处"，不值得。页内状态行（测试读的也是它）已经把用户可见的问题解决了。
+> 收益只是"同一处信息多显示一遍"，不值得。页内状态行（测试读的也是它）已经把用户可见的问题解决了。
 
 ---
 
@@ -1290,7 +1290,7 @@ React 版没有这个效果。
 - **画布侧仍在消费它**，所以这不是"字段没人用"，而是"产的人没了"：
   `PlotCanvas.tsx:224` `ctx.lineWidth = c.emphasis ? 4 : 2.5`（另见 `:307`、`:437`）。
 
-**为什么当时没顺手修**：修它是一处**行为变化**（线宽会随选中行改变），而 B6 那轮的任务边界
+**为什么当时没有一并修改**：修它是一处**行为变化**（线宽会随选中行改变），而 B6 那轮的任务边界
 明确是"不改运行时行为"，所以那一轮只把 `emphasis?: boolean` 声明到 `Expr` 上、让既有透传
 通过类型检查，并把它登记下来（`ExpressionList.tsx:15-19` 也留了同样的说明）。
 

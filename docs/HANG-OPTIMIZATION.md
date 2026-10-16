@@ -100,7 +100,7 @@ get_int_opt_bounded`（越界时抛出说明性错误，并解释"为什么有�
 还有一处**先崩溃后定位**的：`gaussian_blur` 的高斯核长由 `sigma` 决定，
 `(int)(2*ceil(3σ))+1` 在 `σ=1e9` 时整数溢出成一个非法尺寸 → 直接爆内存；已改为按 double 判上限。
 
-## 2. 顺手做掉的算法优化
+## 2. 一并完成的算法优化
 
 `generate_sigma_algebra`：成员判定原来每次线性扫描 |σ| 个集合，而并集枚举本身是
 O(|σ|²) → 整体 O(|σ|³)。12 个生成元（|σ|=4096）实测 **9.7 秒**。
@@ -129,7 +129,7 @@ probability 63、real_analysis 52、symbolic_contract 167）。
 **准确性套件**（`../Multifunctional-Mathematics/MF_Mathematics/tests/accuracy/`，28 个 `.py` + `report.json`，独立参考实现 mpmath/sympy/numpy/scipy 对拍）：
 **2180 通过 / 0 失败 / 0 跳过，action 覆盖 424/424**。
 
-### 3.1 收口时踩的坑（值得记：**上限归引擎，下限归核心**）
+### 3.1 收口时遇到的问题（值得记：**上限归引擎，下限归核心**）
 
 第一版把 82 处取参统一换成 `get_int_bounded(lo, hi)`，**下限也一起收了**。
 准确性套件立刻报出 21 处失败——全是把**合法输入**挡在门外：

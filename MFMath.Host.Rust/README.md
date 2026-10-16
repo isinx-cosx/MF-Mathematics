@@ -71,7 +71,7 @@ powershell -ExecutionPolicy Bypass -File <仓库>\MF_UI\MFMath.UI.Vue\tests\run-
 
 ⚠ 必须用 **`pwsh`(7)** 或给脚本补上 UTF-8 BOM 后再用 `powershell`(5.1)：该脚本满是中文注释却
 原本没有 BOM，5.1 会按 ANSI 读、直接解析失败（`Missing expression after ','` 那一串，一行用例都跑不了）。
-本目录已顺手给它加了 BOM（见提交 `3ba3447`）。
+本目录已一并给它加了 BOM（见提交 `3ba3447`）。
 
 ---
 
@@ -89,7 +89,7 @@ node "$H\tools\crates-proxy.mjs"                       # ③ 取包代理，见�
 cd $H; cargo build
 ```
 
-`cargo build` 会顺手做三件事（`build.rs`，**只在新的时候拷、缺了只警告**）：
+`cargo build` 会一并做三件事（`build.rs`，**只在新的时候拷、缺了只警告**）：
 
 1. 引擎产物（`mf_mathematics.dll` + 5 个依赖）→ exe 同目录；
 2. `MF_UI/MFMath.UI.Vue/dist` → `<exe 同目录>/wwwroot`；

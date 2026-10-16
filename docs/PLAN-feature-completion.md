@@ -491,7 +491,7 @@
 
 **顺带确认的两件"死模块"**：
 - `ode_core.pyd`：**零调用点**（`ode_solver.py` 全文不 import 它，用纯 numpy 重实现）→ 直接删。
-- `trap.pyd`：**零调用点**，无源码；二进制分析确认只暴露 `trapezoidal(py::function,double,double,int)`。唯一提及是 `numerical_integration.py:68` 一条**过时报错文案**（真正的 import 在 `:17` 加载 `numerical_core`）→ 删，并顺手改掉那条误导文案。
+- `trap.pyd`：**零调用点**，无源码；二进制分析确认只暴露 `trapezoidal(py::function,double,double,int)`。唯一提及是 `numerical_integration.py:68` 一条**过时报错文案**（真正的 import 在 `:17` 加载 `numerical_core`）→ 删，并一并修正那条误导文案。
 
 **精度语义确认**（否定了此前的担心）：
 - **不存在**"新引擎走高精度/有理数、`.pyd` 走 double"的整体对立；
@@ -504,7 +504,7 @@
 
 | 档 | 文件 | 前置条件 |
 | --- | --- | --- |
-| **A 档（可立即删）** | `ode_core.pyd`、`trap.pyd` | 无。两者**全树零调用点**：`ode_solver.py` 完全绕过 `ode_core`（改用纯 numpy），`trap.pyd` 唯一提及是 `numerical_integration.py:68` 一条**过时文案**（真正加载的是 `numerical_core`，顺手改掉该文案） |
+| **A 档（可立即删）** | `ode_core.pyd`、`trap.pyd` | 无。两者**全树零调用点**：`ode_solver.py` 完全绕过 `ode_core`（改用纯 numpy），`trap.pyd` 唯一提及是 `numerical_integration.py:68` 一条**过时文案**（真正加载的是 `numerical_core`，一并修正该文案） |
 | **A 档（可立即删）** | `interpolation_core.pyd`、`matrix_core.pyd`、`numerical_core.pyd`、`optimization_core.pyd` | 无。内核已通过 `*_core.h` 编入 DLL（`interpolation.cpp:10`、`numerical_integration.cpp:9`；`CMakeLists.txt:56-62` 不含任何 `*_core.cpp`），删除不影响 v2.0 构建 |
 | **B 档（先补再删）** | `matrix_core.pyd` 的三个迭代解法 | 先补 `iterations`（§5.1 前置修改） |
 | **C 档（可删但必须同时改源码）** | `inner_product.dll` | 必须同时删除或改正 `linear_algebra/liner_product.cpp`；另需确认"精确点积"用例归属（§5.1.3） |
