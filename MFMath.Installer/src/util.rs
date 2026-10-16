@@ -6,12 +6,27 @@ use std::sync::atomic::{AtomicBool, Ordering};
 /// 静默模式（`/S`）：抑制全部输出。
 static SILENT: AtomicBool = AtomicBool::new(false);
 
+/// 输出改道目标。图形界面模式下指向窗口；终端模式下为空，走 stdout。
+type Sink = std::sync::Arc<dyn Fn(&str) + Send + Sync>;
+static SINK: std::sync::Mutex<Option<Sink>> = std::sync::Mutex::new(None);
+
 pub fn set_silent(v: bool) {
     SILENT.store(v, Ordering::SeqCst);
 }
 
 pub fn is_silent() -> bool {
     SILENT.load(Ordering::SeqCst)
+}
+
+/// 把后续输出交给 `f`（界面线程用它把进展显示到窗口里）。
+pub fn set_sink(f: impl Fn(&str) + Send + Sync + 'static) {
+    if let Ok(mut g) = SINK.lock() {
+        *g = Some(std::sync::Arc::new(f));
+    }
+}
+
+fn sink() -> Option<Sink> {
+    SINK.lock().ok().and_then(|g| g.clone())
 }
 
 pub const PRODUCT_NAME: &str = "Multifunctional-Mathematics";
@@ -27,21 +42,30 @@ pub const MANIFEST_NAME: &str = "manifest.json";
 pub const UNINSTALL_KEY: &str =
     r"Software\Microsoft\Windows\CurrentVersion\Uninstall\Multifunctional-Mathematics";
 
-/// 带刷新的输出。安装器是交互式程序，输出不能留在缓冲区里。
+/// 报告一行进展。界面模式下送进窗口，终端模式下写 stdout。
 pub fn say(msg: &str) {
     if is_silent() {
         return;
     }
-    println!("{msg}");
-    use std::io::Write;
-    let _ = std::io::stdout().flush();
+    match sink() {
+        Some(f) => f(msg),
+        None => {
+            println!("{msg}");
+            use std::io::Write;
+            let _ = std::io::stdout().flush();
+        }
+    }
 }
 
+/// 报告一条警告。界面模式下与普通进展同样显示 —— 用户只看得到一个窗口。
 pub fn warn(msg: &str) {
     if is_silent() {
         return;
     }
-    eprintln!("{msg}");
+    match sink() {
+        Some(f) => f(msg),
+        None => eprintln!("{msg}"),
+    }
 }
 
 pub fn local_app_data() -> PathBuf {

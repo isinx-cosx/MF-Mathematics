@@ -10,6 +10,7 @@ mod pack;
 mod payload;
 mod registry;
 mod shortcut;
+mod ui;
 mod uninstall;
 mod util;
 mod webview2;
@@ -181,20 +182,46 @@ fn run(args: &Args) -> Result<()> {
         if !args.from_temp {
             // 运行中的 exe 删不掉自己所在的目录，优先转到临时副本里执行；
             // 临时目录不可写时退回原地卸载。
+            // 这一步放在建窗之前：转交成功就直接退出，免得先闪一个"完成"窗口，
+            // 而真正干活的是子进程。
             if uninstall::respawn_from_temp(&dir, args.purge, args.silent)? {
                 return Ok(());
             }
         }
-        return uninstall::run(&uninstall::Options {
-            dir: Some(dir),
-            purge: args.purge,
+        let purge = args.purge;
+        return dispatch_ui(args, "卸载 Multifunctional-Mathematics", move || {
+            uninstall::run(&uninstall::Options {
+                dir: Some(dir),
+                purge,
+            })
         });
     }
 
-    install::run(&install::Options {
+    let opts = install::Options {
         dir: args.dir.clone().unwrap_or_else(util::default_install_dir),
         force: args.force,
-    })
+    };
+    dispatch_ui(
+        args,
+        "安装 Multifunctional-Mathematics",
+        move || install::run(&opts),
+    )
+}
+
+/// 按运行场景选择界面形态。
+///
+/// * `/S` —— 静默，不建窗口也不输出；
+/// * 从终端运行（控制台被终端共享）—— 保留文字输出，脚本与排障靠它；
+/// * 双击运行（控制台是本进程独有的黑框）—— 丢掉黑框，建自己的窗口。
+fn dispatch_ui<F>(args: &Args, title: &str, job: F) -> Result<()>
+where
+    F: FnOnce() -> Result<()> + Send + 'static,
+{
+    if args.silent || !ui::console_is_ours_alone() {
+        return job();
+    }
+    ui::detach_console();
+    ui::run(title, job)
 }
 
 fn show_error(msg: &str) {

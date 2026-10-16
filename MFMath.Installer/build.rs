@@ -44,6 +44,38 @@ fn main() {
 
     let out_dir = std::path::PathBuf::from(std::env::var("OUT_DIR").expect("OUT_DIR"));
     let rc_path = out_dir.join("installer.rc");
+    let manifest_path = out_dir.join("installer.manifest");
+
+    // 应用程序清单。没有它，Windows 会加载 comctl32 v5，进度条与按钮都是老式外观
+    // （进度条会画成一段一段的方块）。清单里同时声明：
+    //   · comctl32 v6 —— 新版控件外观；
+    //   · asInvoker —— 不请求管理员权限（每用户安装）；
+    //   · 系统级 DPI 感知 —— 高 DPI 下由系统整体缩放，固定像素布局不会错位。
+    let manifest = r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0">
+  <assemblyIdentity type="win32" name="Multifunctional-Mathematics.Installer" version="1.0.0.0" processorArchitecture="*"/>
+  <dependency>
+    <dependentAssembly>
+      <assemblyIdentity type="win32" name="Microsoft.Windows.Common-Controls" version="6.0.0.0" processorArchitecture="*" publicKeyToken="6595b64144ccf1df" language="*"/>
+    </dependentAssembly>
+  </dependency>
+  <trustInfo xmlns="urn:schemas-microsoft-com:asm.v3">
+    <security>
+      <requestedPrivileges>
+        <requestedExecutionLevel level="asInvoker" uiAccess="false"/>
+      </requestedPrivileges>
+    </security>
+  </trustInfo>
+  <application xmlns="urn:schemas-microsoft-com:asm.v3">
+    <windowsSettings>
+      <dpiAware xmlns="http://schemas.microsoft.com/SMI/2005/WindowsSettings">true</dpiAware>
+    </windowsSettings>
+  </application>
+</assembly>
+"#;
+    std::fs::write(&manifest_path, manifest).expect("写清单");
+    // 清单路径同样要用双反斜杠。
+    let manifest_rc = manifest_path.to_string_lossy().replace('\\', "\\\\");
 
     let rc = format!(
         r#"// 由 build.rs 生成，请勿手工编辑
@@ -51,6 +83,9 @@ fn main() {
 // 不声明码页的话中文（例如 FileDescription）会变成乱码导致编译失败。
 #pragma code_page(65001)
 1 ICON "{icon}"
+
+// 应用程序清单：RT_MANIFEST(=24)，EXE 用 ID 1。
+1 24 "{manifest}"
 
 // 资源 ID 必须写字面 1：`VS_VERSION_INFO` 是 windows.h 里的宏（值为 1），
 // 本文件刻意不包含头文件，若直接写那个名字会被当成字符串名而不是 ID，
@@ -85,6 +120,7 @@ BEGIN
 END
 "#,
         icon = icon,
+        manifest = manifest_rc,
         major = major,
         minor = minor,
         patch = patch,
