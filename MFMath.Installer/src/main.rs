@@ -189,39 +189,54 @@ fn run(args: &Args) -> Result<()> {
             }
         }
         let purge = args.purge;
-        return dispatch_ui(args, "卸载 Multifunctional-Mathematics", move || {
-            uninstall::run(&uninstall::Options {
-                dir: Some(dir),
-                purge,
-            })
-        });
+        let console_dir = dir.clone();
+        return dispatch(
+            args,
+            ui::Job::Uninstall { dir },
+            move || {
+                uninstall::run(&uninstall::Options {
+                    dir: Some(console_dir),
+                    purge,
+                })
+            },
+        );
     }
 
-    let opts = install::Options {
-        dir: args.dir.clone().unwrap_or_else(util::default_install_dir),
-        force: args.force,
-    };
-    dispatch_ui(
+    let dir = args.dir.clone().unwrap_or_else(util::default_install_dir);
+    let force = args.force;
+    let (console_dir, console_force) = (dir.clone(), force);
+    dispatch(
         args,
-        "安装 Multifunctional-Mathematics",
-        move || install::run(&opts),
+        ui::Job::Install {
+            default_dir: dir,
+            force,
+        },
+        move || {
+            // 终端与静默模式没有界面可问，取默认值：建桌面快捷方式、装完不启动。
+            install::run(&install::Options {
+                dir: console_dir,
+                force: console_force,
+                desktop_shortcut: true,
+                run_after: false,
+            })
+        },
     )
 }
 
 /// 按运行场景选择界面形态。
 ///
-/// * `/S` —— 静默，不建窗口也不输出；
+/// * `/S` —— 静默，不建窗口也不输出，直接跑 `console_job`；
 /// * 从终端运行（控制台被终端共享）—— 保留文字输出，脚本与排障靠它；
 /// * 双击运行（控制台是本进程独有的黑框）—— 丢掉黑框，建自己的窗口。
-fn dispatch_ui<F>(args: &Args, title: &str, job: F) -> Result<()>
+fn dispatch<F>(args: &Args, job: ui::Job, console_job: F) -> Result<()>
 where
     F: FnOnce() -> Result<()> + Send + 'static,
 {
     if args.silent || !ui::console_is_ours_alone() {
-        return job();
+        return console_job();
     }
     ui::detach_console();
-    ui::run(title, job)
+    ui::run(job)
 }
 
 fn show_error(msg: &str) {

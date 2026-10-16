@@ -1,18 +1,18 @@
-//! 安装器的图形界面。
+//! 安装器的图形界面：选项页 → 进度页 → 完成页。
 //!
-//! 双击运行时，Windows 会为控制台子系统的 exe 分配一个黑框。安装器不该长那样，
+//! 双击运行时 Windows 会给控制台子系统的 exe 分配一个黑框。安装器不该长那样，
 //! 所以在这种情形下先 `FreeConsole` 丢掉黑框，再建自己的窗口。
 //!
-//! 从终端运行时保留文字输出（脚本与排障都靠它），不建窗口。
+//! 从终端运行时保留文字输出（脚本与排障靠它），不建窗口。
 //! 判断依据是 `GetConsoleProcessList` 的返回数：只有自己一个进程，说明黑框是
 //! 双击时新建的；多于一个说明终端在共享它。
 //!
-//! 界面只用纯 Win32 控件（STATIC / BUTTON / msctls_progress32），不引入 GUI 框架：
-//! 安装器只需要一个进度条加几行字。
+//! 界面只用纯 Win32 控件，不引入 GUI 框架。
 //!
-//! 控件类名与文字都先转成宽字符串再取指针 —— 本项目的 `windows` 版本里
-//! `w!` 宏不可用。
+//! 几个与 rc/Windows 版本相关的注意点写在各自位置：`w!` 宏在本项目的
+//! `windows` 版本里不可用，控件类名统一用 `util::wide` 取指针。
 
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicIsize, Ordering};
 use std::sync::Mutex;
 
@@ -20,50 +20,97 @@ use anyhow::Result;
 use windows::core::PCWSTR;
 use windows::Win32::Foundation::{HINSTANCE, HWND, LPARAM, LRESULT, WPARAM};
 use windows::Win32::Graphics::Gdi::{
-    GetStockObject, InvalidateRect, SetBkMode, UpdateWindow, COLOR_WINDOW, DEFAULT_GUI_FONT,
-    HBRUSH, TRANSPARENT, WHITE_BRUSH,
+    CreateFontW, DeleteObject, GetStockObject, InvalidateRect, SetBkMode, SetTextColor,
+    UpdateWindow, COLOR_WINDOW, DEFAULT_GUI_FONT, FONT_CHARSET, FONT_CLIP_PRECISION, FONT_QUALITY,
+    FONT_OUTPUT_PRECISION, HBRUSH, HGDIOBJ, TRANSPARENT, WHITE_BRUSH,
+};
+use windows::Win32::System::Com::{
+    CoCreateInstance, CoInitializeEx, CoTaskMemFree, CLSCTX_INPROC_SERVER,
+    COINIT_APARTMENTTHREADED,
 };
 use windows::Win32::System::Console::{FreeConsole, GetConsoleProcessList, GetConsoleWindow};
 use windows::Win32::System::LibraryLoader::GetModuleHandleW;
-use windows::Win32::UI::Controls::{InitCommonControlsEx, INITCOMMONCONTROLSEX, ICC_PROGRESS_CLASS};
+use windows::Win32::UI::Controls::{
+    InitCommonControlsEx, IsDlgButtonChecked, INITCOMMONCONTROLSEX, ICC_PROGRESS_CLASS,
+};
 use windows::Win32::UI::Input::KeyboardAndMouse::{EnableWindow, SetFocus};
+use windows::Win32::UI::Shell::{
+    FileOpenDialog, IFileOpenDialog, FOS_FORCEFILESYSTEM, FOS_PICKFOLDERS, SIGDN_FILESYSPATH,
+};
 use windows::Win32::UI::WindowsAndMessaging::*;
 
 use crate::util;
 
-/// 自定义消息：子线程通过它把状态发回界面线程。
+// ── 控件 ID ────────────────────────────────────────────────────────────────
+const ID_ICON: usize = 1000;
+const ID_TITLE: usize = 1001;
+const ID_SUBTITLE: usize = 1002;
+const ID_LABEL_PATH: usize = 1003;
+const ID_PATH_EDIT: usize = 1004;
+const ID_BROWSE: usize = 1005;
+const ID_CHK_DESKTOP: usize = 1006;
+const ID_CHK_RUN: usize = 1007;
+const ID_CHK_PURGE: usize = 1008;
+const ID_STEP: usize = 1009;
+const ID_BTN_PRIMARY: usize = 1010;
+const ID_BTN_CANCEL: usize = 1011;
+
+// ── 消息与常量 ─────────────────────────────────────────────────────────────
 const WM_APP_STEP: u32 = WM_APP + 1;
 const WM_APP_DONE: u32 = WM_APP + 2;
 
-/// 进度条的控件消息（comctl32）。
 const PBM_SETPOS: u32 = 0x0402;
 const PBM_SETSTATE: u32 = 0x0410;
-/// `PBST_NORMAL` / `PBST_ERROR`
 const PBST_NORMAL: usize = 0x0001;
 const PBST_ERROR: usize = 0x0002;
-/// 推进进度的计时器。
+
 const TIMER_PROGRESS: usize = 1;
-/// 进度条在完成前的上限。装到 90% 等着，剩下的留给"收尾"，
-/// 免得进度条先跑到 100 然后卡住不动。
 const PROGRESS_CAP: isize = 90;
-/// `SS_LEFT` —— 注意它的值是 **0**，不是 1（1 是 `SS_CENTER`）。
+
+/// `SS_LEFT` 的值是 **0**（1 是 `SS_CENTER`）。
 const SS_LEFT: u32 = 0x0000_0000;
-/// `BS_DEFPUSHBUTTON`
+const SS_ICON: u32 = 0x0000_0003;
 const BS_DEFPUSHBUTTON: u32 = 0x0000_0001;
+const BS_AUTOCHECKBOX: u32 = 0x0000_0003;
+const ES_AUTOHSCROLL: u32 = 0x0000_0080;
 
-const ID_CLOSE: usize = 1001;
+/// 子线程要干的活。
+pub enum Job {
+    Install { default_dir: PathBuf, force: bool },
+    Uninstall { dir: PathBuf },
+}
 
-/// 控件句柄。窗口只有一个，用静态量传递最省事。
-static STEP_LABEL: AtomicIsize = AtomicIsize::new(0);
-static PROGRESS: AtomicIsize = AtomicIsize::new(0);
-static CLOSE_BUTTON: AtomicIsize = AtomicIsize::new(0);
-static WORKING: AtomicBool = AtomicBool::new(true);
-/// 进度条当前位置（0–100）。由界面线程的计时器推进。
+/// 界面状态。只在界面线程读写。
+struct State {
+    job: Job,
+    desktop: bool,
+    run_after: bool,
+    purge: bool,
+}
+
+static STATE: Mutex<Option<State>> = Mutex::new(None);
+static WORKING: AtomicBool = AtomicBool::new(false);
 static PROGRESS_POS: AtomicIsize = AtomicIsize::new(0);
-static JOB: Mutex<Option<Box<dyn FnOnce() -> Result<()> + Send>>> = Mutex::new(None);
 
-fn hwnd_of(v: &AtomicIsize) -> HWND {
-    HWND(v.load(Ordering::SeqCst) as *mut std::ffi::c_void)
+static ICON_CTL: AtomicIsize = AtomicIsize::new(0);
+static TITLE_CTL: AtomicIsize = AtomicIsize::new(0);
+static SUBTITLE_CTL: AtomicIsize = AtomicIsize::new(0);
+static LABEL_PATH_CTL: AtomicIsize = AtomicIsize::new(0);
+static EDIT_CTL: AtomicIsize = AtomicIsize::new(0);
+static BROWSE_CTL: AtomicIsize = AtomicIsize::new(0);
+static CHK_DESKTOP_CTL: AtomicIsize = AtomicIsize::new(0);
+static CHK_RUN_CTL: AtomicIsize = AtomicIsize::new(0);
+static CHK_PURGE_CTL: AtomicIsize = AtomicIsize::new(0);
+static STEP_CTL: AtomicIsize = AtomicIsize::new(0);
+static PROGRESS_CTL: AtomicIsize = AtomicIsize::new(0);
+static PRIMARY_CTL: AtomicIsize = AtomicIsize::new(0);
+static CANCEL_CTL: AtomicIsize = AtomicIsize::new(0);
+
+static BOLD_FONT: AtomicIsize = AtomicIsize::new(0);
+static SUBTITLE_COLOR: AtomicIsize = AtomicIsize::new(0);
+
+fn h(ctl: &AtomicIsize) -> HWND {
+    HWND(ctl.load(Ordering::SeqCst) as *mut std::ffi::c_void)
 }
 
 fn set_text(hwnd: HWND, text: &str) {
@@ -73,16 +120,48 @@ fn set_text(hwnd: HWND, text: &str) {
     }
 }
 
+fn get_text(hwnd: HWND) -> String {
+    unsafe {
+        let len = GetWindowTextLengthW(hwnd);
+        if len <= 0 {
+            return String::new();
+        }
+        let mut buf = vec![0u16; len as usize + 1];
+        let n = GetWindowTextW(hwnd, &mut buf);
+        String::from_utf16_lossy(&buf[..n as usize])
+    }
+}
+
+fn show(ctl: &AtomicIsize, visible: bool) {
+    unsafe {
+        let _ = ShowWindow(h(ctl), if visible { SW_SHOW } else { SW_HIDE });
+    }
+}
+
+/// 切页：选项页与进度/完成页互斥。
+fn show_options_page(show_it: bool) {
+    for c in [
+        &LABEL_PATH_CTL,
+        &EDIT_CTL,
+        &BROWSE_CTL,
+        &CHK_DESKTOP_CTL,
+        &CHK_RUN_CTL,
+        &CHK_PURGE_CTL,
+    ] {
+        show(c, show_it);
+    }
+    show(&STEP_CTL, !show_it);
+    show(&PROGRESS_CTL, !show_it);
+}
+
 /// 当前进程是否独占了控制台（即黑框是双击时新建的）。
 pub fn console_is_ours_alone() -> bool {
     unsafe {
         if GetConsoleWindow().0.is_null() {
-            // 根本没有控制台窗口：当作需要自建界面。
             return true;
         }
         let mut pids = [0u32; 4];
-        let n = GetConsoleProcessList(&mut pids);
-        n <= 1
+        GetConsoleProcessList(&mut pids) <= 1
     }
 }
 
@@ -93,63 +172,74 @@ pub fn detach_console() {
     }
 }
 
-/// 把一行状态文字发到界面线程。
-fn post_step(text: String) {
-    let hwnd = hwnd_of(&STEP_LABEL);
-    if hwnd.0.is_null() {
-        return;
-    }
-    let raw = Box::into_raw(Box::new(text));
-    unsafe {
-        let _ = PostMessageW(Some(hwnd), WM_APP_STEP, WPARAM(0), LPARAM(raw as isize));
-    }
+/// 让 `util::say` 的输出改道到窗口的步骤行。
+fn install_sink() {
+    util::set_sink(|line| {
+        let step = h(&STEP_CTL);
+        if step.0.is_null() {
+            return;
+        }
+        let raw = Box::into_raw(Box::new(line.to_string()));
+        unsafe {
+            let _ = PostMessageW(Some(step), WM_APP_STEP, WPARAM(0), LPARAM(raw as isize));
+        }
+    });
 }
 
-/// 让 `util::say` 的输出改道到窗口。
-fn install_sink() {
-    util::set_sink(|line| post_step(line.to_string()));
+/// 弹系统文件夹选择框。
+fn pick_folder(owner: HWND) -> Option<String> {
+    unsafe {
+        let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
+        let dialog: IFileOpenDialog =
+            CoCreateInstance(&FileOpenDialog, None, CLSCTX_INPROC_SERVER).ok()?;
+        if let Ok(opts) = dialog.GetOptions() {
+            let _ = dialog.SetOptions(opts | FOS_PICKFOLDERS | FOS_FORCEFILESYSTEM);
+        }
+        let title = util::wide("选择安装位置");
+        let _ = dialog.SetTitle(PCWSTR(title.as_ptr()));
+        if dialog.Show(Some(owner)).is_err() {
+            return None;
+        }
+        let item = dialog.GetResult().ok()?;
+        let pw = item.GetDisplayName(SIGDN_FILESYSPATH).ok()?;
+        let s = pw.to_string().ok();
+        CoTaskMemFree(Some(pw.0 as *const std::ffi::c_void));
+        s
+    }
 }
 
 unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) -> LRESULT {
     match msg {
         WM_CREATE => {
             create_controls(hwnd);
-            start_worker(hwnd);
             LRESULT(0)
         }
         WM_TIMER => {
-            // 推进进度条。不追求精确百分比（释放 115 个文件很快，真正耗时的是
-            // 解压与哈希），只要让用户看到"在动"且不会提前跑满。
+            // 推进进度条。释放 115 个文件很快，真正耗时的是解压与逐文件哈希，
+            // 所以不追求精确百分比，只要"在动"且不会提前跑满。
             if wp.0 == TIMER_PROGRESS && WORKING.load(Ordering::SeqCst) {
                 let cur = PROGRESS_POS.load(Ordering::SeqCst);
                 if cur < PROGRESS_CAP {
                     let next = (cur + 2).min(PROGRESS_CAP);
                     PROGRESS_POS.store(next, Ordering::SeqCst);
-                    let pb = hwnd_of(&PROGRESS);
-                    unsafe {
-                        SendMessageW(pb, PBM_SETPOS, Some(WPARAM(next as usize)), Some(LPARAM(0)));
-                    }
+                    let pb = h(&PROGRESS_CTL);
+                    SendMessageW(pb, PBM_SETPOS, Some(WPARAM(next as usize)), Some(LPARAM(0)));
                 }
             }
             LRESULT(0)
         }
         WM_APP_STEP => {
-            // 收回子线程送来的字符串。
             let text = Box::from_raw(lp.0 as *mut String);
-            set_text(hwnd_of(&STEP_LABEL), &text);
+            set_text(h(&STEP_CTL), &text);
             LRESULT(0)
         }
         WM_APP_DONE => {
             let text = Box::from_raw(lp.0 as *mut String);
             let ok = wp.0 == 0;
             WORKING.store(false, Ordering::SeqCst);
-
-            let pb = hwnd_of(&PROGRESS);
-            let btn = hwnd_of(&CLOSE_BUTTON);
-            let label = hwnd_of(&STEP_LABEL);
             unsafe {
-                // 停掉计时器并定格在终态。
                 let _ = KillTimer(Some(hwnd), TIMER_PROGRESS);
+                let pb = h(&PROGRESS_CTL);
                 SendMessageW(pb, PBM_SETPOS, Some(WPARAM(100)), Some(LPARAM(0)));
                 SendMessageW(
                     pb,
@@ -159,139 +249,165 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) 
                 );
                 let _ = InvalidateRect(Some(pb), None, true);
                 let _ = UpdateWindow(pb);
-                set_text(label, &text);
-                let _ = EnableWindow(btn, true);
-                set_text(btn, if ok { "关闭" } else { "关闭（失败）" });
-                let _ = SetFocus(Some(btn));
+
+                set_text(h(&STEP_CTL), &text);
+                // 完成页：主按钮变成"关闭"，取消按钮收起来。
+                set_text(h(&PRIMARY_CTL), "关闭");
+                let _ = EnableWindow(h(&PRIMARY_CTL), true);
+                show(&CANCEL_CTL, false);
+                let _ = SetFocus(Some(h(&PRIMARY_CTL)));
             }
             LRESULT(0)
         }
         WM_CTLCOLORSTATIC => {
-            // STATIC 默认用灰色对话框背景，会在白底窗口上留一条灰带。
-            // 让文字透明、背景用窗口的白色。
+            // STATIC 默认用灰色对话框背景，会在白底窗口上留灰带；
+            // 副标题另外用灰色文字区分层级。
             let hdc = windows::Win32::Graphics::Gdi::HDC(wp.0 as *mut std::ffi::c_void);
+            let ctl = HWND(lp.0 as *mut std::ffi::c_void);
             unsafe {
                 SetBkMode(hdc, TRANSPARENT);
+                let gray = SUBTITLE_COLOR.load(Ordering::SeqCst) as u32;
+                if ctl == h(&SUBTITLE_CTL) {
+                    SetTextColor(hdc, windows::Win32::Foundation::COLORREF(gray));
+                }
                 LRESULT(GetStockObject(WHITE_BRUSH).0 as isize)
             }
         }
         WM_COMMAND => {
-            if (wp.0 & 0xffff) == ID_CLOSE {
-                let _ = unsafe { DestroyWindow(hwnd) };
+            let id = wp.0 & 0xffff;
+            match id {
+                ID_BROWSE => {
+                    if let Some(p) = pick_folder(hwnd) {
+                        set_text(h(&EDIT_CTL), &p);
+                    }
+                }
+                ID_BTN_PRIMARY => {
+                    if WORKING.load(Ordering::SeqCst) {
+                        // 干活期间主按钮是灰的，走到这里说明已完成 → 关窗。
+                        let _ = DestroyWindow(hwnd);
+                    } else {
+                        begin_work(hwnd);
+                    }
+                }
+                ID_BTN_CANCEL => {
+                    let _ = DestroyWindow(hwnd);
+                }
+                _ => {}
             }
             LRESULT(0)
         }
         WM_CLOSE => {
             // 干活期间不允许关窗，否则会留下半装状态。
             if !WORKING.load(Ordering::SeqCst) {
-                let _ = unsafe { DestroyWindow(hwnd) };
+                let _ = DestroyWindow(hwnd);
             }
             LRESULT(0)
         }
         WM_DESTROY => {
-            unsafe { PostQuitMessage(0) };
+            let bold = BOLD_FONT.load(Ordering::SeqCst);
+            if bold != 0 {
+                let _ = DeleteObject(HGDIOBJ(bold as *mut std::ffi::c_void));
+            }
+            PostQuitMessage(0);
             LRESULT(0)
         }
-        _ => unsafe { DefWindowProcW(hwnd, msg, wp, lp) },
+        _ => DefWindowProcW(hwnd, msg, wp, lp),
     }
 }
 
-/// 建窗口里的各个控件。
-fn create_controls(hwnd: HWND) {
-    let instance = unsafe { GetModuleHandleW(None) }.unwrap_or_default();
-    let hinstance = HINSTANCE(instance.0);
-    let font = unsafe { GetStockObject(DEFAULT_GUI_FONT) };
-
-    // 控件类名与初始文字先做成局部宽字符串，保证在整个调用期间存活。
-    let cls_static = util::wide("STATIC");
-    let cls_button = util::wide("BUTTON");
-    let cls_progress = util::wide("msctls_progress32");
-    let txt_ready = util::wide("准备中…");
-    let txt_working = util::wide("安装中…");
-    let txt_empty = util::wide("");
-
-    let label = unsafe {
-        CreateWindowExW(
-            WINDOW_EX_STYLE(0),
-            PCWSTR(cls_static.as_ptr()),
-            PCWSTR(txt_ready.as_ptr()),
-            WS_CHILD | WS_VISIBLE | WINDOW_STYLE(SS_LEFT),
-            20,
-            20,
-            420,
-            44,
-            Some(hwnd),
-            None,
-            Some(hinstance),
-            None,
-        )
-    }
-    .unwrap_or_default();
-
-    let pb = unsafe {
-        CreateWindowExW(
-            WINDOW_EX_STYLE(0),
-            PCWSTR(cls_progress.as_ptr()),
-            PCWSTR(txt_empty.as_ptr()),
-            WS_CHILD | WS_VISIBLE,
-            20,
-            74,
-            420,
-            20,
-            Some(hwnd),
-            None,
-            Some(hinstance),
-            None,
-        )
-    }
-    .unwrap_or_default();
-
-    let btn = unsafe {
-        CreateWindowExW(
-            WINDOW_EX_STYLE(0),
-            PCWSTR(cls_button.as_ptr()),
-            PCWSTR(txt_working.as_ptr()),
-            WS_CHILD | WS_VISIBLE | WS_TABSTOP | WINDOW_STYLE(BS_DEFPUSHBUTTON),
-            340,
-            110,
-            100,
-            30,
-            Some(hwnd),
-            None,
-            Some(hinstance),
-            None,
-        )
-    }
-    .unwrap_or_default();
-
-    // 按钮的控件 ID：用 SetWindowLongPtrW 设，比 CreateWindowExW 的菜单参数可靠。
-    unsafe {
-        SetWindowLongPtrW(btn, GWLP_ID, ID_CLOSE as isize);
-        for h in [label, pb, btn] {
-            SendMessageW(h, WM_SETFONT, Some(WPARAM(font.0 as usize)), Some(LPARAM(1)));
-        }
-        // 用计时器推进进度条（见 WM_TIMER）。不用跑马灯：停掉之后控件不重画，
-        // 会停在动画中途的花纹上。
-        SetTimer(Some(hwnd), TIMER_PROGRESS, 120, None);
-        let _ = EnableWindow(btn, false);
-    }
-
-    STEP_LABEL.store(label.0 as isize, Ordering::SeqCst);
-    PROGRESS.store(pb.0 as isize, Ordering::SeqCst);
-    CLOSE_BUTTON.store(btn.0 as isize, Ordering::SeqCst);
-}
-
-/// 把实际工作放到子线程，界面线程只负责刷新。
-fn start_worker(hwnd: HWND) {
-    let job = JOB.lock().ok().and_then(|mut g| g.take());
-    let hwnd_addr = hwnd.0 as isize;
-    std::thread::spawn(move || {
-        let hwnd = HWND(hwnd_addr as *mut std::ffi::c_void);
-        let outcome = match job {
-            Some(f) => f(),
-            None => Err(anyhow::anyhow!("内部错误：没有待执行的任务")),
+/// 读界面上的选项，切到进度页，把活交给子线程。
+fn begin_work(hwnd: HWND) {
+    let (dir_text, desktop, run_after, purge, is_uninstall) = {
+        let st = match STATE.lock() {
+            Ok(g) => g,
+            Err(_) => return,
         };
-        let (code, text) = match outcome {
+        let Some(s) = st.as_ref() else { return };
+        let dir = match &s.job {
+            Job::Install { .. } => get_text(h(&EDIT_CTL)),
+            Job::Uninstall { dir } => dir.to_string_lossy().to_string(),
+        };
+        let desktop = unsafe { IsDlgButtonChecked(hwnd, ID_CHK_DESKTOP as i32) } == 1;
+        let run_after = unsafe { IsDlgButtonChecked(hwnd, ID_CHK_RUN as i32) } == 1;
+        let purge = unsafe { IsDlgButtonChecked(hwnd, ID_CHK_PURGE as i32) } == 1;
+        let is_uninstall = matches!(s.job, Job::Uninstall { .. });
+        (dir, desktop, run_after, purge, is_uninstall)
+    };
+
+    if dir_text.trim().is_empty() {
+        let msg = util::wide("请先选择安装位置。");
+        let cap = util::wide(util::PRODUCT_NAME);
+        unsafe {
+            MessageBoxW(
+                Some(hwnd),
+                PCWSTR(msg.as_ptr()),
+                PCWSTR(cap.as_ptr()),
+                MB_OK | MB_ICONWARNING,
+            );
+        }
+        return;
+    }
+
+    // 记录选择，供子线程读取。
+    if let Ok(mut g) = STATE.lock() {
+        if let Some(s) = g.as_mut() {
+            s.desktop = desktop;
+            s.run_after = run_after;
+            s.purge = purge;
+            if let Job::Install { default_dir, .. } = &mut s.job {
+                *default_dir = PathBuf::from(&dir_text);
+            }
+        }
+    }
+
+    WORKING.store(true, Ordering::SeqCst);
+    PROGRESS_POS.store(0, Ordering::SeqCst);
+    show_options_page(false);
+    set_text(h(&STEP_CTL), if is_uninstall { "正在卸载…" } else { "正在安装…" });
+    set_text(h(&PRIMARY_CTL), if is_uninstall { "卸载中…" } else { "安装中…" });
+    unsafe {
+        let _ = EnableWindow(h(&PRIMARY_CTL), false);
+        let _ = EnableWindow(h(&CANCEL_CTL), false);
+        SetTimer(Some(hwnd), TIMER_PROGRESS, 120, None);
+    }
+
+    // 取出待执行的活，交给子线程。
+    let job = {
+        let mut g = match STATE.lock() {
+            Ok(g) => g,
+            Err(_) => return,
+        };
+        let s = match g.as_mut() {
+            Some(s) => s,
+            None => return,
+        };
+        let desktop = s.desktop;
+        let run_after = s.run_after;
+        let purge = s.purge;
+        match &s.job {
+            Job::Install { default_dir, force } => {
+                let opts = crate::install::Options {
+                    dir: default_dir.clone(),
+                    force: *force,
+                    desktop_shortcut: desktop,
+                    run_after,
+                };
+                Box::new(move || crate::install::run(&opts)) as Box<dyn FnOnce() -> Result<()> + Send>
+            }
+            Job::Uninstall { dir } => {
+                let opts = crate::uninstall::Options {
+                    dir: Some(dir.clone()),
+                    purge,
+                };
+                Box::new(move || crate::uninstall::run(&opts))
+            }
+        }
+    };
+
+    let addr = hwnd.0 as isize;
+    std::thread::spawn(move || {
+        let hwnd = HWND(addr as *mut std::ffi::c_void);
+        let (code, text) = match job() {
             Ok(()) => (0usize, "完成。".to_string()),
             Err(e) => (1usize, format!("{e:#}")),
         };
@@ -302,17 +418,274 @@ fn start_worker(hwnd: HWND) {
     });
 }
 
-/// 建窗并跑消息循环。`job` 在子线程执行。
-pub fn run(window_title: &str, job: impl FnOnce() -> Result<()> + Send + 'static) -> Result<()> {
-    // 先让输出改道到窗口，再建窗，避免工作开始时日志还往黑框里写。
+/// 建所有控件。三页共用同一批句柄，靠显示/隐藏切换。
+fn create_controls(hwnd: HWND) {
+    let instance = unsafe { GetModuleHandleW(None) }.unwrap_or_default();
+    let inst = HINSTANCE(instance.0);
+    let normal = unsafe { GetStockObject(DEFAULT_GUI_FONT) };
+
+    // 标题用加粗稍大的字体；中文用雅黑。
+    let face = util::wide("Microsoft YaHei UI");
+    let bold = unsafe {
+        CreateFontW(
+            -22,
+            0,
+            0,
+            0,
+            700,
+            0,
+            0,
+            0,
+            FONT_CHARSET(1), // DEFAULT_CHARSET
+            FONT_OUTPUT_PRECISION(0),
+            FONT_CLIP_PRECISION(0),
+            FONT_QUALITY(0),
+            0,
+            PCWSTR(face.as_ptr()),
+        )
+    };
+    BOLD_FONT.store(bold.0 as isize, Ordering::SeqCst);
+
+    let cls_static = util::wide("STATIC");
+    let cls_edit = util::wide("EDIT");
+    let cls_button = util::wide("BUTTON");
+    let cls_progress = util::wide("msctls_progress32");
+
+    let mk = |class: &[u16],
+              text: &str,
+              style: u32,
+              x: i32,
+              y: i32,
+              w: i32,
+              hgt: i32,
+              id: usize|
+     -> HWND {
+        let t = util::wide(text);
+        let ctl = unsafe {
+            CreateWindowExW(
+                WINDOW_EX_STYLE(0),
+                PCWSTR(class.as_ptr()),
+                PCWSTR(t.as_ptr()),
+                WS_CHILD | WS_VISIBLE | WINDOW_STYLE(style),
+                x,
+                y,
+                w,
+                hgt,
+                Some(hwnd),
+                None,
+                Some(inst),
+                None,
+            )
+        }
+        .unwrap_or_default();
+        if id != 0 {
+            unsafe { SetWindowLongPtrW(ctl, GWLP_ID, id as isize) };
+        }
+        ctl
+    };
+
+    // ── 页眉（三页共用）────────────────────────────────────────────────
+    let icon = mk(
+        &cls_static,
+        "",
+        SS_ICON,
+        20,
+        18,
+        32,
+        32,
+        ID_ICON,
+    );
+    unsafe {
+        // 用 exe 里嵌的图标（资源 ID 1，见 build.rs）。
+        let hicon = LoadIconW(Some(inst), PCWSTR(1 as *const u16)).unwrap_or_default();
+        SendMessageW(icon, STM_SETICON, Some(WPARAM(hicon.0 as usize)), Some(LPARAM(0)));
+    }
+
+    let title = mk(
+        &cls_static,
+        util::PRODUCT_NAME,
+        SS_LEFT,
+        64,
+        14,
+        460,
+        30,
+        ID_TITLE,
+    );
+    let subtitle = mk(
+        &cls_static,
+        "多功能可视化科学计算工作台 · 离线优先",
+        SS_LEFT,
+        64,
+        44,
+        460,
+        20,
+        ID_SUBTITLE,
+    );
+    unsafe {
+        SendMessageW(title, WM_SETFONT, Some(WPARAM(bold.0 as usize)), Some(LPARAM(1)));
+        SendMessageW(subtitle, WM_SETFONT, Some(WPARAM(normal.0 as usize)), Some(LPARAM(1)));
+    }
+
+    // ── 选项页 ────────────────────────────────────────────────────────
+    let label_path = mk(
+        &cls_static,
+        "安装位置",
+        SS_LEFT,
+        20,
+        84,
+        520,
+        20,
+        ID_LABEL_PATH,
+    );
+    // 路径输入框单独建：要 WS_EX_CLIENTEDGE 才有边框，否则看着不像输入框。
+    let edit = {
+        let t = util::wide("");
+        let ctl = unsafe {
+            CreateWindowExW(
+                WS_EX_CLIENTEDGE,
+                PCWSTR(cls_edit.as_ptr()),
+                PCWSTR(t.as_ptr()),
+                WS_CHILD | WS_VISIBLE | WINDOW_STYLE(ES_AUTOHSCROLL),
+                20,
+                106,
+                430,
+                26,
+                Some(hwnd),
+                None,
+                Some(inst),
+                None,
+            )
+        }
+        .unwrap_or_default();
+        unsafe { SetWindowLongPtrW(ctl, GWLP_ID, ID_PATH_EDIT as isize) };
+        ctl
+    };
+    let browse = mk(&cls_button, "浏览…", 0, 458, 106, 82, 26, ID_BROWSE);
+    let chk_desktop = mk(
+        &cls_button,
+        "创建桌面快捷方式",
+        BS_AUTOCHECKBOX,
+        20,
+        150,
+        300,
+        22,
+        ID_CHK_DESKTOP,
+    );
+    let chk_run = mk(
+        &cls_button,
+        "安装完成后运行",
+        BS_AUTOCHECKBOX,
+        20,
+        178,
+        300,
+        22,
+        ID_CHK_RUN,
+    );
+    let chk_purge = mk(
+        &cls_button,
+        "同时删除我的数据（设置、日志、组件缓存）",
+        BS_AUTOCHECKBOX,
+        20,
+        150,
+        480,
+        22,
+        ID_CHK_PURGE,
+    );
+
+    // ── 进度页 ────────────────────────────────────────────────────────
+    let step = mk(&cls_static, "准备中…", SS_LEFT, 20, 110, 520, 44, ID_STEP);
+    let progress = mk(&cls_progress, "", 0, 20, 168, 520, 20, 0);
+
+    // ── 页脚按钮（三页共用）───────────────────────────────────────────
+    let primary = mk(
+        &cls_button,
+        "安装",
+        BS_DEFPUSHBUTTON,
+        360,
+        250,
+        90,
+        32,
+        ID_BTN_PRIMARY,
+    );
+    let cancel = mk(&cls_button, "取消", 0, 458, 250, 82, 32, ID_BTN_CANCEL);
+
+    unsafe {
+        for c in [label_path, edit, browse, chk_desktop, chk_run, chk_purge, step, progress, cancel] {
+            SendMessageW(c, WM_SETFONT, Some(WPARAM(normal.0 as usize)), Some(LPARAM(1)));
+        }
+        SendMessageW(primary, WM_SETFONT, Some(WPARAM(normal.0 as usize)), Some(LPARAM(1)));
+    }
+
+    // ── 存句柄 ────────────────────────────────────────────────────────
+    ICON_CTL.store(icon.0 as isize, Ordering::SeqCst);
+    TITLE_CTL.store(title.0 as isize, Ordering::SeqCst);
+    SUBTITLE_CTL.store(subtitle.0 as isize, Ordering::SeqCst);
+    LABEL_PATH_CTL.store(label_path.0 as isize, Ordering::SeqCst);
+    EDIT_CTL.store(edit.0 as isize, Ordering::SeqCst);
+    BROWSE_CTL.store(browse.0 as isize, Ordering::SeqCst);
+    CHK_DESKTOP_CTL.store(chk_desktop.0 as isize, Ordering::SeqCst);
+    CHK_RUN_CTL.store(chk_run.0 as isize, Ordering::SeqCst);
+    CHK_PURGE_CTL.store(chk_purge.0 as isize, Ordering::SeqCst);
+    STEP_CTL.store(step.0 as isize, Ordering::SeqCst);
+    PROGRESS_CTL.store(progress.0 as isize, Ordering::SeqCst);
+    PRIMARY_CTL.store(primary.0 as isize, Ordering::SeqCst);
+    CANCEL_CTL.store(cancel.0 as isize, Ordering::SeqCst);
+
+    // ── 按任务类型初始化选项页 ────────────────────────────────────────
+    let (is_uninstall, initial_dir) = {
+        let g = STATE.lock().ok();
+        match g.as_ref().and_then(|g| g.as_ref()) {
+            Some(s) => match &s.job {
+                Job::Install { default_dir, .. } => (false, default_dir.to_string_lossy().to_string()),
+                Job::Uninstall { dir } => (true, dir.to_string_lossy().to_string()),
+            },
+            None => (false, String::new()),
+        }
+    };
+
+    if is_uninstall {
+        set_text(h(&LABEL_PATH_CTL), "将卸载");
+        set_text(h(&EDIT_CTL), &initial_dir);
+        unsafe {
+            // 卸载时路径只读，也不给"桌面快捷方式/完成后运行"这些安装选项。
+            let _ = EnableWindow(h(&EDIT_CTL), false);
+            let _ = EnableWindow(h(&BROWSE_CTL), false);
+        }
+        show(&CHK_DESKTOP_CTL, false);
+        show(&CHK_RUN_CTL, false);
+        show(&CHK_PURGE_CTL, true);
+        set_text(h(&PRIMARY_CTL), "卸载");
+    } else {
+        set_text(h(&EDIT_CTL), &initial_dir);
+        show(&CHK_PURGE_CTL, false);
+        // 桌面快捷方式默认勾上，装完启动默认不勾。
+        unsafe {
+            SendMessageW(h(&CHK_DESKTOP_CTL), BM_SETCHECK, Some(WPARAM(1)), Some(LPARAM(0)));
+        }
+    }
+    // 进度页的两件控件初始隐藏。
+    show(&STEP_CTL, false);
+    show(&PROGRESS_CTL, false);
+    show(&BROWSE_CTL, !is_uninstall);
+}
+
+/// 建窗并跑消息循环。
+pub fn run(job: Job) -> Result<()> {
     install_sink();
-    *JOB
+    // 标题随任务类型变化：卸载时不该还写"安装程序"。
+    let is_uninstall = matches!(job, Job::Uninstall { .. });
+    *STATE
         .lock()
-        .map_err(|_| anyhow::anyhow!("任务槽被占用"))? = Some(Box::new(job));
+        .map_err(|_| anyhow::anyhow!("界面状态被占用"))? = Some(State {
+        job,
+        desktop: true,
+        run_after: false,
+        purge: false,
+    });
 
     unsafe {
         let instance = GetModuleHandleW(None)?;
-        let hinstance = HINSTANCE(instance.0);
+        let inst = HINSTANCE(instance.0);
 
         let mut icc = INITCOMMONCONTROLSEX {
             dwSize: std::mem::size_of::<INITCOMMONCONTROLSEX>() as u32,
@@ -320,17 +693,18 @@ pub fn run(window_title: &str, job: impl FnOnce() -> Result<()> + Send + 'static
         };
         let _ = InitCommonControlsEx(&mut icc);
 
+        // 副标题的灰色：RGB(0x6b,0x6b,0x6b)，注意 COLORREF 是 0x00BBGGRR。
+        SUBTITLE_COLOR.store(0x006b_6b6b, Ordering::SeqCst);
+
         let class_name = util::wide("MFMathInstallerWindow");
         let wc = WNDCLASSW {
             style: WNDCLASS_STYLES(0),
             lpfnWndProc: Some(wndproc),
             cbClsExtra: 0,
             cbWndExtra: 0,
-            hInstance: hinstance,
-            // 图标用 exe 里嵌的那一份（资源 ID 1，见 build.rs）。
-            hIcon: LoadIconW(Some(hinstance), PCWSTR(1 as *const u16)).unwrap_or_default(),
+            hInstance: inst,
+            hIcon: LoadIconW(Some(inst), PCWSTR(1 as *const u16)).unwrap_or_default(),
             hCursor: LoadCursorW(None, IDC_ARROW).unwrap_or_default(),
-            // 系统窗口背景色：+1 是 Win32 用 COLOR_* 当画刷的约定。
             hbrBackground: HBRUSH((COLOR_WINDOW.0 + 1) as *mut std::ffi::c_void),
             lpszMenuName: PCWSTR::null(),
             lpszClassName: PCWSTR(class_name.as_ptr()),
@@ -339,21 +713,20 @@ pub fn run(window_title: &str, job: impl FnOnce() -> Result<()> + Send + 'static
             anyhow::bail!("注册窗口类失败");
         }
 
-        let title = util::wide(window_title);
-        // 固定大小：可关闭、可最小化，不给缩放。
-        let style = WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX;
+        let what = if is_uninstall { "卸载程序" } else { "安装程序" };
+        let caption = util::wide(&format!("{} {what}", util::PRODUCT_NAME));
         let hwnd = CreateWindowExW(
             WS_EX_DLGMODALFRAME,
             PCWSTR(class_name.as_ptr()),
-            PCWSTR(title.as_ptr()),
-            style,
+            PCWSTR(caption.as_ptr()),
+            WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX,
             CW_USEDEFAULT,
             CW_USEDEFAULT,
-            480,
-            190,
+            580,
+            340,
             None,
             None,
-            Some(hinstance),
+            Some(inst),
             None,
         )?;
 

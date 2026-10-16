@@ -11,6 +11,10 @@ pub struct Options {
     pub dir: PathBuf,
     /// 目标目录里已有本产品以外的文件时，是否仍然继续。
     pub force: bool,
+    /// 是否在桌面建快捷方式。开始菜单那一份总是建。
+    pub desktop_shortcut: bool,
+    /// 装完后是否启动主程序。
+    pub run_after: bool,
 }
 
 /// 本机当前的本地时间，`YYYY-MM-DDTHH:MM:SS`。
@@ -81,7 +85,11 @@ pub fn run(opts: &Options) -> Result<()> {
     };
 
     util::say("创建快捷方式…");
-    for lnk in [shortcut::start_menu_lnk(), shortcut::desktop_lnk()] {
+    let mut shortcuts: Vec<PathBuf> = vec![shortcut::start_menu_lnk()];
+    if opts.desktop_shortcut {
+        shortcuts.push(shortcut::desktop_lnk());
+    }
+    for lnk in shortcuts {
         if let Err(e) = shortcut::create(
             &lnk,
             &main_exe,
@@ -142,6 +150,14 @@ pub fn run(opts: &Options) -> Result<()> {
     util::say(&format!("清单记录了 {} 个文件。", manifest.files.len()));
     if !note.is_empty() {
         util::warn("有一步未完成，见上面的警告。");
+    }
+
+    // 装完是否启动由界面上的勾选项决定。
+    if opts.run_after {
+        util::say("正在启动…");
+        if let Err(e) = std::process::Command::new(&main_exe).spawn() {
+            util::warn(&format!("启动失败：{e}"));
+        }
     }
     Ok(())
 }
