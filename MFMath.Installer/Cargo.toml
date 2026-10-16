@@ -8,6 +8,10 @@ description = "MF-Mathematics 安装器：释放载荷、建快捷方式、写�
 name = "mfmath-installer"
 path = "src/main.rs"
 
+[build-dependencies]
+# 把图标与版本信息嵌进 exe。没有它，安装器只有通用 exe 图标。
+embed-resource = "3"
+
 [dependencies]
 anyhow = "1.0.104"
 serde = { version = "1.0.229", features = ["derive"] }
