@@ -95,7 +95,7 @@ Get-ChildItem docs -Recurse -File | Where-Object Extension -ne '.md'
 
 | 文件 | 用途 |
 | --- | --- |
-| [`../README.md`](../README.md) | 这是什么、功能、架构、三步构建、验证命令、边界、许可证、与 v1 的关系 |
+| [`../README.md`](../README.md) | 这是什么、功能、架构、三步构建、验证命令、边界、许可证、工作室官网 |
 | 本文（`docs/README.md`） | 文档地图：六层结构、按问题查、清单、数字复跑命令、地图外的文档 |
 
 ### 第 2 层 · 设计理念（3 份）
