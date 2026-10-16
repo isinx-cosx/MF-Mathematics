@@ -1,7 +1,7 @@
 /**
  * check-ui.mjs — 教程与键盘的构建期自检（无需浏览器）
  *
- * 这是在还 v1 的一笔债：v1 的 66 个引导步骤里有 34 个目标控件**根本不存在**，
+ * 由来：教程的引导步骤里曾经有 34 个目标控件**根本不存在**，
  * 而 walkthrough 找不到控件时只是 `_current_step += 1; 递归`（静默跳过），
  * 于是教程 05 与 11 每一步都失效、点一下遮罩就消失，**却仍被标记成"已完成"**。
  * 这类错误在运行时几乎不可察觉，必须在构建期拦下来。
@@ -9,8 +9,8 @@
  * 断言（任一失败即 exit 1；共 12 组，此处只列要点）：
  *   1. 每个教程步骤的 target 要么在源码里真有 data-tour，要么在 PENDING 里写明理由；
  *   2. PENDING 里不留过时条目（教程已不引用它了，说明该删）；
- *   3. 键盘键数 = 126（与 v1 一致），且插入的 LaTeX 里没有残留的 ▢ 占位符、
- *      `\begin{...}` 环境都配了 `\end{...}`（v1 的 `\begin{pmatrix}` 就是缺后半截）；
+ *   3. 键盘键数 = 基准键数 126，且插入的 LaTeX 里没有残留的 ▢ 占位符、
+ *      `\begin{...}` 环境都配了 `\end{...}`；
  *   4. 教程数据的字段合法性（actionType 取值、步骤/示例/FAQ 完整性）；
  *   5. 引擎映射表里没有重复键（JS 后者胜，前面的会变成"改了没反应"的死条目）；
  *   6. 每个 tests/cdp-*.mjs 都登记进了 run-all.ps1（漏登记 = 该用例永远不跑）。
@@ -19,7 +19,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { PENDING, REGISTERED } from "../src/lib/tutorial/targets.js";
-import { ALL_KEYS, KEY_COUNT, V1_KEY_COUNT, CATEGORIES } from "../src/lib/math/keypadSymbols.js";
+import { ALL_KEYS, KEY_COUNT, BASELINE_KEY_COUNT, CATEGORIES } from "../src/lib/math/keypadSymbols.js";
 import { keyFaceInfo, showsRawLatex } from "../src/lib/math/keyFace.js";
 import { VIEW_CONFIGS } from "../src/lib/engine/viewConfigs.js";
 import { ENGINE_MAP, ENGINE_VAR_SPECS } from "../src/lib/engine/engineMap.js";
@@ -99,8 +99,8 @@ for (const name of REGISTERED) {
 }
 
 /* ── 3. 键盘 ───────────────────────────────────────────────────────────── */
-if (KEY_COUNT !== V1_KEY_COUNT) {
-  problems.push(`键盘键数 ${KEY_COUNT} ≠ v1 的 ${V1_KEY_COUNT}`);
+if (KEY_COUNT !== BASELINE_KEY_COUNT) {
+  problems.push(`键盘键数 ${KEY_COUNT} ≠ 基准键数 ${BASELINE_KEY_COUNT}`);
 }
 for (const c of CATEGORIES) {
   if (!c.name || !c.rows.length) problems.push(`分类 ${c.id} 缺少名称或键区`);
@@ -112,13 +112,13 @@ for (const k of ALL_KEYS) {
   if (k.latex.includes("\\begin{")) {
     const env = k.latex.match(/\\begin\{(\w+)\}/)[1];
     if (!k.latex.includes(`\\end{${env}}`)) {
-      problems.push(`键「${k.label}」的 \\begin{${env}} 没有配对的 \\end（v1 就是这个毛病）`);
+      problems.push(`键「${k.label}」的 \\begin{${env}} 没有配对的 \\end`);
     }
   }
 }
 const cats = CATEGORIES.map((c) => c.name).join(",");
 if (cats !== "基础运算,微积分,线性代数,希腊字母,概率统计,常用模板") {
-  problems.push(`键盘分类的名称或顺序与 v1 不一致：${cats}`);
+  problems.push(`键盘分类的名称或顺序与基准不一致：${cats}`);
 }
 
 /* ── 3b. 键面必须"看得懂"：不允许把 LaTeX 源码当文字显示 ──────────────────
@@ -502,7 +502,7 @@ const FROZEN_VUE_PLOT_FILES = [
   console.log(`i18n 结果标签        ：${Object.keys(FIELD_LABELS).length} 个字段，缺译文 ${resNoTr.length} 个`);
 
   /* 11. 数学键盘的分类名（6 个，渲染在 kp-tab 上）。分类名不翻译键面 —— 键面必须保持
-   *     v1 的字样（keyFace.js 还要按数学排版它，改了会同时弄坏显示与肌肉记忆）。 */
+   *     既有字样（keyFace.js 还要按数学排版它，改了会同时弄坏显示与肌肉记忆）。 */
   const catNoTr = CATEGORIES.map((c) => c.name).filter((n) => !(n in DICT));
   for (const n of catNoTr) problems.push(`i18n：键盘分类名「${n}」没有译文`);
   console.log(`i18n 键盘分类        ：${CATEGORIES.length} 个分类，缺译文 ${catNoTr.length} 个`);
@@ -571,7 +571,7 @@ if (fs.existsSync(RUN_ALL)) {
 console.log("=".repeat(78));
 console.log(`源码里注册的 data-tour：${sourceTargets.size} 个`);
 console.log(`教程引用的 target    ：${usedTargets.size} 个（已实现 ${[...usedTargets.keys()].filter((n) => sourceTargets.has(n)).length}，待实现 ${Object.keys(PENDING).length}）`);
-console.log(`数学键盘            ：${CATEGORIES.length} 分类 / ${KEY_COUNT} 键（v1 也是 ${V1_KEY_COUNT}）`);
+console.log(`数学键盘            ：${CATEGORIES.length} 分类 / ${KEY_COUNT} 键（基准 ${BASELINE_KEY_COUNT}）`);
 console.log(`键面可读性          ：排版 ${faceStats.math} 键 / 文字 ${faceStats.plain} 键 / 紧凑替代 ${faceStats.override} 键 / 清理后文字 ${faceStats.fallback} 键（裸 LaTeX 0 键）`);
 console.log(`端到端用例          ：${suiteStats ? `cdp-* ${suiteStats.files} 个，已登记 ${suiteStats.inSuite} 个` : "（未找到 tests/run-all.ps1，跳过登记检查）"}`);
 console.log("=".repeat(78));
@@ -585,4 +585,4 @@ if (problems.length) {
   for (const p of problems) console.error("  ✗ " + p);
   process.exit(1);
 }
-console.log("\n自检通过 ✔  引导目标无静默失效、键盘键位与 v1 对齐、每个键面都看得懂、端到端用例无漏登记");
+console.log("\n自检通过 ✔  引导目标无静默失效、键盘键位与基准一致、每个键面都看得懂、端到端用例无漏登记");

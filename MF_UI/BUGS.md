@@ -873,7 +873,7 @@ cdp test files: 47
 
 | 文件:行 | 硬编码内容 | 影响 |
 |---|---|---|
-| `tools/build-tutorials.mjs:28-29` | `C:\Users\fsafsafsa\Desktop\MVS知识库\Multifunctional系列\Multifunctional-Mathematics\MF_Tutorial\tutorials`（**v1 那棵树**） | `npm run check` 的第一步就是它 ⇒ 路径不在就全挂。有 `MF_TUTORIAL_SRC` 可覆盖 |
+| `tools/build-tutorials.mjs:28-29` | `C:\Users\fsafsafsa\Desktop\MVS知识库\Multifunctional系列\Multifunctional-Mathematics\MF_Tutorial\tutorials`（**相邻的独立工程目录**） | `npm run check` 的第一步就是它 ⇒ 路径不在就全挂。有 `MF_TUTORIAL_SRC` 可覆盖 |
 | `tests/audit-modes.mjs:19` | `C:/Users/fsafsafsa/Desktop/cppcshap/MF_Mathematics/build/bin/Release/probe_call.exe` | 指向 `cppcshap` 那棵树，**与当前目录布局已不是同一棵树** |
 | `tests/probe-implicit.mjs:7` | 同上 | 同上 |
 | `tests/showfn.mjs:5` | `C:/Users/fsafsafsa/Desktop/cppcshap/MF_Mathematics` | 同上 |
@@ -1182,7 +1182,7 @@ $UI = "<...>\Multifunctional-Mathematics-v2.0\MF_UI"
 # ① Vue 侧检查：类型 + 引擎签名 + 教程/键盘/i18n/可达性（当前全绿，exit 0）
 #    内含本轮新增的 3 条守卫：区间参数契约 / 概率表契约 / 端到端用例无漏登记
 npm run check --prefix "$UI\MFMath.UI.Vue"
-#   ⚠ check:ui 第一步 build-tutorials.mjs 会读树外的 v1 教程源，并往 <v2.0>\docs 归档。
+#   ⚠ check:ui 第一步 build-tutorials.mjs 会读树外的教程源，并往 <v2.0>\docs 归档。
 #     修好 B8 之后，归档失败**只警告、不再中断** —— 所以受限环境下这里也应当是 exit 0。
 
 # ② React 侧类型检查（当前全绿，exit 0；修复前是 64 条红）
