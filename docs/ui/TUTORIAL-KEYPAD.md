@@ -12,7 +12,7 @@
 | 步骤 / 示例 / FAQ | 66 / 52 / 42 |
 | 引导引用的 target（去重） | 30 |
 | `PENDING` 条目 | 0（空对象） |
-| 数学键盘 | 6 分类 / 126 键 |
+| 数学键盘 | 6 分类 / 126 键（基准键数） |
 | 键面可读性 | 排版 13 / 文字 109 / 清理后文字 4 / 裸 LaTeX 0 |
 
 ## 2. 数据流
@@ -24,7 +24,7 @@
 | 产物 | `MF_UI/MFMath.UI.Vue/src/tutorials/tutorials.json` | 前端 import 的数据源 |
 | 留档 | `docs/tutorials-src/*.yaml`（18 个） | 供比对，不参与运行 |
 
-`docs/tutorials-src/*.yaml` 是副产物，不是输入：脚本把 v1 原件拷进去留档。改该目录的 YAML 对软件无影响，下一次 `npm run tutorials` 会用原件覆盖它。
+`docs/tutorials-src/*.yaml` 是副产物，不是输入：脚本把上游原件拷进去留档。改该目录的 YAML 对软件无影响，下一次 `npm run tutorials` 会用上游原件覆盖它。
 
 验证命令：
 
@@ -123,7 +123,7 @@ node tools/build-tutorials.mjs
 | `PENDING` 里不许留过时条目 | 属于过时条目，请删除 |
 | `REGISTERED` 声明的名字必须在源码有 `data-tour` | 源码里找不到对应 data-tour |
 | 键盘键数 = 126 | 键数不一致 |
-| 分类名与顺序逐字等于 v1 | 硬编码串比对 |
+| 分类名与顺序逐字等于基准串 | 硬编码串比对 |
 | 每键有键面与插入值，无残留 `▢`，`\begin` 配 `\end` | 对应提示 |
 | 键面不许显示裸 LaTeX | 仍在显示裸 LaTeX |
 | 教程字段合法性 | actionType 非法、缺指纹等 |
@@ -134,7 +134,7 @@ node tools/build-tutorials.mjs
 cd MF_UI\MFMath.UI.Vue; node tools\check-ui.mjs
 ```
 
-输出含：`教程引用的 target：30 个（已实现 30，待实现 0）`、`数学键盘：6 分类 / 126 键（v1 也是 126）`、`键面可读性：排版 13 键 / 文字 109 键 / 紧凑替代 0 键 / 清理后文字 4 键（裸 LaTeX 0 键）`、`自检通过`。
+输出含：`教程引用的 target：30 个（已实现 30，待实现 0）`、`数学键盘：6 分类 / 126 键（基准 126）`、`键面可读性：排版 13 键 / 文字 109 键 / 紧凑替代 0 键 / 清理后文字 4 键（裸 LaTeX 0 键）`、`自检通过`。
 
 ### 5.3 端到端（`cdp-tutorials-keypad.mjs`）
 
@@ -154,7 +154,7 @@ cd MF_UI\MFMath.UI.Vue; node tools\check-ui.mjs
 | 6 | 常用模板 | 11 | `keypadSymbols.js` |
 | | 合计 | 126 | `KEY_COUNT` |
 
-`V1_KEY_COUNT = 126` 写死在 `keypadSymbols.js`，由 `check-ui.mjs` 对账；分类名与顺序同样逐字对账。另有 `DEFAULT_RECENT` 6 个兜底键。
+键数常量写死在 `keypadSymbols.js`（基准 126），由 `check-ui.mjs` 对账；分类名与顺序同样逐字对账。另有 `DEFAULT_RECENT` 6 个兜底键。
 
 ### 6.2 键面分类
 
@@ -169,7 +169,7 @@ cd MF_UI\MFMath.UI.Vue; node tools\check-ui.mjs
 
 ### 6.3 插入纪律
 
-插入 LaTeX，不插显示用 Unicode；占位符不许被剥掉（改用 MathLive 的 `#0` / `#?`）；矩阵模板必须补全；键面与插入值分开（模板键键面用真字母，仅此一处有意偏离 v1）。
+插入 LaTeX，不插显示用 Unicode；占位符不许被剥掉（改用 MathLive 的 `#0` / `#?`）；矩阵模板必须补全；键面与插入值分开（模板键键面用真字母，仅此一处有意偏离基准键面约定）。
 
 ### 6.4 插入目标
 

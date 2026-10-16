@@ -94,10 +94,10 @@ OpenAI 分片语义在 `client.ts`：
 | --- | --- |
 | 存储于 `%LOCALAPPDATA%\MFMath\settings\ai.json` 的 `apiKey`，明文 | `bridge.js` 的 `readAiFile` |
 | 读写走 `sys.StoreRead` / `sys.StoreWrite` | `bridge.js` |
-| 保存时删除旧版 `apiKeyProtected` | `aiSetKey` |
+| 保存时删除 C# 宿主遗留的 `apiKeyProtected` | `aiSetKey` |
 | 明文密钥只活在模块作用域 `aiKey`，不进 `aiConfig` | `bridge.js` |
 | 脱敏视图 `aiConfig` 删掉 `apiKey` 与 `apiKeyProtected` | `bridge.js` |
-| 旧版 DPAPI 密文页面侧解不开，只剩密文时 `hasKey=false` | `bridge.js` |
+| C# 宿主的 DPAPI 密文页面侧解不开，只剩密文时 `hasKey=false` | `bridge.js` |
 | 界面文案如实说明明文、无加密 | `AiGroup.vue` |
 
 跨宿主可移植性：`ai.json` 的明文密钥不随用户走。C# 旧宿主写的是 DPAPI 密文 `apiKeyProtected`，Rust/TS 读的是明文 `apiKey`，两种形式互不通用。

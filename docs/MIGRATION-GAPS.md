@@ -1,20 +1,20 @@
-# v1 → v2.0 功能迁移缺口报告
+# 功能现状与缺口报告
 
-> 目的：把"v1 有的功能，v2.0 有没有、缺的怎么补、先补哪个"一次写清，作为后续排期的唯一依据。
-> 判定基准：**v1 的实际产品形态**是 Python + PySide6 桌面应用（`Multifunctional-Mathematics.spec` 打包的就是它），
-> 不是中间产物 `MF_UI/MFMath.UI`（原生 JS 网页壳）或 `MF_UI/MFMath.UI.Vue`（更早的 Vue 版本）。
+> 目的：把"产品应有的功能集里，v2.0 已经具备什么、还缺什么、怎么补、先补哪个"一次写清，作为后续排期的唯一依据。
+> 判定基准：**产品应有的功能集** —— 一个数学计算桌面应用面向用户应当提供的完整能力（计算、绘图、控制台、教程与引导、示例库、数学键盘、设置面板、外观、AI 助手、分步显示、在线搜索、用户系统、历史记录、工作区保存、中英双语、导出图片、数学边界守卫、无理数逼近、自动更新、关于对话框）。
+> 文中引用的既有 Python 实现是 Python + PySide6 桌面应用（`Multifunctional-Mathematics.spec` 打包的就是它），不是中间产物 `MF_UI/MFMath.UI`（原生 JS 网页壳）或 `MF_UI/MFMath.UI.Vue`（更早的 Vue 版本）；引用它的源码只为说明缺陷成因，不作为功能清单的判定标准。
 > v2.0 形态：C++ 引擎（`mf_mathematics.dll`）+ C# WebView2 宿主 + Vue 3 前端。
-> 方法：源码清点（读代码判定，未实跑 v1，见 §7）。所有结论都附文件与行号。
+> 方法：源码清点（读代码判定，未实跑该 Python 桌面版，见 §7）。所有结论都附文件与行号。
 
 ---
 
 ## 0. 结论摘要
 
 - **算得对这件事已经过关**：引擎 424 个 action、准确性套件 2180 用例全过、覆盖 424/424；
-- **v2.0 已经具备一个可用计算器的全部主功能**：14 个学科域的计算、7 种绘图、控制台、教程/引导/示例库、数学键盘、设置面板、外观主题；
-- **但 v1 作为一个"应用"还差 12 类用户可感知的功能**（AI 助手、分步显示、在线搜索、用户系统、历史记录、工作区保存、中英双语、导出图片、数学边界守卫、无理数逼近、自动更新、关于对话框）；
-- **另有 4 处"迁了但降级"**（控制台运行时、快捷键、两个设置项、历史持久化），这类比"没有"更容易被漏掉；
-- **最不该有的现状**：顶栏「搜索」「历史」两个按钮点了**没有任何反应**（死按钮）。→ 本轮已修，见 §0.1
+- **已经具备一个可用计算器的全部主功能**：14 个学科域的计算、7 种绘图、控制台、教程/引导/示例库、数学键盘、设置面板、外观主题；
+- **缺口是 12 类用户可感知的功能**（AI 助手、分步显示、在线搜索、用户系统、历史记录、工作区保存、中英双语、导出图片、数学边界守卫、无理数逼近、自动更新、关于对话框）；其中 AI 助手（阶段 1）、分步显示（渲染层）、在线搜索、用户系统、历史记录、工作区保存、导出图片本轮已补齐，各项剩余缺口见 §2；
+- **另有 4 处曾"迁了但降级"**（控制台运行时、快捷键、两个设置项、历史持久化），本轮已全部补齐 —— 这类问题比"完全缺失"更容易被漏掉；
+- **曾最不该出现的现状**：顶栏「搜索」「历史」两个按钮点了**没有任何反应**（死按钮）。→ 本轮已修，见 §0.1
 
 ### 0.1 本轮已完成的修正（2026-10-02）
 
@@ -29,7 +29,7 @@
 
 ---
 
-## 1. 已经做完的
+## 1. 当前已具备的能力（实测证据）
 
 | # | 能力 | 证据 |
 | --- | --- | --- |
@@ -48,14 +48,13 @@
 
 ---
 
-## 2. 没做完的（完全缺失，12 项）
+## 2. 功能现状与缺口（12 项）
 
-每项格式：**v1 有什么 → v2.0 现在什么状态 → 怎么补 → 依赖 → 粗估工作量**。
+每项格式：**现状 → 缺口 → 补法 → 依赖 → 粗估工作量**。带"依据"的行给出缺陷成因或既有实现的位置（源码清点所得，附文件与行号）。
 
 ### 2.1 AI 助手
 
-- **v1**：`MF_AI/`（8 文件：`agent.py`/`client.py`/`config.py`(17 KB)/`models.py`/`strategy.py`）+ `MF_UI/dialogs/ai_dialog.py`(14.8 KB) + `dialogs/ai_config_prompt.py` + 缓存 `ai_cache.json`。
-- **v2.0（本轮已完成，阶段 1：对话 + 解释 + 上下文 + 流式）**：
+- **现状（阶段 1 已完成：对话 + 解释 + 上下文 + 流式）**：
   - **协议层放在 TS**（`src/lib/ai/{types,sse,client,collect}.ts`，**移植自 MVS Agent 的 `src/model/`**）：
     SSE 分帧、OpenAI 分片语义、`Notice` 降级、错误分类、事件契约。语言相同所以是逐个文件搬；
     好处是这类纯逻辑**只有一份实现**，而且能脱离宿主做离线单测（`tests/unit-sse.mjs`：四份录制样本
@@ -73,54 +72,54 @@
   - 端到端 `cdp-ai.mjs` **58 / 0**（自带本地假端点；七类异常、隐私开关改变请求体、
     中继闸门、"AI 不得当计算源"）。全套回归 **464 / 0**。
   - 详见 `docs/AI-ASSISTANT.md`。
-- **仍未做（阶段 2/3，都不在本轮范围）**：分步显示（§2.2）；工具调用（事件已留位，页面忽略）；
+- **缺口（阶段 2/3，都不在本轮范围）**：分步显示（§2.2）；工具调用（事件已留位，页面忽略）；
   上下文估算自校准（用 `usage.prompt_tokens` 反推系数）；首字节超时与重试退避。
-- **依赖**：§0.4 第 4 条决策只影响**分步**（阶段 2），不阻塞本阶段的对话/解释。
-- **粗估**：阶段 1 已完成（约 3 人日）；阶段 2 分步 2-3 人日；阶段 3 工具调用 2 人日。
-- **与 v1 的差异**：不做 provider 注册表、不做 `model_map` 角色名、不做 `agent.py` 那套
+- **依据（既有实现的清单与取舍范围）**：`MF_AI/`（8 文件：`agent.py`/`client.py`/`config.py`(17 KB)/`models.py`/`strategy.py`）+ `MF_UI/dialogs/ai_dialog.py`(14.8 KB) + `dialogs/ai_config_prompt.py` + 缓存 `ai_cache.json`。
+  不纳入的部分：不做 provider 注册表、不做 `model_map` 角色名、不做 `agent.py` 那套
   "正则抠 JSON + Python eval()"的工具循环；不做登录门禁与配额（BYO Key）。
+- **依赖**：`docs/PLAN-feature-completion.md` §0.4 第 4 条决策只影响**分步**（阶段 2），不阻塞本阶段的对话/解释。
+- **粗估**：阶段 1 已完成（约 3 人日）；阶段 2 分步 2-3 人日；阶段 3 工具调用 2 人日。
 
-### 2.2 分步显示 —— 本轮已完成（渲染层）
+### 2.2 分步显示 —— 渲染层已完成
 
-- **v1**：`MF_UI/calc/step_viewer.py`(10.2 KB，"AI 驱动的步骤查看器，LaTeX 渲染，像人类教师书写")；入口在结果窗的"查看步骤"。
-- **v2.0（本轮后）**：**已完成**。你选的方案不是上面三条路线里的任何一条，而是更根本的第四条：
+- **现状**：渲染层**已完成**。采用的路线不是三条备选路线里的任何一条，而是更根本的第四条：
   **给 AI 一个能直接调用 DLL（引擎）的工具** —— 于是"步骤"= 这一轮里 AI 调引擎的记录
   （`engine_call` 的返回值），每一步的数值都是引擎算出来的事实，而不是模型措辞。
   - 渲染层：`components/ai/StepViewer.vue`（编号步骤 · 引擎函数 · 参数 · **完整结果** · 耗时 · 失败标红保留），
-    内容区挂 `data-tour="step_viewer.content"`（v1 的那个目标名）；
+    内容区挂 `data-tour="step_viewer.content"`（既有引导层使用的那个目标名）；
   - 两条入口：AI 回答上的「查看步骤」+ 计算页结果对话框的「查看步骤」（后者**此前是死按钮**：
     `emit("steps")` 有人接，但只往状态栏打了一行"步骤推导未接入"；现在它请 AI 分步讲解并自动弹出步骤）；
   - 详见 `docs/STEP-VIEW.md`；端到端在 `cdp-ai.mjs` ②d/②e/②f。
-- **与 A/B/C 三条路线的差别**：A 需要在 C++ handler 里逐步记录（工作量大）；B 就是"AI 出步骤"，
+- **缺口**：既有那份"像人类教师书写"的富文本排版没有照搬（现在给的是可核对的步骤清单 +
+  AI 的说明），也没有"最优拆解方式"的保证。
+- **路线取舍的依据**：A 需要在 C++ handler 里逐步记录（工作量大）；B 就是"AI 出步骤"，
   要靠断言防越权计算；C 覆盖面窄。工具调用把 B 的风险从"靠断言兜住"变成"结构上做不到"——
   模型根本没有自己算数的机会。
-- **仍未做**：v1 那份"像人类教师书写"的富文本排版没有照搬（我们给的是可核对的步骤清单 +
-  AI 的说明），也没有"最优拆解方式"的保证。
+- **依据（既有实现）**：`MF_UI/calc/step_viewer.py`(10.2 KB，"AI 驱动的步骤查看器，LaTeX 渲染，像人类教师书写")；入口在结果窗的"查看步骤"。
 
 ### 2.3 在线搜索
 
-- **v1**：`MF_Online/`（`search.py` 5.7 KB、`cache.py`、`config.py`）+ `dialogs/search_panel.py`(7.4 KB)，支持 DuckDuckGo / Wolfram Alpha / 自定义端点。
-- **v2.0（本轮已完成）**：
+- **现状**：**已完成**。
   - 宿主（C#）：`SearchBridge.cs`（桥面 + 取消/超时分类）、`SearchBackend.cs`（DDG 结果页+IA 摘要 / Wolfram 短答案 / SearXNG JSON 三路抓取与四个解析器）、`SearchCache.cs`（**键含引擎** + TTL + 上限 + 原子落盘）、`SearchConfig.cs`（App ID 为 DPAPI 密文）。
   - 前端：`lib/search/bridge.js` + **路由页面** `views/tools/SearchView.vue`（`/tools/search`，读 `?q=` 直接开搜）+ 设置组 `components/settings/SearchGroup.vue`（catalog 的 search 组 8 项落地）。
   - 顶栏「搜索」与侧栏「工具 → 搜索」都跳到该页面；**原来的占位浮层已删除**（功能落地后不留旧壳）。
   - 结果里的表达式可「算这个」一键送进基础运算页（复用 `lib/workspace/pendingInput.js` 的既有通路，**由引擎计算**）。
   - 端到端 `cdp-search.mjs` **53 / 0**（自带假搜索端点；三条后端、缓存不出网、换引擎不误命中、六类异常分类、App ID 不外泄、`OpenUrl` 协议闸门、深链、自检）。
   - 详见 `docs/ONLINE-SEARCH.md`。
-- **有意与 v1 不同**：缓存键含引擎（v1 只用查询词 → 换引擎不生效）；结果面板是**路由页面**而不是对话框
+- **缺口**：翻页（只取前 N 条）、网页正文抓取、请求去重/限流。
+- **与既有实现的取舍**：缓存键含引擎（既有实现只用查询词 → 换引擎不生效）；结果面板是**路由页面**而不是对话框
   （结果是内容：要来回看、要送进计算页、教程示例需要落点）；失败分类到"下一步怎么办"而不是一句"搜索失败"。
-- **仍未做**：翻页（只取前 N 条）、网页正文抓取、请求去重/限流。
+- **依据（既有实现）**：`MF_Online/`（`search.py` 5.7 KB、`cache.py`、`config.py`）+ `dialogs/search_panel.py`(7.4 KB)，支持 DuckDuckGo / Wolfram Alpha / 自定义端点。
 - **依赖**：Wolfram 需要 App ID（用户自带）；自定义端点需要 SearXNG 之类开着的 JSON 接口。
 - **粗估**：已完成（约 2 人日）。
 
 ### 2.4 用户系统
 
-- **v1**：`MF_User/`（`login_dialog.py` **34 KB**、`auth_service.py`、`auth_worker.py`、`api_client.py` 10.9 KB）+ `users.json`；站点侧接口现成。
-- **v2.0（本轮已完成）**：
+- **现状**：**已完成**。
   - **服务器侧：不需要新造端口** —— 站点早有面向客户端的 Bearer token API（`/api/login` OAuth2 form、
     `/api/me`、`/api/register`、`/api/send-code|verify-code|resend-code`、`/api/change-password`、
     `/api/login-history`、`/api/logout`、`/api/version`），失败体是 `{detail}`（站点注释写明"桌面端依赖 detail"）。
-    生产实测：`/api/me` 无 token → `401 {"detail":"未认证"}`；v1 用的老路径 `/login` 已 404。
+    生产实测：`/api/me` 无 token → `401 {"detail":"未认证"}`；历史上的 `/login` 路径已 404。
   - **补上的缺口（本轮新增，网站行为不变）**：`POST /api/token/refresh`（用有效 token 换新的；
     登出后的 token 续期也会被拒）+ 登录/续期的可选 `remember`（30 天长会话）。
     没有它，桌面端每 30 分钟被踢一次。策略集中在站点 `src/lib/session.ts`。
@@ -130,27 +129,27 @@
   - 详见 `docs/ACCOUNT.md`。
 - **离线可用性（硬要求，已断言）**：**未登录、不登录、断网、站点挂了都不影响任何计算功能**。
   端到端用例会真的杀掉假服务器，然后在计算页按 7+8= 得到 15；断网时账号页显示缓存的资料并标「未校验」。
-- **仍未做**：改密码立刻作废既有 token（站点现状如此，属会话策略变更，需单独决策）；
+- **缺口**：改密码立刻作废既有 token（站点现状如此，属会话策略变更，需单独决策）；
   让桌面端 AI 走站点额度（产品决策）；云同步/云历史（本轮没有引入任何"数据上服务器"的行为）。
+- **依据（既有实现）**：`MF_User/`（`login_dialog.py` **34 KB**、`auth_service.py`、`auth_worker.py`、`api_client.py` 10.9 KB）+ `users.json`；站点侧接口现成。
 - **依赖**：站点后端接口（已存在）+ 本轮新增的续期端点。
 - **粗估**：已完成（约 2.5 人日，含站点侧改动与两侧验证）。
 
-### 2.5 历史记录 —— 本轮已完成
+### 2.5 历史记录 —— 已完成
 
-- **v1**：`dialogs/history_dialog.py`("点击回退到该表达式") + 编辑菜单"清空历史"，跨会话保留。
-- **v2.0 实现（已完成）**：
+- **现状**：**已完成**。
   1. `src/lib/history/store.js` —— 唯一记录入口（`record/removeEntry/clearAll/clearRoute/listByRoute/searchEntries`），落 `%LOCALAPPDATA%\MFMath\settings\history.json`，走宿主的**原子写**（`SettingsBridge.StoreWrite`：先校验 JSON → 备份旧文件 → 临时文件替换）；
   2. `src/components/history/HistoryDialog.vue` —— 顶栏「历史」打开：时间 / 模式 / 表达式 / 结果摘要，支持搜索、逐条删除、点一条**回到原页面并回填**（走 `pendingInput` 这条已验证通路）、清空带二次确认；
   3. 记录点：`CalcView`（成功与失败都记）与 `BasicCalcView`（失败也记）；摘要由 `resultModel.briefValue()` 生成，**优先取"答案类"字段**（解集/根/取值…）而不是 `delta/exact/params` 那串元信息；
   4. 基础运算页的"最近计算"改为读全局历史（不再刷新即失），清空只清本页那部分；
   5. `catalog.js` 的 `storage.history` 由 `pending` 改 `ready`，设置 → 存储与数据里可看条数、可清空。
 - **验证**：`tests/cdp-history-search.mjs` **20 / 0**（含"真的落盘：`sys.StoreList()` 里能看到 history 文件"）。
-- **未做**：导出历史为文件（需要宿主文件对话框，见 §3.5）；绘图页的操作没记入历史（v1 也只记计算）。
+- **缺口**：导出历史为文件（需要宿主文件对话框，见 §3.5）；绘图页的操作没记入历史（既有实现也只记计算）。
+- **依据（既有实现）**：`dialogs/history_dialog.py`("点击回退到该表达式") + 编辑菜单"清空历史"，跨会话保留。
 
 ### 2.6 工作区保存 / 加载 —— 已完成
 
-- **v1**：文件菜单"保存工作区 / 加载工作区" → `workspace_save.json` + `calc/base_workspace.py`(4.9 KB)；坑是写在安装目录、只存 3 个字段、恢复失败还谎报成功。
-- **v2.0 实现（已完成）**：
+- **现状**：**已完成**。
   1. `src/lib/workspace/store.js` —— 唯一存放处。**每个页面自报载荷**（`{kind:"calc", blocks:[…]}` / `{kind:"plot", expressions, view, gridMode, showGrid, params}` / `{kind:"console", lang, code, stdin}`），store 不解释内容，加新页面不用改它；
   2. 「保存 / 载入」走 `sys.StoreWrite/StoreRead` → `%LOCALAPPDATA%\MFMath\settings\workspace.json`（宿主原子写）；「另存为文件 / 从文件打开」走**宿主新增的文件对话框** `win.SaveTextFile / OpenTextFile`（页面无法读写任意路径）；
   3. 载入时校验 `version` 与 `pages`，**坏输入一律给出可读原因**：版本比程序新 → 提示先更新；不是 JSON → 说清是哪一步；缺 `pages` → 直接拒绝；空工作区 → "还没有保存过"；
@@ -158,94 +157,94 @@
   5. 示例库/教程送来的表达式优先于工作区还原（用户刚点的动作不该被旧内容顶掉）；
   6. 入口在 设置 → 存储与数据 → 工作区（显示页面数、计算块数、曲线数、上次保存时间、是否有未保存改动），`catalog.js` 的 `storage.workspace` 由 pending 改 ready。
 - **验证**：`tests/cdp-workspace.mjs` **25 / 0** —— 三页采集 → 落盘 → **刷新页面后**内存清空 → 点「载入」→ 跳回原路由并还原计算块/模式/曲线/代码；另存为文件与从文件载入（跳过对话框的自动化路径）；四类坏输入全部有明确报错。测试跑完会把用户原有的 `workspace.json` 还原回去。
-- **未做**：外观（配色/字体）不在工作区文件里 —— 它是全局偏好，不该跟着某个工作区走；
+- **边界（有意不纳入）**：外观（配色/字体）不在工作区文件里 —— 它是全局偏好，不该跟着某个工作区走；
   **跨机器迁移整套设置已由「导入 / 导出设置」承担**（`docs/SETTINGS-BACKUP.md`：设置文件 + `mf_` 前缀的
   外观偏好一起打包；**凭据不进备份**）。
+- **依据与缺陷成因**：既有实现的文件菜单"保存工作区 / 加载工作区" → `workspace_save.json` + `calc/base_workspace.py`(4.9 KB)；缺陷是写在安装目录、只存 3 个字段、恢复失败还谎报成功。
 
 ### 2.7 中英双语（i18n）
 
-- **v1**：`MF_UI/i18n.py`（中/英两套完整字典，第 70-138 行）+ `utils/translator.py`(7 KB) + 设置里"语言 / Language"下拉。
-- **v2.0**：只有中文，没有 i18n 机制。
-- **怎么补**：建 `src/i18n/`（`zh-CN.js` / `en-US.js` + `t()` + 语言状态存 localStorage/`sys.StoreWrite`）；**分两步**——先做壳层（顶栏、导航、对话框标题与按钮、设置面板），再逐页替换正文；页面内的长文案（教程、占位说明）可后置。
-- **工作量依据**：v2 前端源码里**非注释的中文行约 1695 行**，这就是需要抽键的文案量级。
+- **现状**：只有中文，没有 i18n 机制。
+- **补法**：建 `src/i18n/`（`zh-CN.js` / `en-US.js` + `t()` + 语言状态存 localStorage/`sys.StoreWrite`）；**分两步**——先做壳层（顶栏、导航、对话框标题与按钮、设置面板），再逐页替换正文；页面内的长文案（教程、占位说明）可后置。
+- **工作量依据**：前端源码里**非注释的中文行约 1695 行**，这就是需要抽键的文案量级。
+- **依据（既有实现）**：`MF_UI/i18n.py`（中/英两套完整字典，第 70-138 行）+ `utils/translator.py`(7 KB) + 设置里"语言 / Language"下拉。
 - **粗估**：壳层 2 人日；全量 6-8 人日。
 
 ### 2.8 导出图片 —— 已完成
 
-- **v1**：i18n 键 `menu.export = "导出图片"`；绘图工作区里导出 PNG（dpi=200）；`calc/math_display.py:288` 也有 `fig.savefig`。
-- **v2.0 实现（已完成）**：
+- **现状**：**已完成**。
   1. `src/lib/plot/exportImage.js` —— 把画布**重绘到离屏画布**再导出：按 `max(2, devicePixelRatio)` 放大（高分屏/论文里不糊），先铺一层**不透明底色**（取画布自身背景色，取不到用白），再 `toDataURL("image/png")`；
   2. 宿主新增 `win.SaveBinaryFile(title, defaultName, filter, base64, path)`（base64 → 文件，允许直接传 `data:` URL，先剥前缀；上限 64 MB）；文件名默认「页面名-时间戳.png」；
   3. **六个绘图页都有入口**：2D / 极坐标、3D 曲面、向量场、自由几何、分形在自己那排视图按钮里加了 ⤓；复平面在左栏「重绘」旁边加了「导出图片」。导出结果写进各自的**状态行**（含路径与像素尺寸）——不让用户猜存到哪了；
   4. 四个画布组件（`PlotCanvas`/`SurfaceCanvas`/`VectorFieldCanvas`/`GeometryCanvas`）各自 `defineExpose({ canvasEl })` 把真实 `<canvas>` 交出来；
   5. 自动化钩子 `window.__mfExportTo`：非空则跳过保存对话框直接写该路径（与 `SaveTextFile` 的 `path` 参数同一约定）。
 - **验证**：`tests/cdp-export-image.mjs` **45 / 0** —— 六页逐页导出：写出真 PNG（魔数 + IHDR）、尺寸是屏幕画布的 **2 倍**、**左上角像素 alpha = 255**（背景不透明）、状态行说明路径；另验路径写不进去时给出失败原因且不留半个文件。测试结束会清掉自动化钩子。
-- **未做**：复制到剪贴板（v1 也没有）；导出为 SVG/PDF 不在范围内。
+- **缺口**：复制到剪贴板（既有实现也没有）；导出为 SVG/PDF 不在范围内。
+- **依据（既有实现）**：i18n 键 `menu.export = "导出图片"`；绘图工作区里导出 PNG（dpi=200）；`calc/math_display.py:288` 也有 `fig.savefig`。
 
 ### 2.9 数学边界守卫
 
-- **v1**：`MF_UI/utils/math_guard.py`(12.7 KB) + `math_guard_ui.py`(5.5 KB)：三级拦截——黄=预计 >10s 慢速预警、红=超高次幂积分/大矩阵/大范围求和等爆炸风险、黑=除以零/未定义符号等硬错误；阈值从 `config.json` 的 `math_guard` 段读取。
-- **v2.0**：无对应的**提交前预判**。引擎内部有局部守卫（`safe_solve`、定义域约束），但"这次计算会不会卡死"没人拦。
-- **怎么补**：两条路——① 引擎加一个 `estimate_cost(expr, action)` action（可复用 `symbolic_util.h` 的 `node_count()`）；② 前端用规则表先做一版（幂次、矩阵阶数、求和范围、嵌套层数）。命中即弹确认框（可"仍然计算"），阈值进设置；黑名单类错误直接拦。
+- **现状**：无对应的**提交前预判**。引擎内部有局部守卫（`safe_solve`、定义域约束），但"这次计算会不会卡死"没人拦。
+- **补法**：两条路——① 引擎加一个 `estimate_cost(expr, action)` action（可复用 `symbolic_util.h` 的 `node_count()`）；② 前端用规则表先做一版（幂次、矩阵阶数、求和范围、嵌套层数）。命中即弹确认框（可"仍然计算"），阈值进设置；黑名单类错误直接拦。
+- **依据（既有实现的判据）**：`MF_UI/utils/math_guard.py`(12.7 KB) + `math_guard_ui.py`(5.5 KB)：三级拦截——黄=预计 >10s 慢速预警、红=超高次幂积分/大矩阵/大范围求和等爆炸风险、黑=除以零/未定义符号等硬错误；阈值从 `config.json` 的 `math_guard` 段读取。
 - **粗估**：引擎路线 2 人日 / 前端规则路线 1 人日。
 
 ### 2.10 无理数逼近模块
 
-- **v1**：`MF_UI/calc/numerical_estimation.py`(14.9 KB)：Ramanujan 级数求 π、Leibniz 级数求 π、Monte Carlo 求 π、Taylor 求 e、Newton 求 √2。
-- **v2.0**：无（引擎里的 `leibniz_test` 是级数判敛，不是这个）。
-- **怎么补**：引擎加 5 个 action（`ramanujan_pi` / `leibniz_pi` / `monte_carlo_pi` / `taylor_e` / `newton_sqrt`），数值分析页挂成模式，结果页展示"迭代次数—误差"表。
+- **现状**：无（引擎里的 `leibniz_test` 是级数判敛，不是这个）。
+- **补法**：引擎加 5 个 action（`ramanujan_pi` / `leibniz_pi` / `monte_carlo_pi` / `taylor_e` / `newton_sqrt`），数值分析页挂成模式，结果页展示"迭代次数—误差"表。
+- **依据（既有实现）**：`MF_UI/calc/numerical_estimation.py`(14.9 KB)：Ramanujan 级数求 π、Leibniz 级数求 π、Monte Carlo 求 π、Taylor 求 e、Newton 求 √2。
 - **粗估**：1.5 人日（引擎 5 个小函数 + 映射）。
 
 ### 2.11 自动更新
 
-- **v1**：`main_window.py:1147-1158` 启动时请求 `https://mf-vis-science.cn/api/version`，发现新版弹窗；设置里有"启动时自动检查更新"；另有独立下载器 `dist-downloader/`(249 文件)。
-- **v2.0**：无；`catalog.js` 的 update 组 6 项 pending。
-- **怎么补**：① 站点 `/api/version` 先补 `sha256` 字段（当前缺）；② 宿主 `UpdateBridge.cs`：检查 → 下载到临时目录 → 校验 sha256 → 原子替换 → 提示重启；③ 前端设置组落地 + 启动时静默检查（可关）。
+- **现状**：无；`catalog.js` 的 update 组 6 项 pending。
+- **补法**：① 站点 `/api/version` 先补 `sha256` 字段（当前缺）；② 宿主 `UpdateBridge.cs`：检查 → 下载到临时目录 → 校验 sha256 → 原子替换 → 提示重启；③ 前端设置组落地 + 启动时静默检查（可关）。
+- **依据（既有实现）**：`main_window.py:1147-1158` 启动时请求 `https://mf-vis-science.cn/api/version`，发现新版弹窗；设置里有"启动时自动检查更新"；另有独立下载器 `dist-downloader/`(249 文件)。
 - **依赖**：站点改动（不在本仓库）。
 - **粗估**：宿主 3 人日 + 站点 0.5 人日。
 
 ### 2.12 关于对话框
 
-- **v1**：`dialogs/about_dialog.py`(14.5 KB，"完整功能介绍与技术栈"，可滚动)。
-- **v2.0**：`App.vue:183` → `alert("MF-Mathematics\nMF-Vis-Science · Open Studio")`。等于没有。
-- **怎么补**：`components/shell/AboutDialog.vue`，文案从 v1 搬，版本号/引擎信息/依赖状态**运行时读**（`mf.Version()`、`sys.EngineReport()` 已有）；加"打开数据目录""导出诊断包"两个现成入口。
+- **现状**：`App.vue:183` → `alert("MF-Mathematics\nMF-Vis-Science · Open Studio")`。等于没有。
+- **补法**：`components/shell/AboutDialog.vue`，文案沿用既有版本，版本号/引擎信息/依赖状态**运行时读**（`mf.Version()`、`sys.EngineReport()` 已有）；加"打开数据目录""导出诊断包"两个现成入口。
+- **依据（既有实现）**：`dialogs/about_dialog.py`(14.5 KB，"完整功能介绍与技术栈"，可滚动)。
 - **粗估**：0.5 人日。
 
 ---
 
-## 3. 迁了但降级 / 残缺的（4 项）
+## 3. 曾降级 / 残缺的能力（4 项，本轮已全部补齐）
 
 ### 3.1 控制台的运行时与可用包 —— 本轮已解决（本机生效）
 
-| | v1 | v2.0（本轮后） |
-| --- | --- | --- |
-| 执行方式 | 进程内 Python，**numpy / sympy / scipy + MF_Mathematics 包**直接可用（`console/console_engine.py` 顶部即 import） | 跑**下载来的** CPython 组件，经 `mfmath.py` 门面调引擎（`ConsoleBridge.cs:34-37, 504-537`） |
-| 第三方包 | 开箱即用 | **组件包已重建，三个包都在**（sympy 1.14.0 / numpy 2.5.3 / scipy 1.18.1 / mpmath 1.3.0） |
-| 下载体积 | — | 10.5 MB → **64 MB**；安装后 191 MB |
-
+- **现状**：跑**下载来的** CPython 组件，经 `mfmath.py` 门面调引擎（`ConsoleBridge.cs:34-37, 504-537`）；
+  **组件包已重建，三个包都在**（sympy 1.14.0 / numpy 2.5.3 / scipy 1.18.1 / mpmath 1.3.0）；
+  下载体积 10.5 MB → **64 MB**；安装后 191 MB。
+- **曾降级之处**：既有 Python 桌面版是进程内 Python，**numpy / sympy / scipy + MF_Mathematics 包**
+  直接可用（`console/console_engine.py` 顶部即 import）；改为"下载组件"后一度只剩标准库，本轮补齐。
 - **怎么做的**：`MFMath.Host/tools/build-python-component.ps1` —— 取官方 embeddable 包，把 cp313/win_amd64 的轮子解到 `Lib\site-packages`，改写 `python313._pth`（加 `Lib\site-packages` 与 `import site`），打包成**同名** zip；用宿主既有的"同名 `.sha256` 旁文件优先"机制（`ConsoleBridge.cs:227-243`）放进组件缓存，安装流程即可接受，**不用改宿主代码**。
 - **验证**：`tests/cdp-console-sci.mjs` **8 / 0** —— 真实宿主控制台里 `import sympy, numpy, scipy, mpmath`、`sp.diff`、`np.linalg.det`、`scipy.integrate.quad` 全部算对，且门面 `mfmath.call` 仍能调 C++ 引擎。
-- **还差一步（站点）**：把新包上传到 `https://mf-vis-science.cn/download/component/python`，然后更新 `ConsoleBridge.cs` 的 `PythonPayloadSha256` 与 `PythonPayloadBytes`（脚本会把两个值打印出来）。**换包之前不要改这两个常量**，否则新用户下到旧包会校验失败。当前本机靠 `.sha256` 旁文件生效，别人拿不到。
+- **缺口（还差一步，站点侧）**：把新包上传到 `https://mf-vis-science.cn/download/component/python`，然后更新 `ConsoleBridge.cs` 的 `PythonPayloadSha256` 与 `PythonPayloadBytes`（脚本会把两个值打印出来）。**换包之前不要改这两个常量**，否则新用户下到未更新的包会校验失败。当前本机靠 `.sha256` 旁文件生效，别人拿不到。
 
 ### 3.2 快捷键 —— 已完成
 
-- **v1**：F1 帮助（`main_window.py:398`）、Ctrl+Z 撤销、Ctrl+Y 重做（编辑菜单）。
-- **v2.0 之前**：只有局部快捷键——对话框 Esc/Enter、编辑器 Ctrl+Enter 运行、引导 ←/→。
-- **v2.0 实现（已完成）**：`src/lib/keyboard/shortcuts.js` + `App.vue` 安装，三条约束：
+- **现状**：**已完成**。`src/lib/keyboard/shortcuts.js` + `App.vue` 安装，三条约束：
   1. **不弹任何窗口**（用户明确要求）：F1 只 `router.push("/tutorial")`，撤销/重做就地改状态，全程没有 alert/confirm/模态；
   2. **不抢输入框里的键**：焦点在 `<input>/<textarea>/<select>/[contenteditable]/<math-field>/.cm-editor` 里时 Ctrl+Z 交给它们自己的撤销栈（MathLive 与 CodeMirror 都有）；F1 例外，任何地方都生效；
   3. **谁有"上一步"谁注册**：页面调 `registerUndoable({undo,redo,canUndo,canRedo})`，最后注册的（当前页）优先，卸载即注销；没有注册者时按键**不做任何事**（不提示、不弹窗）。
 - **计算页撤销栈**：只记表达式与模式（结果/错误/屏蔽原因不进历史），上限 50 步；**换页清空**（同一组件被不同计算页复用，否则在新页撤销会把上一页的块搬过来）；基线在挂载时定下来（否则"只改了一处"时栈是空的，Ctrl+Z 什么都不会发生）。
 - **可发现性**：计算页底部加了「↶ 撤销 / ↷ 重做」按钮，禁用状态跟着栈走，`title` 里写明快捷键。
-- **进坑记录**：第一版把两个栈写成普通数组 + `computed(() => undoStack.length > 0)` —— 普通数组的 `.length` **不产生响应式依赖**，computed 求值一次就永远缓存 `false`，于是按钮一直禁用、`active()` 也永远拿不到可撤销对象，快捷键全哑。改成 `ref([])` 才通。
+- **曾缺之处**：只有局部快捷键——对话框 Esc/Enter、编辑器 Ctrl+Enter 运行、引导 ←/→。
+- **依据（既有实现）**：F1 帮助（`main_window.py:398`）、Ctrl+Z 撤销、Ctrl+Y 重做（编辑菜单）。
+- **缺陷成因记录**：第一版把两个栈写成普通数组 + `computed(() => undoStack.length > 0)` —— 普通数组的 `.length` **不产生响应式依赖**，computed 求值一次就永远缓存 `false`，于是按钮一直禁用、`active()` 也永远拿不到可撤销对象，快捷键全哑。改成 `ref([])` 才通。
 - **验证**：`tests/cdp-shortcuts-prefs.mjs` 21 / 0（F1 跳转且无弹窗、Ctrl+Z/Y 真的撤销重做、输入框里不抢键、按钮禁用状态与 title、全程零弹窗）。
 
-### 3.3 两个设置项缺失 —— 已完成
+### 3.3 两个设置项 —— 已完成
 
-| v1 设置项 | v2.0 实现 |
+| 设置项 | 现状实现 |
 | --- | --- |
-| **数值精度**（`settings_dialog.py:162-167`） | 「设置 → 计算与绘图 → 数值精度」：**小数位数 0–15，默认 12**（与 v1 的 `:.12f` 一致，改默认值会影响所有既有截图与用例）。`lib/engine/resultFormat.js` 的 `fmtNum()` 实时读取；整数与科学计数法分支不受影响。行内当场显示 `1÷3`、`√2` 的示例 |
-| **绘图默认值**（X/Y 轴范围，`settings_dialog.py:112-136`） | 「设置 → 计算与绘图 → 绘图默认范围」：四个数字框，**四项都填才生效**，留空 = 按画布宽高比自动（旧行为）。由 `lib/plot/view.js` 的 `defaultView()` 读取，只影响**新打开**的绘图页，已经拖动过的视野不会被改写 |
+| **数值精度**（既有实现的位置：`settings_dialog.py:162-167`） | 「设置 → 计算与绘图 → 数值精度」：**小数位数 0–15，默认 12**（沿用既有的 `:.12f` 约定，改默认值会影响所有既有截图与用例）。`lib/engine/resultFormat.js` 的 `fmtNum()` 实时读取；整数与科学计数法分支不受影响。行内当场显示 `1÷3`、`√2` 的示例 |
+| **绘图默认值**（X/Y 轴范围，既有实现的位置：`settings_dialog.py:112-136`） | 「设置 → 计算与绘图 → 绘图默认范围」：四个数字框，**四项都填才生效**，留空 = 按画布宽高比自动（既有约定）。由 `lib/plot/view.js` 的 `defaultView()` 读取，只影响**新打开**的绘图页，已经拖动过的视野不会被改写 |
 
 - **存放与生效**：`lib/settings/prefs.js` → 宿主键值存储 `prefs.json`（原子写）；**改了就生效**（与外观组一致，没有保存按钮、不弹窗）；非法范围（最大 ≤ 最小 / 只填了一部分）在**行内**说明并退回自动。
 - **验证**：`tests/cdp-shortcuts-prefs.mjs` 覆盖：精度 12 → 按真实键盘算 `1÷3` 得 `0.333333333333`，改成 4 位后同一操作得 `0.3333`，整数 `7×6` 仍是 `42`；范围设成非法时行内说明，设成 `x∈[-5,5]、y∈[-1,1]` 后新开的绘图页视野正是该范围，「恢复默认」退回自动。
@@ -284,7 +283,7 @@
 | 项 | 动作 | 前置 | 状态 |
 | --- | --- | --- | --- |
 | **C#→JS 推送通道** | `PushHub` + `PostWebMessageAsJson` + `lib/push.js` 的 `onPush` | 无 | **已完成**（`cdp-push` 19/0；组件安装进度与控制台运行结束已在用） |
-| **AI 助手**（§2.1） | **阶段 1 已完成**：协议层用 TS（`src/lib/ai/*.ts`，移植自 MVS Agent）+ 宿主只做凭据与网络（`AiRelay.cs`/`AiBridge.cs`/`AiDpapi.cs`/`AiConfig.cs`）+ 非模态抽屉 `AiPanel.vue` + 设置组 `AiGroup.vue` | 无（阶段 2 分步才依赖 §0.4 第 4 条） | **已完成**（端到端 58 / 0、离线单测 13 / 0、全套 464 / 0，见 `docs/AI-ASSISTANT.md`） |
+| **AI 助手**（§2.1） | **阶段 1 已完成**：协议层用 TS（`src/lib/ai/*.ts`，移植自 MVS Agent）+ 宿主只做凭据与网络（`AiRelay.cs`/`AiBridge.cs`/`AiDpapi.cs`/`AiConfig.cs`）+ 非模态抽屉 `AiPanel.vue` + 设置组 `AiGroup.vue` | 无（阶段 2 分步才依赖 `docs/PLAN-feature-completion.md` §0.4 第 4 条） | **已完成**（端到端 58 / 0、离线单测 13 / 0、全套 464 / 0，见 `docs/AI-ASSISTANT.md`） |
 | **分步显示**（§2.2） | 按选定路线实现，接 `CalcView.vue:178` 已有的 `onSteps` | 同上的决策 | 未开始 |
 | **自动更新**（§2.11） | 站点补 sha256 + `UpdateBridge.cs` + 设置组（进度条可直接用推送） | 站点改动 | 未开始 |
 
@@ -298,14 +297,14 @@
 
 ---
 
-## 5. 有意不迁移的（决策，不算缺口）
+## 5. 有意不纳入 / 不复用的（决策，不算缺口）
 
 | 项 | 说明 |
 | --- | --- |
 | 安装包流水线 | `dist-installer/`(472 文件)、`scripts/installer.iss`、`build-installer.ps1` —— v2.0 目前产不出安装包（`STATUS-and-ROADMAP.md` §3.2） |
 | 独立下载器 | `dist-downloader/`(249 文件)，未纳入 |
 | HTTP 计算服务 | `math_http_service.py`，站点零引用（已核实），可整体弃用 |
-| 分发脚本 | `MF_Mathematics/tools/sync-engine.ps1`（消费方清单仍是旧布局，未纳入 v2.0） |
+| 分发脚本 | `MF_Mathematics/tools/sync-engine.ps1`（消费方清单仍是既有布局，未纳入 v2.0） |
 | 派生工程 | `MFMath.Test`、`demo_cs_mf`、`MF_Scheduling` |
 | PyInstaller spec | 3 个 `.spec`，v2.0 已不需要 |
 
@@ -320,7 +319,9 @@ $V2 = "C:\Users\fsafsafsa\Desktop\MVS知识库\Multifunctional系列\Multifuncti
 cmake -S "$V2\MF_Mathematics" -B "$V2\MF_Mathematics\build" -G "Visual Studio 18 2026" -A x64
 cmake --build "$V2\MF_Mathematics\build" --config Release --target mf_mathematics
 python "$V2\..\Multifunctional-Mathematics\MF_Mathematics\tests\accuracy\run_accuracy.py"
-#    准确性套件仍在 v1 树，但默认 DLL 已是 v2.0 的绝对路径（harness.py 的 ENGINE_DLL），
+#    准确性套件在相邻目录 ..\Multifunctional-Mathematics\MF_Mathematics\tests\accuracy\
+#    （28 个 .py + report.json，2180 用例）；跑法即上面的 python run_accuracy.py。
+#    默认 DLL 已是 v2.0 构建产物的绝对路径（harness.py 的 ENGINE_DLL），
 #    不需要再设 MF_ACC_DLL；要测别的构建产物才用该环境变量覆盖。
 
 # 2) 前端：自检 + 构建
@@ -357,10 +358,10 @@ powershell -ExecutionPolicy Bypass -File "$V2\MFMath.Host\tools\build-python-com
 
 ## 7. 方法局限与待核实项
 
-1. **v1 未实跑**：本报告"v1 有"全部按源码判定（`MF_UI/main_window.py`、`MF_UI/dialogs/*`、`MF_UI/calc/*`、`MF_UI/console/*`、`MF_AI/*`、`MF_Online/*`、`MF_User/*`、`MF_UI/i18n.py`、`MF_UI/utils/math_guard.py` 等）。个别功能的实际行为可能与此不同，若要逐项确认需先把 v1 的 PySide6 环境跑通。
+1. **那份 Python 桌面版未实跑**：本报告中"曾经具备什么"的判断全部按源码清点得出（`MF_UI/main_window.py`、`MF_UI/dialogs/*`、`MF_UI/calc/*`、`MF_UI/console/*`、`MF_AI/*`、`MF_Online/*`、`MF_User/*`、`MF_UI/i18n.py`、`MF_UI/utils/math_guard.py` 等）。个别功能的实际行为可能与此不同，若要逐项确认需先把该 PySide6 环境跑通。
 2. **仍待核实**：
    - ~~控制台组件的 CPython 里有没有 numpy / sympy / scipy~~ —— **已核实并解决**（见 §3.1）；
-   - v1"数值精度"设置对结果格式化的实际作用范围（我只看到设置项与固定 12 位两个端点，没逐处核对）；
+   - 既有"数值精度"设置对结果格式化的实际作用范围（我只看到设置项与固定 12 位两个端点，没逐处核对）；
    - 站点 `/api/version` 现有字段与自动更新的接口约定（§2.11）。
 3. **宿主能力清单（写补法时的前提，已核对）**：
    - 已有：`mf.Dispatch/Version/FunctionExists/*Symbolic`、`win.{Minimize,ToggleMaximize,Restore,IsMaximized,Close,StartDrag,SetChromeBackground,SaveTextFile,OpenTextFile,SaveBinaryFile}`、`con.{Start,Poll,Stop,Install,Uninstall,Components,SetDownloadBase,InstallStatus,CancelInstall}`、`sys.{Info,EngineReport,StoreList,StoreRead,StoreWrite,StoreDelete,OpenPath,ExportDiagnostics}`、`push.{Info,Emit,Ready}`；

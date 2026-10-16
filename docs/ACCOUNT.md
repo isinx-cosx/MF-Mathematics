@@ -35,7 +35,7 @@
 - **失败体是 `{detail: "…"}`**（站点注释里就写着"桌面端依赖 detail"）。所以界面上显示的是
   服务器的原话（"用户名或密码错误"、"登录尝试次数过多，请 15 分 0 秒后再试"），不是我们编的。
 - **认证是 `Authorization: Bearer <jwt>`**（HS256，payload 带 `jti` 供黑名单使用）。
-  v1 客户端当年用的是 `/login`（FastAPI 老路径），那个已经 404 了 —— 现在是 `/api/login`。
+  站点早期的登录路径 `/login`（FastAPI 路径）已经 404，现行路径是 `/api/login`。
 
 实测（只做无害 GET，没去猜密码以免触发登录锁定）：
 
@@ -44,7 +44,7 @@ GET https://mf-vis-science.cn/health        → 200 {"code":0,"data":{"status":"
 GET https://mf-vis-science.cn/api/version   → 200 {"code":0,"data":{"latest":"1.2.0",…}}
 GET https://mf-vis-science.cn/api/me        → 401 {"detail":"未认证"}       ← 契约在
 GET https://mf-vis-science.cn/api/login     → 405（POST 路由存在）
-GET https://mf-vis-science.cn/login         → 404（v1 老路径已下线）
+GET https://mf-vis-science.cn/login         → 404（早期路径已下线）
 ```
 
 ## 2. 服务器侧补的那一块：会话
@@ -114,9 +114,9 @@ RESULT|site-api|16|0
 | `cdp-account.mjs`（自带 `tests/fake-account-server.mjs`，**按站点契约实现**） | 15 组断言：契约（登录/续期/me/登出/注册/验证码/改密/登录记录/站点版本）· 长会话与短会话 · **token 三处都读不到** · **服务端单方面作废 → 401 被认真处理并清掉登录态** · 未登录时的受保护操作给明确提示 · 失败分类（含 429 限流原话、超时、断网）· 自检六项 · **离线承诺**（断网后仍显示缓存资料并标未校验、本地计算照常出 15、仍能退出登录）· 收尾还原生产地址 | **52 / 0** |
 | 全套回归（19 个用例） | — | 见 STATUS |
 
-## 6. 与 v1 的差异
+## 6. 设计取舍
 
-| v1（`MF_User/`，login_dialog.py 33 KB） | 现在 | 为什么 |
+| 旧版行为（`MF_User/`，login_dialog.py 33 KB） | 现在 | 为什么 |
 | --- | --- | --- |
 | `/login`（FastAPI 老路径） | `/api/login`（Next 路径） | 老路径已 404；契约仍是 OAuth2 form + bearer，兼容面没丢 |
 | token 存在 `users.json`（明文） | DPAPI 密文（`account.json`） | 明文 token 等于明文密码 |

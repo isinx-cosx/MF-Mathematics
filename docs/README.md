@@ -207,7 +207,7 @@ Get-ChildItem docs -Recurse -File | Where-Object Extension -ne '.md'
 | [`STEP-VIEW.md`](STEP-VIEW.md) | 分步显示的渲染层 | 现役渲染约定，被 [`manual/README.md`](manual/README.md) 引用 |
 | [`HANG-OPTIMIZATION.md`](HANG-OPTIMIZATION.md) | 会卡住的算法：实测、定位与优化 | 现役手册，被 [`manual/README.md`](manual/README.md) 引用 |
 | [`hang-fix-verification.md`](hang-fix-verification.md) | 上述优化的修复前后对照 | 由脚本生成，不手工编辑 |
-| [`MIGRATION-GAPS.md`](MIGRATION-GAPS.md) | v1 到 v2.0 的功能迁移缺口报告 | 迁移期报告，判定基准是 v1 的实际产品形态 |
+| [`MIGRATION-GAPS.md`](MIGRATION-GAPS.md) | 迁移期功能缺口报告 | 迁移期报告，判定基准是迁移前产品的实际形态 |
 | [`PLAN-feature-completion.md`](PLAN-feature-completion.md) | 功能补全方案 | 规划期文档，含逐项清点结论 |
 | [`STATUS-and-ROADMAP.md`](STATUS-and-ROADMAP.md) | 现状与规划报告 | 记录类，数字均为实测 |
 | [`FRONTEND-FIXES.md`](FRONTEND-FIXES.md) | 前端审查结论的核实与修复记录 | 审查记录，含逐条可复跑断言 |

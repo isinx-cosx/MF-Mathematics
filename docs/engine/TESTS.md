@@ -78,17 +78,17 @@ ctest --test-dir MF_Mathematics/build -C Release -N                             
 
 回归套件的期望值来源分三类：
 
-| 来源 | 套件数 | 哪些 |
+| 期望值来源 | 套件数 | 哪些 |
 | --- | --- | --- |
-| v1 Python 版 `self_test()` 的断言 | 12 | 12 个 `test_*.cpp` |
+| 12 个对应点上冻结的断言 | 12 | 12 个 `test_*.cpp` |
 | 数学事实（非「当前实现输出」） | 1 | `test_limits` |
 | 实际反馈的缺陷 + 契约 | 2 | `test_complex_grid`、`test_symbolic_contract` |
 
-v1 的 Python 后端已从本仓库移除，因此 12 份套件里的期望值是冻结的字面量，无法回到原始出处重算。改动这些数字只能依据独立参考实现，不能依据「v1 当时算得是某值」。
+这 12 个对应点上的断言是冻结的字面量：产生它们的原始实现不在本仓库中，无法回到原始出处重算。改动这些数字只能依据独立参考实现，不能依据「某次运行曾经算得某个值」。
 
 ## 5. 准确性用例的位置
 
-`MF_Mathematics/tests/accuracy/` 在本仓库中不存在。准确性套件位于 v1 树：
+`MF_Mathematics/tests/accuracy/` 不在本仓库中。准确性套件位于相邻的独立工程目录：
 
 ```text
 ../Multifunctional-Mathematics/MF_Mathematics/tests/accuracy/
@@ -190,7 +190,7 @@ add_test(NAME foo COMMAND test_foo)
 
 ### 7.2 准确性用例
 
-准确性用例改的是 v1 树里的文件：
+准确性用例改的是准确性套件目录（`$ACC`）下的文件：
 
 ```powershell
 python "$ACC\extract_signatures.py"   # 从 C++ 注册源码提取参数契约 → signatures.json

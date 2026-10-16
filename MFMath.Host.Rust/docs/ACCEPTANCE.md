@@ -155,7 +155,7 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File .\run-all.ps1
 2. **搜索**：真实 DDG HTML/IA 的 markup（解析器是手写扫描器）、自建 SearXNG 带 `?format=json` 的网关。
 3. **组件下载**：真实 CDN 的 Range/断点续传；`taskkill` 不可用的受限环境（应看到 `app.log` 里那条 WARN）。
 4. **账号**：真实站点契约（登录/刷新/401 自动登出）。
-5. **更新**：站点 `/api/version` 比本机旧的场景（必须判定为"不需更新"，不能把用户引去下 v1 包）。
+5. **更新**：站点 `/api/version` 比本机旧的场景（必须判定为"不需更新"，不能把用户引去下载站点上的旧安装包）。
 
 ---
 

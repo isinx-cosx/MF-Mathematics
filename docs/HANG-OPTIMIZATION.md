@@ -126,7 +126,7 @@ complex_grid 153、functional_analysis 43、harmonic_analysis 34、limits 47、
 linear_algebra 61、measure_theory 49、number_theory 53、numerical 47、
 probability 63、real_analysis 52、symbolic_contract 167）。
 
-**准确性套件**（v1 树 `tests/accuracy`，独立参考实现 mpmath/sympy/numpy/scipy 对拍）：
+**准确性套件**（`../Multifunctional-Mathematics/MF_Mathematics/tests/accuracy/`，28 个 `.py` + `report.json`，独立参考实现 mpmath/sympy/numpy/scipy 对拍）：
 **2180 通过 / 0 失败 / 0 跳过，action 覆盖 424/424**。
 
 ### 3.1 收口时踩的坑（值得记：**上限归引擎，下限归核心**）
@@ -180,7 +180,7 @@ python "$V2\MF_Mathematics\tools\verify_hang_fixes.py" 12
 # C++ 单元测试
 cmake --build "$V2\MF_Mathematics\build" --config Release --parallel
 Get-ChildItem "$V2\MF_Mathematics\build\bin\Release\test_*.exe" | % { & $_.FullName }
-# 准确性套件（在 v1 树里跑；harness.py 的 ENGINE_DLL 已指向 v2 的构建产物）
+# 准确性套件（跑相邻目录里的 28 个 .py / 2180 条用例；harness.py 的 ENGINE_DLL 已指向本仓库的构建产物，可用环境变量 MF_ACC_DLL 覆盖）
 cd "…\Multifunctional-Mathematics\MF_Mathematics\tests\accuracy"; python run_accuracy.py
 ```
 

@@ -115,7 +115,7 @@ Select-String -Path MF_UI/MFMath.UI.Vue/src/components/plot-react/ReactPlotView.
 | 自由几何 | `plot-geometry` | `shapes[]`、`tool`、`snap` | 逐条验 `id` 有限数、`type` 字符串、`data` 数组 |
 | 分形 | `plot-fractal` | `view{xmin,xmax,ymin,ymax}`、`maxIter`、`scheme`、`smooth`、`maxSide` | `numOr` + `xmin<xmax && ymin<ymax` |
 
-2D 的载荷形状与旧 Vue 版逐字一致，保证老工作区文件可读。类型守卫（`isViewLike` / `numOr` / `boolOr` / `strOr` / `numsOr`）只校验类型与有限性，不校验取值范围；`density`、`gridN` 等值的上界由 UI 滑块约束，消费点不再夹取。复平面与分形在消费点做了夹取兜底。
+2D 的载荷形状与冻结的 Vue 实现逐字一致，保证既有工作区文件可读。类型守卫（`isViewLike` / `numOr` / `boolOr` / `strOr` / `numsOr`）只校验类型与有限性，不校验取值范围；`density`、`gridN` 等值的上界由 UI 滑块约束，消费点不再夹取。复平面与分形在消费点做了夹取兜底。
 
 ## 6. 调试接口
 

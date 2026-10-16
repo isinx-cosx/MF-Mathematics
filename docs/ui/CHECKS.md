@@ -72,7 +72,7 @@ React 侧只有 `npm run check:types`，无聚合脚本。`npm run check` 不是
 | 守卫 | 判据 | 定位命令 |
 | --- | --- | --- |
 | 教程 target 覆盖 | 每个教程步骤的 target 在源码 `data-tour` 里存在，或在 `PENDING` 里登记理由；双向校验 | `Select-String -Path MF_UI/MFMath.UI.Vue/tools/check-ui.mjs -Pattern "PENDING"` |
-| 键盘键数与键面 | 键数等于 v1 值、`▢` 无残留、`\begin{}` 有配对 `\end{}`、分类名与顺序固定 | `Select-String -Path MF_UI/MFMath.UI.Vue/tools/check-ui.mjs -Pattern "KEY_COUNT"` |
+| 键盘键数与键面 | 键数等于基准值、`▢` 无残留、`\begin{}` 有配对 `\end{}`、分类名与顺序固定 | `Select-String -Path MF_UI/MFMath.UI.Vue/tools/check-ui.mjs -Pattern "KEY_COUNT"` |
 | 键面可读性 | 键面要么排版成数学，要么是清理过的可读文本 | `Select-String -Path MF_UI/MFMath.UI.Vue/tools/check-ui.mjs -Pattern "showsRawLatex"` |
 | 教程字段合法性 | `actionType`、`highlight`、`placement` 取值合法 | `Select-String -Path MF_UI/MFMath.UI.Vue/tools/check-ui.mjs -Pattern "ACTIONS"` |
 | 映射重复键 | `engineMap.js` 与 `engineMapExtra.js` 各跑一次重复键检查 | `Select-String -Path MF_UI/MFMath.UI.Vue/tools/check-ui.mjs -Pattern "checkDuplicateKeys"` |
@@ -104,7 +104,7 @@ i18n 弹窗字段        ：186 条唯一标签，缺译文 0 条
 i18n 结果标签        ：78 个字段，缺译文 0 个
 i18n 键盘分类        ：6 个分类，缺译文 0 个
 样本 fixture        ：287 个键 / 重复键 0 个
-数学键盘            ：6 分类 / 126 键（v1 也是 126）
+数学键盘            ：6 分类 / 126 键（基准 126）
 端到端用例          ：cdp-* 48 个，已登记 48 个
 ```
 

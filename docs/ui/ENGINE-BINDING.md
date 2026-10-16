@@ -62,10 +62,10 @@
 
 | 表 | 位置 | 职责 | 键数 |
 | --- | --- | --- | --- |
-| `RAW_MAP` | `engineMap.js` | 旧版映射的自动转换快照 | 324 |
+| `RAW_MAP` | `engineMap.js` | 由早期映射自动转换得到的快照 | 324 |
 | `EXTRA_MAP` | `engineMapExtra.js` | 增量与修正，同名覆盖前者 | 165 |
 | `ENGINE_MAP` | `engineMap.js` | `{...RAW_MAP, ...EXTRA_MAP}`，中文模式名 → `{fn, module, args}` | 415 |
-| `RAW_VAR_SPECS` | `engineMap.js` | 旧版弹窗字段快照 | 19 |
+| `RAW_VAR_SPECS` | `engineMap.js` | 早期弹窗字段快照 | 19 |
 | `EXTRA_VAR_SPECS` | `engineMapExtra.js` | 弹窗字段增量 | 130 |
 | `ENGINE_VAR_SPECS` | `engineMap.js` | 模式名 → 字段数组，有它才弹窗 | 139 |
 | `VIEW_CONFIGS` | `viewConfigs.js` | 学科页 → `{title, desc, modes, single}` | 14 页 |
@@ -102,7 +102,7 @@ node --input-type=module -e 'import fs from "node:fs";const m=await import("./sr
 重名模式登记        ：已登记 24 个，未登记 0 个
 ```
 
-映射 415 与页面并集 391 的差额是 24 个旧名字，其功能由同 fn 的页面模式提供。
+映射 415 与页面并集 391 的差额是 24 个已被取代的名字，其功能由同 fn 的页面模式提供。
 
 ## 6. 异步分流阈值
 

@@ -121,10 +121,16 @@ Visual Studio C++ 工具链、vcpkg、Node.js 与 Rust。非 Windows 平台没�
 因为多语言是逐步扩大的。导航、顶栏与 14 个学科视图已中英双语，可在「设置 → 外观 → 界面语言」
 切换并记忆；页面正文与教程正文仍是中文。UI 语言与 AI 的回答语言是两件事。
 
-## 23. v1 的 Python 后端去哪了？
+## 23. 计算需要 Python 后端吗？
 
-v1 作为应用已不可运行。它的计算全靠 Python 后端，v2 把计算全部搬进 `mf_mathematics.dll`，所以
-v1 的 Python 后端已删除。唯一保留的是准确性测试资产，可对任意引擎 DLL 运行。
+不需要。计算全部在 `mf_mathematics.dll` 里完成，界面、控制台与 AI 助手都只调这一个引擎，
+程序不附带 Python 计算后端，也不需要 Python 运行环境。控制台里的 Python 是可选的编程组件，
+用于写脚本调用同一个引擎，与计算实现无关。
+
+准确性测试资产单独保留，可对任意引擎 DLL 运行。它不在本仓库，位于相邻目录
+`../Multifunctional-Mathematics/MF_Mathematics/tests/accuracy/`，含 28 个 `.py` 与 `report.json`、
+2180 条用例，用独立参考实现对拍。跑法：`python run_accuracy.py [域] [--coverage] [--json <文件>]`；
+被测 DLL 由 `harness.py` 的 `ENGINE_DLL` 决定，可用环境变量 `MF_ACC_DLL` 覆盖。
 
 ## 24. 引擎有多少函数？
 

@@ -305,8 +305,8 @@ grep -c 'ONLINE-SEARCH\.md|ACCOUNT\.md|UPDATE-CHAIN\.md|SETTINGS-BACKUP\.md'
 
 1. **根 `README.md` 的准确性用例路径写错**：原文把 `MF_Mathematics/tests/accuracy/` 写得像 v2.0 的路径，
    而实测该目录**在 v2.0 里不存在**（`Test-Path` = `False`，`git ls-files` 无命中），
-   它在 **v1 树**里（`../Multifunctional-Mathematics/MF_Mathematics/tests/accuracy/`，28 个 `.py` + `report.json`）。
-   已改成显式写清 v1 路径并附实测判据 —— 这条由**三份文档独立指出**，是本轮最实的一处更正；
+   它在相邻仓库 `../Multifunctional-Mathematics/MF_Mathematics/tests/accuracy/`（28 个 `.py` + `report.json`）。
+   已改成显式写清该相邻路径并附实测判据 —— 这条由**三份文档独立指出**，是本轮最实的一处更正；
 2. **`docs/ui/README.md` 与 `docs/ui/CHECKS.md` 的计数过期**：写这批文档期间 B 面落了
    `unit-history-store.mjs`，`unit-*` 由 3 变 4、登记表由 52 变 **53**（48 cdp + 4 unit + 1 audit-modes）。
    已改并**写明复核时刻**，另加一句"引用前请重跑命令"；

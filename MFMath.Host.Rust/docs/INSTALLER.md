@@ -220,7 +220,7 @@ HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall\Multifunctional-Mathema
 
 所有面向用户与面向系统的名字一律用全名 `Multifunctional-Mathematics`，只有用户数据目录沿用 `MFMath`（宿主与既有的设置/日志路径都按它定位）。
 
-v1 的安装目录是 `%LOCALAPPDATA%\Programs\MF-Mathematics\`，与本产品的目录不同，两者可以并存。
+`%LOCALAPPDATA%\Programs\MF-Mathematics\` 属于另一份已存在的程序，与本产品的目录不同，两者可以并存。
 
 Cargo 包名保持 `mfmath-host-rust`（`../Cargo.toml`），构建产物与开发脚本沿用该名（`../docs/ACCEPTANCE.md`、`../../MF_UI/MFMath.UI.Vue/tests/run-all.ps1` 都按它定位）。改名由安装器在释放阶段完成，避免波及开发流程。
 
@@ -550,16 +550,16 @@ cargo build --release --offline --manifest-path ..\MFMath.Installer\Cargo.toml
 
 ### 安装目录里可能有别的东西
 
-默认安装目录定为 `%LOCALAPPDATA%\Programs\Multifunctional-Mathematics\`，而不是 v1 用的 `%LOCALAPPDATA%\Programs\MF-Mathematics\`。原因是实测发现后者**已经装着 v1**：
+默认安装目录定为 `%LOCALAPPDATA%\Programs\Multifunctional-Mathematics\`，而不是已存在的另一份程序所用的 `%LOCALAPPDATA%\Programs\MF-Mathematics\`。原因是实测发现后者**已经装着一份主程序**：
 
 ```
 %LOCALAPPDATA%\Programs\MF-Mathematics\
-Multifunctional-Mathematics-v1.0.exe   132.20 MB
-unins000.exe                             4.30 MB
-unins000.dat
+├── 主程序（单文件）                      132.20 MB
+├── unins000.exe（它自己的卸载器）          4.30 MB
+└── unins000.dat
 ```
 
-若 v2 沿用该目录并按覆盖升级先清空，就会把 v1 整个删掉。改用独立目录后两者互不干扰，用户升级到 v2 时 v1 仍然可用。
+一共 3 个文件。若沿用该目录并按覆盖升级先清空，就会把那份程序整个删掉。改用独立目录后两者互不干扰，安装本产品时那份程序仍然可用。
 
 `--dir` 仍可指向任意位置，所以安装器与卸载器都保留了下面的保护规则：
 
@@ -572,14 +572,14 @@ unins000.dat
 
 清单只登记本产品释放的文件（归档条目 + `uninstall.exe`），不扫描整个目录。卸载同样只删清单里的文件；若目录里还剩别的东西，**保留目录**并列出剩余项。
 
-实测结果（隔离的 `LOCALAPPDATA` 下造的模拟 v1 环境）：
+实测结果（隔离的 `LOCALAPPDATA` 下构造的模拟既有安装环境）：
 
 | 检查 | 结果 |
 | --- | --- |
-| `--dir` 指向含 v1 的目录 | 拒绝，列出 v1 的 3 个文件，退出码 1，v1 完好 |
-| 同上加 `/force` | 成功；v1 的 3 个文件仍在 |
-| 与 v1 共存时的清单条目数 | 115（114 载荷 + `uninstall.exe`），**不含 v1 的文件** |
-| 卸载后 | 本产品 115 个文件全删；v1 的 3 个文件与目录本身都保留 |
+| `--dir` 指向含既有程序的目录 | 拒绝，列出该程序的 3 个文件，退出码 1，该程序完好 |
+| 同上加 `/force` | 成功；该程序的 3 个文件仍在 |
+| 与既有程序共存时的清单条目数 | 115（114 载荷 + `uninstall.exe`），**不含该程序的文件** |
+| 卸载后 | 本产品 115 个文件全删；既有程序的 3 个文件与目录本身都保留 |
 | 重复安装同版本 | 识别为既有安装并覆盖，退出码 0 |
 | 安装更高版本 | 识别旧版本、按清单清理、版本号与注册表同步更新 |
 

@@ -1,6 +1,6 @@
-# 功能补全方案（实现只用 C++ / C# / JS·TS）
+# 功能补齐计划（实现只用 C++ / C# / JS·TS）
 
-> 目标：把 v1 桌面端有、v2.0 目前没有的功能补齐，同时把实现代码里的 Python **清零**。
+> 目标：把产品应有的功能集里、v2.0 目前尚未具备的部分补齐，同时把实现代码里的 Python **清零**。
 > 本文只做方案，不含实现。所有结论均基于对现有代码的清点，关键处附证据。
 >
 > **清点状态：三路清点已全部完成** —— AI / 搜索 / 用户系统（§2、§4）、教程 / 键盘 / 工作区 / 分步（§3）、`.pyd` 覆盖审计（§5.1）。
@@ -14,7 +14,7 @@
 > - 验证：`npm run check:ui`（构建期自检）、`npm run build`、`tests/cdp-tutorials-keypad.mjs`（真实宿主内 30 项断言全通过，已登记进 `tests/run-all.ps1`）。
 >
 > **两处与计划的偏差（后续处理）**
-> 1. 教程进度暂存 **localStorage**（WebView2 用户数据目录在 `%LOCALAPPDATA%\MFMath\WebView2`，卸载不误删），而非计划里的 `%APPDATA%\MFMath\tutorial_progress.json`；读取 v1 旧进度需要宿主文件访问（§4.3 的 `store` 桥，属 P1）。
+> 1. 教程进度暂存 **localStorage**（WebView2 用户数据目录在 `%LOCALAPPDATA%\MFMath\WebView2`，卸载不误删），而非计划里的 `%APPDATA%\MFMath\tutorial_progress.json`；读取该遗留进度文件需要宿主文件访问（§4.3 的 `store` 桥，属 P1）。
 > 2. 11 个依赖 AI / 搜索 / 设置界面的引导步骤列为"待实现"（`src/lib/tutorial/targets.js` 的 `PENDING`）；构建期自检会拦住既未实现、又没写理由的目标。
 
 ---
@@ -24,7 +24,7 @@
 ### 0.1 三条硬约束
 
 1. **实现代码只用 C++、C#、JS/TS** → 现有 Python 必须整体清零。
-2. **计算仍由 C++ 引擎完成** → 引入 AI 也不能破坏（注意 v1 的提示词**违反**这条，见 §2.9）。
+2. **计算仍由 C++ 引擎完成** → 引入 AI 也不能破坏（注意既有的 Python 版分步提示词**违反**这条，见 §2.9）。
 3. **不破坏已验证成果** → 引擎 424 action、准确性 2180 用例、前端 43 个 CDP 测试的能力不能因改造而丢失。
 
 ### 0.2 现状核对（已实测）
@@ -50,7 +50,7 @@
 | --- | --- | --- |
 | `MF_Mathematics/**/*.py`（12 域后端 + `core/registry.py` + `utils/` + `ai_accelerator`/`ai_cache`） | 派发层 + 部分算法 + 守卫判据 | 派发层已由 C#/TS 直调 C ABI 取代；守卫判据下沉引擎（§5.3） |
 | `numerical/*.pyd`（6 个）+ `linear_algebra/inner_product.dll` | CPython 扩展 | **可安全弃用** —— 覆盖审计已完成（§5.1）：15 项完全覆盖 / 4 项部分覆盖 / **0 未覆盖**，只需 1 项前置修改 |
-| `MF_UI/**/*.py`（Qt 应用 2101 文件） | 旧 UI | 已被 Vue 取代 |
+| `MF_UI/**/*.py`（Qt 应用 2101 文件） | 既有 Qt UI | 已被 Vue 取代 |
 | `math_http_service.py` + `.spec` | Python HTTP 服务 | **整体弃用**（站点零引用） |
 | `MF_AI` / `MF_Online` / `MF_Tutorial` / `MF_User` | 四个功能模块 | C#/TS 重写（§2–§4） |
 | `scripts/*.py` + 3 个 PyInstaller `.spec` | 打包、手册、图标、截图 | Node(.mjs) 或 C# 重写（§8） |
@@ -62,9 +62,9 @@
 2. **是否允许 Node 作为构建工具？** 打包 / 手册 / 截图都需要一个脚本层；用 Node(.mjs) 最省事，若要构建层也是 C#，改写为控制台工具同样可行。
 3. **Inno Setup 的 `.iss` 与 CMake 的 `CMakeLists.txt`** 属第三方工具的**声明式配置**（不是实现代码），建议视为例外；严格模式可改 WiX/MSIX（用 C# 生成）。
 4. **AI 分步提示词要"改行为"，且"本地步骤"会随 Python 清零而消失（两件事一起定）**：
-   - v1 的提示词明确要求模型**自己算**（原文见 §2.9），与"计算仍用 C++"**直接冲突** → v2.0 按"引擎先算、AI 只解释"改写；
-   - v1 的本地步骤（`MathObject.steps`）由 **84 个 Python 文件、约 600 处**产出，而引擎的 C ABI 信封**没有 steps 字段**（已核对，见 §3.5）→ **Python 清零后本地步骤会整体消失**。请选择：① 引擎侧为高频 action 新增步骤输出；② 纯 AI；③ **混合**（推荐，本方案默认）。
-5. **是否给 AI / 云功能加登录门禁？** v1 **完全没有门禁**（§4.1 末尾）：`balance`/`is_active` 只做显示，唯一配额是本地 `usage.json` 且配了 API Key 就绕过。若要"登录才解锁"，需站点侧配套按 `balance` 扣减，目前后端没有这个语义。
+   - 既有的分步提示词明确要求模型**自己算**（原文见 §2.9），与"计算仍用 C++"**直接冲突** → v2.0 按"引擎先算、AI 只解释"改写；
+   - 既有的本地步骤（`MathObject.steps`）由 **84 个 Python 文件、约 600 处**产出，而引擎的 C ABI 信封**没有 steps 字段**（已核对，见 §3.5）→ **Python 清零后本地步骤会整体消失**。请选择：① 引擎侧为高频 action 新增步骤输出；② 纯 AI；③ **混合**（推荐，本方案默认）。
+5. **是否给 AI / 云功能加登录门禁？** 既有实现**完全没有门禁**（§4.1 末尾）：`balance`/`is_active` 只做显示，唯一配额是本地 `usage.json` 且配了 API Key 就绕过。若要"登录才解锁"，需站点侧配套按 `balance` 扣减，目前后端没有这个语义。
 6. **配额制（免费 5 次步骤 / 3 次加速）保留否？** 保留的话云服务要能对账（现状是纯本地计数 + 绕过规则，服务端不参与）。
 
 ---
@@ -112,10 +112,10 @@
 
 ## 2. AI 助手（同时补齐"查看步骤"）
 
-### 2.1 现状缺口
+### 2.1 现状与缺口
 
 - `CalcView.vue:147-152` 的 `onSteps()` 提示「步骤推导未接入」——"查看步骤"是唯一已接线却无能力的入口。
-- v1 的 AI 是真实功能：`main_window.py:603` `from MF_AI.config import Config`，另有 `MF_UI/dialogs/ai_dialog.py`、`ai_config_prompt.py`、`MF_UI/calc/step_viewer.py`。
+- 既有 Python 桌面版的 AI 是真实功能：`main_window.py:603` `from MF_AI.config import Config`，另有 `MF_UI/dialogs/ai_dialog.py`、`ai_config_prompt.py`、`MF_UI/calc/step_viewer.py`。
 - 新前端 grep 无任何 AI 代码。
 
 ### 2.2 组件划分
@@ -127,11 +127,11 @@
 | `Configured()` | 是否已配置（密钥或本地模型可用） |
 | `GetConfig()` | 返回非敏感配置 + `apiKeySet` 布尔；**绝不回明文密钥** |
 | `SetConfig(json)` | 写入配置；密钥经 DPAPI 加密后单独存 |
-| `TestConfig(json)` | 连通性自检（v1 设置页有"测试连接"） |
+| `TestConfig(json)` | 连通性自检（既有 Python 版设置页有"测试连接"） |
 | `Ask(requestId, json)` | **立即返回**；回复经推送通道 `ch:"ai"` 分片回传 |
 | `Cancel(requestId)` / `CancelAll()` | 中断流式请求 |
 | `History(limit, offset)` / `ClearHistory()` | 会话历史（JSONL） |
-| `Models()` | 从 `provider_models` 返回可选模型（修正 v1 硬编码，见 §2.10） |
+| `Models()` | 从 `provider_models` 返回可选模型（修正既有实现的硬编码，见 §2.10） |
 
 **TS**：`src/lib/ai/bridge.js`（协议 + 无宿主降级）、`src/components/ai/AiPanel.vue`（对话 / 流式 / 停止 / 复制最后回复 / 清空 / 上下文提示条 / 未配置 banner）、`src/components/ai/StepPanel.vue`（分步推导，见 §3.5）
 **接入点**：`CalcView.vue` 的 `onSteps()`、`ResultDialog.vue` 的"查看步骤"按钮、`App.vue` 顶栏 AI 入口
@@ -154,7 +154,7 @@
 
 ### 2.4 配置、密钥与隐私
 
-- 配置：`%LOCALAPPDATA%\MFMath\ai-config.json`，**字段名与 v1 的 `MF_AI/config.yaml` 对齐**（§2.8）；启动时若发现 v1 的 `config.yaml`，做一次性迁移并提示
+- 配置：`%LOCALAPPDATA%\MFMath\ai-config.json`，**字段名与既有的 `MF_AI/config.yaml` 对齐**（§2.8）；启动时若发现遗留的 `config.yaml`，做一次性迁移并提示
 - 密钥：**DPAPI**（`ProtectedData.Protect`，`CurrentUser`）加密存 `ai.secret`；**同时继续读 `AI_API_KEY` 环境变量 / `.env`**（兼容既有部署，优先级见 §2.8）
 - 不落明文、不进日志、错误信息过滤；设置面板提供**"禁用 AI"**硬开关
 - 隐私：明确告知"提问内容会发送到所配模型服务"
@@ -162,40 +162,40 @@
 ### 2.5 上下文、成本与健壮性
 
 - 上下文只带 `{当前模式, 表达式, 引擎结果, 最近 N 轮}`（N 默认 6，可配）
-- 缓存沿用 v1 语义（§2.8）：命中不计费；v2.0 增加缓存面板可清空
-- 超时沿用 v1（非流式 60s / 流式 120s）；**v1 没有重试，v2.0 增加指数退避重试**（仅网络错误与 5xx，4xx 不重试）
+- 缓存沿用既有语义（§2.8）：命中不计费；v2.0 增加缓存面板可清空
+- 超时沿用既有约定（非流式 60s / 流式 120s）；**既有实现没有重试，v2.0 增加指数退避重试**（仅网络错误与 5xx，4xx 不重试）
 - 会话历史默认保留 200 条，超出滚动删除
 
 ### 2.6 提示词
 
 版本化资源 `prompts/stepwise.md`、`prompts/tutor.md`、`prompts/explain-error.md`，随宿主发布。
 **系统提示词必须写明**：不得自行计算、结论以引擎值为准、不得编造未核验的等式。
-v1 的三段原文已取到（§2.9），改写时保留其教学语气与 `\boxed{...}` 约定。
+既有三段提示词的原文已取到（§2.9），改写时保留其教学语气与 `\boxed{...}` 约定。
 
 ### 2.7 异常矩阵（全部要过）
 
 断网 / 无密钥 / 密钥错误 / 超时 / 用户取消 / 服务端 5xx / 流式半途断开 —— 七种情况都不崩、都有明确提示、都保持引擎结果可用。
 
-### 2.8 v1 兼容清单（清点结果，逐条必须保）
+### 2.8 既有配置面清点（逐条对齐，不得丢字段）
 
 | 项 | 内容 |
 | --- | --- |
 | 配置结构 | `MF_AI/config.yaml` 两层嵌套：`api_base`、`default_model`、`context_length`、`model_map`（角色名→模型名）、`model_params`（按模型覆盖 max_tokens/temperature）、`provider`、`provider_endpoints`、`provider_models`、`local_model{enabled,path,auto_detect}` |
 | **角色名** | `Chat`/`Fable`/`Haiku`/`Mythos`/`Opus`/`Reasoner`/`Sonnet` —— **不能只存实际模型名**：`ai_accelerator` 以 `role="Sonnet"` 调用，删掉映射会全链路报错 |
-| 环境变量 | `AI_API_KEY`、`AI_BASE_URL`、`AI_MODEL`、`AI_MAX_TOKENS`、`AI_TEMPERATURE`、`AI_SYSTEM_PROMPT`；优先级：运行时设置 > `config.yaml` > 环境变量 > 默认值。**`api_key` 只从环境变量/`.env` 读**（v1 明确不写进 yaml） |
-| 请求协议 | `{baseUrl}/v1/chat/completions`，OpenAI 兼容体；SSE 流式识别 `data: ` 前缀与 `[DONE]` 终止 |
+| 环境变量 | `AI_API_KEY`、`AI_BASE_URL`、`AI_MODEL`、`AI_MAX_TOKENS`、`AI_TEMPERATURE`、`AI_SYSTEM_PROMPT`；优先级：运行时设置 > `config.yaml` > 环境变量 > 默认值。**`api_key` 只从环境变量/`.env` 读**（既有约定：不写进 yaml） |
+| 请求协议 | `{baseUrl}` 下的 OpenAI 兼容对话端点 `POST /v1/chat/completions`（`v1` 是该协议的版本段，与服务商接口一致，与本产品版本无关）；请求体为 OpenAI 兼容格式；SSE 流式识别 `data: ` 前缀与 `[DONE]` 终止 |
 | 默认值 | base `https://api.deepseek.com`、model `deepseek-v4-pro`、max_tokens 8192、temperature 0.7 |
 | 缓存 | `ai_cache.json`：键 `md5("{mode}|{expr}|{model}")`，条目 `{mode,expr,model,response,timestamp}`，上限 128，LRU。**键算法必须一致**，否则既有缓存全失效 |
 | 配额 | `usage.json`：`{"YYYY-MM-DD":{"steps":n,"accelerations":n}}`，免费 5 / 3，**配了 API Key 则完全不限**（是否保留见 §0.4 第 6 条） |
 | 输出约定 | `\boxed{...}` 标最终答案；`$...$` 行内、`$$...$$` 独立行 |
-| 附加配置面 | 根 `config.json` 的 `ai` 段（`daily_free_steps`、`daily_free_accelerations`、`providers.*`、`default_provider`）v1 无人消费，但已是公开配置面，建议一并读取 |
-| 三级步骤来源 | 内存缓存 → 磁盘 `ai_cache.json` → AI；另有一条"本地 `MathObject.steps` 直出，跳过 AI"（v1 因时序 bug 从未生效，见 §3.5） |
+| 附加配置面 | 根 `config.json` 的 `ai` 段（`daily_free_steps`、`daily_free_accelerations`、`providers.*`、`default_provider`）目前无人消费，但已是公开配置面，建议一并读取 |
+| 三级步骤来源 | 内存缓存 → 磁盘 `ai_cache.json` → AI；另有一条"本地 `MathObject.steps` 直出，跳过 AI"（因构造/赋值竞态从未生效，见 §3.5） |
 
-**实现提醒**：v1 手写了一个只支持两层的 YAML 解析器（`config.py:_parse_yaml_manual`）。C# 侧用正式 YAML 库读同一文件即可，但要保证 `model_map`/`model_params` 往返不丢字段。
+**实现提醒**：既有的 `config.py:_parse_yaml_manual` 是只支持两层的**手写 YAML 解析器**。C# 侧用正式 YAML 库读同一文件即可，但要保证 `model_map`/`model_params` 往返不丢字段。
 
-### 2.9 v1 的三段提示词里，有一处直接违反硬约束（必读）
+### 2.9 既有三段提示词里，有一处直接违反硬约束（必读）
 
-v1 存在**三套**独立的分步提示词：
+既有实现里存在**三套**独立的分步提示词：
 
 1. `MF_UI/calc/step_viewer.py` 的 `_STEP_SYSTEM_PROMPT`：
    > 「你是一位经验丰富的数学教师……请你从头开始完成这个操作，生成完整的、逐步的推导过程——注意：**你需要自己完成计算，而不是解释已有的结果**。」
@@ -212,7 +212,7 @@ v1 存在**三套**独立的分步提示词：
 
 ### 2.10 前端渲染与"不移植"清单
 
-**渲染**：v1 用 matplotlib `agg` + `mathtext` 把公式渲染成 base64 PNG（并会降级 `\boxed`/矩阵/cases）。v2.0 改用**已有的 KaTeX**，保留 v1 的预处理语义：剥离 `\boxed{}`（配对括号算法）、`pmatrix/bmatrix/vmatrix` → 括号、`cases` 展开、`$$...$$` 块级居中 / `$...$` 行内。流式期间先追加纯文本、结束后整体替换为渲染结果（v1 行为，避免逐字重排版闪烁）。
+**渲染**：既有 Python 实现用 matplotlib `agg` + `mathtext` 把公式渲染成 base64 PNG（并会降级 `\boxed`/矩阵/cases）。v2.0 改用**已有的 KaTeX**，保留既有的预处理语义：剥离 `\boxed{}`（配对括号算法）、`pmatrix/bmatrix/vmatrix` → 括号、`cases` 展开、`$$...$$` 块级居中 / `$...$` 行内。流式期间先追加纯文本、结束后整体替换为渲染结果（沿用既有行为，避免逐字重排版闪烁）。
 
 **不移植（死代码与缺陷）**：
 - `MF_AI/agent.py` 全体（`MathAgent`、`TOOLS`、工具调用循环）：全项目无引用；其 `_tool_eval` 用 Python `eval()` + numpy 白名单 —— **绝不可照搬到 JS 的 `eval`**（注入风险）。将来若做"模型调工具"，只允许模型请求**引擎 action 名**，由 C# 白名单校验后再调引擎。
@@ -225,7 +225,7 @@ v1 存在**三套**独立的分步提示词：
 
 ## 3. 教程系统 / 数学键盘 / 工作区保存 / 分步显示
 
-### 3.1 v1 教程系统的实际状况（清点结果：数据层尚可，**引导层基本是坏的**）
+### 3.1 既有教程系统的清点结论（数据层尚可，**引导层基本不可用**）
 
 **数据层质量不错**：`models.py` 5 个 dataclass、`engine.py` 16 个 public 方法、18 课 YAML 驱动、`tutorial_progress.json` 单文件进度持久化。
 
@@ -238,12 +238,12 @@ v1 存在**三套**独立的分步提示词：
 | 缺基本控制 | `_advance` 只前进；`stop`/skip 把 `_current_step` 归零 | **没有"上一步"、没有"暂停"** |
 | 定位机制 | 「注册名 → QWidget 对象引用」字典 + `objectName` 兜底（`walkthrough.py:104-123,177-191`），**YAML 里没有任何坐标** | 好消息：迁到 Vue 可 1:1 平移（`data-tour` + `querySelector` + `getBoundingClientRect()`） |
 
-**对 v2.0 的含义：不要照抄 v1 的引导层。** 重做时必须：
+**结论：引导层必须重做，不沿用既有实现。** 重做时必须：
 - **禁止静默跳过**：目标不存在时要么在 JSON 里标注该步不可用并**从课程中移除**，要么在 Vue 组件上补 `data-tour`；绝不能"跳过但算完成"。
 - 重新逐个核对那 22 个失效名字，决定"补 `data-tour`"还是"删除该步"。
-- 补齐 v1 缺失的**上一步 / 暂停 / 跳过 / 步骤进度条**。
+- 补齐既有实现缺失的**上一步 / 暂停 / 跳过 / 步骤进度条**。
 - 遮罩改为**不拦截点击**（`pointer-events: none`）+ 显式"下一步"按钮；若某步要求用户真实操作，才局部开启 `pointer-events: auto` 并提示"点击此处继续"。
-- **完成判定**：只有真正走完全部步骤才写 `done:true`（修 v1 的假完成）。
+- **完成判定**：只有真正走完全部步骤才写 `done:true`（消除既有的假完成判定）。
 
 #### 3.1.1 精确事实（清点结论，实现时照此对齐）
 
@@ -295,19 +295,19 @@ v1 存在**三套**独立的分步提示词：
 
 **验收**：18 课逐个走通；每步高亮框与目标元素矩形误差 ≤1px（CDP 断言）；中断后重进可续；**目标元素缺失时必须显式报错，不得静默跳过**；版本变更后进度重置。
 
-### 3.3 数学键盘（v1 有 126 键，但一半能力是假的）
+### 3.3 数学键盘（126 键，但绝大多数按键插入的是 Unicode 而非 LaTeX）
 
-**v1 事实**：126 键 / 6 分类，但**只有"常用模板"11 键插真 LaTeX，其余 115 键插 Unicode**；`▢` 占位符被 `replace` 直接剥掉（`math_keyboard.py:110`）；靠 `QApplication.focusWidget()` + `QLineEdit.insert()`，**对 AI 输入框和控制台完全无效**；无搜索、无最近使用、无收藏。
+**既有实现的事实**：126 键 / 6 分类，但**只有"常用模板"11 键插真 LaTeX，其余 115 键插 Unicode**；`▢` 占位符被 `replace` 直接剥掉（`math_keyboard.py:110`）；靠 `QApplication.focusWidget()` + `QLineEdit.insert()`，**对 AI 输入框和控制台完全无效**；无搜索、无最近使用、无收藏。
 
 **v2.0 设计**：前端已有基础（`ExpressionList.vue` 符号面板、`BasicCalcView.vue` 30 键）→ 统一为一个 `SymbolPad.vue`：
 1. 按键**一律插 LaTeX**（不再一半 Unicode 一半 LaTeX），由 MathLive 的 MathField 消费；
 2. `▢` 占位符改为 **MathLive 的可跳转占位**（Tab 切换），不再被剥掉；
-3. 作用对象 = **当前聚焦的 MathField / CodeEditor**；无焦点时给出明确提示（修 v1 的"静默失败"）；
+3. 作用对象 = **当前聚焦的 MathField / CodeEditor**；无焦点时给出明确提示（消除既有的静默失败）；
 4. 补齐**搜索（按符号名/LaTeX）、最近使用、收藏**（localStorage）。
 
-### 3.4 工作区保存（v1 只有一个残缺实现）
+### 3.4 工作区保存（既有实现残缺）
 
-**v1 事实**：全库唯一实现在 `main_window.py:667-697`，**只存 3 个字段**；`mode`/`calc_mode` **写了但恢复时从不读取**（只读 `expression`）；文件写在**安装目录**（Program Files 下必然失败）；无版本号、无自动保存、无关闭保存；恢复靠"第一个可见 `QLineEdit`"，找不到就**谎报"工作区已加载"**。
+**既有实现的事实**：全库唯一实现在 `main_window.py:667-697`，**只存 3 个字段**；`mode`/`calc_mode` **写了但恢复时从不读取**（只读 `expression`）；文件写在**安装目录**（Program Files 下必然失败）；无版本号、无自动保存、无关闭保存；恢复靠"第一个可见 `QLineEdit`"，找不到就**谎报"工作区已加载"**。
 
 **v2.0 设计**：
 - 存 `%LOCALAPPDATA%\MFMath\workspace.json`，带 `version` 字段（便于迁移）
@@ -316,9 +316,9 @@ v1 存在**三套**独立的分步提示词：
 - 恢复失败必须**如实报错**，不得谎报成功
 - 与 §4.3 的历史记录共用 `StoreBridge`（同一处落盘、同一套版本迁移）
 
-### 3.5 分步显示（名为"分步"，实际是一坨富文本；且有个真 bug）
+### 3.5 分步显示（名为"分步"，实际是单块富文本；且存在一个真实缺陷）
 
-**v1 事实**：
+**既有实现的事实**：
 - 界面是**一整块只读 `QTextEdit` 富文本**：无列表、无折叠、**无逐步播放**；LaTeX 走 matplotlib→PNG→base64，`_fix_latex` 会把 `\boxed`/矩阵/cases 全降级
 - **真 bug**：`StepViewer` 在**构造函数里就调 `_start()`**，而 `set_local_steps()` 在构造返回后才被调用 → **本地 `MathObject.steps`（由 84 个 Python 文件真实产出）永远不渲染**，用户看到的永远是 AI 现编的版本
 - 三级来源与状态文案：内存缓存 / 磁盘 `ai_cache.json` / AI，对应 `（缓存）就绪` / `（磁盘缓存）就绪` / `就绪`
@@ -326,23 +326,23 @@ v1 存在**三套**独立的分步提示词：
 **v2.0 设计**（`StepPanel.vue`）：
 - **可折叠的步骤列表 + 逐步播放**（上一步/下一步/全部展开），不再是单块富文本
 - LaTeX 走 KaTeX（与全站一致）
-- **优先显示引擎/本地产出的步骤**（修 v1 的时序 bug）：进入面板时先查本地步骤 → 再查缓存 → 最后才请求 AI，且顺序在 UI 上可见（"来源：引擎本地 / 缓存 / AI"）
+- **优先显示引擎/本地产出的步骤**（消除既有的时序缺陷）：进入面板时先查本地步骤 → 再查缓存 → 最后才请求 AI，且顺序在 UI 上可见（"来源：引擎本地 / 缓存 / AI"）
 - 与 §2.3 的核验回环联动：AI 产出的每一步都标注"已通过引擎核验 / 未核验"
 
 **⚠️ 一条被清点揭出的重大后果（必须与 §0.4 第 4 条一起决策）**
 
-v1 的"本地步骤"（`MathObject.steps`，`list[str]`）是由 **84 个 Python 文件、约 600 处**产出的 —— 也就是说，**它属于要被清零的 Python 层**。而引擎当前的 C ABI 信封只有 `{isError, value}`，**没有任何 steps 字段**（已核对：`api.cpp` 与全部 `*_api.cpp` 中唯一命中 `"steps"` 的是 `multiplication_principle(get_int_array(args,"steps"))` 这个无关参数名）。
+既有的"本地步骤"（`MathObject.steps`，`list[str]`）是由 **84 个 Python 文件、约 600 处**产出的 —— 也就是说，**它属于要被清零的 Python 层**。而引擎当前的 C ABI 信封只有 `{isError, value}`，**没有任何 steps 字段**（已核对：`api.cpp` 与全部 `*_api.cpp` 中唯一命中 `"steps"` 的是 `multiplication_principle(get_int_array(args,"steps"))` 这个无关参数名）。
 
-**结论：Python 清零后，v1 那套本地步骤会整体消失。** 于是"查看步骤"只有三条路：
+**结论：Python 清零后，这套本地步骤会整体消失。** 于是"查看步骤"只有三条路：
 1. **引擎侧为高频 action 新增步骤输出**（推荐，但不可能覆盖 424 个；建议只做常用几十个：求导/积分/化简/解方程/极限/因式分解）；
-2. **纯 AI**（等于回到 v1 那套违反硬约束的做法）；
+2. **纯 AI**（等同于既有那套违反硬约束的做法）；
 3. **混合**（本方案默认）：引擎能给的优先给，给不了的才问 AI，且 AI 步骤**必须回引擎核验**。
 
 无论选哪条，P3 都要在 UI 上明确标注**步骤来源**（引擎本地 / 缓存 / AI）—— 用户需要知道哪几步是引擎保证的、哪几步只是解释。
 
-### 3.6 v1 明确**不存在**的功能（清点结论，避免照想象实现）
+### 3.6 既有实现中明确**不存在**的功能（清点结论，避免照想象实现）
 
-| 直觉 / 声称 | 实际 |
+| 常见误解 | 实际 |
 | --- | --- |
 | 引导有"上一步" | ❌ 不存在 |
 | 引导有"暂停/继续" | ❌ 不存在；`stop()`/skip 还把步数归零 |
@@ -397,24 +397,24 @@ v1 的"本地步骤"（`MathObject.steps`，`list[str]`）是由 **84 个 Python
 | `POST /api/logout` | JSON（空对象 `{}`） | 同上头 | `{msg}` |
 | `GET /api/version` | — | 无鉴权头 | `{code:0, data:{latest, date, download_url, changelog}}` |
 
-- 信封：公开 API 用 `{code:0, data, msg}`；错误统一 `{detail:"..."}` + HTTP 状态码（**旧版 FastAPI 兼容格式，桌面端依赖 `detail`**）
+- 信封：公开 API 用 `{code:0, data, msg}`；错误统一 `{detail:"..."}` + HTTP 状态码（**既有 FastAPI 兼容格式，桌面端依赖 `detail`**）
 - 限流：登录失败过多返回 429，文案含剩余时间
 
 **C# `AccountBridge.cs`（宿主对象 `acc`，约 250 行）**：`Login` / `Logout` / `Current` / `Refresh` / `Register` / `SendCode` / `VerifyCode` / `ChangePassword` / `LoginHistory`
 
-**兼容（逐条必须保）**
+**接口约定（逐条必须保）**
 - 7 个端点的**方法与编码逐字不变**，且注意**同批 POST 里编码不统一**：`/login`、`/verify-code` 是 **form**；`/send-code`、`/register`、`/logout` 是 **JSON**（`/logout` 体为空对象）
 - 错误体字段名 `detail`；鉴权头 `Authorization: Bearer <token>`；token 字段名 `access_token`；`/me` 字段 `username/email/balance/is_active`
-- 默认基址 `https://mf-vis-science.cn` **必须保持默认值**（v1 硬编码且无配置入口 → v2.0 补配置能力，默认不变）
+- 默认基址 `https://mf-vis-science.cn` **必须保持默认值**（既有实现硬编码且无配置入口 → v2.0 补配置能力，默认不变）
 - 注册校验 6 条逐条复刻：用户名 ≥3 且仅 `[a-zA-Z0-9_]`；邮箱 `^[^\s@]+@[^\s@]+\.[^\s@]+$`；验证码 6 位纯数字；密码 ≥6；两次输入一致
 - 交互细节：发送验证码 **60 秒冷却**（按钮显示 `Ns`）；注册成功 → 自动登录（成功 800ms 关窗；失败则提示并预填登录页 + 1200ms 切页）；验证成功 → 持有用户名密码则自动登录，否则 1000ms 关窗；提交期间禁用表单、主按钮变 `处理中…`
 - 文案与提示语（含 `登  录` 的全角空格）若文档/截图依赖，不要改
 
-**关键结论：v1 登录前后没有任何功能门禁。**
+**关键结论：既有实现的登录前后没有任何功能门禁。**
 `balance` 与 `is_active` 只用于**显示**（状态栏"欢迎，{username}！(余额: N)"），从未参与权限或配额判断；菜单项不随登录状态变化；唯一的配额是本地 `usage.json`（5/3），且**配了 API Key 就完全绕过**——与服务端 `balance` 毫无关系。
 因此 v2.0 默认也**不做 gating**；若你希望改成"登录才解锁 AI/云功能"，属产品决策且需站点侧配套（§0.4 第 5 条）。
 
-**v1 的两处缺陷建议一并修**：token **不持久化**（纯内存，重启即丢登录）+ **无过期校验**（token 过期后 UI 仍显示已登录；`/me` 失败只记 warning 不清会话）→ v2.0 用 DPAPI 持久化 + 启动静默校验 + 401 自动登出。
+**既有实现的两处缺陷建议一并修**：token **不持久化**（纯内存，重启即丢登录）+ **无过期校验**（token 过期后 UI 仍显示已登录；`/me` 失败只记 warning 不清会话）→ v2.0 用 DPAPI 持久化 + 启动静默校验 + 401 自动登出。
 
 ### 4.2 在线搜索（`MF_Online` → C# 代理）
 
@@ -433,9 +433,9 @@ v1 的"本地步骤"（`MathObject.steps`，`list[str]`）是由 **84 个 Python
 - `SearchBridge.cs`（约 200 行）：`Search(query, requestId)`（结果经推送通道回传）、`Cancel(id)`、`ClearCache()`
 - TS：`SearchPanel.vue`（搜索框占位"搜索数学概念、公式、定理…"、引擎下拉、结果列表 `"{title}\n{snippet[:200]}"` + tooltip 全文、状态栏、**"插入到当前块"**按钮、回车搜索、双击插入、空结果提示项）
 - 插入语义：取 `snippet`（回退 `title`），有 `latex` 时前缀 `"$" + latex + "$ "`，插到**当前聚焦输入框**，找不到则提示"请先激活一个计算块输入框。"
-- **兼容**：结果字段名 `title/snippet/url/latex`；引擎 id 字符串 `duckduckgo`/`wolfram`/`custom`；env 名 `SEARCH_ENGINE`/`SEARCH_TIMEOUT`/`WOLFRAM_APP_ID`/`SEARCH_CUSTOM_URL`；8 条上限；DDG 参数与 UA；用户可见错误文案
-- **修正 v1 缺陷**：缓存键**只有 query、engine 不入键**（换引擎会命中别家结果）、**无 TTL**、容量恒为 50 且不读环境变量 → v2.0 键改为 `sha256(engine + query)` 并加 TTL（属行为变更，需知会）
-- v1 **完全没有搜索配置 UI**（Wolfram / 自定义在不手写 env 时必然失败）→ v2.0 在设置面板补齐
+- **对齐点**：结果字段名 `title/snippet/url/latex`；引擎 id 字符串 `duckduckgo`/`wolfram`/`custom`；env 名 `SEARCH_ENGINE`/`SEARCH_TIMEOUT`/`WOLFRAM_APP_ID`/`SEARCH_CUSTOM_URL`；8 条上限；DDG 参数与 UA；用户可见错误文案
+- **要修正的既有缺陷**：缓存键**只有 query、engine 不入键**（换引擎会命中别家结果）、**无 TTL**、容量恒为 50 且不读环境变量 → v2.0 键改为 `sha256(engine + query)` 并加 TTL（属行为变更，需知会）
+- 既有实现**完全没有搜索配置 UI**（Wolfram / 自定义在不手写 env 时必然失败）→ v2.0 在设置面板补齐
 
 ### 4.3 历史与设置（当前是死按钮与 `alert("待实现")`）
 
@@ -446,7 +446,7 @@ v1 的"本地步骤"（`MathObject.steps`，`list[str]`）是由 **84 个 Python
   - 外观继续用 localStorage；其余落 C# JSON
 - 顶栏搜索框：本地历史模糊搜索 + 可选在线搜索两种模式
 
-### 4.4 v1 缺陷清单：修 or 保留（逐条需拍板）
+### 4.4 既有缺陷清单：修或保留（逐条需拍板）
 
 | # | 缺陷（均已核实） | 建议 |
 | --- | --- | --- |
@@ -509,7 +509,7 @@ v1 的"本地步骤"（`MathObject.steps`，`list[str]`）是由 **84 个 Python
 | **B 档（先补再删）** | `matrix_core.pyd` 的三个迭代解法 | 先补 `iterations`（§5.1 前置修改） |
 | **C 档（可删但必须同时改源码）** | `inner_product.dll` | 必须同时删除或改正 `linear_algebra/liner_product.cpp`；另需确认"精确点积"用例归属（§5.1.3） |
 
-⚠️ **A 档有一个牵连**：v1 的 `numerical_integration.py` 那 5 个算法**没有纯 Python 回退**（缺 `.pyd` 时直接 `return MathObject(error=...)`）。所以删 `numerical_core.pyd` 会让 v1 Python 层的 `trapezoidal_rule` / `simpson_rule` / `gauss_quadrature` / `numerical_derivative` / `optimal_step` 直接失效 —— **必须与"整体退役 v1 Python 层"同步进行，不能单独删**。
+⚠️ **A 档有一个牵连**：既有 `numerical_integration.py` 的 5 个算法**没有纯 Python 回退**（缺 `.pyd` 时直接 `return MathObject(error=...)`）。所以删 `numerical_core.pyd` 会让 Python 层的 `trapezoidal_rule` / `simpson_rule` / `gauss_quadrature` / `numerical_derivative` / `optimal_step` 直接失效 —— **必须与"整体退役 Python 层"同步进行，不能单独删**。
 
 #### 5.1.2 迁移必读：调用约定与参数差异
 
@@ -535,7 +535,7 @@ v1 的"本地步骤"（`MathObject.steps`，`list[str]`）是由 **84 个 Python
 | `lagrange` / `newton` / `cubic_spline` / `least_squares` | 引擎调用**同一份内核**（头文件 SHA256 相同）；`least_squares` 引擎还多返回 `r_squared` |
 | `trapezoidal` / `simpson` / `gauss_quad` / `derivative` | 同一内核、同一公式；引擎额外校验 `h!=0` 与 method 名（更严格） |
 | `ode_core` | 引擎与 **Python 版**对齐（20 次牛顿迭代），`.pyd` 版是预估-校正 → 弃用是改进 |
-| **`inner_product`（唯一精度回归点）** | `dot_c`/`norm_c` 是 double 专用；v1 里**精确/有理/符号向量本来走 sympy 回退**，弃用后引擎只给 double ⇒ 超出 2^53 的整数向量点积不再精确。**需确认上游是否有"精确点积/精确范数"用例**；若有，要么接受 double 化，要么在引擎侧新增精确点积 action |
+| **`inner_product`（唯一精度回归点）** | `dot_c`/`norm_c` 是 double 专用；既有实现里**精确/有理/符号向量本来走 sympy 回退**，弃用后引擎只给 double ⇒ 超出 2^53 的整数向量点积不再精确。**需确认上游是否有"精确点积/精确范数"用例**；若有，要么接受 double 化，要么在引擎侧新增精确点积 action |
 | `cubic_spline` 的越界写 bug | 源码**已修**（`interpolation_core.h:58-65,81`），但 `.pyd` 二进制（2026-07-28）早于修复（头文件 2026-10-01）→ **该 `.pyd` 很可能仍带 bug**；`tests/accuracy/cases_numerical.py:1073-1080` 记载过这起"越界写 1 个 double + 读未初始化内存"。这只强化弃用结论 |
 
 #### 5.1.4 建议的 action 修改 / 新增（与现有风格一致）
@@ -568,8 +568,8 @@ v1 的"本地步骤"（`MathObject.steps`，`list[str]`）是由 **84 个 Python
 - **前置修改（P0，弃用 `.pyd` 所必需）**：3 个迭代解法返回对象补 `iterations`（§5.1）；同时按 §5.1.4 决定是否补 `bc_type?` 与 `x_points/y_points` 兼容别名（旧调用方兼容，可不做）
 - **按 §5.1.1 分批删除 `.pyd`**：A 档 6 个文件可立即删，C 档必须与 `liner_product.cpp` 的处置同步
 - **确认精确点积归属**：`inner_product` 是唯一精度回归点（§5.1.3），若上游有"精确点积/精确范数"用例，需新增对应的精确 action 或明确接受 double 化
-- **把复杂度守卫判据下沉到引擎**：v1 的 `math_guard`（运算符计数、嵌套深度、多项式次数、矩阵维度、级数范围、极限振荡检测）用**字符串启发式**实现，阈值在根 `config.json` 的 `math_guard` 段。这类判据必须在 **AST** 上统计才可靠（正则会误判 `\frac`、隐式乘法、多行输入），而解析器已在引擎里。建议新增 action（如 `complexity_report(expr)` 返回各维度指标与是否超阈，阈值仍从配置读，**键名保留**）
-- **表达式分类下沉引擎**：v1 `MF_AI/strategy.recommend()` 用正则猜"等式/导数/积分/极限/矩阵/概率/级数"，脆弱且无人调用；如需"智能推荐操作"，应基于引擎 AST 判断（可作为 `suggest_actions(expr)`）
+- **把复杂度守卫判据下沉到引擎**：既有的 `math_guard`（运算符计数、嵌套深度、多项式次数、矩阵维度、级数范围、极限振荡检测）用**字符串启发式**实现，阈值在根 `config.json` 的 `math_guard` 段。这类判据必须在 **AST** 上统计才可靠（正则会误判 `\frac`、隐式乘法、多行输入），而解析器已在引擎里。建议新增 action（如 `complexity_report(expr)` 返回各维度指标与是否超阈，阈值仍从配置读，**键名保留**）
+- **表达式分类下沉引擎**：既有的 `MF_AI/strategy.recommend()` 用正则猜"等式/导数/积分/极限/矩阵/概率/级数"，脆弱且无人调用；如需"智能推荐操作"，应基于引擎 AST 判断（可作为 `suggest_actions(expr)`）
 - 可选 `steps_verify`：批量核验一组等式（给 AI 步骤把关，减少往返）
 - 可选 `engine_info`：返回引擎版本、构建时间、依赖版本（供更新器与支持排查复用；现有 `list_functions` 只给 424 的计数）
 - 所有新增 action 必须同步进 `tests/fixtures/accuracy_cases.json` 与文档
@@ -599,7 +599,7 @@ v1 的"本地步骤"（`MathObject.steps`，`list[str]`）是由 **84 个 Python
 ### 7.1 现状问题
 
 站点 `GET /api/version` 只返回 `{latest, date, download_url, changelog}`（信封 `{code,data,msg}`）——**没有 `sha256`，无法安全更新**。
-v1 的启动检查在 `main_window.py:1146-1169`（硬编码 URL + **字符串比较版本**），且 `APIClient.check_version()` 是重复实现、从未被调用。
+既有实现的启动检查在 `main_window.py:1146-1169`（硬编码 URL + **字符串比较版本**），且 `APIClient.check_version()` 是重复实现、从未被调用。
 
 ### 7.2 站点侧补字段（Next.js，字段级改动）
 
@@ -619,9 +619,9 @@ v1 的启动检查在 `main_window.py:1146-1169`（硬编码 URL + **字符串�
 
 ### 7.3 桌面端 `UpdateBridge.cs` + `MFMath.Updater.exe`
 
-- 启动后延迟 10s **后台检查**（不阻塞启动；v1 也是"非阻塞，尊重用户自动更新设置"——`main_window.py:217`）
+- 启动后延迟 10s **后台检查**（不阻塞启动；既有实现也是"非阻塞，尊重用户自动更新设置"——`main_window.py:217`）
 - 三态设置：只检查 / 自动下载 / 自动安装
-- **语义化版本比较**（修 v1 的字符串比较缺陷）
+- **语义化版本比较**（修正既有的字符串比较缺陷）
 - 下载到 `%LOCALAPPDATA%\MFMath\update\`，**断点续传 + `sha256` 必须匹配**才允许安装；校验失败一律丢弃并提示
 - 安装：调 Inno Setup 安装包 `/SILENT`，或替换法（**宿主 + 引擎 DLL 作为同一原子单元**一起换）
 - 更新器与被更新进程分离（`MFMath.Updater.exe`）
@@ -666,8 +666,8 @@ v1 的启动检查在 `main_window.py:1146-1169`（硬编码 URL + **字符串�
 
 | 风险 | 对策 |
 | --- | --- |
-| **AI 越权计算**（最大风险，直接违反硬约束；v1 就是这么做的） | "引擎先算 + 步骤回核验"硬流程；改写三段提示词；AI 文本不得写入结果区；CDP 断言"结果区恒等于引擎值" |
-| 照抄 v1 的教程引导层 → 把"静默跳过"一起搬过来 | 明确禁止静默跳过；先核对 22 个失效目标名，逐个决定"补 `data-tour`"或"删该步"；完成判定必须走完全程 |
+| **AI 越权计算**（最大风险，直接违反硬约束；既有实现就是这么做的） | "引擎先算 + 步骤回核验"硬流程；改写三段提示词；AI 文本不得写入结果区；CDP 断言"结果区恒等于引擎值" |
+| 照抄既有教程引导层 → 把"静默跳过"一起搬过来 | 明确禁止静默跳过；先核对 22 个失效目标名，逐个决定"补 `data-tour`"或"删该步"；完成判定必须走完全程 |
 | 弃用 `.pyd` 时漏掉返回值语义 | 补 `iterations` 是**唯一**前置项（已定位到行号）；`dot_c/norm_c` 精度差异记录在案；删 DLL 时同步处理 `liner_product.cpp` 的 ABI 谎报 |
 | 准确性套件冻结后无法自主扩展 | 保留预言机源码与原始输出；新用例离线重生成，流程入文档 |
 | 更新后宿主与引擎版本错配（历史上真发生过） | 两者绑成同一版本号，更新器按原子单元校验与替换 |
@@ -685,7 +685,7 @@ v1 的启动检查在 `main_window.py:1146-1169`（硬编码 URL + **字符串�
 - **不重写下载能力**：直接复用 `ComponentDownload.cs`（断点续传 + sha256 + 解包）
 - **不复用已废弃的 HTTP 层**：`math_http_service.py` 与那套 `{code,data.result,msg}` 生成客户端（契约冲突，且 v2.0 走 P/Invoke）
 - **不移植死代码**：`MF_AI/agent.py`、`strategy.recommend`、`models.ChatRequest/ChatResponse` 等（§2.10）
-- **不照抄 v1 的引导层与外层壳**：教程引导、遮罩交互、步骤展示、工作区保存全部重做（§3）
+- **不照抄既有的引导层与外层壳**：教程引导、遮罩交互、步骤展示、工作区保存全部重做（§3）
 - **不动已完成的迁移**：22 个模式视图、10 套配色外观系统、控制台、组件安装均已就绪
 - **不迁移旧 JS UI（`MFMath.UI`）**：仅作历史回退目标，确认不再需要可删除
 - **推迟**：更新回滚（二期）、AI 多模态、教程录制回放、离线文档全文搜索

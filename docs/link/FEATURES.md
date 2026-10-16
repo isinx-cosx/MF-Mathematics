@@ -30,7 +30,7 @@ Select-String -Path MFMath.Host.Rust/src/handlers.rs -Pattern "fn (con|search|ac
 | 引擎 | 请求形状 | 说明 |
 | --- | --- | --- |
 | `duckduckgo`（默认） | IA JSON + HTML 结果页，两路共享超时预算 | 免密钥；HTML 结构变化归 `parse` |
-| `wolfram` | `GET /v1/result`（纯文本） | 需要 App ID；无 key 或 401/403/501 归 `config` |
+| `wolfram` | `GET /v1/result`（Wolfram Alpha 短答案接口，主机 `api.wolframalpha.com`，纯文本返回；完整 URL 见 `search.rs` 的 `DEFAULT_WOLFRAM` 常量） | 需要 App ID；无 key 或 401/403/501 归 `config` |
 | `custom` | SearXNG 形状 JSON（`/search?q=…&format=json`） | 基址必须 http/https 且不含 `?` `#` `@` |
 
 端点覆盖只走环境变量 `MF_SEARCH_ENDPOINTS`（JSON，键大小写不敏感，进程内解析一次）。`custom` 基址校验是 `search::custom_url_ok`，请求走 `site::get_verbatim` 绕开 `normalize_base_url`，因为后者对坏值退回内置站点。三个后端都用浏览器 UA `http::BROWSER_UA`（`site::get_ua` 传入），不是共享客户端的默认 UA。
@@ -143,7 +143,7 @@ Select-String -Path MFMath.Host.Rust/src/search.rs,MFMath.Host.Rust/src/site.rs,
 
 ### 3.3 版本比较
 
-`compare_versions` 逐段比数字（`1.10.0 > 1.9.9`），带 `-` 后缀的预发布小于同号正式版。`update.rs` 的注释记录站点 `/api/version` 可能报告 `1.2.0`（v1 的版本），应用版本来自 `CARGO_PKG_VERSION`（值为 2.0.0），按「关系」判定：
+`compare_versions` 逐段比数字（`1.10.0 > 1.9.9`），带 `-` 后缀的预发布小于同号正式版。`update.rs` 的注释记录站点 `/api/version` 可能报告 `1.2.0`（比本机旧），应用版本来自 `CARGO_PKG_VERSION`（值为 2.0.0），按「关系」判定：
 
 | `relation` | 界面 |
 | --- | --- |
