@@ -262,17 +262,9 @@ powershell -NoProfile -File MF_UI/MFMath.UI.Vue/tests/run-all.ps1
 - **崩溃只本地记录，不联网上报**：写入 `%LOCALAPPDATA%\MFMath\logs\`，由用户在「设置 → 存储与数据 → 导出诊断包」主动交出。
 - **宿主只有一个**：`MFMath.Host.Rust/`（Rust + Tauri + WebView2）。早期的 C#/.NET 宿主已从仓库移除。
 
-## 与 v1 的关系
+## 工作室官网
 
-v2.0 从 v1 取走 Vue 前端与引擎 C++ 源码，重写为单目录树、单一计算来源的结构。v1 的计算依赖一套 Python 后端，v2 把计算全部搬进 `mf_mathematics.dll`，v1 的 Python 后端与无法重建的二进制已从本树移除。
-
-v1 有意保留的准确性用例资产不在本仓库，它位于：
-
-```text
-../Multifunctional-Mathematics/MF_Mathematics/tests/accuracy/
-```
-
-它是测试资产而非运行时代码，可对任意引擎 DLL 运行（用环境变量 `MF_ACC_DLL` 指定），v2 的引擎也能用它验证。
+如需联系我们，请跳转此网站：https://mf-vis-science.cn
 
 ## 许可证
 
