@@ -534,13 +534,21 @@ button { font-family: inherit; cursor: pointer; }
 }
 
 /* ── 输入框 / 下拉 ── */
+/* 「虚影」边框（用户要求）：实线框换成一条极淡的中性灰内描边 + 浅底，
+ * 悬浮略深、聚焦才出现主题色光环。中性灰在明暗两套主题下都成立。 */
 .input {
   height: var(--input-h); padding: 0 12px; border-radius: var(--r-sm);
-  border: 1px solid var(--border); background: var(--surface-alt);
+  border: 1px solid transparent; background: var(--surface-alt);
+  box-shadow: inset 0 0 0 1px rgba(127, 127, 127, .18);
   color: var(--text); font-size: 13px; outline: none;
   font-family: var(--font-mono);
+  transition: background .12s, box-shadow .12s;
 }
-.input:focus { border-color: var(--accent); }
+.input:hover { box-shadow: inset 0 0 0 1px rgba(127, 127, 127, .30); }
+.input:focus {
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px rgba(127, 127, 127, .24), 0 0 0 3px var(--accent-soft);
+}
 .select {
   height: calc(var(--input-h) - 2px); padding: 0 10px; border-radius: var(--r-sm);
   border: 1px solid var(--border); background: var(--surface-alt);

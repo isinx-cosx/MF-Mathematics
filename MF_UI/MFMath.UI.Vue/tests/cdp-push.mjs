@@ -90,16 +90,30 @@ const after = JSON.parse(await evalJs(`JSON.stringify(window.__mfPush.state())`)
 check("页面侧计数 +1", after.received === before.received + 1, `${before.received} → ${after.received}`);
 
 console.log("=== ③ 真实生产者：控制台运行（console.run）===");
+/* ⚠ 这条链需要**已安装的 CPython 组件**（控制台要起解释器）。
+ * 组件缺失时宿主照样会推 stage/done，但 `exitCode` 是 -1（解释器都没起来），
+ * 于是"带 exitCode 与耗时"这条会失败 —— 那是**环境没准备好**，不是推送坏了。
+ * 这里先判组件：没装就明确说明并跳过这两条（不猜、也不让它伪装成失败）。
+ * 判据同 cdp-console-sci：看控制台页的组件行是否"已安装"。 */
+const pyReady = await evalJs(`(function(){
+  const rows = [...document.querySelectorAll('.console-wrap .comp-row')].map(r => r.textContent.replace(/\\s+/g,' ').trim());
+  return rows.length > 0 && /已安装/.test(rows[0] || '');
+})()`);
 const runId = await evalJs(`String(window.chrome.webview.hostObjects.sync.con.Start("python", "print('push-check')", ""))`);
 // 阶段推送（stage）会先到，这里要等的是**结束**那一条（event === "done"）
 const gotStage = await waitTrue(`window.__mfPush.log().some(e => e.topic === "console.run" && e.payload && e.payload.runId === ${JSON.stringify(runId)} && e.payload.event === "stage")`, 30000);
-check("运行开始时就有阶段推送", gotStage === true, "runId=" + runId);
+if (pyReady === true) check("运行开始时就有阶段推送", gotStage === true, "runId=" + runId);
+else console.log("  （跳过「运行开始时就有阶段推送」：CPython 组件未安装，控制台起不了解释器）");
 const gotDone = await waitTrue(`window.__mfPush.log().some(e => e.topic === "console.run" && e.payload && e.payload.runId === ${JSON.stringify(runId)} && e.payload.event === "done")`, 30000);
 check("宿主主动推了「跑完了」（不用轮询也知道）", gotDone === true);
 const runEnv = JSON.parse(await evalJs(`JSON.stringify(window.__mfPush.log().filter(e => e.topic === "console.run" && e.payload && e.payload.runId === ${JSON.stringify(runId)} && e.payload.event === "done").pop() || null)`));
-check("结束那条带 exitCode 与耗时",
-  !!runEnv && runEnv.payload.exitCode === 0 && typeof runEnv.payload.elapsedMs === "number" && runEnv.payload.elapsedMs > 0,
-  runEnv ? JSON.stringify(runEnv.payload).slice(0, 140) : "null");
+if (pyReady === true) {
+  check("结束那条带 exitCode 与耗时",
+    !!runEnv && runEnv.payload.exitCode === 0 && typeof runEnv.payload.elapsedMs === "number" && runEnv.payload.elapsedMs > 0,
+    runEnv ? JSON.stringify(runEnv.payload).slice(0, 140) : "null");
+} else {
+  console.log("  （跳过「结束那条带 exitCode 与耗时」：同上，exitCode 会是 -1 —— 没有解释器可跑）");
+}
 
 console.log("=== ④ 真实生产者：组件安装（component.install）===");
 const jobId = await evalJs(`String(window.chrome.webview.hostObjects.sync.con.Install("python"))`);

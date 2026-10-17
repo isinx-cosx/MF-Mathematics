@@ -13,6 +13,7 @@
  * 结果按文本缓存：每次按键都会调用，但不重复请求同样的字符串。
  */
 import { engineCall } from "../bridge.js";
+import { isKnownName } from "./knownNames.js";
 
 const cache = new Map();
 const MAX_CACHE = 400;
@@ -63,6 +64,8 @@ export function symLatex(expr) {
  */
 const engCache = new Map();
 export function toEngineExpr(latex) {
+  /* 缓存键就用原文：修复规则不再依赖"当前登记了哪些用户函数"，
+   * 只看 `name(` 长得像不像自变量/内置名（见下面的 callNames）。 */
   const key = String(latex ?? "");
   if (engCache.has(key)) return engCache.get(key);
   /* ⚠ 只归一化**第一段**。
@@ -86,10 +89,50 @@ export function toEngineExpr(latex) {
    *   diff(xy) 直接得 y ✓，所以跳过归一化不会让它退化。
    * 含数字/运算符/括号的串（2x、(x+1)(x-1)、x^2）照旧归一化。 */
   const isBareWord = (s) => /^[A-Za-z]+$/.test(s.trim());
+  /* 引擎对"未知标识符"的处理**两种都有害**（实测，见 BUGS.md B16）：
+   *   · 单字母 `f(x)`      → `f*(x)`        —— 变成 f 乘 (x)
+   *   · 多字母 `zzz(2)`    → `z*z*z*(2)`    —— 被拆成字母乘积（`central` 也是这个下场）
+   * 所以**不能靠"归一化之后再修回来"**：那时候串里已经没有 `f(` / `zzz(` 了（我踩过这个坑）。
+   * 必须**归一化之前**先把这些调用名保护起来。
+   *
+   * 做法：把"长得像函数调用、但既不是内置名也不是自变量"的 `name(` 临时换成**归一化不动的
+   * 内置函数名**（arcsin 这一类），送引擎归一化，再换回来。
+   *   · 内置名：引擎本来就不插号、不拆分（实测 `sin(x)` 原样返回），所以换成它们最安全；
+   *   · 自变量（x/y/t/r/θ…）：`x(x+1)`、`2x(x+1)` 这类合法隐式乘法**必须保持**，不保护；
+   *   · 其余归一化（`\frac`、`π`、`x²`）照旧生效 —— 这正是"整段跳过归一化"方案的缺陷
+   *     （那份 PLAN §4.1 的写法会把 LaTeX 转换一起跳过）。 */
+  const VARISH = new Set(["x", "y", "t", "r", "u", "v", "w", "s", "n", "theta", "θ", "φ", "phi"]);
+  /** 输入里"像函数调用"的名字（按原串扫，不能在归一化之后扫） */
+  const callNames = (s) => {
+    const out = [];
+    const re = /([A-Za-z_][A-Za-z0-9_]*)\s*\(/g;
+    let m;
+    while ((m = re.exec(s)) !== null) {
+      const n = m[1];
+      if (!isKnownName(n) && !VARISH.has(n) && !out.includes(n)) out.push(n);
+    }
+    return out;
+  };
+  /* 占位用：这些名字归一化前后都不变，且相互不前缀冲突 */
+  const POOL = ["arcsin", "arccos", "arctan", "asinh", "acosh", "atanh", "cbrt", "sign"];
   const normOne = (s) => {
     if (isBareWord(s)) return s;
-    const r = engineCall("to_engine_expr", { expr: s });
-    return (r && !r.isError && r.value && typeof r.value.expr === "string") ? r.value.expr : s;
+    const names = callNames(s);
+    const map = new Map();               // 占位名 → 原调用名
+    let send = s;
+    if (names.length) {
+      const free = POOL.filter((n) => !s.includes(n));
+      names.forEach((n, k) => {
+        const pool = free[k];
+        if (!pool) return;               // 池子用完就放弃保护（宁可退化，也不要乱替换）
+        map.set(pool, n);
+        send = send.replace(new RegExp(`\\b${n}(\\s*\\()`, "g"), `${pool}$1`);
+      });
+    }
+    const r = engineCall("to_engine_expr", { expr: send });
+    let got = (r && !r.isError && r.value && typeof r.value.expr === "string") ? r.value.expr : send;
+    for (const [pool, n] of map) got = got.replace(new RegExp(`\\b${pool}(\\s*\\()`, "g"), `${n}$1`);
+    return got;
   };
   const out = parts.length === 1 ? normOne(key) : [normOne(parts[0]), ...parts.slice(1)].join(";");
   if (engCache.size >= MAX_CACHE) engCache.clear();

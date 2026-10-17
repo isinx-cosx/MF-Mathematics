@@ -43,7 +43,9 @@ const statusText = ref("");
 function makeBlock() {
   // blocked：示例带来的操作没能在本页匹配上时的拦截原因。非空则**不允许计算** ——
   // 否则会带着该页默认模式（第一个模式）去算，算出来用户看不懂，还会误判成"功能出错"。
-  return { id: nextId++, expr: "", mode: modes.value[0] || "", error: "", computing: false, lastResult: null, blocked: "" };
+  // latex：用户写的原始 LaTeX（只用于显示）。expr 是引擎规范化后的串（送引擎/落库），
+  // 两者必须分开存 —— 否则切页回来会把 `x^2/(5*x-6)` 这种引擎形态显示给用户看（BUGS.md B16）。
+  return { id: nextId++, expr: "", latex: "", mode: modes.value[0] || "", error: "", computing: false, lastResult: null, blocked: "" };
 }
 
 watch(config, () => {
@@ -68,6 +70,7 @@ function restoreFromWorkspace() {
     return {
       ...blank,
       expr: String(b.expr || ""),
+      latex: String(b.latex || ""),   // 老载荷没有这个字段 → 空串 → 回退显示引擎串（与升级前一致）
       mode: modes.value.includes(b.mode) ? b.mode : (modes.value[0] || ""),
       blocked: "",
       error: "",
@@ -80,7 +83,7 @@ function restoreFromWorkspace() {
 function capturePage() {
   return {
     kind: "calc",
-    blocks: blocks.value.map((b) => ({ expr: b.expr || "", mode: b.mode || "" })),
+    blocks: blocks.value.map((b) => ({ expr: b.expr || "", latex: b.latex || "", mode: b.mode || "" })),
   };
 }
 
@@ -107,10 +110,11 @@ const canRedo = computed(() => redoStack.value.length > 0);
 let applyingHistory = false;
 
 function historySnapshot() {
-  return blocks.value.map((b) => ({ expr: b.expr || "", mode: b.mode || "" }));
+  return blocks.value.map((b) => ({ expr: b.expr || "", latex: b.latex || "", mode: b.mode || "" }));
 }
 function sameAsCurrent(snap) {
   const cur = historySnapshot();
+  // 只比 expr/mode：显示用的 latex 与 expr 同步变化，多比一项只会给撤销栈塞噪声
   return snap.length === cur.length
     && snap.every((s, i) => s.expr === cur[i].expr && s.mode === cur[i].mode);
 }
@@ -127,6 +131,7 @@ function applyHistory(snap) {
     return {
       ...blank,
       expr: s.expr,
+      latex: s.latex || "",
       mode: modes.value.includes(s.mode) ? s.mode : (modes.value[0] || ""),
       blocked: "",
       error: "",
@@ -187,11 +192,26 @@ onMounted(() => {
 });
 onBeforeUnmount(() => { if (unregisterUndo) unregisterUndo(); });
 
+/**
+ * 切换模式后的清理：只清掉上一次的拦截原因与错误，**不克隆块对象**。
+ *
+ * ⚠ 这里以前写的是 `patchBlock(b.id, { blocked:'', error:'' })`，而 patchBlock 用
+ * `{ ...b }` 生成**新对象**替换数组里的旧对象；同一行 `<select v-model="b.mode">` 的
+ * 处理器闭包持有的却是**旧对象** —— 谁先执行谁说了算，Vue 不保证顺序。于是"先改模式"
+ * 有概率把新模式写进已被丢弃的孤儿对象，界面上模式**静默退回**上一次的值，
+ * 再用旧模式去算一个不匹配的表达式（`cdp-calc-workspace` 的「解方程/组给出结果」
+ * 就是间歇性挂在这上面）。就地改字段即可：响应式对象改属性照样触发更新。
+ */
+function onModeChanged(b) {
+  b.blocked = "";
+  b.error = "";
+}
+
 /** 把送来的表达式与操作填进第一个计算块 */
 function applyPending(p) {
   const b = blocks.value[0];
   if (!b) return;
-  if (p.expr) b.expr = p.expr;
+  if (p.expr) { b.expr = p.expr; b.latex = ""; }   // 示例/教程给的是引擎串，显示回退到它即可
   // 优先用调用方已解析好的目标模式（示例库会先反查"这个操作属于哪个页面"，
   // 见 lib/workspace/pendingInput.js 的 resolveExample）。
   const wanted = (p.mode && modes.value.includes(p.mode)) ? p.mode : pickMode(p.operation, modes.value);
@@ -453,13 +473,15 @@ const varDialogCount = computed(() => modes.value.filter((m) => needsVarDialog(m
                 MathField 暴露的正是 modelValue/update:modelValue，可直接 v-model。 -->
               <MathField
                 v-model="b.expr"
+                :latex="b.latex"
                 class="cb-input"
                 data-tour="calc_block.input"
                 :placeholder="t('输入表达式，如 x^2+3*x-1')"
+                @change="b.latex = $event"
                 @enter="calc(b)"
               />
               <select v-model="b.mode" class="select cb-mode" data-tour="calc_block.action_dropdown"
-                      @change="patchBlock(b.id, { blocked: '', error: '' })">
+                      @change="onModeChanged(b)">
                 <option
                   v-for="m in modes"
                   :key="m"

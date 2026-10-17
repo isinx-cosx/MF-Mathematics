@@ -132,7 +132,9 @@ st = await readState();
 console.log("   输入框:", JSON.stringify(st.inputs), "| 状态:", st.status);
 console.log("   滑块:", JSON.stringify(st.sliders));
 check("两条曲线同时采样成功", /引擎采样\s*2\s*条曲线/.test(st.status), st.status);
-check("仅显式曲线的参数 a 生成滑块（极坐标 θ 不算参数）",
+  /* ③ 契约：参数滑块不再自动铺开，先提示、点「添加滑块」才出现 */
+  await evalJs(`(function(){ const b = document.querySelector('.slider-add'); if (b) b.click(); return 'ok'; })()`);
+  await sleep(600);  check("点添加后参数 a 生成滑块（极坐标 θ 不算参数）",
   JSON.stringify(st.sliders) === JSON.stringify(["a"]), JSON.stringify(st.sliders));
 
 /* ⑦ 非法表达式 → 行内错误提示（不静默） */

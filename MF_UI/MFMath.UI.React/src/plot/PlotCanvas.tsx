@@ -6,7 +6,7 @@ import {
 } from "@shared/plot/view.js";
 import { gridFor } from "@shared/plot/colors.js";
 import { drawPolarGrid } from "@shared/plot/cartesian.js";
-import { parseExpr } from "@shared/plot/plotMath.js";
+import { resolveExpr } from "@shared/plot/plotMath.js";
 import "../styles/plot-canvas.css";
 
 export type View = { x0: number; x1: number; y0: number; y1: number };
@@ -265,7 +265,7 @@ function drawRegions(
 ) {
   for (const c of curves) {
     if (c.visible === false) continue;
-    const p: ParsedExpr = parseExpr(c.text);
+    const p: ParsedExpr = resolveExpr(c.text);
     if (!p || p.type !== "region" || !p.valid) continue;
     const g = grids[c.id];
     if (!g || !g.values) continue;
@@ -362,7 +362,7 @@ function drawImplicits(
 ) {
   for (const c of curves) {
     if (c.visible === false) continue;
-    const p: ParsedExpr = parseExpr(c.text);
+    const p: ParsedExpr = resolveExpr(c.text);
     if (!p || p.type !== "implicit" || !p.valid) continue;
     const g = grids[c.id];
     if (!g) continue;
@@ -378,7 +378,7 @@ function drawInequalities(
 ) {
   for (const c of curves) {
     if (c.visible === false) continue;
-    const p: ParsedExpr = parseExpr(c.text);
+    const p: ParsedExpr = resolveExpr(c.text);
     if (!p || p.type !== "inequality" || !p.valid) continue;
     const pts = samples[c.id];
     if (!pts || pts.length < 2) continue;

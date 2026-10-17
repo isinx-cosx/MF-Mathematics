@@ -12,18 +12,15 @@
  */
 "use strict";
 
-/** 已知常量与函数名（不视作参数） */
-const KNOWN = new Set([
-  "pi", "e", "tau", "inf", "nan", "true", "false",
-  "sin", "cos", "tan", "csc", "sec", "cot",
-  "asin", "acos", "atan", "acsc", "asec", "acot",
-  "sinh", "cosh", "tanh", "asinh", "acosh", "atanh",
-  "sqrt", "cbrt", "abs", "exp", "log", "ln", "log2", "log10",
-  "floor", "ceil", "round", "sign", "max", "min", "mod", "pow",
-  "factorial", "gamma", "erf",
-  // Desmos 常用简写
-  "arcsin", "arccos", "arctan",
-]);
+/* 已知常量/函数名在 knownNames.js（`userFn.js` 也要用，见那里的说明）。
+ * 依赖方向：knownNames ← userFn ← plotMath，单向，没有循环。 */
+import { KNOWN, isKnownName } from "./knownNames.js";
+import {
+  parseDefinition, expandCalls, findUndefinedCalls, getActiveDefs,
+} from "./userFn.js";
+
+/** 这个名字是不是内置常量/函数（`prepare.js` 也要判，所以从这里再导出一次） */
+export { isKnownName };
 
 /**
  * 归一化为引擎可解析的表达式：**只做纯字面的字符替换**（全角 → 半角、×÷− → * / -）。
@@ -104,6 +101,26 @@ export function parseExpr(raw) {
     display: text,
   };
   if (!text) return { ...base, error: null };
+
+  /* ⓪ 用户函数定义 `f(x)=body` —— 必须**先于**所有等式分支。
+   * 否则它会被当成隐式方程 `(f(x))-(body)`，而引擎会把 `f(` 拆成 `f*(`，
+   * 于是方程里多出一个永不取值的符号 f，采样全 null、曲线静默消失（PLAN §1.4）。
+   * 定义行本身**不绘制**（见 PlotPage/PlotCanvas 对 type==="definition" 的处理）。 */
+  const def = parseDefinition(text);
+  if (def) {
+    if (def.error) return { ...base, type: "definition", valid: false, error: def.error };
+    return {
+      ...base,
+      type: "definition",
+      valid: true,
+      var: def.arg,
+      fnName: def.name,        // 供页面跳过绘制 / 图例显示
+      argName: def.arg,
+      body: toEngineExpr(def.body),
+      // 参数从定义体取并排除形参：`f(x)=ax^2` → ["a"]；`f(x)=e^x` → []
+      params: extractParams(def.body, [def.arg]).filter((n) => n !== def.name),
+    };
+  }
 
   // ① 参数方程 / 点：(expr, expr)
   const parenPair = text.match(/^\(\s*([^,]+?)\s*,\s*([^,]+?)\s*\)$/);
@@ -229,6 +246,51 @@ export function parseExpr(raw) {
     body: toEngineExpr(text),
     params: extractParams(text, ["x"]),
   };
+}
+
+/**
+ * `parseExpr` + 用户函数展开 —— **页面应当用它，而不是 parseExpr**。
+ *
+ * 展开发生在送引擎**之前**，所以引擎永远收不到裸 `f(`（引擎会把它拆成 `f*(`）。
+ * 展开后若仍有"未定义但被当函数调用"的名字，**明确报错**而不是让引擎静默返回全 null
+ * （静默空白是这个 bug 今天唯一能被用户看见的入口，不能继续留着）。
+ *
+ * @param raw 行文本（引擎语法；undefined/空串按空表达式处理，与 parseExpr 一致）
+ * @param {Map<string,{name:string,arg:string,body:string}>} [defs] 本页收集的定义；
+ *        省略时用页面登记的"当前定义表"（见 userFn.js 的 setActiveDefs）
+ */
+export function resolveExpr(raw, defs) {
+  const p = parseExpr(raw);
+  if (!p.valid || p.type === "definition") return p;
+  const table = defs === undefined ? getActiveDefs() : defs;
+  // 只认"有定义体"的条目：输入过程中的第一帧可能只登记了名字（见 registerUserFn）
+  const ready = new Map([...(table || [])].filter(([, d]) => d && typeof d.body === "string"));
+
+  const out = { ...p };
+  if (ready.size) {
+    for (const f of ["body", "radius", "xsExpr", "ysExpr", "boundary"]) {
+      if (typeof out[f] === "string" && out[f]) {
+        const r = expandCalls(out[f], ready);
+        if (r.error) return { ...out, valid: false, error: r.error };
+        out[f] = r.text;
+      }
+    }
+  }
+
+  /* 未定义函数检查**无条件执行**（哪怕本页一个定义都没有）。
+   * 为什么不能只在"有定义表"时才查：把定义行删掉之后，引用行就变成"没有定义的 f"，
+   * 若此时跳过检查，引擎会拿 `f` 当未绑定符号 → 全 null → 曲线**静默消失**
+   * （docs/PLAN-plot-user-functions.md §1.4：这正是这个 bug 今天唯一能被用户看见的入口）。
+   * 排除自变量与自由参数：`x(x+1)` 里的 `x` 是变量乘括号，不是函数调用。 */
+  const probe = out.body || out.radius || out.xsExpr || out.ysExpr || out.boundary || "";
+  const bad = findUndefinedCalls(probe, ready)
+    .filter((n) => n !== p.var && !(p.params || []).includes(n));
+  if (bad.length) {
+    return { ...out, valid: false, error: `未定义的函数 ${bad[0]}（可用 ${bad[0]}(x)=… 定义）` };
+  }
+  // 已定义的函数名不是参数（否则会凭空多一个滑块）
+  out.params = (p.params || []).filter((n) => !ready.has(n));
+  return out;
 }
 
 /** 简易合法性检查：括号配对 + 空表达式 */

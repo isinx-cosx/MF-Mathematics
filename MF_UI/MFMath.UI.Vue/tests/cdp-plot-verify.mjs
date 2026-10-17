@@ -88,12 +88,28 @@ await evalJs(`(function(){
   return 'ok';
 })()`);
 await sleep(1800);
+/* ③ 契约变了：参数滑块**不再自动铺开** —— 先在参数面板里提示「检测到参数 a、b」+
+ * 「添加滑块」，用户点了才出现（要求：别一输表达式就把输入区挤成调参区）。
+ * 所以先断言"提示在、滑块还没出现"，再点添加，然后才断言滑块出现。 */
+const hintObj = JSON.parse((await evalJs(`(function(){
+  return JSON.stringify({
+    hint: (document.querySelector('.slider-hint-text')||{}).textContent || '',
+    addBtn: !!document.querySelector('.slider-add'),
+    sliders: [...document.querySelectorAll('.param-name')].map(n=>n.textContent),
+  });
+})()`)) || "{}");
+console.log("   提示:", JSON.stringify(hintObj));
+check("含参表达式先给提示、不自动铺滑块",
+  /a/.test(hintObj.hint || "") && /b/.test(hintObj.hint || "")
+    && hintObj.addBtn === true && (hintObj.sliders || []).length === 0, JSON.stringify(hintObj));
+await evalJs(`(function(){ const b = document.querySelector('.slider-add'); if (b) b.click(); return 'ok'; })()`);
+await sleep(600);
 const afterParams = await evalJs(`(function(){
   return { sliders: [...document.querySelectorAll('.param-row')].map(r=>r.querySelector('.param-name')?.textContent),
            status: document.querySelector('.side-status')?.textContent || '' };
 })()`);
 console.log("   滑块:", JSON.stringify(afterParams.sliders), "| 状态:", afterParams.status);
-check("含参数表达式自动生成滑块 a、b",
+check("点「添加滑块」后出现 a、b 两个滑块",
   JSON.stringify(afterParams.sliders) === JSON.stringify(["a", "b"]), JSON.stringify(afterParams.sliders));
 
 // ③ 拖动滑块 → 曲线重绘（采样仍成功）

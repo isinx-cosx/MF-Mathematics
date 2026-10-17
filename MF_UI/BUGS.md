@@ -449,6 +449,21 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File tests\run-all.ps1 -NoLaunch
 ⚠ 诚实说明：`cdp-calc-workspace` 那 5 条我**只做到"补全副本后不再出现"**，
 没有证明"残缺副本 → 那 5 条"的机制（它不是 python 相关路径）。**若将来再次单独出现，按真缺陷追**。
 
+### 0.7 第四轮：用户报的五条（2026-10-17）
+
+| # | 用户看到的现象 | 根因 | 修法 | 判据 |
+|---|---|---|---|---|
+| **①** | 输入框里写分数，切走再回来变成 `1 + ((x^2)/(5*x - 6))`（带 `*`、多余括号） | `MathField` 只存一个值，而它的 `modelValue` 是**引擎规范化串**；mount 时 `mf.value = latexFromEngine(modelValue)` 把它当 LaTeX 灌回去。用户原始 LaTeX 在 emit 那一刻就丢了 | 输入框同时持有两份值：`latex`（显示）+ `modelValue`（引擎）。`CalcView` 的计算块、绘图页的行都加 `latex`，工作区载荷**追加**该字段（老载荷缺它 → 回退旧行为，不破坏兼容） | `cdp-plot-fn`：写 `\frac{x^2}{5x-6}` → 切走切回 → 值仍含 `\frac`、**不含 `*`**、且还能算出结果 |
+| **②** | 输入框是实线框 | —— | 换「虚影」：`border: transparent` + 一条 18% 中性灰内描边；悬浮 30%，聚焦才出主题色光环。`MathField.vue` 与 `theme.css` 的 `.input` 同步（React 的 `math-field.css` 由 Vue 源抽取，保持一致） | 视觉项；`npm run check` + `cdp-appearance`/`cdp-input-notation` 无回归 |
+| **③** | 一输表达式就自动铺一排参数滑块 | `PlotPage` 无条件 `paramNames.map(ParamSlider)` | 新增 `shownParams`（默认空）：先提示「检测到参数 a、b」+「添加滑块」，点了才出现，可逐个移除；`shownParams` 进工作区载荷。**采样不受影响**（未显示参数仍取默认 1） | 5 个套件的断言改成新契约（先断提示 → 点添加 → 再断滑块）：`cdp-plot-verify` 10/0、`p4` 9/0、`region` 11/0、`extrema` 15/0、`final` 10/0 |
+| **④** | `f(x)` 被当成 `f*(x)` | **引擎**的 `to_engine_expr` 把未知标识符当隐式乘法：`f(x)`→`f*(x)`；多字母更狠：`zzz(2)`→`z*z*z*(2)`（`central` 同理）。前端 `toEngineExpr` 刻意不插号，所以插号在引擎侧 | **L1 输入层**：`prepare.js` 在**归一化之前**把"像函数调用"的名字临时换成归一化不动的内置名（`arcsin` 一类），归一化后再换回。**不能"归一化之后再修回来"**——那时 `f(` 已被拆没了（实测踩到，见下）。自变量 `x/y/t/r/θ` 不保护，`x(x+1)` 语义不变。**L2**：新增 `userFn.js`（定义/收集/展开/未定义检测）+ `knownNames.js`（共用名字表，避免循环依赖）+ `plotMath.resolveExpr`。**L3**：12 处 `parseExpr(` → `resolveExpr(` | `unit-userfn` **29/0**（`f(a+1)` 必须变 `(a+1)^2`、`f(g(x))` 要配平、循环定义要停、`1/2x` 不许被插号等回归全在） |
+| **⑤** | `f(x)=e^x` 画不出来 | 同 ④：定义行落到"隐式方程"分支 `(f(x))-(e^x)` → `f` 未绑定 → 引擎返回全 null → **曲线静默消失且不报错** | `parseExpr` 加 `definition` 分支（**先于**所有等式分支）：定义行不绘制、不采样、不造参数；`resolveExpr` **无条件**检查未定义调用 → 行内报「未定义的函数 f（可用 f(x)=… 定义）」；定义行本身被 `usePlotSampling` 跳过 | `cdp-plot-fn` **14/0**：定义行保留 `f(`、只采样 1 条曲线、无 `f` 滑块；**清空定义后引用行明确报错**（不静默） |
+
+**这一轮踩到并修掉的自身 bug（都记下来 —— 每一个第一眼都像"产品坏了"）**：
+1. 把缓存的签名拼进了 `prepare.js` 的 `key`，而同一个 `key` **又是要送去归一化的原文** ⇒ 表达式变成 `"\u0000sin(2*x)"`，**全站采样归零**（`cdp-plot-*` 一片红）。教训：缓存键与业务值必须是两个变量。
+2. 先写的是"归一化之后再修 `f*(`"——对**多字母**名字根本无效（引擎已把它拆成 `z*z*z(`）。教训：要改引擎的输出，只能在**输入侧**动手。
+3. `cdp-calc-workspace` 的「解方程/组给出结果」是**间歇性**失败（同一天 65/0 与 60/5 都出现）。根因：`<select v-model>` 与 `@change → patchBlock`（用 `{...b}` 克隆出新对象）**抢写同一个对象**，模式有概率写进已被丢弃的"孤儿对象"而静默退回。已改成就地清字段（`onModeChanged`），并给该断言加了**失败即打印现场状态**的诊断。
+
 ## 0. 汇总（按严重度排序）
 
 | # | 级别 | 状态 | 位置 | 摘要 |
@@ -468,6 +483,8 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File tests\run-all.ps1 -NoLaunch
 | **B13** | **P3** | ✅ **已修**（第二轮，推翻先前决定） | `MFMath.UI.React/src/plot/PlotPage.tsx` | 绘图页从不设置 `emphasis` ⇒ 聚焦的那条曲线不再加粗 |
 | **B14** | **P1** | ✅ **已修**（第二轮） | `MFMath.UI.React/src/lib/plotWorkspace.ts`（新）+ 6 个绘图页 + `ReactPlotView.vue` | React 绘图组完全没接工作区 ⇒ 7 个绘图页不会被保存/还原（实测 21/4 → **25/0**） |
 | **B15** | **P2** | ✅ **已修**（第二轮） | `MFMath.UI.React/src/plot/PlotPage.tsx` | 2D/极坐标页不再报导出结果 ⇒ 导出没有成功/失败反馈（实测 43/2 → **45/0**） |
+| **B16** | **P1** | ✅ **已修**（第四轮，用户报） | `components/math/MathField.vue` + `MFMath.UI.React/src/components/MathField.tsx` + `CalcView.vue` + `ExpressionList.tsx`/`PlotPage.tsx` | **切页/重挂载后，输入框里显示的是引擎规范化串**（`1+((x^2)/(5*x-6))`，带 `*` 与多余括号），用户写的 LaTeX 在 emit 那一刻就丢了 |
+| **B17** | **P1** | ✅ **已修**（第四轮，用户报） | `lib/plot/prepare.js` / `userFn.js`（新）/ `knownNames.js`（新）/ `plotMath.js` + 4 个调用点 | **`f(x)=e^x` 画不出来**：引擎把未知标识符当隐式乘法（`f(x)`→`f*(x)`、`zzz(2)`→`z*z*z*(2)`），定义行又被当隐式方程 ⇒ 曲线**静默消失且不报错** |
 
 ---
 

@@ -325,6 +325,23 @@ await sleep(1200);
 await setBlock("x^2-5x+6", "解方程/组");
 await clickCalc();
 let dlgS = await readDialog();
+if (!dlgS) {
+  /* 一次性诊断：这条会**间歇性**失败（同一天 65/0 与 60/5 都出现过）。
+   * 不打印真实状态的话，只看得到"没弹窗"三个字，无从定位。 */
+  const diag = await evalJs(`(function(){
+    const inp = document.querySelector('.cb-input');
+    const sel = document.querySelector('.cb-mode');
+    return JSON.stringify({
+      inp: inp ? inp.value : null,
+      mode: sel ? sel.value : null,
+      allModes: [...document.querySelectorAll('.cb-mode')].map(s => s.value),
+      err: (document.querySelector('.cb-err,.cb-error')||{}).textContent || '',
+      route: location.hash,
+      page: (window.__mfWorkspace && window.__mfWorkspace.pages ? window.__mfWorkspace.pages() : {})['/calc/algebra'] || null,
+    });
+  })()`);
+  console.log("   [诊断] " + diag);
+}
 check("解方程/组给出结果", !!dlgS, (dlgS?.text || "").slice(0, 40));
 
 const dstyle = await evalJs(`(function(){

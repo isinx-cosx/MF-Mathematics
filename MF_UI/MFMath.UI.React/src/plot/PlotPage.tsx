@@ -4,7 +4,8 @@ import type { Curve, Intersection, Sample, UserPoint, View } from "./PlotCanvas"
 import ExpressionList, { type Expr } from "./ExpressionList";
 import ParamSlider from "./ParamSlider";
 import { usePlotSampling } from "./usePlotSampling";
-import { parseExpr, validate } from "@shared/plot/plotMath.js";
+import { resolveExpr, validate } from "@shared/plot/plotMath.js";
+import { collectDefs, setActiveDefs, parseDefinition, registerUserFn } from "@shared/plot/userFn.js";
 import { colorAt } from "@shared/plot/colors.js";
 import { engineCall, isHosted } from "@shared/bridge.js";
 import { defaultView, fitBounds, viewW, viewH, DEFAULT_X_MIN, DEFAULT_X_MAX } from "@shared/plot/view.js";
@@ -90,17 +91,19 @@ export default function PlotPage({
    * 还原放在 useState 的**惰性初值**里（不是 effect）：首帧就带着还原值渲染，
    * 于是"默认值盖掉还原内容"这个问题从根上不存在。 */
   const saved = loadPlotPage(routePath, "plot");
-  const savedExprs = Array.isArray(saved?.expressions) ? (saved!.expressions as { text?: unknown; color?: unknown; visible?: unknown }[]) : null;
+  const savedExprs = Array.isArray(saved?.expressions) ? (saved!.expressions as { text?: unknown; latex?: unknown; color?: unknown; visible?: unknown }[]) : null;
   const [rows, setRows] = useState<Expr[]>(() =>
     savedExprs && savedExprs.length
       ? savedExprs.map((e, i) => ({
           id: nextId++,
           text: String(e.text ?? ""),
+          // 老载荷没有 latex → 空串 → 输入框回退显示 text（与升级前一致）
+          latex: typeof e.latex === "string" ? e.latex : "",
           color: typeof e.color === "string" ? e.color : colorAt(i),
           visible: e.visible !== false,
           error: null,
         }))
-      : [{ id: nextId++, text: "y=x^2", color: colorAt(0), visible: true, error: null }]
+      : [{ id: nextId++, text: "y=x^2", latex: "", color: colorAt(0), visible: true, error: null }]
   );
   const [activeId, setActiveId] = useState<number | null>(() => rows[0]?.id ?? 1);
   const [view, setView] = useState<View>(() =>
@@ -114,6 +117,11 @@ export default function PlotPage({
   const [paramValues, setParamValues] = useState<Record<string, number>>(() =>
     saved?.params && typeof saved.params === "object" ? { ...(saved.params as Record<string, number>) } : {}
   );
+  /* 哪些参数**由用户手动加了滑块** —— 默认一个都不加（③：别一输表达式就铺一排滑块）。
+   * 单独存一份、不从 `params` 反推：值存在不代表用户想要滑块。老载荷没这个字段 → []。 */
+  const [shownParams, setShownParams] = useState<string[]>(() =>
+    Array.isArray(saved?.sliderParams) ? (saved!.sliderParams as string[]).filter((x) => typeof x === "string") : []
+  );
   const [paramConfig, setParamConfig] = useState<Record<string, { min: number; max: number; step: number }>>({});
   const [intersectionList, setIntersectionList] = useState<(Intersection & { exact?: boolean })[]>([]);
   const [intersectionNotice, setIntersectionNotice] = useState("");
@@ -125,6 +133,14 @@ export default function PlotPage({
   const [showIntersections] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
+  /* 用户自定义函数：行里写 `f(x)=…` 就是一条定义（docs/PLAN-plot-user-functions.md）。
+   * 这里把本页的定义表登记给共享逻辑，`resolveExpr` 送引擎前会把 `f(…)` 展开成定义体 ——
+   * 否则引擎把 `f(` 当隐式乘法拆成 `f*(`，曲线静默消失。
+   * 每次 rows 变化都重设；卸载时清空，避免定义跨页残留。 */
+  const userDefs = useMemo(() => collectDefs(rows.map((r) => r.text)), [rows]);
+  useEffect(() => { setActiveDefs(userDefs); }, [userDefs]);
+  useEffect(() => () => setActiveDefs(null), []);
+
   /* 参数：从各行表达式的**解析结果**里取自由符号（与 Vue 版同一来源）。
    * ⚠ 不能用 extractParams(text, [...]) 那种"按名字排除"的做法：极坐标 r=f(θ) 里的
    * r 是**因变量**、不是参数，按名字排除会把它当成滑块（cdp-plot-p4 就是这么挂的）；
@@ -132,7 +148,9 @@ export default function PlotPage({
   const paramNames = useMemo(() => {
     const set = new Set<string>();
     for (const r of rows) {
-      const p = parseExpr(r.text);
+      const p = resolveExpr(r.text);
+      // 定义行本身是声明、不是曲线：它的形参不是本页的自由参数
+      if (p.type === "definition") continue;
       for (const n of (p.params || [])) set.add(n);
     }
     return [...set].sort();
@@ -149,20 +167,26 @@ export default function PlotPage({
    * 于是画布侧 `PlotCanvas.tsx:224` 那句 `ctx.lineWidth = c.emphasis ? 4 : 2.5` 永远走 else 分支：
    * 字段有人消费、却没人生产（BUGS.md B13）。现在由这里产生。 */
   const curves: Curve[] = useMemo(
-    () => rows.map((r) => ({ id: r.id, text: r.text, color: r.color, visible: r.visible, emphasis: r.id === activeId })),
+    /* 定义行（`f(x)=…`）是**声明**，不参与绘制 —— 否则它会被当成隐式方程
+     * `(f(x))-(body)` 白扫一遍等值线，还画不出东西。 */
+    () => rows
+      .filter((r) => resolveExpr(r.text).type !== "definition")
+      .map((r) => ({ id: r.id, text: r.text, color: r.color, visible: r.visible, emphasis: r.id === activeId })),
     [rows, activeId]
   );
 
   /* 变更即回写工作区（对应 Vue 版 PlotView.vue:701 的 `watch([...], () => setPage(...))`）。
    * 只存"你在编辑什么"：表达式、视野、网格/极坐标、参数值；**结果一律不存**（能重算）。
    * ⚠ deps 必须覆盖所有会被存下来的状态，否则会出现"改了但不落盘"。 */
-  usePlotWorkspace(routePath, [rows, view, mode, showGrid, paramValues], () => ({
+  usePlotWorkspace(routePath, [rows, view, mode, showGrid, paramValues, shownParams], () => ({
     kind: "plot",
-    expressions: rows.map((r) => ({ text: r.text, color: r.color, visible: r.visible })),
+    expressions: rows.map((r) => ({ text: r.text, latex: r.latex || "", color: r.color, visible: r.visible })),
     view: { x0: view.x0, x1: view.x1, y0: view.y0, y1: view.y1 },
     gridMode: mode,
     showGrid,
     params: { ...params },
+    /* 用户手动加过滑块的参数（③）。空数组 = 一个都不显示，这是默认状态。 */
+    sliderParams: shownParams,
   }));
 
   const { samples, userPoints, status, grids, addUserPoint, moveUserPoint, clearUserPoints } =
@@ -218,7 +242,7 @@ export default function PlotPage({
     setRows((prev) =>
       prev.map((r) => {
         if (!r.text.trim()) return { ...r, error: null };
-        const p = parseExpr(r.text);
+        const p = resolveExpr(r.text);
         return { ...r, error: p.valid ? null : (p.error || "表达式无法解析") };
       })
     );
@@ -239,7 +263,7 @@ export default function PlotPage({
            * parseExpr 对"y=(x+1" 这类输入是宽容的，只靠它会一声不响。 */
           err = validate(r.text);
           if (!err) {
-            const p = parseExpr(r.text);
+            const p = resolveExpr(r.text);
             if (!p.valid) err = p.error || "表达式无法解析";
           }
         }
@@ -255,7 +279,7 @@ export default function PlotPage({
     setIntersectionNotice("");
     if (!isHosted()) { setIntersectionList([]); return; }
     const vis = rows
-      .map((r) => ({ row: r, parsed: parseExpr(r.text) }))
+      .map((r) => ({ row: r, parsed: resolveExpr(r.text) }))
       .filter((x) => x.row.visible && x.parsed.valid && x.parsed.type === "explicit");
     const out: (Intersection & { exact?: boolean })[] = [];
     for (let i = 0; i < vis.length; i++) {
@@ -292,7 +316,7 @@ export default function PlotPage({
     const out: { x: number; y: number; kind: "max" | "min" }[] = [];
     for (const r of rows) {
       if (!r.visible) continue;
-      const p = parseExpr(r.text);
+      const p = resolveExpr(r.text);
       if (p.type !== "explicit") continue;
       if ((p.params || []).length > 0) continue;
       const res = engineCall("local_extrema", { expr: p.body, var: "x" });
@@ -309,7 +333,7 @@ export default function PlotPage({
     const out: SymbolicExtremum[] = [];
     for (const r of rows) {
       if (!r.visible) continue;
-      const p = parseExpr(r.text);
+      const p = resolveExpr(r.text);
       if (p.type !== "explicit" || !(p.params || []).length) continue;
       const res = engineCall("extrema_sym", { expr: p.body, var: "x" });
       if (!res) { out.push({ expr: p.body, color: r.color, error: "引擎无响应" }); continue; }
@@ -427,7 +451,7 @@ export default function PlotPage({
   const curveValueAt = (curveId: number, t: number, axis: "x" | "y"): number | null => {
     const row = rows.find((r) => r.id === curveId);
     if (!row) return null;
-    const p = parseExpr(row.text);
+    const p = resolveExpr(row.text);
     if (!p || !p.valid) return null;
     const r = engineCall("expr_eval_vars", { expr: p.body, var: axis, x: t, vars: params });
     const v = r && !r.isError ? Number(r.value) : NaN;
@@ -446,7 +470,7 @@ export default function PlotPage({
     if (!pt || pt.curveId == null) return;
     const row = rows.find((r) => r.id === pt.curveId);
     if (!row) return;
-    const type = parseExpr(row.text)?.type;
+    const type = resolveExpr(row.text)?.type;
     const [wx, wy] = world;
     if (type === "explicit") {
       const y = curveValueAt(pt.curveId, wx, "x");
@@ -488,18 +512,46 @@ export default function PlotPage({
         {paramNames.length > 0 && (
           <div className="slider-box">
             <div className="slider-title">参数</div>
-            {paramNames.map((n) => (
-              <ParamSlider
-                key={n}
-                name={n}
-                value={params[n] ?? 1}
-                min={paramConfig[n]?.min ?? -10}
-                max={paramConfig[n]?.max ?? 10}
-                step={paramConfig[n]?.step ?? 0.1}
-                onValueChange={(val) => setParamValues((prev) => ({ ...prev, [n]: val }))}
-                onConfigChange={(cfg) => setParamConfig((prev) => ({ ...prev, [n]: cfg }))}
-              />
-            ))}
+            {/* 滑块**不自动铺开**：参数是解析出来的副产物，一输 `a*x^2` 就冒出几个滑块
+             * 会把「输入区」挤成「调参区」。改成先提示、由用户点一下再加（用户要求）。
+             * 采样不受影响：未显示的参数在 `params` 里仍有默认值 1。 */}
+            {(() => {
+              const shown = shownParams.filter((n) => paramNames.includes(n));
+              const hidden = paramNames.filter((n) => !shown.includes(n));
+              return (
+                <>
+                  {hidden.length > 0 && (
+                    <div className="slider-hint">
+                      <span className="slider-hint-text">检测到参数 {hidden.join("、")}</span>
+                      <button
+                        className="mini-btn slider-add"
+                        type="button"
+                        onClick={() => setShownParams((prev) => [...prev, ...hidden.filter((n) => !prev.includes(n))])}
+                      >添加滑块</button>
+                    </div>
+                  )}
+                  {shown.map((n) => (
+                    <div className="slider-row" key={n}>
+                      <ParamSlider
+                        name={n}
+                        value={params[n] ?? 1}
+                        min={paramConfig[n]?.min ?? -10}
+                        max={paramConfig[n]?.max ?? 10}
+                        step={paramConfig[n]?.step ?? 0.1}
+                        onValueChange={(val) => setParamValues((prev) => ({ ...prev, [n]: val }))}
+                        onConfigChange={(cfg) => setParamConfig((prev) => ({ ...prev, [n]: cfg }))}
+                      />
+                      <button
+                        className="mini-btn slider-remove"
+                        type="button"
+                        title="移除这个滑块（参数仍在，值取默认 1）"
+                        onClick={() => setShownParams((prev) => prev.filter((x) => x !== n))}
+                      >移除</button>
+                    </div>
+                  ))}
+                </>
+              );
+            })()}
           </div>
         )}
 

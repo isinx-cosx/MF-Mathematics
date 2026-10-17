@@ -1,4 +1,4 @@
-# One-click regression: launch host with CDP port, run all verification scripts, summarize.
+﻿# One-click regression: launch host with CDP port, run all verification scripts, summarize.
 # Usage (Windows PowerShell 5.1 or PowerShell 7):
 #   powershell -ExecutionPolicy Bypass -File run-all.ps1
 #   powershell -ExecutionPolicy Bypass -File run-all.ps1 -NoLaunch      # attach to a host you started
@@ -43,6 +43,7 @@ $tests = @(
   # （record 后 reload ⇒ 新条目永久消失；clearAll 后 reload ⇒ 清空的条目复活）。
   # 用假桥（内存 KV）把那个窗口稳定复现 —— 不需要宿主窗口。
   "unit-history-store",
+  "unit-userfn",
   # ⚠ 曾漏登记：本用例一直在磁盘上却从未被执行（BUGS.md B7）。它是唯一按**几何判据**
   #   验证绘图的用例（曲线是否经过已知坐标点、视口内是否连续），与只数像素的其它
   #   绘图用例互补 —— 漏掉它等于绘图准确性没有回归。放在绘图组里，不放到最后。
@@ -55,6 +56,7 @@ $tests = @(
   # 工作区载荷是**新设计**的（Vue 版时代没接过），只过了类型检查 —— 这个用例补那一块。
   # ⚠ 它对"别人同时驱动同一个页面"极敏感（并行会话会互相踩），失败时先看它的 INTERFERENCE 提示。
   "cdp-plot-workspace",
+  "cdp-plot-fn",
   "cdp-diff-at-param", "cdp-fractal-orient", "cdp-fractal-clickzoom", "cdp-geometry-line", "cdp-geometry-aspect", "cdp-canvas-theme",
   "cdp-console", "cdp-modes-render",
   # 本轮新增：教程系统 + 数学键盘（18 篇教程目录/正文、引导走查的上一步与暂停、

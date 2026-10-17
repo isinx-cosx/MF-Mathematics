@@ -30,27 +30,39 @@ import { toEngineExpr } from "../../lib/plot/prepare.js";
 import { createFieldHandle } from "../../lib/math/activeField.js";
 
 const props = defineProps({
-  modelValue: { type: String, default: "" },   // 引擎语法
+  modelValue: { type: String, default: "" },   // 引擎语法（送引擎/落库用）
+  /* 用户输入的**原始 LaTeX**（显示用）。有它显示它，没有才回退到引擎语法。
+   * 为什么必须分开（BUGS.md B16）：`modelValue` 是引擎规范化后的结果
+   * （`(x^2)/(5*x-6)`、多余括号），拿它当 LaTeX 回填，用户切走再回来就会看到
+   * "自己写的分数变成一堆星号"。而 `modelValue` 又不能不要 —— 送引擎、落库都用它。 */
+  latex: { type: String, default: "" },
   placeholder: { type: String, default: "" },
 });
 const emit = defineEmits(["update:modelValue", "change", "focus", "blur", "enter"]);
 
 const el = ref(null);
 const editing = ref(false);       // 用户正在输入：此时不回写 LaTeX
-const lastEmitted = ref(null);    // 记住自己发出的值，避免回环
+const lastEmitted = ref(null);    // 记住自己发出的引擎串，避免回环
+const lastEmittedLatex = ref(null); // 记住自己发出的 LaTeX，避免回环
 let field = null;                 // 数学键盘的"最后聚焦输入框"登记句柄
 
 function latexFromEngine(text) {
   // 引擎语法 → 可让 MathLive 正确显示的 LaTeX。
   // 引擎语法本身几乎都能被 LaTeX 解析器接受（^ 幂、/ 分数、括号、
   // 函数名如 sin 会被 MathLive 识别成 \sin），所以直接回填即可。
+  // ⚠ 这只是**兜底**：能拿到用户原始 LaTeX（props.latex）时优先用它。
   return text || "";
+}
+
+/** 框里应该显示的 LaTeX：优先用户原始写法，其次引擎语法的字面形态 */
+function displayLatex() {
+  return props.latex || latexFromEngine(props.modelValue);
 }
 
 onMounted(() => {
   const mf = el.value;
   if (!mf) return;
-  mf.value = latexFromEngine(props.modelValue);
+  mf.value = displayLatex();
   if (props.placeholder) mf.setAttribute("aria-label", props.placeholder);
   // 桌面端不弹软键盘。模板里已有 math-virtual-keyboard-policy="manual"，
   // 这里再设一次属性是为了兼容老版本 MathLive 只认 property 的情况。
@@ -58,6 +70,7 @@ onMounted(() => {
 
   const onInput = () => {
     const latex = mf.value ?? "";
+    lastEmittedLatex.value = latex;
     emit("change", latex);
     // LaTeX → 引擎语法（引擎侧规范化，含 \frac/\sqrt/全角/π 等）
     const eng = toEngineExpr(latex);
@@ -91,14 +104,16 @@ onBeforeUnmount(() => { if (cleanup) cleanup(); field?.deactivate(); });
 
 // 外部改值才回写（用户输入过程中 editing=true，跳过以免光标跳动）
 watch(
-  () => props.modelValue,
-  (v) => {
+  () => [props.latex, props.modelValue],
+  () => {
     const mf = el.value;
     if (!mf) return;
     if (editing.value) return;
-    if (v === lastEmitted.value) return;
-    if ((mf.value ?? "") === (v ?? "")) return;
-    mf.value = latexFromEngine(v);
+    const want = displayLatex();
+    // 自己刚发出去的值不要再塞回来
+    if (props.latex ? want === lastEmittedLatex.value : props.modelValue === lastEmitted.value) return;
+    if ((mf.value ?? "") === want) return;
+    mf.value = want;
   }
 );
 
@@ -109,7 +124,10 @@ function insertLatex(latex, options) {
   mf.focus();
   if (typeof mf.insert === "function") {
     mf.insert(latex, options || { selectionMode: "placeholder" });
-    emit("update:modelValue", toEngineExpr(mf.value ?? ""));
+    const v = mf.value ?? "";
+    lastEmittedLatex.value = v;
+    emit("change", v);
+    emit("update:modelValue", toEngineExpr(v));
   }
 }
 function focus() { el.value?.focus(); }
@@ -148,14 +166,19 @@ math-field.mathfield {
    * 横向：内部 .ML__container 自带 4px，叠加 8px = 12px，与 .input 的 12px 对齐。 */
   padding: 7px 8px;
   align-content: center;
-  border: 1px solid var(--border);
+  /* 「虚影」边框（用户要求）：不画实线框，只用一条极淡的**中性灰内描边** + 浅底；
+   * 聚焦时才出现主题色光环。用中性灰而不是 --border，是因为明暗两套主题下
+   * --border 分别是 #e2e8f0 / rgba(255,255,255,.08)，深浅差太远，而"虚影"要的是
+   * 两边都只有一点点。 */
+  border: 1px solid transparent;
   border-radius: var(--r-sm);
   background: var(--surface-alt);
+  box-shadow: inset 0 0 0 1px rgba(127, 127, 127, .18);
   color: var(--text);
   font-size: 22px;             /* 数学排版尺寸，直接决定 LaTeX 看得清不清 */
   font-family: 'Cambria Math', 'Latin Modern Math', Georgia, serif;
   outline: none;
-  transition: border-color .12s, background .12s, box-shadow .12s;
+  transition: background .12s, box-shadow .12s;
   /* MathLive 的配色跟随主题 */
   --hue: 216;
   --caret-color: var(--accent);
@@ -165,11 +188,13 @@ math-field.mathfield {
   --highlight-text: var(--accent);
   --placeholder-color: var(--text-subtle);
 }
+math-field.mathfield:hover {
+  box-shadow: inset 0 0 0 1px rgba(127, 127, 127, .30);
+}
 math-field.mathfield:focus,
 math-field.mathfield:focus-within {
-  border-color: var(--accent);
   background: var(--surface);
-  box-shadow: 0 0 0 3px var(--accent-soft);
+  box-shadow: inset 0 0 0 1px rgba(127, 127, 127, .24), 0 0 0 3px var(--accent-soft);
 }
 /* 去掉右下角自带的两个角标按钮：软键盘 + 菜单。
  * 这是 MathLive 官方文档给的隐藏方式（math-field::part(menu-toggle)）；

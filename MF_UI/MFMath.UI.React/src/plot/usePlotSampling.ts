@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { engineCall, isHosted } from "@shared/bridge.js";
-import { parseExpr } from "@shared/plot/plotMath.js";
+import { resolveExpr } from "@shared/plot/plotMath.js";
 import { adaptiveSample } from "@shared/plot/sampling.js";
 import { viewW, viewH } from "@shared/plot/view.js";
 import type { ParsedExpr, Sample, UserPoint, View } from "./PlotCanvas";
@@ -114,8 +114,11 @@ export function usePlotSampling(
 
     for (const row of rows) {
       /* 按解析结果的真实字段用（op / axis / boundary 只有不等式/区域分支才有） */
-      const p: ParsedExpr = parseExpr(row.text);
+      const p: ParsedExpr = resolveExpr(row.text);
       if (!row.text.trim()) continue;
+      /* 用户函数定义行（`f(x)=x^2`）是**声明**，不是曲线：既不采样也不算失败。
+       * 不跳过的话它会走进下面的采样分支、报"1 条失败"，状态行读起来像出错了。 */
+      if (p.type === "definition") continue;
       if (!p.valid) { nextErr[row.id] = p.error || "表达式无法解析"; errCount++; continue; }
 
       const opts = { initial: 300, maxRounds: 3, tolPx: 0.8, maxPoints: 6000 };

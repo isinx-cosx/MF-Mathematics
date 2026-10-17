@@ -144,6 +144,9 @@ check("悬停曲线上出现追踪标记（深色像素增加）", afterPx > bef
 /* ── ③ 滑块设置：范围/步长（P1）── */
 console.log("\n── 滑块设置（范围 / 步长）──");
 await setExprs(["y=a*x^2"]);
+  /* ③ 契约：参数滑块不再自动铺开，先提示、点「添加滑块」才出现 */
+  await evalJs(`(function(){ const b = document.querySelector('.slider-add'); if (b) b.click(); return 'ok'; })()`);
+  await sleep(600);
 await sleep(1500);
 const hasSettingsBtn = await evalJs(`!!document.querySelector('.param-row .icon-btn[title="滑块设置"]')`);
 check("滑块带设置按钮", hasSettingsBtn === true, String(hasSettingsBtn));

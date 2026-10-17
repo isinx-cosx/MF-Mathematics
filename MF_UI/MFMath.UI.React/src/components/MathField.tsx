@@ -13,6 +13,9 @@ export type MathFieldHandle = {
 type Props = {
   /** 引擎语法（与 Vue 版 v-model 的值一致） */
   value: string;
+  /** 用户输入的原始 LaTeX（显示用）。有它就显示它，没有才回退到 `value`。
+   *  与 Vue 版 props.latex 同义（BUGS.md B16）。 */
+  latex?: string;
   placeholder?: string;
   dataTour?: string;
   /** LaTeX 变化（MathLive 的值） */
@@ -30,13 +33,17 @@ type Props = {
  * 类名沿用 `expr-input mathfield`，样式来自同一份抽出的 CSS，外观与 Vue 版一致。
  */
 export default function MathField({
-  value, placeholder = "", dataTour, onChange, onValueChange, onFocus, onBlur, onEnter, handleRef,
+  value, latex, placeholder = "", dataTour, onChange, onValueChange, onFocus, onBlur, onEnter, handleRef,
 }: Props) {
   const elRef = useRef<HTMLElement | null>(null);
   const editing = useRef(false);
   const lastEmitted = useRef<string | null>(null);
+  const lastEmittedLatex = useRef<string | null>(null);
   const cbs = useRef({ onChange, onValueChange, onFocus, onBlur, onEnter });
   cbs.current = { onChange, onValueChange, onFocus, onBlur, onEnter };
+  /* 框里应该显示的 LaTeX：优先用户原始写法，其次引擎语法的字面形态 */
+  const show = useRef("");
+  show.current = latex || value || "";
 
   useImperativeHandle(handleRef, () => ({
     focus: () => elRef.current?.focus(),
@@ -46,7 +53,10 @@ export default function MathField({
       mf.focus();
       if (typeof mf.insert === "function") {
         mf.insert(latex, opts ?? { selectionMode: "placeholder" });
-        cbs.current.onValueChange?.(toEngineExpr(mf.value ?? ""));
+        const v = mf.value ?? "";
+        lastEmittedLatex.current = v;
+        cbs.current.onChange?.(v);
+        cbs.current.onValueChange?.(toEngineExpr(v));
       }
     },
   }), []);
@@ -59,12 +69,13 @@ export default function MathField({
     } | null;
     if (!mf) return;
 
-    mf.value = value || "";
+    mf.value = show.current;
     if (placeholder) mf.setAttribute("aria-label", placeholder);
     try { mf.mathVirtualKeyboardPolicy = "manual"; } catch { /* 老版本无此属性 */ }
 
     const onInput = () => {
       const latex = mf.value ?? "";
+      lastEmittedLatex.current = latex;
       cbs.current.onChange?.(latex);
       const eng = toEngineExpr(latex);
       lastEmitted.current = eng;
@@ -86,7 +97,10 @@ export default function MathField({
         m.focus();
         if (typeof m.insert === "function") {
           m.insert(latex, opts ?? { selectionMode: "placeholder" });
-          cbs.current.onValueChange?.(toEngineExpr(m.value ?? ""));
+          const v2 = m.value ?? "";
+          lastEmittedLatex.current = v2;
+          cbs.current.onChange?.(v2);
+          cbs.current.onValueChange?.(toEngineExpr(v2));
         }
       },
       focus: () => elRef.current?.focus(),
@@ -116,10 +130,12 @@ export default function MathField({
     const mf = elRef.current as unknown as { value?: string } | null;
     if (!mf) return;
     if (editing.current) return;
-    if (value === lastEmitted.current) return;
-    if ((mf.value ?? "") === (value ?? "")) return;
-    mf.value = value || "";
-  }, [value]);
+    const want = show.current;
+    // 自己刚发出去的值不要再塞回来
+    if (latex ? want === lastEmittedLatex.current : value === lastEmitted.current) return;
+    if ((mf.value ?? "") === want) return;
+    mf.value = want;
+  }, [value, latex]);
 
   return createElement("math-field", {
     ref: elRef as unknown as Ref<HTMLElement>,

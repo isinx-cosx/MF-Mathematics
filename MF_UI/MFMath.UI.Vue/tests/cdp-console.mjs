@@ -360,6 +360,17 @@ const shell = await evalJs(`(function(){
   };
 })()`);
 console.log("   语言:", JSON.stringify(shell.languages), "| 组件行:", JSON.stringify(shell.comps));
+/* ⚠ 先判"这一页到底有没有渲染出来"。
+ * 没有 CPython 组件时，控制台页显示的是**安装引导**而不是编辑器：`hasEditor=false`、
+ * 没有补全源、也跑不了任何代码。那时继续往下跑毫无意义 —— 以前是直接崩在
+ * `acSrc.hit.length`（TypeError），既看不出原因，也把"环境没准备好"伪装成"产品失败"。
+ * 按 cdp-console-sci 的同款约定：[SKIP] + 不打印 RESULT 行，run-all 会单独显示 SKIP
+ * （见 run-all.ps1 的判定：含 [SKIP] 就不计入 pass）。 */
+if (!shell.hasEditor) {
+  console.log("  [SKIP] 控制台没有渲染出编辑器 —— CPython 组件未安装（设置 → 组件 → 安装后本测试才有意义）");
+  console.log("         组件行: " + JSON.stringify(shell.comps));
+  process.exit(0);
+}
 check("这一页不再是占位视图", shell.hasWrap && !shell.isPlaceholder, shell.title);
 check("有代码编辑框", shell.hasEditor);
 check("有运行按钮", shell.hasRun);

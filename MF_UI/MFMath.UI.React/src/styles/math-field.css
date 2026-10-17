@@ -1,7 +1,7 @@
 /* 自动抽取自 components/math/MathField.vue 的 <style>，请勿手改。
- * 重新生成: node tools/extract-styles.mjs
+ * ⚠ 仓库里已经没有 tools/extract-styles.mjs（脚本丢了），本次是手工按同一规则抽取的：
+ *   把 Vue 的 <style> 块原样搬过来，只去掉顶部说明。改样式请改 Vue 源，再同步这里。
  * 目的：React 版沿用 Vue 版同一份样式，保证界面不走样。 */
-
 /* ── 输入框外观的**唯一出处** ──────────────────────────────────────────
  * 这里故意不写 scoped：几何、字号、以及 shadow DOM 里的角标按钮都必须
  * 作用在 <math-field> 元素本身。选择器用 `math-field.mathfield`（0,1,1），
@@ -23,14 +23,19 @@ math-field.mathfield {
    * 横向：内部 .ML__container 自带 4px，叠加 8px = 12px，与 .input 的 12px 对齐。 */
   padding: 7px 8px;
   align-content: center;
-  border: 1px solid var(--border);
+  /* 「虚影」边框（用户要求）：不画实线框，只用一条极淡的**中性灰内描边** + 浅底；
+   * 聚焦时才出现主题色光环。用中性灰而不是 --border，是因为明暗两套主题下
+   * --border 分别是 #e2e8f0 / rgba(255,255,255,.08)，深浅差太远，而"虚影"要的是
+   * 两边都只有一点点。 */
+  border: 1px solid transparent;
   border-radius: var(--r-sm);
   background: var(--surface-alt);
+  box-shadow: inset 0 0 0 1px rgba(127, 127, 127, .18);
   color: var(--text);
   font-size: 22px;             /* 数学排版尺寸，直接决定 LaTeX 看得清不清 */
   font-family: 'Cambria Math', 'Latin Modern Math', Georgia, serif;
   outline: none;
-  transition: border-color .12s, background .12s, box-shadow .12s;
+  transition: background .12s, box-shadow .12s;
   /* MathLive 的配色跟随主题 */
   --hue: 216;
   --caret-color: var(--accent);
@@ -40,11 +45,13 @@ math-field.mathfield {
   --highlight-text: var(--accent);
   --placeholder-color: var(--text-subtle);
 }
+math-field.mathfield:hover {
+  box-shadow: inset 0 0 0 1px rgba(127, 127, 127, .30);
+}
 math-field.mathfield:focus,
 math-field.mathfield:focus-within {
-  border-color: var(--accent);
   background: var(--surface);
-  box-shadow: 0 0 0 3px var(--accent-soft);
+  box-shadow: inset 0 0 0 1px rgba(127, 127, 127, .24), 0 0 0 3px var(--accent-soft);
 }
 /* 去掉右下角自带的两个角标按钮：软键盘 + 菜单。
  * 这是 MathLive 官方文档给的隐藏方式（math-field::part(menu-toggle)）；

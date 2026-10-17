@@ -1,12 +1,18 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { ALL_COLORS } from "@shared/plot/colors.js";
+import { parseDefinition, registerUserFn } from "@shared/plot/userFn.js";
 import MathField from "../components/MathField";
 import type { MathFieldHandle } from "../components/MathField";
 import "../styles/expr-list.css";
 
 export type Expr = {
   id: number;
+  /** 引擎语法（送引擎/采样用）。**不是**显示内容 —— 显示用 `latex`。 */
   text: string;
+  /** 用户输入的原始 LaTeX。缺省（老载荷）时回退显示 `text`。
+   *  为什么必须分开（BUGS.md B16）：`text` 是引擎规范化后的串（`5*x`、多余括号），
+   *  拿它当 LaTeX 回填，切页回来用户就会看到"分数变成一堆星号"。 */
+  latex?: string;
   color: string;
   visible: boolean;
   error?: string | null;
@@ -158,10 +164,21 @@ const ExpressionList = forwardRef<{ focusRow: (id: number) => void }, Props>(fun
           <MathField
             handleRef={(el) => { fieldRefs.current[row.id] = el; }}
             value={row.text}
+            latex={row.latex}
             dataTour={i === 0 ? "plot_workspace.function_input" : undefined}
             placeholder="输入表达式，如 y=x^2 或 cosx"
             onValueChange={(v) => update(row.id, { text: v })}
-            onChange={onChange}
+            /* 原始 LaTeX 单独存一份：`text` 是引擎规范化结果，回填它会让用户
+             * 切页回来看到 `5*x`、多余括号（BUGS.md B16）。
+             * ⚠ 这里的顺序很关键：MathField 的 onInput 是**先**调 onChange(latex)、
+             * **后**调 toEngineExpr(latex)。定义行必须在那一刻就登记函数名，
+             * 否则引擎已经把它写成 `f*(x)` 了（`prepare.js` 的修复靠这张表）。 */
+            onChange={(l) => {
+              const d = parseDefinition(l);
+              if (d && !d.error) registerUserFn(d.name);
+              update(row.id, { latex: l });
+              onChange();
+            }}
             onFocus={() => setFocusedId(row.id)}
             onEnter={() => onAdd(i)}
           />

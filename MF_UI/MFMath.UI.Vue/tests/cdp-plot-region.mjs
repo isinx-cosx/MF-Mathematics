@@ -140,9 +140,11 @@ check("二元区域已填充（红色调像素 > 20000）", st.tinted > 20000, S
 console.log("\n── 含参隐式 x^2+y^2=a ──");
 await setExprs(["x^2+y^2=a"]);
 st = await colorStats("#c74440");
-const sliders = await evalJs(`[...document.querySelectorAll('.param-name')].map(n=>n.textContent)`);
+  /* ③ 契约：参数滑块不再自动铺开，先提示、点「添加滑块」才出现 */
+  await evalJs(`(function(){ const b = document.querySelector('.slider-add'); if (b) b.click(); return 'ok'; })()`);
+  await sleep(600);  const sliders = await evalJs(`[...document.querySelectorAll('.param-name')].map(n=>n.textContent)`);
 console.log("   滑块:", JSON.stringify(sliders), "| 红色调像素:", st.tinted, "| 错误:", JSON.stringify(st.errors));
-check("含参隐式方程生成滑块 a", JSON.stringify(sliders) === JSON.stringify(["a"]), JSON.stringify(sliders));
+check("含参隐式方程点添加后生成滑块 a", JSON.stringify(sliders) === JSON.stringify(["a"]), JSON.stringify(sliders));
 check("含参隐式曲线已绘制", st.tinted > 800, String(st.tinted));
 
 console.log(`\n═══ 不等式/隐式方程验证：${pass} 通过 / ${fail} 失败 ═══`);

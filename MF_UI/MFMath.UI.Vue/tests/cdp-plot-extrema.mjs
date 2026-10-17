@@ -126,7 +126,10 @@ check("无参曲线不显示符号分支", sym1 === 0, String(sym1));
 /* ── ④ 含参曲线 y=x^3-3*a*x：符号驻点 + 参数分支讨论 ── */
 console.log("\n── 含参曲线符号驻点与分类讨论 y=x^3-3*a*x ──");
 await setExpr("y=x^3-3*a*x");
-const st2 = await evalJs(`(function(){
+/* ③ 契约：参数滑块不再自动铺开，先提示、点「添加滑块」才出现 */
+  await evalJs(`(function(){ const b = document.querySelector('.slider-add'); if (b) b.click(); return 'ok'; })()`);
+  await sleep(600);
+  const st2 = await evalJs(`(function(){
   // 侧栏按**参数取值**分组：一块 .pt-sym 对应一个参数情形（如 a>0），
   // 块内 .pt-branch 是折叠起来的各个驻点结论。
   const groups = [...document.querySelectorAll('.pt-sym')].map(g => ({
@@ -140,7 +143,7 @@ const st2 = await evalJs(`(function(){
 const gAll = st2.groups.map(g => g.text).join(' | ');
 console.log("   参数分组:", JSON.stringify(st2.groups.map(g => g.assume)));
 console.log("   分支行:", JSON.stringify(st2.groups.flatMap(g => g.rows)));
-check("含参曲线生成滑块 a", JSON.stringify(st2.sliders) === JSON.stringify(["a"]), JSON.stringify(st2.sliders));
+check("含参曲线点添加后生成滑块 a", JSON.stringify(st2.sliders) === JSON.stringify(["a"]), JSON.stringify(st2.sliders));
 check("显示符号驻点（含 sqrt(a)）", gAll.includes("sqrt(a)"), gAll);
 check("按参数取值分组 a>0 / a=0 / a<0",
   st2.groups.some(g => g.assume === "a>0") && st2.groups.some(g => g.assume === "a=0") && st2.groups.some(g => g.assume === "a<0"),
