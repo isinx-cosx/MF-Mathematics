@@ -459,6 +459,23 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File tests\run-all.ps1 -NoLaunch
 | **④** | `f(x)` 被当成 `f*(x)` | **引擎**的 `to_engine_expr` 把未知标识符当隐式乘法：`f(x)`→`f*(x)`；多字母更狠：`zzz(2)`→`z*z*z*(2)`（`central` 同理）。前端 `toEngineExpr` 刻意不插号，所以插号在引擎侧 | **L1 输入层**：`prepare.js` 在**归一化之前**把"像函数调用"的名字临时换成归一化不动的内置名（`arcsin` 一类），归一化后再换回。**不能"归一化之后再修回来"**——那时 `f(` 已被拆没了（实测踩到，见下）。自变量 `x/y/t/r/θ` 不保护，`x(x+1)` 语义不变。**L2**：新增 `userFn.js`（定义/收集/展开/未定义检测）+ `knownNames.js`（共用名字表，避免循环依赖）+ `plotMath.resolveExpr`。**L3**：12 处 `parseExpr(` → `resolveExpr(` | `unit-userfn` **29/0**（`f(a+1)` 必须变 `(a+1)^2`、`f(g(x))` 要配平、循环定义要停、`1/2x` 不许被插号等回归全在） |
 | **⑤** | `f(x)=e^x` 画不出来 | 同 ④：定义行落到"隐式方程"分支 `(f(x))-(e^x)` → `f` 未绑定 → 引擎返回全 null → **曲线静默消失且不报错** | `parseExpr` 加 `definition` 分支（**先于**所有等式分支）：定义行不绘制、不采样、不造参数；`resolveExpr` **无条件**检查未定义调用 → 行内报「未定义的函数 f（可用 f(x)=… 定义）」；定义行本身被 `usePlotSampling` 跳过 | `cdp-plot-fn` **14/0**：定义行保留 `f(`、只采样 1 条曲线、无 `f` 滑块；**清空定义后引用行明确报错**（不静默） |
 
+**这一轮的最终取证（2026-10-17 晚，宿主从工作区外启动 + 全新构建）**
+
+- **全量** `run-all.ps1 -NoLaunch`：`TOTAL: 2157 pass / 18 fail (1 skipped)`，其中
+  - `cdp-engine-coverage` **377/16**，全部集中在 `numerical` 段（1 条"无结果对话框" + 15 条 `no-input`）；
+  - `cdp-push` 2 条（运行链）与 `cdp-console` 崩溃 —— **同一根因：CPython 组件没装**
+    （`%LOCALAPPDATA%\MFMath\components\` 只剩空 `cache\`，控制台页因此不渲染编辑器）。
+- **复跑定案**：`node tests/cdp-engine-coverage.mjs` **单独跑 ⇒ 393 通过 / 0 失败**，
+  其中 `numerical` 段 **25/25 全 OK**。⇒ 那 16 条在全量跑里出现、**单独不可复现**，
+  按 §5.3 归类为"环境/前序状态残留"，不是产品回归（已留档；若再出现按真缺陷追）。
+- **组件缺失的处理**：`cdp-console` 以前会崩在 `acSrc.hit.length`（TypeError），
+  `cdp-push` 那 2 条会把 `exitCode: -1` 当失败。现在两者都**先判组件**：
+  `cdp-console` 打 `[SKIP]` + 不计 pass（run-all 已支持单独显示 SKIP）；
+  `cdp-push` 明确说明"跳过，原因：组件未安装"。
+- 逐套件绿：`unit-userfn 29/0`、`cdp-plot-fn 14/0`、`cdp-calc-workspace 65/0`、
+  `cdp-plot-workspace 24/0`、`cdp-plot-verify 10/0`、`p4 9/0`、`region 11/0`、
+  `extrema 15/0`、`final 10/0`；`npm run check` exit 0、React `check:types` exit 0。
+
 **这一轮踩到并修掉的自身 bug（都记下来 —— 每一个第一眼都像"产品坏了"）**：
 1. 把缓存的签名拼进了 `prepare.js` 的 `key`，而同一个 `key` **又是要送去归一化的原文** ⇒ 表达式变成 `"\u0000sin(2*x)"`，**全站采样归零**（`cdp-plot-*` 一片红）。教训：缓存键与业务值必须是两个变量。
 2. 先写的是"归一化之后再修 `f*(`"——对**多字母**名字根本无效（引擎已把它拆成 `z*z*z(`）。教训：要改引擎的输出，只能在**输入侧**动手。
