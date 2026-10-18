@@ -156,7 +156,7 @@ npm --prefix MF_UI/MFMath.UI.Vue run build
 cargo build --release --manifest-path MFMath.Host.Rust/Cargo.toml
 ```
 
-`cargo build` 的 `build.rs` 只在新时才拷贝，缺了只警告：把引擎产物（`mf_mathematics.dll` 与 5 个运行时依赖）拷到 exe 同目录、把 `MF_UI/MFMath.UI.Vue/dist` 拷成 `<exe 同目录>/wwwroot`、检查图标。缺第 1 件时界面照常打开，但启动自检写「引擎未加载」；缺第 2 件时页面退回 Tauri 内嵌资产，URL 变成 `http://tauri.localhost`。
+`cargo build` 的 `build.rs` 只在新时才拷贝，缺了只警告。它同步四样东西：引擎产物（`mf_mathematics.dll` 与 5 个运行时依赖）拷到 exe 同目录、`MF_UI/MFMath.UI.Vue/dist` 拷成 `<exe 同目录>/wwwroot`、`console/python` 与 `console/cpp` 拷成 `<exe 同目录>/python` 与 `/cpp`（控制台组件的门面，装不上组件时会报「应用目录缺少 python\mfmath.py」）；另外检查 `icons/icon.ico` 是否存在。缺引擎时界面照常打开，但启动自检写「引擎未加载」；缺 `dist` 时页面退回 Tauri 内嵌资产，URL 变成 `http://tauri.localhost`。
 
 手工同步用 [`MFMath.Host.Rust/tools/`](MFMath.Host.Rust/tools/) 下的两个脚本，`--dest` 含义不同：
 
@@ -181,6 +181,29 @@ node MFMath.Host.Rust/tools/sync-wwwroot.mjs --exe "<exe 目录>\mfmath-host-rus
 （[`main.rs`](MFMath.Host.Rust/src/main.rs) 的 `lock_webview_dir()`）；第二个实例拿到 `ERROR_SHARING_VIOLATION`，并在错误信息里报出持有者 pid。目录不可写等其它原因不阻止启动，只跳过单实例检查。
 
 改了前端之后：重跑 `npm run build`，再 `cargo build` 让 `build.rs` 重新同步 `wwwroot/`；或用 `MF_WWWROOT` 把宿主直接指到 `MF_UI/MFMath.UI.Vue/dist`。宿主不内置 Vite dev server 集成。
+
+### 打包成安装包
+
+三步构建完成后，一条命令出安装包：
+
+```powershell
+.\MFMath.Installer\tools\build-setup.ps1
+```
+
+产物：`MFMath.Installer\target\release\Multifunctional-Mathematics_<版本>_x64-setup.exe`（约 18 MB）。
+脚本负责收集载荷（exe + 6 个运行时 DLL + `wwwroot/` + 控制台门面）、下载并内嵌 WebView2 引导程序、
+压缩后追加到安装器副本的尾部。只有它产出的文件能直接安装；安装器自身的编译产物不含载荷。
+
+安装包是向导程序：双击后可选安装位置、是否建桌面快捷方式、装完是否运行。
+安装到 `%LOCALAPPDATA%\Programs\Multifunctional-Mathematics\`，**每用户安装、不请求管理员权限**。
+卸载用安装目录里的 `uninstall.exe`，或从「设置 → 应用」卸载；默认保留 `%LOCALAPPDATA%\MFMath` 里的用户数据。
+
+安装包**未签名**，第一次运行会弹 SmartScreen，点「更多信息 → 仍要运行」。签名接口已接好
+（`build-setup.ps1` 的 `-CertThumbprint`），缺的是证书本身；详见
+[`MFMath.Host.Rust/docs/INSTALLER.md`](MFMath.Host.Rust/docs/INSTALLER.md)。
+
+静默与自动化用法：`/S` 静默安装、`/D=<路径>` 指定目录、`/uninstall /S /purge` 静默卸载并删数据
+（同文档第 8 节）。
 
 ## 验证与测试
 
@@ -210,12 +233,12 @@ powershell -NoProfile -File MF_UI/MFMath.UI.Vue/tests/run-all.ps1
 | 引擎 CTest | `tests/` 下 19 个可执行目标，其中 16 个注册进 CTest | [`CMakeLists.txt`](MF_Mathematics/CMakeLists.txt) 的 `add_test` / `add_executable` |
 | 注册表守门 | `count == 424` | `probe_call.exe list_functions` |
 | 前端构建闸门 | `npm run check` = `check:types` + `check:signatures` + `check:args` + `check:ui` | [`package.json`](MF_UI/MFMath.UI.Vue/package.json) 的 `scripts`；[`docs/ui/CHECKS.md`](docs/ui/CHECKS.md) |
-| 端到端 | 48 个 `cdp-*.mjs` | [`MF_UI/MFMath.UI.Vue/tests/`](MF_UI/MFMath.UI.Vue/tests/) |
+| 端到端 | 49 个 `cdp-*.mjs` | [`MF_UI/MFMath.UI.Vue/tests/`](MF_UI/MFMath.UI.Vue/tests/) |
 
 ```powershell
 (Get-ChildItem MF_Mathematics/tests -Filter *.cpp).Count                                          # 19
 (Select-String -Path MF_Mathematics/CMakeLists.txt -Pattern 'add_test\(').Count                   # 16
-(Get-ChildItem MF_UI/MFMath.UI.Vue/tests -Filter 'cdp-*.mjs').Count                               # 48
+(Get-ChildItem MF_UI/MFMath.UI.Vue/tests -Filter 'cdp-*.mjs').Count                               # 49
 ```
 
 无头自检（不需要 WebView2，受限环境可运行），用于确认宿主本身未损坏：
@@ -233,8 +256,9 @@ powershell -NoProfile -File MF_UI/MFMath.UI.Vue/tests/run-all.ps1
 | --- | --- |
 | [`MF_Mathematics/`](MF_Mathematics/) | 引擎：C++17，110 个 `.cpp`（不含 `build/` 与 `tests/`）；`tests/` 下 19 个可执行目标 |
 | [`MFMath.Host.Rust/`](MFMath.Host.Rust/) | 现役宿主：Rust + Tauri + WebView2，9 个宿主对象；`build.rs` 负责同步引擎与 UI；`console/` 下是控制台的 Python/C++ 门面 |
-| [`MF_UI/MFMath.UI.Vue/`](MF_UI/MFMath.UI.Vue/) | Vue 3 界面：`src/`（107 个文件）、`tests/`（48 个 CDP 用例）、`tools/`（构建期闸门） |
+| [`MF_UI/MFMath.UI.Vue/`](MF_UI/MFMath.UI.Vue/) | Vue 3 界面：`src/`（109 个文件）、`tests/`（49 个 CDP 用例）、`tools/`（构建期闸门） |
 | [`MF_UI/MFMath.UI.React/`](MF_UI/MFMath.UI.React/) | React 绘图组，经 `@shared` 别名复用 Vue 侧 `src/lib/` 下与框架无关的模块 |
+| [`MFMath.Installer/`](MFMath.Installer/) | 安装器：Rust 写的向导程序 + 打包脚本，产出自解压安装包；设计与验证记录见 [`MFMath.Host.Rust/docs/INSTALLER.md`](MFMath.Host.Rust/docs/INSTALLER.md) |
 | [`docs/`](docs/) | 文档，入口是 [`docs/README.md`](docs/README.md) |
 | [`tools/`](tools/) | 仓库级小工具 |
 
@@ -250,7 +274,7 @@ powershell -NoProfile -File MF_UI/MFMath.UI.Vue/tests/run-all.ps1
 | 想读懂代码 | [`docs/DESIGN.md`](docs/DESIGN.md)、[`docs/engine/README.md`](docs/engine/README.md)、[`docs/ui/ENGINE-BINDING.md`](docs/ui/ENGINE-BINDING.md)、[`docs/link/README.md`](docs/link/README.md) |
 | 想查引擎契约 | [`docs/engine/CONTRACT.md`](docs/engine/CONTRACT.md)、[`docs/engine/MODULES.md`](docs/engine/MODULES.md)、[`docs/engine/TESTS.md`](docs/engine/TESTS.md) |
 | 想知道边界 | [`docs/DESIGN-BOUNDARIES.md`](docs/DESIGN-BOUNDARIES.md)、[`docs/engine/BOUNDARIES.md`](docs/engine/BOUNDARIES.md) |
-| 调宿主 / 打包 | [`MFMath.Host.Rust/README.md`](MFMath.Host.Rust/README.md)、[`MFMath.Host.Rust/docs/ACCEPTANCE.md`](MFMath.Host.Rust/docs/ACCEPTANCE.md)、[`MFMath.Host.Rust/docs/PACKAGING.md`](MFMath.Host.Rust/docs/PACKAGING.md) |
+| 调宿主 / 打包 | [`MFMath.Host.Rust/README.md`](MFMath.Host.Rust/README.md)、[`MFMath.Host.Rust/docs/ACCEPTANCE.md`](MFMath.Host.Rust/docs/ACCEPTANCE.md)、[`MFMath.Host.Rust/docs/INSTALLER.md`](MFMath.Host.Rust/docs/INSTALLER.md)、[`MFMath.Host.Rust/docs/PACKAGING.md`](MFMath.Host.Rust/docs/PACKAGING.md) |
 
 ## 边界
 
@@ -258,7 +282,7 @@ powershell -NoProfile -File MF_UI/MFMath.UI.Vue/tests/run-all.ps1
 
 - **数学能力边界**：不定积分对非初等函数返回「未实现」，部分不定式极限与复变不定积分同理。一个错误的原函数比「未实现」危害更大。
 - **多语言只覆盖界面层**：导航、顶栏、14 个学科视图的模式名、参数弹窗标签、结果字段、键盘分类已中英双语，可在「设置 → 外观 → 界面语言」切换并记忆；页面正文与教程正文仍是中文。迁移方法是把要翻的文本包一层 `t()` 并补 `src/lib/i18n/en-*.js`，`npm run check` 会拦住漏译。
-- **安装包的「安装 → 启动」路径未验证**：宿主可出 NSIS 安装包（`tauri.conf.json` 的 `bundle` 段，见 [`MFMath.Host.Rust/docs/PACKAGING.md`](MFMath.Host.Rust/docs/PACKAGING.md)），但「装完能启动」没有真机验证记录。「三步构建 + 直接运行 exe」是当前唯一可依据的路径。
+- **安装包未签名**：安装器是自解压向导，每用户安装、不请求管理员权限，写入开始菜单快捷方式与卸载信息，卸载默认保留用户数据。「安装 → 启动 → 卸载」在本机 Windows 11 上验证过；未在其它 Windows 版本与高 DPI 缩放环境下验证。首次运行会弹 SmartScreen（未签名），签名接口已就绪但尚无证书。
 - **崩溃只本地记录，不联网上报**：写入 `%LOCALAPPDATA%\MFMath\logs\`，由用户在「设置 → 存储与数据 → 导出诊断包」主动交出。
 - **宿主只有一个**：`MFMath.Host.Rust/`（Rust + Tauri + WebView2）。早期的 C#/.NET 宿主已从仓库移除。
 
