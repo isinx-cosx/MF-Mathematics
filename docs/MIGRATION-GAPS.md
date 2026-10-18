@@ -301,7 +301,7 @@
 
 | 项 | 说明 |
 | --- | --- |
-| 安装包流水线 | `dist-installer/`(472 文件)、`scripts/installer.iss`、`build-installer.ps1` —— v2.0 目前产不出安装包（`STATUS-and-ROADMAP.md` §3.2） |
+| 安装包流水线 | `dist-installer/`(472 文件)、`scripts/installer.iss`、`build-installer.ps1` 全在相邻仓库；v2.0 不复用这条流水线，**已用自写安装器补齐出包能力**（`MFMath.Installer/`，一条命令 `tools/build-setup.ps1`） |
 | 独立下载器 | `dist-downloader/`(249 文件)，未纳入 |
 | HTTP 计算服务 | `math_http_service.py`，站点零引用（已核实），可整体弃用 |
 | 分发脚本 | `MF_Mathematics/tools/sync-engine.ps1`（消费方清单仍是既有布局，未纳入 v2.0） |

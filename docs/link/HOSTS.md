@@ -43,7 +43,7 @@ Select-String -Path MFMath.Host.Rust/src/main.rs -Pattern "selftest-jobs|selftes
 
 宿主不把前端直接嵌进 exe。存在 exe 同目录 `wwwroot` 时，宿主用 `SetVirtualHostNameToFolderMapping` 把该目录映射到 `mfmath.local`，再在注册完宿主对象后 `Navigate` 到 `UI_URL`（`Select-String -Path MFMath.Host.Rust/src/main.rs -Pattern "SetVirtualHostNameToFolderMapping"`）。Tauri 的内嵌资产（`frontendDist`）只作兜底：`wwwroot` 里没有 `index.html` 时页面退回内嵌资产，地址变为 `http://tauri.localhost`。
 
-48 个 `cdp-*.mjs` 用例按正则 `mfmath.local|index.html` 从 `http://127.0.0.1:9222/json/list` 取页，地址改变会使这批用例取不到页面。
+49 个 `cdp-*.mjs` 用例按正则 `mfmath.local|index.html` 从 `http://127.0.0.1:9222/json/list` 取页，地址改变会使这批用例取不到页面。
 
 | 环境变量 | 作用 | 默认值 | 定位命令 |
 | --- | --- | --- | --- |
@@ -88,7 +88,7 @@ AI 密钥是唯一不可跨宿主沿用的配置。旧版 C# 宿主写 `apiKeyPr
 # 宿主对象数与方法总数（期望 9 / 84）
 (Select-String -Path MFMath.Host.Rust/src/main.rs -Pattern '^\s+\("(\w+)", \w+_SPEC\),').Count
 (Select-String -Path MFMath.Host.Rust/src/main.rs -Pattern 'MethodSpec \{ name:').Count
-# 依赖页面地址的 CDP 用例数（期望 48）
+# 依赖页面地址的 CDP 用例数（期望 49）
 (Get-ChildItem MF_UI/MFMath.UI.Vue/tests -Filter cdp-*.mjs | Select-String -Pattern 'mfmath' | Select-Object Path -Unique).Count
 # 窗口尺寸、最小尺寸与页面地址
 Select-String -Path MFMath.Host.Rust/src/main.rs -Pattern 'inner_size|min_inner_size|UI_URL|remote-debugging-port'

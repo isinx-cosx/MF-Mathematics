@@ -159,12 +159,12 @@ React 工程的 `npm run build` 只服务于它自己的 dev 壳。产品链路�
 
 | 类别 | 数量 | 计数命令（仓库根） |
 | --- | --- | --- |
-| `cdp-*.mjs`（CDP 驱动真宿主） | 48 | `(Get-ChildItem MF_UI/MFMath.UI.Vue/tests/cdp-*.mjs).Count` |
-| `unit-*.mjs`（纯 Node，假桥） | 4 | `(Get-ChildItem MF_UI/MFMath.UI.Vue/tests/unit-*.mjs).Count` |
+| `cdp-*.mjs`（CDP 驱动真宿主） | 49 | `(Get-ChildItem MF_UI/MFMath.UI.Vue/tests/cdp-*.mjs).Count` |
+| `unit-*.mjs`（纯 Node，假桥） | 5 | `(Get-ChildItem MF_UI/MFMath.UI.Vue/tests/unit-*.mjs).Count` |
 | `fake-*.mjs`（本地假端点） | 3 | `(Get-ChildItem MF_UI/MFMath.UI.Vue/tests/fake-*.mjs).Count` |
-| 顶层全部 `.mjs` | 63 | `(Get-ChildItem MF_UI/MFMath.UI.Vue/tests/*.mjs).Count` |
+| 顶层全部 `.mjs` | 65 | `(Get-ChildItem MF_UI/MFMath.UI.Vue/tests/*.mjs).Count` |
 
-4 个 `unit-*`：`unit-result-model`、`unit-sse`、`unit-markdown`、`unit-history-store`。3 个 `fake-*`：`fake-ai-server`、`fake-search-server`、`fake-account-server`。
+5 个 `unit-*`：`unit-result-model`、`unit-sse`、`unit-markdown`、`unit-history-store`、`unit-userfn`。3 个 `fake-*`：`fake-ai-server`、`fake-search-server`、`fake-account-server`。
 
 ### 5.2 登记表
 

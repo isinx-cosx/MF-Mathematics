@@ -7,16 +7,16 @@
 
 ## 文档分布
 
-`docs/` 下共 48 份 `.md`，其中 34 份属于本文的六层地图；加上仓库根 [`../README.md`](../README.md)，地图共 35 份。其余 14 份属于记录类，见「地图外」一节。
+`docs/` 下共 49 份 `.md`，其中 34 份属于本文的六层地图；加上仓库根 [`../README.md`](../README.md)，地图共 35 份。其余 15 份属于记录类，见「地图外」一节。
 
 | 位置 | `.md` 数 | 地图内 | 内容 |
 | --- | ---: | ---: | --- |
-| `docs/`（根） | 18 | 4 | 地图、设计理念、决策记录、功能边界；其余 14 份不在图内 |
+| `docs/`（根） | 19 | 4 | 地图、设计理念、决策记录、功能边界；其余 15 份不在图内 |
 | `docs/engine/` | 9 | 9 | C++ 计算引擎 |
 | `docs/link/` | 6 | 6 | 前端与宿主之间的契约 |
 | `docs/ui/` | 9 | 9 | Vue 壳与内嵌 React 绘图组 |
 | `docs/manual/` | 6 | 6 | 用户向 |
-| **合计** | **48** | **34** | 地图另含仓库根 README，计 35 |
+| **合计** | **49** | **34** | 地图另含仓库根 README，计 35 |
 
 ```powershell
 Get-ChildItem docs -Recurse -Filter *.md -File | Group-Object DirectoryName | Select-Object Name, Count
@@ -170,14 +170,14 @@ Get-ChildItem docs -Recurse -File | Where-Object Extension -ne '.md'
 
 | 数字 | 含义 | 复跑 |
 | --- | --- | --- |
-| 48 / 34 / 14 | `docs/` 下 `.md` 数 / 地图内 docs 文档数 / 地图外文档数 | `Get-ChildItem docs -Recurse -Filter *.md -File \| Group-Object DirectoryName \| Select-Object Name, Count` |
+| 49 / 34 / 15 | `docs/` 下 `.md` 数 / 地图内 docs 文档数 / 地图外文档数 | `Get-ChildItem docs -Recurse -Filter *.md -File \| Group-Object DirectoryName \| Select-Object Name, Count` |
 | 19 | `docs/` 下非 `.md` 文件数（18 份教程 YAML + 1 份数据 JSON） | `Get-ChildItem docs -Recurse -File \| Where-Object Extension -ne '.md'` |
 | 424 | 引擎注册的 action 数，同时是构建守门值 | `& MF_Mathematics\build\bin\Release\probe_call.exe list_functions '{}'`，读 `value.count`；产物不存在时先按 [`engine/README.md`](engine/README.md) 构建 Release |
 | 2 | C ABI 导出数（`math_call` 与 `function_exists`） | `Select-String -Path MF_Mathematics\api.h -Pattern 'MF_API'` |
 | 19 / 16 | 引擎可执行目标数 / 注册进 CTest 的用例数 | `(Select-String -Path MF_Mathematics\CMakeLists.txt -Pattern 'add_executable\(').Count`；`ctest --test-dir MF_Mathematics/build -C Release -N` |
 | 9 / 84 | 宿主对象数 / 宿主方法数 | `(Select-String -Path MFMath.Host.Rust\src\main.rs -Pattern 'MethodSpec \{').Count`；对象数由同一文件的 `HOST_OBJECTS` 表读出 |
 | 415 / 391 | 映射到页面的界面模式数 / 页面并集数 | 在 `MF_UI\MFMath.UI.Vue` 下执行 `node tools/check-ui.mjs`，读输出的「引擎模式可达性」一行 |
-| 48 | 端到端用例数 | `(Get-ChildItem MF_UI\MFMath.UI.Vue\tests\cdp-*.mjs).Count`；登记数由同一次自检输出「端到端用例」一行 |
+| 49 | 端到端用例数 | `(Get-ChildItem MF_UI\MFMath.UI.Vue\tests\cdp-*.mjs).Count`；登记数由同一次自检输出「端到端用例」一行 |
 | 18 / 30 / 126 | 教程篇数 / 教程引导目标数 / 数学键盘键数 | `(Get-ChildItem docs\tutorials-src\*.yaml).Count`；后两项读 `node tools/check-ui.mjs` 输出的「教程引用的 target」与「数学键盘」两行 |
 
 同一个数字在全文只保留一个权威源，其余文档引用该权威源。action 与键名的权威源是 [`engine-signatures.json`](../MF_UI/MFMath.UI.Vue/src/lib/ai/engine-signatures.json)。
@@ -195,7 +195,7 @@ Get-ChildItem docs -Recurse -File | Where-Object Extension -ne '.md'
 
 ## 地图外
 
-`docs/` 根目录下另有 14 份 `.md` 不属于六层地图。其中 12 份列于下表；其余 2 份分别记录当前进度与风险、以及未实现的功能，随每次改动变化，用 `Get-ChildItem docs -Filter *.md -File` 列举。
+`docs/` 根目录下另有 15 份 `.md` 不属于六层地图。其中 13 份列于下表；其余 2 份分别记录当前进度与风险、以及未实现的功能，随每次改动变化，用 `Get-ChildItem docs -Filter *.md -File` 列举。
 
 | 文件 | 内容 | 与现役实现的关系 |
 | --- | --- | --- |
@@ -211,5 +211,6 @@ Get-ChildItem docs -Recurse -File | Where-Object Extension -ne '.md'
 | [`PLAN-feature-completion.md`](PLAN-feature-completion.md) | 功能补全方案 | 规划期文档，含逐项清点结论 |
 | [`STATUS-and-ROADMAP.md`](STATUS-and-ROADMAP.md) | 现状与规划报告 | 记录类，数字均为实测 |
 | [`FRONTEND-FIXES.md`](FRONTEND-FIXES.md) | 前端审查结论的核实与修复记录 | 审查记录，含逐条可复跑断言 |
+| [`PLAN-plot-user-functions.md`](PLAN-plot-user-functions.md) | 绘图页用户自定义函数 `f(x)=…` 被当成隐式乘法的取证与修复方案 | 待实施计划；实施后并入 [`FRONTEND-FIXES.md`](FRONTEND-FIXES.md) |
 
 上表中描述 .NET 宿主的四份文档只保留作迁移参考，其数字与结论以 [`link/FEATURES.md`](link/FEATURES.md) 为准。

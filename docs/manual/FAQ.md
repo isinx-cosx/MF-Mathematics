@@ -81,8 +81,24 @@ Visual Studio C++ 工具链、vcpkg、Node.js 与 Rust。非 Windows 平台没�
 
 ## 15. 能装吗？安装包验证到哪一步了？
 
-能出 NSIS 安装包，但「装完能跑」没验过。安装后的布局、安装与卸载、从安装目录启动都尚未在真机
-验证。当前唯一被实测跑通的路径是源码构建三步加直接运行 exe。
+能装。安装器是自写程序（`MFMath.Installer/`），一条命令出包：
+
+```powershell
+.\MFMath.Installer\tools\build-setup.ps1
+```
+
+产物 `MFMath.Installer\target\release\Multifunctional-Mathematics_<版本>_x64-setup.exe`（约 18 MB），
+向导里可选安装位置、是否建桌面快捷方式、装完是否运行；每用户安装、不请求管理员权限，装到
+`%LOCALAPPDATA%\Programs\Multifunctional-Mathematics\`，卸载入口在「设置 → 应用」，卸载默认保留
+`%LOCALAPPDATA%\MFMath` 里的用户数据。
+
+验证到哪一步：「安装 → 启动 → 卸载」已在 Windows 11 本机跑通（装完主程序自检 5/5，卸载后目录、
+快捷方式、注册表项全清）。**未验证**的是其它 Windows 版本、高 DPI 缩放下的界面观感，以及全新机器上
+缺失 WebView2 时真引导程序那一支。
+
+用户会遇到的一件现实：安装包**未签名**，首次运行会被 SmartScreen 拦一下，点「更多信息 → 仍要运行」。
+签名接口已就绪，缺的是证书。详见 [INSTALL.md](INSTALL.md) 与
+[INSTALLER.md](../../MFMath.Host.Rust/docs/INSTALLER.md)。
 
 ## 16. 我的数据存在哪？
 

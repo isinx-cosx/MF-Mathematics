@@ -2,7 +2,7 @@
 
 > 本文回答一个问题：哪些事是「想过、并且决定不做」的，哪些是推迟的，哪些是设计导致的能力上限，哪些尚未验证。
 > 与兄弟文档的分工：[`DESIGN.md`](DESIGN.md) 讲这些选择背后的理念；[`DECISIONS.md`](DECISIONS.md) 记录逐条决定的代价；产品门面在 [`../README.md`](../README.md)。
-> 权威源是 [`../README.md`](../README.md) 的「边界」一节与 [`../MFMath.Host.Rust/docs/PACKAGING.md`](../MFMath.Host.Rust/docs/PACKAGING.md)。
+> 权威源是 [`../README.md`](../README.md) 的「边界」一节；安装包的形态与验证记录以 [`../MFMath.Host.Rust/docs/INSTALLER.md`](../MFMath.Host.Rust/docs/INSTALLER.md) 为准（[`../MFMath.Host.Rust/docs/PACKAGING.md`](../MFMath.Host.Rust/docs/PACKAGING.md) 只负责载荷构成与体积实测）。
 
 ## 四类的性质
 
@@ -72,9 +72,10 @@
 | 控制台可选组件（CPython 嵌入包 / MinGW 工具链） | 组件清单端点返回 `payloadAvailable: true`；payload 常量是 `PYTHON_PAYLOAD_NAME`、`CPP_PAYLOAD_NAME`（`Select-String -Path MFMath.Host.Rust/src/console.rs -Pattern "PAYLOAD_NAME"`） | 两个 payload 在下载源可用后，`con.Components` 的清单不再标不可用 |
 | AI 多模态 | 输入通道、成本模型、UI 都要改 | 有明确的使用场景 |
 | 多语言覆盖页面正文与教程正文 | 目前只覆盖导航、模式名、参数弹窗标签、结果字段、键盘分类 | 逐步迁移，`npm run check` 拦漏译；迁移方法见 [`../README.md`](../README.md)「边界」一节 |
-| 安装包 `tauri.conf.json` 固化 | 现在用 `--config` 内联覆盖出包，仓库里的 `bundle.active` 仍是 `false` | 真机确认安装没问题后，把覆盖固化进 `tauri.conf.json`（见 [`PACKAGING.md`](../MFMath.Host.Rust/docs/PACKAGING.md)） |
 
 「控制台可选组件」这一条的性质要分清：实现代码在 `MFMath.Host.Rust/src/console.rs` 已存在，缺的是下载源上的两个 payload，而不是代码。它因此是「推迟」，不是「不实现」。
+
+原先还有一条「安装包 `tauri.conf.json` 固化」（把 `--config` 的内联覆盖写进 `tauri.conf.json`），它随 Tauri 的 NSIS 打包方案一并作废：不再回到 `tauri build`，`tauri.conf.json` 的 `bundle.active` 保持 `false` 也不影响出包。现在的出包方式是自写安装器，见 [`INSTALLER.md`](../MFMath.Host.Rust/docs/INSTALLER.md) 第 9 节。
 
 ## 能力上限
 
@@ -96,34 +97,29 @@
 
 ## 未验证
 
-性质：这类事项可能已经能用，只是无人验过，因此不能对外承诺。它们与「能力上限」的区别是：能力上限是「验过、确实如此」，未验证是「没验过、不能下结论」。权威源是 [`PACKAGING.md`](../MFMath.Host.Rust/docs/PACKAGING.md) 的「未能验证的部分」一节。
+性质：这类事项可能已经能用，只是无人验过，因此不能对外承诺。它们与「能力上限」的区别是：能力上限是「验过、确实如此」，未验证是「没验过、不能下结论」。权威源是 [`INSTALLER.md`](../MFMath.Host.Rust/docs/INSTALLER.md) 的「未验证项」一节。
+
+安装包的**构建与安装 → 启动 → 卸载**不再属于这一类：安装器已自带（`MFMath.Installer/`，一条命令 `.\MFMath.Installer\tools\build-setup.ps1` 出包，产物约 18.29 MB），已在 Windows 11 本机跑通全链路（安装后主程序 `--selftest-jobs` 5/5、卸载后目录 / 快捷方式 / 注册表项全清、`%LOCALAPPDATA%\MFMath` 保留）。剩下的是下面两条更窄的口径；表里另两条（站点端点、控制台 payload）与安装包无关。
 
 | 事项 | 现状 | 验证方法 |
 | --- | --- | --- |
-| 安装包「安装 → 启动」整体路径 | 可出 NSIS 安装包（实测 11.11 MiB），但装完的布局、安装 / 卸载、从安装目录启动均未验过 | 真机上按 [`PACKAGING.md`](../MFMath.Host.Rust/docs/PACKAGING.md) 的「真机上要走的验证」走五步 |
-| 静默安装到指定目录 | 本机 `Start-Process` 起安装器报 `ERROR_CANCELLED`，改用 `& <setup> /S /D=<dir>` 则静默不生效、目标目录未创建；归因是「环境没准备好」，不是「打包做错」 | 真机上执行静默安装并确认目标目录 |
-| 安装目录布局 | exe + 6 引擎 DLL + `wwwroot/` + `python/` + `cpp/` 是否齐备未实测，依赖上一条 | 打开安装目录逐项核对 |
-| 包内是否收到运行资产 | 无法证实也无法证伪：NSIS 文件表整体压缩，扫安装器里的明文必然扫不到；体积不决定性（exe 单独 13.9 MB，安装器 11.11 MB） | 真机安装后核对安装目录内容 |
-| 卸载行为 | 卸载后程序目录是否清空、`%LOCALAPPDATA%\MFMath` 是否保留未实测 | 真机卸载后核对两个目录 |
-| `installMode` 是否生效 | 默认 / `currentUser` 两次构建在本机表现相同，结论「默认需要管理员」无证据；已证实安装器 manifest 是 `asInvoker` | 真机分别安装观察是否请求管理员 |
+| 安装包在其它 Windows 版本与高 DPI 缩放下的表现 | 「安装 → 启动 → 卸载」只在 Windows 11 本机验过；Windows 10 的外观、以及 125% / 150% 缩放下的界面观感未验（清单声明的是系统级 DPI 感知，按整窗缩放） | 在 Windows 10 与高 DPI 缩放的机器上各装一次并启动，核对向导布局与主界面 |
+| 缺失 WebView2 时真实引导程序那一支 | 本机 Runtime 已装，只验过「强制缺失 + 假引导程序」与「强制缺失 + 无引导程序」两条分支；真实引导程序在全新机器上下载安装 Runtime 未验 | 在未装 WebView2 的机器上装一次，确认 Runtime 被静默装上且主程序能启动 |
 | 站点端点部署状态 | 账号 / 版本检测走 `https://mf-vis-science.cn`，线上是否部署了各 `/api/*` 路由未核对 | 对已部署的 `POST` 端点发请求，期望返回不是 404（`Invoke-WebRequest -Method Post -Uri https://mf-vis-science.cn/api/token/refresh -SkipHttpErrorCheck`） |
 | 控制台可选组件 payload 可用性 | 组件清单端点是否已提供两个 payload 未核对，代码里 `payloadAvailable` 字段如实反映 | 从宿主调用 `con.Components`，读返回 JSON 里各组件条目的 `payloadAvailable` |
 
-「安装 → 启动」未验证与「能出安装包」不矛盾：前者是运行时结论，后者是构建期结论。构建期已经实测能出包（11.11 MiB），且 release 构建的无头自检跑通（`--selftest-common` 与 `--selftest-jobs` 均通过，见 [`PACKAGING.md`](../MFMath.Host.Rust/docs/PACKAGING.md)）；运行时的安装与启动尚未在真机走通。
+安装包这条路径另有两个**用户会遇到的事实**，它们不是「未验证」，是已知现状：
 
-真机上验证安装到启动的五步（原文见 [`PACKAGING.md`](../MFMath.Host.Rust/docs/PACKAGING.md) 的「真机上要走的验证」）：
+- 安装包**未签名**，首次运行会弹 SmartScreen（「Windows 已保护你的电脑」），要点「更多信息 → 仍要运行」；签名接口已就绪（脚本 + 顺序 + 时间戳），缺的是证书。
+- 卸载默认**保留** `%LOCALAPPDATA%\MFMath` 用户数据，只有 `uninstall.exe /uninstall /S /purge` 才删。
 
-1. 双击 `MF-Mathematics_2.0.0_x64-setup.exe`，按提示安装（每用户，不需要管理员）。
-2. 打开安装目录，逐项确认：`MF-Mathematics.exe`、6 个引擎 DLL、`wwwroot\index.html`、`python\mfmath.py`、`cpp\`。
-3. 启动，然后核对：`curl.exe -s http://127.0.0.1:9222/json/list` 的 URL 是 `https://mfmath.local/index.html`；`%LOCALAPPDATA%\MFMath\logs\app.log` 里有 9 个宿主对象注册行且没有 `ai`；随手算一条能出结果（证明 6 个 DLL 都在）。
-4. 附着跑一遍用例：`pwsh -File tests\run-all.ps1 -NoLaunch`。
-5. 卸载：程序目录清空，`%LOCALAPPDATA%\MFMath`（设置 / 日志 / 组件 / 工作区）保留。
+上面这些结论的判据不是复述，是可复跑的记录：安装、卸载、静默参数与向导流程的逐项实测表在 [`INSTALLER.md`](../MFMath.Host.Rust/docs/INSTALLER.md) 第 12–14 节。复核安装包，按那几节的口径走一遍比另写一份步骤更不容易漂。
 
 ## 兜底分发路线
 
-NSIS 之外有一条不依赖任何工具链的 zip + 手工布局路线（见 [`PACKAGING.md`](../MFMath.Host.Rust/docs/PACKAGING.md) 的「兜底路线」）。产物目录是 `build.rs` 同步好的 `MFMath.Host.Rust\target\release`，天然等同「安装后布局」：挑出 `mfmath-host-rust.exe`（改名 `MF-Mathematics.exe`）、`*.dll`、`wwwroot/`、`python/`、`cpp/` 打成 zip。与 NSIS 的两个差异：exe 名字不同（程序不依赖自己的文件名）、没有安装 / 卸载与开始菜单项。
+安装器之外还有一条不依赖任何工具链的 zip + 手工布局路线（见 [`PACKAGING.md`](../MFMath.Host.Rust/docs/PACKAGING.md) 的「兜底路线」；那份文档现在的主题是载荷构成与体积实测）。产物目录是 `build.rs` 同步好的 `MFMath.Host.Rust\target\release`，天然等同「安装后布局」：挑出 `mfmath-host-rust.exe`（可改名 `Multifunctional-Mathematics.exe`，程序不依赖自己的文件名）、`*.dll`、`wwwroot/`、`python/`、`cpp/` 打成 zip。与安装器的两个差异：没有安装 / 卸载流程，也没有开始菜单项与卸载注册表项。
 
-WebView2 Runtime 是系统依赖，不是包里带的东西：Win11 自带；Win10 老机器需装 Evergreen Runtime。宿主不负责安装它，缺失时给出可读的启动失败提示。
+WebView2 Runtime 是系统依赖，不是包里带的东西：Win11 自带；Win10 老机器需装 Evergreen Runtime。安装包内嵌了微软的引导程序（1.77 MB），检测到缺失时静默安装、已装则跳过；zip 这条兜底路线不带它，缺失时宿主给出可读的启动失败提示。
 
 ## 怎么推翻一条
 
@@ -138,4 +134,4 @@ WebView2 Runtime 是系统依赖，不是包里带的东西：Win11 自带；Win
 
 推翻后要做两件事：把条目从本文删掉，而不是改成「已完成」；如果是「推迟 → 已做」，在对应的实现文档里记一笔。
 
-本文的条目随代码变化时同步更新：机制落点列的符号名（函数、常量、键名、目标名）用括号内的 `Select-String` / `Get-ChildItem` 命令定位，行号不作为依据；数字（如 11.11 MiB）就近给复跑命令。数字变了就更新，不留下装饰性条目。
+本文的条目随代码变化时同步更新：机制落点列的符号名（函数、常量、键名、目标名）用括号内的 `Select-String` / `Get-ChildItem` 命令定位，行号不作为依据；数字（如安装包 18.29 MB、载荷未压缩 44.98 MB）就近给复跑命令（`.\MFMath.Installer\tools\build-setup.ps1` 会打印产物路径与大小）。数字变了就更新，不留下装饰性条目。

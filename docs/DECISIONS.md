@@ -152,7 +152,7 @@ Select-String -Path MFMath.Host.Rust/src/main.rs -Pattern "HOST_OBJECTS"
 | i18n 模式名 | 415 个模式，缺译文 0 个 |
 | 教程引用 target | 30 个（已实现 30，待实现 0） |
 | 数学键盘 | 6 分类 / 126 键 |
-| 端到端用例 | cdp-* 48 个，已登记 48 个 |
+| 端到端用例 | cdp-* 49 个，已登记 49 个 |
 
 代价：自检本身是要维护的代码，`tools/check-ui.mjs` 35,468 字节；加界面、模式或 i18n 键都要同步登记。`check-ui.mjs` 不读引擎源码（那是树外路径），检查的是登记表，登记表写错它抓不到；真正读引擎源码对账的是 `tools/engine-signatures.mjs`。运行期才可见的行为（布局、绘制、交互时序）靠端到端用例，构建期自检替代不了。
 

@@ -49,7 +49,7 @@ $eps = '{"ddgHtml":"http://127.0.0.1:8792/ddg/html","ddgIa":"http://127.0.0.1:87
 Start-Process "$run\mfmath-host-rust.exe" -Environment @{MF_SEARCH_ENDPOINTS=$eps}
 ```
 
-页面 URL 必须是 **`https://mfmath.local/index.html`**（47 个用例的取页正则靠它）：
+页面 URL 必须是 **`https://mfmath.local/index.html`**（49 个用例的取页正则靠它）：
 
 ```powershell
 curl.exe -s http://127.0.0.1:9222/json/list | Select-String mfmath

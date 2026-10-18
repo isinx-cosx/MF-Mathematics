@@ -64,7 +64,7 @@
 | A | 启动日志的宿主对象表 | **9 个**（`mf`16 `win`9 `sys`8 `diag`1 `push`3 `update`6 `account`19 `search`12 `con`10），**`ai` 刻意不在其中** |
 | B | `npm run check`（Vue） | exit 0（types + 引擎签名 + UI 自检） |
 | B | `npm run check:types`（React） | exit 0 |
-| B | `tests/run-all.ps1 -NoLaunch` | 48 个 `cdp-*` 全部登记（`check-ui` 会校验"用例数 = 登记数"），无 `no RESULT line` |
+| B | `tests/run-all.ps1 -NoLaunch` | 49 个 `cdp-*` 全部登记（`check-ui` 会校验"用例数 = 登记数"），无 `no RESULT line` |
 | C | `ctest --test-dir MF_Mathematics/build -C Release` | 16/16 套件 |
 | C | `probe_call.exe list_functions '{}'` | `count` = **424**（WHOLEARCHIVE 守门） |
 
@@ -310,6 +310,8 @@ grep -c 'ONLINE-SEARCH\.md|ACCOUNT\.md|UPDATE-CHAIN\.md|SETTINGS-BACKUP\.md'
 2. **`docs/ui/README.md` 与 `docs/ui/CHECKS.md` 的计数过期**：写这批文档期间 B 面落了
    `unit-history-store.mjs`，`unit-*` 由 3 变 4、登记表由 52 变 **53**（48 cdp + 4 unit + 1 audit-modes）。
    已改并**写明复核时刻**，另加一句"引用前请重跑命令"；
+   > 现状补注（非改写上句）：其后 `cdp-*` 由 48 增至 **49**、`unit-*` 由 4 增至 **5**，
+   > 登记表实为 **55**（49 cdp + 5 unit + 1 audit-modes）。上句的 53 是当时的算式记录，保持原样。
 3. **`docs/ui/ENGINE-BINDING.md` 的 3 处死链**：`../AGENTS.md` 应为 `../../AGENTS.md`
    —— 这是**我的编排提示词写错了相对层级**（对 `docs/*/X.md` 而言根在两级之上），已修。
 
@@ -361,6 +363,10 @@ grep -c 'ONLINE-SEARCH\.md|ACCOUNT\.md|UPDATE-CHAIN\.md|SETTINGS-BACKUP\.md'
 | 未跟踪的**真实资产** | 无（新用例已随 `b8872fa` 入库） |
 | 重复工作迹象 | 无（三个面的改动范围互不重叠） |
 
+> 注（2026-10-07 之后补）：上表「`cdp-*` 用例数与登记数 48 / 48」是 10:00 收口时的纪实，不改；
+> 其后 B 面又落了新用例，当前实测为 **49 / 49**（`node tools/check-ui.mjs` 打印
+> 「端到端用例 ：cdp-* 49 个，已登记 49 个」）。§5.1 里 10:05:08 那条的「48/48」同属当时的纪实。
+
 **文档建设（层 1 + 层 5 已落地）**：六层共 35 份文档的**建设台账不在这里，在
 [`docs/README.md`](README.md) §3** —— 本文只记进度与风险，避免出现两份互相漂移的清单。
 本轮落地 5 份：[`docs/README.md`](README.md)（文档地图）、[`README.md`](../README.md)（收成入口）、
@@ -375,6 +381,16 @@ grep -c 'ONLINE-SEARCH\.md|ACCOUNT\.md|UPDATE-CHAIN\.md|SETTINGS-BACKUP\.md'
 2. **README 的"无安装包"已过期**：Rust 侧实测**能**出 NSIS 包（11.11 MiB），只是"安装 → 启动"未验证。
    已改成"能出，但没验过"，并保留"三步构建仍是唯一被实测跑通的路径"这句 ——
    见 [PACKAGING.md](../MFMath.Host.Rust/docs/PACKAGING.md) 与 [DESIGN-BOUNDARIES.md](DESIGN-BOUNDARIES.md) §5。
+
+> **现状更正（后补；上面第 2 条是当时的记录，原文不动）**：NSIS 打包已经不再使用。Tauri 的
+> `tauri build --bundles nsis` 方案弃用（三个技术理由见
+> [INSTALLER.md](../MFMath.Host.Rust/docs/INSTALLER.md) 第 9 节），改为自写安装器
+> `MFMath.Installer/`：一条命令 `.\MFMath.Installer\tools\build-setup.ps1` 出包，产物
+> `Multifunctional-Mathematics_<版本>_x64-setup.exe` 约 18.29 MB，「安装 → 启动 → 卸载」已在
+> Windows 11 本机验证（装完 `--selftest-jobs` 5/5，卸载后目录 / 快捷方式 / 注册表项全清、用户数据保留）。
+> 安装包**未签名**，首次运行会弹 SmartScreen。现阶段的权威文档是
+> [INSTALLER.md](../MFMath.Host.Rust/docs/INSTALLER.md)，
+> [PACKAGING.md](../MFMath.Host.Rust/docs/PACKAGING.md) 只保留"载荷构成与体积实测"这一主题。
 
 顺带把两处**重复真相**收成指针：README 原来自己维护一份"文档清单"和一份"已知边界"，
 现在分别指向 [`docs/README.md`](README.md) 与 [`docs/DESIGN-BOUNDARIES.md`](DESIGN-BOUNDARIES.md)

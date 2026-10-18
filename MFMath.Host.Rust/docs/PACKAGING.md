@@ -12,6 +12,10 @@
 
 ## 0. 结论先说
 
+> **以下这一段是 NSIS 时期的记录**（11.11 MiB、安装 → 跑起来在这台机器上验不了）。
+> 现在出包走自写安装器，成品 18.29 MB，且「安装 → 启动 → 卸载」已在 Windows 11 本机验证，
+> 见 [`INSTALLER.md`](INSTALLER.md)。本节保留作为当时的实测留档。
+
 - **能出包**：`tauri build --bundles nsis` 在带上 `resources` 覆盖后成功产出
   `target/release/bundle/nsis/MF-Mathematics_2.0.0_x64-setup.exe`（**实测 11.11 MiB**）。
 - **但"安装 → 跑起来"这条路我在这台机器上验不了**（原因见 §3），

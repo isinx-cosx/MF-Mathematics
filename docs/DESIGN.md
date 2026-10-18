@@ -63,7 +63,7 @@
 
 工程层：每条守卫先证明「它会失败」。[`../MF_UI/MFMath.UI.Vue/tools/check-ui.mjs`](../MF_UI/MFMath.UI.Vue/tools/check-ui.mjs) 的每条断言在入库前经过一次反向验证：临时制造一个违反，确认自检报错并 `exit 1`，再还原。只写一条永远为真的断言等于没写。
 
-登记与执行双向对照：端到端用例 `tests/cdp-*.mjs` 与 `run-all.ps1` 的登记双向校验，任一侧多出来即失败（`Select-String -Path MF_UI/MFMath.UI.Vue/tools/check-ui.mjs -Pattern "NOT_IN_SUITE"`）。这条拦住「写了用例却永远不跑」：当前 `cdp-*.mjs` 是 48 个，登记 48 个，随用例增减变化，由 `node tools/check-ui.mjs` 复跑。
+登记与执行双向对照：端到端用例 `tests/cdp-*.mjs` 与 `run-all.ps1` 的登记双向校验，任一侧多出来即失败（`Select-String -Path MF_UI/MFMath.UI.Vue/tools/check-ui.mjs -Pattern "NOT_IN_SUITE"`）。这条拦住「写了用例却永远不跑」：当前 `cdp-*.mjs` 是 49 个，登记 49 个，随用例增减变化，由 `node tools/check-ui.mjs` 复跑。
 
 ### ④ 结论可追溯：失败先分类，再归因
 
@@ -122,7 +122,7 @@ node tools/check-ui.mjs
 | i18n 弹窗字段 | 186 条唯一标签，缺译文 0 条 |
 | i18n 结果标签 | 78 个字段，缺译文 0 条 |
 | 数学键盘 | 6 分类 / 126 键 |
-| 端到端用例 | cdp-* 48 个，已登记 48 个 |
+| 端到端用例 | cdp-* 49 个，已登记 49 个 |
 
 ## 判据汇总
 
@@ -157,4 +157,4 @@ node tools/check-ui.mjs
 - 发现本文与代码不一致：以代码为准，然后改本文。
 - 想加一条理念：它必须同时满足两条——代码里有对应机制、违反时有可复跑判据。
 - 想知道某个数字怎么来的：数字旁边就是命令；行号会漂，命令不会。
-- 安装包路径的现状：宿主能出 NSIS 安装包，但「安装 → 启动」这一步没有真机记录。已实测跑通的路径是 [`../README.md`](../README.md)「快速开始」的三步构建加直接运行 exe。要把它转成已验证结论，在真机装一次并留下启动成功的证据（打包细节见 [`../MFMath.Host.Rust/docs/PACKAGING.md`](../MFMath.Host.Rust/docs/PACKAGING.md)）。
+- 安装包路径的现状：安装器已自带（[`../MFMath.Installer/`](../MFMath.Installer/)，自解压单 exe、向导三页），一条命令出包：`.\MFMath.Installer\tools\build-setup.ps1`，产物 `Multifunctional-Mathematics_<版本>_x64-setup.exe` 约 18.29 MB。「安装 → 启动 → 卸载」已在 Windows 11 本机跑通（安装后主程序 `--selftest-jobs` 5/5，卸载后目录 / 快捷方式 / 注册表项全清、用户数据保留）；未在其它 Windows 版本与高 DPI 缩放下验证。安装包**未签名**，首次运行会弹 SmartScreen，点「更多信息 → 仍要运行」。设计与验证记录见 [`../MFMath.Host.Rust/docs/INSTALLER.md`](../MFMath.Host.Rust/docs/INSTALLER.md)；载荷构成与体积实测见 [`../MFMath.Host.Rust/docs/PACKAGING.md`](../MFMath.Host.Rust/docs/PACKAGING.md)。

@@ -166,7 +166,7 @@ AI 助手（含**工具调用**）、联网搜索、用户系统都已完成，�
 
 | 缺口 | 说明 |
 | --- | --- |
-| **安装包流水线** | `scripts/installer.iss`、`build-installer.ps1`、`verify-installer.ps1`、`gen_installer_assets.py`、`dist-installer/`（216 MB）全在相邻仓库 `../Multifunctional-Mathematics/`，v2.0 无法产出安装包 |
+| **安装包流水线** | `scripts/installer.iss`、`build-installer.ps1`、`verify-installer.ps1`、`gen_installer_assets.py`、`dist-installer/`（216 MB）全在相邻仓库 `../Multifunctional-Mathematics/`；v2.0 **不再复用那条流水线**，已另有自写安装器（`MFMath.Installer/`，见 [`../MFMath.Host.Rust/docs/INSTALLER.md`](../MFMath.Host.Rust/docs/INSTALLER.md)） |
 | **独立下载器** | `MFMath.Downloader` 未纳入（按你的决定） |
 | **分发脚本** | `sync-engine.ps1`（把 DLL 同步到各消费方）未纳入 v2.0 |
 | **桥接回归与示例** | `MFMath.Test`（152 行 C#）、`demo_cs_mf` 未纳入 |

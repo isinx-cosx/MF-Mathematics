@@ -68,12 +68,15 @@ MF-Mathematics 是一个 Windows 桌面数学工作台。它把计算、绘图�
 | 能力边界 | 非初等函数的不定积分返回「未实现」，部分不定式极限与复变不定积分同理 |
 | 明确不做 | 搜索不翻页、不抓网页正文；绘图不导出 SVG/PDF；更新不自动下载或执行安装包 |
 | 推迟 | 更新回滚、AI 多模态、历史导出为文件等 |
-| 尚未验证 | 安装包的「安装 → 启动」路径、部分绘图页的工作区往返 |
+| 尚未验证 | 安装包在其它 Windows 版本与高 DPI 缩放下的表现、部分绘图页的工作区往返 |
 
 能力边界的完整清单与推翻条件见 [../DESIGN-BOUNDARIES.md](../DESIGN-BOUNDARIES.md)。
 
-需要单独说明的是安装包：软件能产出 NSIS 安装包，但「装完能启动」这一步尚未在真机上验证。
-当前唯一被实测跑通的路径是从源码构建后直接运行程序，见 [INSTALL.md](INSTALL.md)。
+需要单独说明的是安装包：安装器已经自带（`MFMath.Installer/`），一条命令
+`.\MFMath.Installer\tools\build-setup.ps1` 出包，产出的 `Multifunctional-Mathematics_<版本>_x64-setup.exe`
+约 18 MB，「安装 → 启动 → 卸载」已在 Windows 11 本机上跑通。安装包**没有数字签名**，首次运行会弹
+SmartScreen，点「更多信息 → 仍要运行」即可。未验证的是其它 Windows 版本与高 DPI 缩放下的表现。
+详见 [INSTALL.md](INSTALL.md) 的「安装包」一节。
 
 ## 5. 数据与隐私
 

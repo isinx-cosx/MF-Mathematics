@@ -13,9 +13,9 @@
 
 ---
 
-## 0. 一句话结论【实测 · 2026-10-07 更新】
+## 0. 结论【实测 · 2026-10-07 更新】
 
-**接缝形状已经落地：同步宿主对象在 Tauri 下跑通了**（路线 A）。前端那 15 处访问器与 47 个 CDP
+**接缝形状已经落地：同步宿主对象在 Tauri 下跑通了**（路线 A）。前端那 15 处访问器与 49 个 CDP
 用例**一行都没改**，`mf.Dispatch` 是同步函数、返回字符串、引擎真的在算。
 
 - **9 个宿主对象全部落地**：`mf`（16 个方法，含 job 通道）、`win`（10）、`sys`（8）、`diag`（1）、
@@ -23,7 +23,7 @@
 - **`ai` 不是"缺"，是刻意不提供** —— AI 已整体搬到 TS 直连（页面自己 fetch 服务商、自己分帧 SSE、
   密钥明文存 `ai.json`）。理由、实测证据与代价见 **§8**；
 - 页面 URL 是 **`https://mfmath.local/index.html`**（读 exe 同目录的 `wwwroot`，与 C# 宿主同一份）
-  —— 47 个用例的取页正则不用动；
+  —— 49 个用例的取页正则不用动；
 - 编译**零警告**；`--selftest-jobs` 5/5、`--selftest-common` 10/0。
 
 ### 0.1 当前验收基线（2026-10-07，**已提交版本**）
@@ -107,9 +107,9 @@ React 版目前还没有"登记工作区载荷 / 采用配置的绘图范围 / �
 | 15 | **`ai` 桥**（11 方法：AI 助手 + SSE 中继） | **宿主只转发字节、不理解 SSE**（`ai.http`/`ai.raw`/`ai.rawEnd`/`ai.rawError`/`ai.test`），分帧留在 TS —— 这条我独立对过两侧：C# `AiRelay` 推的就是这五个 topic 且注释写着"不做任何分帧"，TS `relay.ts:104` 也只收 `ai.http` 与 `ai.raw*`。关键取舍：**刻意不用 `site::normalize_base_url`**（它遇到不认识的地址会退回我们自己的站点 = 把用户 API Key 发到 `mf-vis-science.cn`，隐私事故）；显式 `Accept-Encoding: identity`（C# 刻意不压缩，否则压缩层攒块会让增量推送顿住）。`cdp-ai` **127/0** |
 | 16 | **零警告** | 42 → 0：删掉真死代码（`cstr_lossy`/`stamp_min`/`SiteConfig::url`/两处多余 `mut`）；`hostobject.rs` 的 37 条 `unsafe_op_in_unsafe_fn` 选择在该文件内显式关掉 lint 并写明理由（每个 `unsafe fn` 的函数体本身就是不安全操作，逐条加块只是重复 37 遍并给 7 个 vtable 槽位多套一层缩进） |
 
-**踩到的坑（都在代码注释里留了原话，别再踩）**
+**遇到的问题（都在代码注释里留了原话，以免重复）**
 
-| 坑 | 现象 | 根因 | 修法 |
+| 问题 | 现象 | 根因 | 修法 |
 | --- | --- | --- | --- |
 | **DWM 常量写错** | 无边框窗口**底部/两侧多出一圈"WinForm 味"的老式边框** | `winbridge.rs` 把 `DWMWA_NCRENDERING_POLICY` 传成 `1`（= `DWMNCRP_DISABLED`），注释却写着 ENABLED。DWM 一被关掉非客户区渲染，Windows 就退回**未主题化的经典边框**；tao 又把客户区铺满窗口，于是只在底部与两侧露出来 | 改成 `2`（= `DWMNCRP_ENABLED`，与 C# `MainWindow.xaml.cs:15` 一致） |
 | **启动白窗口** | 一启动就是**一整块纯白**窗口（实测 0.2/0.45/0.8 秒三帧），1.3 秒后才出界面 | `about:blank` 的底色是白的，而窗口建出来就显示 | `visible(false)` + `on_page_load(Finished)` 才 `show()`；6 秒兜底；另把 WebView2 的 `DefaultBackgroundColor` 设成主题底色 |
@@ -243,7 +243,7 @@ JS 侧 `push.js` 在 `chrome.webview` 上挂 `message` 监听，按 `{topic, seq
 
 ---
 
-## 2. 为什么它是这次迁移唯一可能翻车的点
+## 2. 为什么它是这次迁移唯一的高风险点
 
 > ⚠ **历史章节**（写于迁移前，用于说服当时"先定接缝形状"）。
 > 里面的实测数据仍然有效，但"要不要迁、怎么迁"已经定了 —— 现状见 §0。
@@ -257,16 +257,16 @@ JS 侧 `push.js` 在 `chrome.webview` 上挂 `message` 监听，按 `{topic, seq
 | `Plot3DPage.tsx:118`、`PlotVectorPage.tsx:124-125`、`PlotComplexPage.tsx:141/162` | 曲面/向量场/复平面的网格，一次同步大批量 |
 | `src/lib/engine/asyncPolicy.js:12-16` | 原话：「绘图页里"每条曲线一次"的采样/极值标记**保持同步**：那些是毫秒级，而且一条曲线一个 await 会把采样时序拆碎，得不偿失」 |
 
-### 2.2 47 个 CDP 用例就是链接层的验收【实测】
+### 2.2 49 个 CDP 用例就是链接层的验收【实测】
 
-`MF_UI/MFMath.UI.Vue/tests/` 下 **47 个** `cdp-*.mjs`。它们的共同前提有两条：
+`MF_UI/MFMath.UI.Vue/tests/` 下 **49 个** `cdp-*.mjs`。它们的共同前提有两条：
 
 1. 用 CDP 连 `127.0.0.1:9222`，按 URL 正则 `/mfmath\.local|index\.html/` 找页面
    （例：`tests/cdp-bridge-verify.mjs:8`）；
 2. 断言直接打在宿主对象上：`window.chrome.webview.hostObjects.sync.mf.FunctionExists('solve_sym')`
    （`tests/cdp-bridge-verify.mjs:43-58`）。
 
-**47 个用例同时也是"接缝形状"的回归网**：形状一改，它们全废。
+**49 个用例同时也是"接缝形状"的回归网**：形状一改，它们全废。
 
 ### 2.3 Tauri 给不了同步
 
@@ -326,7 +326,7 @@ lib/diagnostics/errors.js:26 (diag)      lib/ai/bridge.js:34 (ai), :180 (sys), :
 
 两条**独立**的原因，改一条不够：
 
-1. **找不到页面**：47 个用例都按 `/mfmath\.local|index\.html/` 过滤 CDP 的页面列表。
+1. **找不到页面**：49 个用例都按 `/mfmath\.local|index\.html/` 过滤 CDP 的页面列表。
    C# 宿主用虚拟主机映射 `mfmath.local`；Tauri 的资产协议在 Windows 上预期是 `http://tauri.localhost/`，
    **两个正则都不匹配** → 用例在第一步就 `未找到宿主页面` 退出。
    （**【待核实】**：需起宿主后用 `curl 127.0.0.1:9222/json/list` 实测 URL 到底是什么。）
@@ -404,20 +404,20 @@ Caused by: 拒绝访问。 (os error 5)
 
 | 路线 | 做法 | 前端改动 | 风险 |
 | --- | --- | --- | --- |
-| **A. 恢复同步宿主对象** | Tauri 的 `WebviewWindow::with_webview()` 在 Windows 上能拿到 `ICoreWebView2Controller` → 自行调 `AddHostObjectToScript`；把删掉的 `src/hostobject.rs` 写回来，并补上当初卡的 `ITypeInfo`（`GetTypeInfoCount`=1 + `GetTypeInfo` 用 `CreateDispTypeInfo` 从同一张方法表造） | **0 行**（15 处访问器、47 个用例原样可用） | 唯一的 unsafe COM/VARIANT 面；README §七 自己点的"可能翻车点" |
-| **B. 全异步 invoke** | 15 处访问器统一改成 `invoke("call", …)`；`engineCall` 变 async | **大**：采样链、绘图网格、AI relay 全部异步化；47 个用例的取页与断言一起改 | 采样时序被 await 拆碎（`asyncPolicy.js` 明说不要）；回归网要重建 |
+| **A. 恢复同步宿主对象** | Tauri 的 `WebviewWindow::with_webview()` 在 Windows 上能拿到 `ICoreWebView2Controller` → 自行调 `AddHostObjectToScript`；把删掉的 `src/hostobject.rs` 写回来，并补上当初卡的 `ITypeInfo`（`GetTypeInfoCount`=1 + `GetTypeInfo` 用 `CreateDispTypeInfo` 从同一张方法表造） | **0 行**（15 处访问器、49 个用例原样可用） | 唯一的 unsafe COM/VARIANT 面；README §七 自己点的"高风险点" |
+| **B. 全异步 invoke** | 15 处访问器统一改成 `invoke("call", …)`；`engineCall` 变 async | **大**：采样链、绘图网格、AI relay 全部异步化；49 个用例的取页与断言一起改 | 采样时序被 await 拆碎（`asyncPolicy.js` 明说不要）；回归网要重建 |
 | **C. 混合：`mf` 独占同步通道，其余走 invoke** | 只给 `mf` 恢复宿主对象（一个对象、一张方法表）；`win`/`sys`/`diag`/`push`/`con`/`ai`/`search`/`account`/`update` 用 Tauri 原生命令 + 事件 | **中等**：只有 `win`/`sys`/`diag`/`push` 这几处（低频、本来就是"发出去不管结果"或可异步）要改；**引擎热循环一行不动** | unsafe 面收敛到 1 个对象；但前端会出现两种通道，需要一条明确规则 |
 
 ### 5.2 我的倾向：**C**，理由三条
 
-1. **把"唯一可能翻车的点"限制在一个对象上**。`mf` 是唯一真正需要同步的（§2.1 有证据），
+1. **把"唯一的高风险点"限制在一个对象上**。`mf` 是唯一真正需要同步的（§2.1 有证据），
    `win`（发完不管）、`sys`（读写文件，可以 await）、`push`（本来就是事件）都不需要同步。
 2. **Tauri 的原生机制天然适合剩下 9 个**：命令 + 事件比手写 `IDispatch` 简单得多，而且
    `push` 在 Tauri 里有现成的 `emit/listen`。
-3. **保住了 47 个用例里最有价值的那部分**：引擎侧的断言（`cdp-bridge-verify`、`cdp-engine-*`、
+3. **保住了 49 个用例里最有价值的那部分**：引擎侧的断言（`cdp-bridge-verify`、`cdp-engine-*`、
    全部绘图用例）不用改；只有窗口/设置/文件对话框那几条要跟着改。
 
-> 但这是**你的决定**，不是我替你定：A 的吸引力在于"前端零改动、47 个用例全保"，
+> 但这是**你的决定**，不是我替你定：A 的吸引力在于"前端零改动、49 个用例全保"，
 > 代价是那套 COM 代码要重写一遍（且当年就卡过）。
 
 ### 5.3 分阶段（每阶段都有可验证的产物）
@@ -437,7 +437,7 @@ Caused by: 拒绝访问。 (os error 5)
 
 ---
 
-## 6. 顺手记的小账（都是【实测】）
+## 6. 附带记录的事项（都是【实测】）
 
 1. **`win.Restore` 是死成员**：C# `WindowBridge.cs` 与 `handlers.rs` 都实现了，前端**从不调用**
    （grep `Restore` 在 `MF_UI/src` 只命中 i18n 词条）。两边各留一份，要么补调用点，要么删。
@@ -471,8 +471,8 @@ Caused by: 拒绝访问。 (os error 5)
 | # | 缺口 | 为什么卡 | 怎么补 |
 | --- | --- | --- | --- |
 | 0-1 | **构建闭环** | cargo 写 `<repo>\.cargo-home` 被沙箱拒（§4.2 实测 `os error 5`），而 crates 代理不在跑时 cargo 必失败 | §4.2 三选一：放宽一次权限 / 工作区内自建 `CARGO_HOME` / 你在自己终端构建 |
-| 0-2 | **接缝形状未定** | A/B/C 决定前端 15 处访问器怎么写、47 个用例要不要改（§5.1） | 你拍板 |
-| 0-3 | **一条有效验收** | 47 个用例因 URL 正则找不到页面（§3.4）；自带的两个探针是 wry 时代产物 | 起宿主 → `curl 127.0.0.1:9222/json/list` 实测 URL → 改正则 → 重写 `tools/verify-spike.mjs` 为 Tauri 版 |
+| 0-2 | **接缝形状未定** | A/B/C 决定前端 15 处访问器怎么写、49 个用例要不要改（§5.1） | 你拍板 |
+| 0-3 | **一条有效验收** | 49 个用例因 URL 正则找不到页面（§3.4）；自带的两个探针是 wry 时代产物 | 起宿主 → `curl 127.0.0.1:9222/json/list` 实测 URL → 改正则 → 重写 `tools/verify-spike.mjs` 为 Tauri 版 |
 
 ### 7.1 Rust 侧：缺的 6 个宿主对象
 
@@ -523,12 +523,12 @@ Caused by: 拒绝访问。 (os error 5)
 
 | # | 缺口 | 怎么补 |
 | --- | --- | --- |
-| 4-1 | 47 个用例的**取页正则**写死 `mfmath.local` | 抽成一个共用常量，同时接受两种宿主的 URL；`tests/run-all.ps1` 加"对哪个宿主跑"的参数 |
+| 4-1 | 49 个用例的**取页正则**写死 `mfmath.local` | 抽成一个共用常量，同时接受两种宿主的 URL；`tests/run-all.ps1` 加"对哪个宿主跑"的参数 |
 | 4-2 | 用例里 **`hostObjects.sync.*` 直连**（`cdp-bridge-verify.mjs:43-58` 等） | 改为经前端桥模块调用，用例就不再绑定接缝形状 |
 | 4-3 | Rust 宿主**自己的**探针过期 | 重写 `tools/verify-spike.mjs`；`tools/probe-hostobject.mjs` 已无用，删 |
 | 4-4 | 没有一条"引擎真的算了"的 Tauri 侧断言 | P1 的产物就是它（§5.3） |
 
-### 7.5 清理项（低风险，顺手做）
+### 7.5 清理项（低风险，可一并处理）
 
 `Cargo.toml` 删死依赖 `wry`；`handlers.rs:280` 删 `_UNUSED`；`engine.rs:126` 删 `cstr_lossy`；
 `diag` 两条路择一（§6.3）；`win.Restore` 补调用点或删（§6.1）；按本文刷新本目录 `README.md`（§6.4）。
@@ -583,7 +583,7 @@ curl.exe -s http://127.0.0.1:9222/json/list
 
 ## 8. AI 改成「页面直连 + 配置明文密钥」【2026-10-07，用户决定】
 
-> 这一节记的不是"顺手改的一点东西"，而是**推翻了本文档原先的一条架构前提**：
+> 这一节记的不是"附带改动"，而是**推翻了本文档原先的一条架构前提**：
 > 之前 AI 走宿主对象（宿主保管 DPAPI 密文密钥、宿主发请求、把响应字节经 push 推回），
 > 理由写在 §1.1/§1.4 与 `ai.rs` 的文件头。**现在 `ai` 不再是宿主对象** ——
 > 页面自己 `fetch` 服务商、自己在 TS 里分帧 SSE、密钥以**明文**存在 `ai.json` 里。

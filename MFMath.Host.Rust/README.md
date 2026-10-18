@@ -1,6 +1,6 @@
 # MFMath.Host.Rust —— Rust/Tauri 宿主
 
-> 状态：**可用**（不是 spike 了）。链接层 10 个宿主对象已落地 **7 个**，前端与 47 个 CDP 用例
+> 状态：**可用**（不是 spike 了）。链接层 10 个宿主对象已落地 **7 个**，前端与 49 个 CDP 用例
 > **一行未改**；引擎、前端都不动。
 >
 > 逐项的现状、踩过的坑与验收方式在 **[`docs/LINK-LAYER.md`](docs/LINK-LAYER.md)**——
@@ -96,7 +96,7 @@ cd $H; cargo build
 3. 图标检查。
 
 **缺了第 1 条**：界面照常打开，但启动自检会写「引擎未加载：找不到数学引擎…」，一次都算不了。
-**缺了第 2 条**：页面退回 Tauri 内嵌资产，URL 变成 `http://tauri.localhost` —— 47 个 CDP 用例
+**缺了第 2 条**：页面退回 Tauri 内嵌资产，URL 变成 `http://tauri.localhost` —— 49 个 CDP 用例
 会当场找不到页面。
 
 手工同步（要放到别的目录时用）—— ⚠ **两个脚本的 `--dest` 不是一回事，别传同一个目录**：
@@ -170,7 +170,7 @@ Copy-Item "$H\target\debug\wwwroot" $run -Recurse -Force
 - **数据目录共用**：`%LOCALAPPDATA%\MFMath\`（settings / logs / components / WebView2），
   设置 JSON 的字段名两边**逐字一致**；凭据是 DPAPI 密文（base64 blob，**不传 entropy**），
   Rust 侧已实测能解开 C# 侧写的密文、反之亦然；
-- **端到端用例共用**：47 个 `cdp-*.mjs` 走 CDP，与宿主用什么语言无关；
+- **端到端用例共用**：49 个 `cdp-*.mjs` 走 CDP，与宿主用什么语言无关；
 - **行为对齐**：窗口尺寸/最小尺寸/数据目录/CDP 端口/页面 URL 都按 C# 宿主抄。
 
 ---
