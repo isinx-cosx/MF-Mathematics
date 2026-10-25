@@ -509,10 +509,14 @@ button { font-family: inherit; cursor: pointer; }
 .win-btn.win-close:hover { background: var(--danger); color: #fff; }
 
 /* ── 通用按钮 ── */
+/* ⚠ `white-space: nowrap` 是必须的：按钮里的中文一旦被挤，会**逐字换行**
+ * （控制台工具条里出现过"清空/输出"竖排、"重/置"两个字上下摞）—— 那不是排版，
+ * 是让人以为界面坏了。按钮永远不换行；挤不下就让**外层容器**换行。 */
 .btn {
   height: var(--ctl-h); padding: 0 14px; border-radius: var(--r-sm);
   font-size: 12.5px; font-weight: 600; border: 1px solid var(--border);
   background: var(--surface); color: var(--text);
+  white-space: nowrap; flex: 0 0 auto;
   transition: all .15s;
 }
 .btn:hover { background: var(--surface-alt); box-shadow: var(--shadow-1); transform: translateY(-1px); }
@@ -548,6 +552,15 @@ button { font-family: inherit; cursor: pointer; }
 .input:focus {
   background: var(--surface);
   box-shadow: inset 0 0 0 1px rgba(127, 127, 127, .24), 0 0 0 3px var(--accent-soft);
+}
+/* `<select class="input">` 是**选择器**，不是"输入表达式的框"。
+ * `.input` 的等宽字体（--font-mono）是给数值/公式输入用的，套在下拉上会与其它页面的
+ * 下拉不一致（用户反馈"有些字体和其它页面不一样"）。选择器一律用界面字体，
+ * 并且跟随「字体预设」（--font-ui 有三套，含衬线/等宽预设）。 */
+select.input {
+  font-family: var(--font-ui);
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 .select {
   height: calc(var(--input-h) - 2px); padding: 0 10px; border-radius: var(--r-sm);

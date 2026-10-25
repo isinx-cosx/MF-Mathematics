@@ -451,10 +451,14 @@ watch([lang, code, stdin], () => {
             <option v-for="(s, i) in (SAMPLES[lang] || [])" :key="i">{{ s.name }}</option>
           </select>
           <span class="spacer"></span>
-          <button v-if="!running" class="btn btn-primary" :disabled="!hosted" @click="run">运行 ▷</button>
-          <button v-else class="btn btn-danger" @click="stop">终止 ■</button>
-          <button class="btn btn-ghost" title="只清空下面的输出" @click="clearOutput">清空输出</button>
-          <button class="btn btn-ghost" title="清空输出并回到示例代码" @click="resetAll">重置</button>
+          <!-- 三个动作按钮**打成一整组**：空间不够时整组下移，而不是把最后一个
+               （以前是"重置"）单独丢到第二行。 -->
+          <span class="bar-actions">
+            <button v-if="!running" class="btn btn-primary" :disabled="!hosted" @click="run">运行 ▷</button>
+            <button v-else class="btn btn-danger" @click="stop">终止 ■</button>
+            <button class="btn btn-ghost" title="只清空下面的输出" @click="clearOutput">清空输出</button>
+            <button class="btn btn-ghost" title="清空输出并回到示例代码" @click="resetAll">重置</button>
+          </span>
         </div>
 
         <!-- 代码编辑区：CodeMirror 6（进控制台才加载，语法包按语言再单独加载）
@@ -555,8 +559,14 @@ watch([lang, code, stdin], () => {
 .layout { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 @media (max-width: 1100px) { .layout { grid-template-columns: 1fr; } }
 .pane { display: flex; flex-direction: column; gap: 8px; }
-.bar { display: flex; align-items: center; gap: 8px; }
-.spacer { flex: 1; }
+/* 工具条：挤不下时**整件换行**，绝不压缩件内部文字（按钮已 nowrap、且不参与收缩）。
+ * 以前这里没有 flex-wrap，窗口一窄就出现"清空/输出"竖排、"重/置"上下摞 —— 看着像坏了。 */
+.bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; row-gap: 6px; }
+.bar > .btn, .bar > select, .bar > .bar-actions { flex: 0 0 auto; }
+.bar > select { max-width: 200px; }
+/* 动作按钮整组：要么都在右端，要么整组换到下一行（不会把其中一个单独甩下去） */
+.bar-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; flex-wrap: nowrap; }
+.spacer { flex: 1 1 0; min-width: 0; }
 .input.lang, .input.sample { width: auto; padding: 6px 8px; }
 /* 编辑区的外框样式归 components/console/CodeEditor.vue 管：它要同时伺候
    CodeMirror 与 textarea 回退两条路，而 `.editor` 是那个组件的内部节点，
