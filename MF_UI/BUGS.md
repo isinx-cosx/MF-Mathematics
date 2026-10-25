@@ -472,6 +472,21 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File tests\run-all.ps1 -NoLaunch
   `cdp-push` 那 2 条会把 `exitCode: -1` 当失败。现在两者都**先判组件**：
   `cdp-console` 打 `[SKIP]` + 不计 pass（run-all 已支持单独显示 SKIP）；
   `cdp-push` 明确说明"跳过，原因：组件未安装"。
+
+**补充：组件下载失败的定性（2026-10-17 晚，用户报）**
+- **下载源与文件本身没问题**：用应用自己的 WebView2（Chromium 栈）请求两个链接都是
+  `200`，`Content-Length` 与宿主常量**完全一致**（python 11,009,825 / mingw 64,564,977），
+  `Content-Disposition` 里的文件名正是宿主期望的那两个，且 `Accept-Ranges: bytes`（支持续传）。
+- **宿主的下载代码也没问题**：把下载源用 `SetDownloadBase` 指到**本机 HTTP 服务**（假包 256 KB），
+  宿主**成功下载**，随后按设计在校验 SHA-256 时拒绝（"组件包校验失败"）。
+- **卡点在这台机器的出网路径**：对同一个域名，Chromium 系能过（200），
+  而 curl/.NET（Schannel）被 RST、宿主 reqwest（rustls）报 `error sending request`；
+  用 `explorer.exe` 拉起宿主（父进程脱离 agent 进程树）**仍然失败** ⇒ 不是"某个会话的子进程"问题。
+  与 A 面 [`http.rs`](../../MFMath.Host.Rust/src/http.rs) 的 tcpdump 结论一致：
+  **RST 是本机自己发的、按 SNI 触发、只对部分进程生效**；浏览器与普通用户机器不受影响。
+- 所以：**换个能出去的网/代理**，或把包放进 `%LOCALAPPDATA%\MFMath\components\cache\` 离线安装，
+  或 `SetDownloadBase` 指向可达的镜像 —— 三条都不需要改代码。
+
 - 逐套件绿：`unit-userfn 29/0`、`cdp-plot-fn 14/0`、`cdp-calc-workspace 65/0`、
   `cdp-plot-workspace 24/0`、`cdp-plot-verify 10/0`、`p4 9/0`、`region 11/0`、
   `extrema 15/0`、`final 10/0`；`npm run check` exit 0、React `check:types` exit 0。

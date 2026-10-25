@@ -47,6 +47,13 @@ const status = ref(hosted ? "就绪" : "浏览器预览：无宿主桥，控制�
 const installJob = ref(null);
 const installPct = ref(0);
 const installMsg = ref("");
+/* 安装失败的**完整**信息（含下载 URL、断点文件路径、离线安装提示）。
+ * 以前这段长文本被塞进状态行那个单行小位置（`<span class="meta">{{ status }}</span>`），
+ * 12px、不换行、还被裁掉 —— 用户反馈"完全看不清"。现在它有自己的面板：
+ * 可换行、可滚动、可复制、可一键重试。 */
+const installErr = ref("");
+const installErrFor = ref("");     // 是哪个组件失败的（重试用）
+const installCopied = ref(false);
 
 let runId = null;
 let pollTimer = null;
@@ -240,6 +247,9 @@ function stopInstallPolling() {
 async function doInstall(which) {
   if (!hosted) return;
   stopInstallPolling();                 // 连点两次也不会叠出两个轮询
+  installErr.value = "";                // 新一轮安装：清掉上一次的失败面板
+  installErrFor.value = "";
+  installCopied.value = false;
   installJob.value = installComponent(which);
   installMsg.value = "开始安装…";
   installPct.value = 0;
@@ -261,10 +271,53 @@ async function doInstall(which) {
       stopInstallPolling();
       installJob.value = null;
       await refreshComponents();
-      if (s.state === "error") status.value = "安装失败：" + (s.message || "");
-      else { status.value = s.message || "安装完成"; if (!languages.value.some((l) => l.value === lang.value)) lang.value = "python"; }
+      if (s.state === "error") {
+        // 状态行只留一句短的；完整信息进面板（那里换行、可复制、可重试）
+        installErr.value = s.message || "未知错误";
+        installErrFor.value = which;
+        status.value = "组件安装失败（详情见下方）";
+      } else {
+        status.value = s.message || "安装完成";
+        if (!languages.value.some((l) => l.value === lang.value)) lang.value = "python";
+      }
     }
   }, 400);
+}
+
+/** 复制失败详情（含 URL / 断点路径 / 离线提示），方便贴给客服或自己照着做 */
+async function copyInstallErr() {
+  const text = installErr.value;
+  if (!text) return;
+  try {
+    await navigator.clipboard.writeText(text);
+    installCopied.value = true;
+    setTimeout(() => { installCopied.value = false; }, 1500);
+  } catch {
+    // 剪贴板不可用（无权限/非安全上下文）：退回"选中文本"式的老办法
+    try {
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      document.body.removeChild(ta);
+      installCopied.value = true;
+      setTimeout(() => { installCopied.value = false; }, 1500);
+    } catch { status.value = "复制失败：请手动选中面板里的文字"; }
+  }
+}
+
+/** 关掉失败面板（组件没装好，语言下拉里仍然不会有它） */
+function dismissInstallErr() {
+  installErr.value = "";
+  installErrFor.value = "";
+}
+
+/** 重试上一次失败的组件 */
+function retryInstall() {
+  const which = installErrFor.value;
+  installErr.value = "";
+  if (which) doInstall(which);
 }
 
 function stopPolling() {
@@ -460,12 +513,36 @@ watch([lang, code, stdin], () => {
               {{ comps?.cpp?.ready ? "已装" : "安装" }}
             </button>
           </div>
-          <!-- 安装中：进度 + 取消。下载 54 MB 可能要几分钟，没有取消按钮等于把用户锁住；
-               取消后已下载的部分会保留（.part），下次点安装接着下。 -->
-          <div v-if="installJob" class="progress">
-            <div class="progress-bar" :style="{ width: installPct + '%' }"></div>
-            <span class="progress-txt">{{ installPct }}% {{ installMsg }}</span>
+          <!-- 安装中：进度 + 取消。下载 64 MB 可能要几分钟，没有取消按钮等于把用户锁住；
+               取消后已下载的部分会保留（.part），下次点安装接着下。
+               ⚠ 说明文字**不塞进进度条里**（20px 高的条里塞一行 11.5px 的字，看不清），
+               放到条下面单独一行、可换行。 -->
+          <div v-if="installJob" class="progress-wrap">
+            <div class="progress">
+              <div class="progress-bar" :style="{ width: installPct + '%' }"></div>
+              <span class="progress-txt">{{ installPct }}%</span>
+            </div>
+            <div class="progress-msg">{{ installMsg || "准备中…" }}</div>
             <button class="btn btn-ghost progress-cancel" @click="doCancelInstall">取消</button>
+          </div>
+
+          <!-- 安装失败：完整信息单独一块（可换行 / 滚动 / 复制 / 重试）。
+               以前这段文字被塞进状态行，12px 单行还被裁 —— 用户反馈"完全看不清"。 -->
+          <div v-if="installErr" class="install-fail">
+            <div class="install-fail-head">
+              <span class="install-fail-title">组件安装失败</span>
+              <span class="spacer"></span>
+              <button class="btn btn-ghost" @click="copyInstallErr">
+                {{ installCopied ? "已复制" : "复制详情" }}
+              </button>
+              <button v-if="installErrFor" class="btn btn-ghost" @click="retryInstall">重试</button>
+              <button class="btn btn-ghost" @click="dismissInstallErr">关闭</button>
+            </div>
+            <pre class="install-fail-body">{{ installErr }}</pre>
+            <div class="install-fail-hint">
+              常见原因：这台机器此刻连不上下载源（<b>换个网络/代理</b>），或包还没放到本地缓存。
+              也可以手工把组件包放进 <code>%LOCALAPPDATA%\MFMath\components\cache</code> 后再点「安装」。
+            </div>
           </div>
         </div>
       </div>
@@ -503,15 +580,52 @@ watch([lang, code, stdin], () => {
   white-space: pre-wrap; word-break: break-word;
 }
 .out.err { color: var(--danger); }
-.comps { display: flex; flex-direction: column; gap: 6px; margin-top: 4px; }
-.comp-row { display: flex; align-items: center; gap: 10px; font-size: 12.5px; }
-.comp-row .meta { flex: 1; }
-.progress { position: relative; height: 20px; background: var(--surface-alt); border-radius: var(--r-sm); overflow: hidden; }
+.comps { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
+/* 组件行改成两行式：名字 + 按钮在上，说明在下。
+ * 以前是单行 flex（名字/说明/按钮挤在一行、12.5px、不换行），说明一长就被压成一条缝。
+ * ⚠ 三个子元素必须**显式定位**：只给 .meta 加 grid-column 1/-1 的话，自动排布会把
+ *   按钮挤到自己独占的下一行、拉成整行宽（截图里就是这样，很难看）。 */
+.comp-row {
+  display: grid; grid-template-columns: 1fr auto; align-items: center;
+  gap: 2px 10px; font-size: 13px;
+}
+.comp-row > span:first-child { grid-column: 1; grid-row: 1; }
+.comp-row > button { grid-column: 2; grid-row: 1; justify-self: end; }
+.comp-row .meta {
+  grid-column: 1 / -1; grid-row: 2;
+  font-size: 12.5px; line-height: 1.6; color: var(--text-subtle);
+  white-space: pre-wrap; word-break: break-word;
+}
+.progress-wrap { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 4px 8px; }
+.progress-wrap .progress { grid-column: 1; }
+.progress-wrap .progress-cancel { grid-column: 2; grid-row: 1; }
+.progress-wrap .progress-msg {
+  grid-column: 1 / -1; font-size: 12.5px; line-height: 1.6; color: var(--text-muted);
+  white-space: pre-wrap; word-break: break-word;
+}
+.progress { position: relative; height: 24px; background: var(--surface-alt); border-radius: var(--r-sm); overflow: hidden; }
 .progress-bar { height: 100%; background: var(--grad); transition: width .2s; }
-.progress-txt { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 11.5px; color: var(--text); }
-/* 取消按钮浮在进度条右端：进度条本身只有 20px 高，按钮要压住它才点得到 */
-.progress-cancel {
-  position: absolute; right: 2px; top: 1px; height: 18px;
-  padding: 0 8px; font-size: 11px; z-index: 2;
+.progress-txt { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 12.5px; color: var(--text); }
+.progress-cancel { height: 22px; padding: 0 8px; font-size: 12px; }
+/* 安装失败面板：换行 + 可滚动 + 等宽字体（URL 与路径要能看清每个字符） */
+.install-fail {
+  margin-top: 8px; padding: 10px 12px; border-radius: var(--r-md);
+  border: 1px solid var(--danger); background: var(--surface);
+}
+.install-fail-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.install-fail-title { font-size: 13px; font-weight: 600; color: var(--danger); }
+.install-fail-body {
+  margin: 0; padding: 8px 10px; max-height: 260px; overflow: auto;
+  font-family: var(--font-mono); font-size: 12.5px; line-height: 1.7;
+  background: var(--surface-alt); border-radius: var(--r-sm); color: var(--text);
+  white-space: pre-wrap; word-break: break-all; user-select: text;
+}
+.install-fail-hint {
+  margin-top: 8px; font-size: 12.5px; line-height: 1.7; color: var(--text-subtle);
+  white-space: normal;
+}
+.install-fail-hint code {
+  font-family: var(--font-mono); font-size: 12px;
+  background: var(--surface-alt); padding: 1px 5px; border-radius: 4px;
 }
 </style>
