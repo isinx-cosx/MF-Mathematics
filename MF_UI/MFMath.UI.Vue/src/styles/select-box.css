@@ -52,6 +52,35 @@
 .sb-opt-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .sb-check { width: 12px; height: 12px; color: var(--accent); flex: 0 0 auto; }
 
+/* ── 弹层滚动条：只留滚动条本身，**不要两端那个箭头按钮** ──────────────────────
+ * 系统默认滚动条在 Chromium/Windows 上会带上下两个三角按钮（截图里那个灰三角），
+ * 跟自绘的主题完全不搭。
+ *
+ * ⚠ 踩过的坑：**不能**在同一个元素上既写标准属性（scrollbar-width/scrollbar-color）
+ * 又写 `::-webkit-scrollbar*` 伪元素 —— Chromium 一旦看到标准属性就切到"标准滚动条"
+ * 渲染，并**忽略全部** `::-webkit-scrollbar*` 规则，于是 `::-webkit-scrollbar-button
+ * { display:none }` 形同虚设，箭头照旧在那里。
+ * 所以：WebKit 用伪元素（箭头靠 button 伪元素隐藏），标准属性只在**不支持**伪元素时兜底。 */
+.sb-list::-webkit-scrollbar { width: 8px; height: 8px; }
+.sb-list::-webkit-scrollbar-track { background: transparent; }
+.sb-list::-webkit-scrollbar-thumb {
+  background: rgba(127, 127, 127, .38);
+  background-clip: content-box;
+  border: 2px solid transparent;   /* 用内边距把滑块收细，轨道保持通透 */
+  border-radius: 999px;
+}
+.sb-list::-webkit-scrollbar-thumb:hover { background: rgba(127, 127, 127, .55); background-clip: content-box; }
+/* 两端的上下箭头就长在这个伪元素上：宽度高度都归零 + 不显示 */
+.sb-list::-webkit-scrollbar-button { display: none; width: 0; height: 0; }
+.sb-list::-webkit-scrollbar-corner { background: transparent; }
+
+@supports not selector(::-webkit-scrollbar) {
+  .sb-list {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(127, 127, 127, .38) transparent;
+  }
+}
+
 /* 隐藏原生 select：仍可被脚本读写（既有用例依赖它），但不占视觉位置、不进无障碍树 */
 .sr-select {
   position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0;
