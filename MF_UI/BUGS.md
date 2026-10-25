@@ -526,6 +526,15 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File tests\run-all.ps1 -NoLaunch
   校验 `TEMP`/`TMP` 是否存在，不存在就 `create_dir_all`，再不行退回 `%LOCALAPPDATA%\Temp`。
   现状是"原样透传"，用户如果 TEMP 指向拔掉的 U 盘/被删目录，就会看到一条完全看不懂的
   `编译器退出码 -1073740791`。
+- **操作口径（我自己踩了两次，写死在这里）**：为构建前端设 `$env:TEMP=<repo>\.buildtmp` 是允许的，
+  但**起宿主前必须把它还原成系统值**（构建完删掉 `.buildtmp` 之后尤其如此）。最省事的写法：
+  ```powershell
+  $sysTemp = $env:TEMP; $sysTmp = $env:TMP
+  $env:TEMP = "$repo\.buildtmp"; $env:TMP = $env:TEMP
+  npm run build
+  $env:TEMP = $sysTemp; $env:TMP = $sysTmp      # ← 少这一行，控制台里的 C++ 就会挂
+  ```
+  症状是 `cdp-console` 里 C++ 那 4 条同时红（退出码 -1073740791），**不是**组件或编译器的问题。
 
 - 逐套件绿：`unit-userfn 29/0`、`cdp-plot-fn 14/0`、`cdp-calc-workspace 65/0`、
   `cdp-plot-workspace 24/0`、`cdp-plot-verify 10/0`、`p4 9/0`、`region 11/0`、

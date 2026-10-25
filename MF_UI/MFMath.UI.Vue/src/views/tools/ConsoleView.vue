@@ -22,6 +22,7 @@ import { engineCall } from "../../lib/bridge.js";
 import { initPush, onPush, isPushHosted } from "../../lib/push.js";
 import { getPage, setPage } from "../../lib/workspace/store.js";
 import CodeEditor from "../../components/console/CodeEditor.vue";
+import SelectBox from "../../components/ui/SelectBox.vue";
 
 const hosted = isConsoleHosted();
 const route = useRoute();
@@ -214,9 +215,13 @@ const SAMPLES = {
   ],
 };
 
+/** 当前选中的示例序号（自绘下拉用；原来靠原生 select 的 selectedIndex，现在要显式存） */
+const sampleIndex = ref(0);
+
 function loadSample(index = 0) {
   const list = SAMPLES[lang.value] || [];
   if (list[index]) code.value = list[index].code;
+  sampleIndex.value = index;
 }
 
 async function refreshComponents() {
@@ -444,12 +449,23 @@ watch([lang, code, stdin], () => {
       <!-- 左：编辑区 -->
       <div class="pane">
         <div class="bar">
-          <select v-model="lang" class="input lang" @change="loadSample(0)">
-            <option v-for="l in languages" :key="l.value" :value="l.value">{{ l.label }}</option>
-          </select>
-          <select class="input sample" @change="loadSample($event.target.selectedIndex)">
-            <option v-for="(s, i) in (SAMPLES[lang] || [])" :key="i">{{ s.name }}</option>
-          </select>
+          <!-- 自绘下拉（components/ui/SelectBox.vue）：原生 <select> 的弹层由系统绘制，
+               主题/字体预设都管不到它；这里换成自绘层，同时**保留隐藏的原生 select**
+               （类名 `input lang` / `input sample` 不变）作为数据源与无障碍语义。 -->
+          <SelectBox
+            v-model="lang"
+            :options="languages"
+            native-class="input lang"
+            aria-label="语言"
+            @change="loadSample(0)"
+          />
+          <SelectBox
+            :model-value="String(sampleIndex)"
+            :options="(SAMPLES[lang] || []).map((s, i) => ({ value: String(i), label: s.name }))"
+            native-class="input sample"
+            aria-label="示例"
+            @change="loadSample(Number($event))"
+          />
           <span class="spacer"></span>
           <!-- 三个动作按钮**打成一整组**：空间不够时整组下移，而不是把最后一个
                （以前是"重置"）单独丢到第二行。 -->
