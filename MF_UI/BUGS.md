@@ -514,6 +514,19 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File tests\run-all.ps1 -NoLaunch
   `cdp-console-sci` 现在**如实 SKIP** —— 它测的是可选变体「带科学计算包的 CPython」（>120 MB），
   我们装的是官方 embed（20 MB），sympy/numpy/scipy 本来就不在，不该报成 6 条失败。
 
+**补充四：C++ 编译报 `-1073740791` + `Cannot create temporary file …`（2026-10-25，用户报）**
+- **不是编译器/组件坏了，是启动宿主时把 `TEMP`/`TMP` 指到了一个后来被删掉的目录**：
+  为了构建前端，我在启动宿主的那个 shell 里设了 `TEMP=<repo>\.buildtmp`，构建完又把它删了；
+  宿主继承了这个环境变量，于是它派生的 `g++.exe` 建不了临时文件。
+  `-1073740791` = `0xC0000409`，是 GCC 致命错误时走 `abort()` 的退出码，**不是**段错误。
+- 复现与判据：把 `TEMP` 指到那个不存在的目录后，直接用 `g++.exe` 编译任何文件都会得到同一行错误。
+- 修复：用**干净环境**重启宿主（不覆盖 `TEMP`/`TMP`）⇒ C++ 恢复（实测编译 1164 ms、运行 2017 ms、
+  退出码 0，`x^2@3=9`、`d/dx(xe^x)=x*exp(x)+exp(x)`、`lim=2.718281828459045`）。
+- **给 A 面的加固建议（一行的事，但能省掉用户一顿排查）**：宿主在 `Start` 里派生编译器/解释器前，
+  校验 `TEMP`/`TMP` 是否存在，不存在就 `create_dir_all`，再不行退回 `%LOCALAPPDATA%\Temp`。
+  现状是"原样透传"，用户如果 TEMP 指向拔掉的 U 盘/被删目录，就会看到一条完全看不懂的
+  `编译器退出码 -1073740791`。
+
 - 逐套件绿：`unit-userfn 29/0`、`cdp-plot-fn 14/0`、`cdp-calc-workspace 65/0`、
   `cdp-plot-workspace 24/0`、`cdp-plot-verify 10/0`、`p4 9/0`、`region 11/0`、
   `extrema 15/0`、`final 10/0`；`npm run check` exit 0、React `check:types` exit 0。

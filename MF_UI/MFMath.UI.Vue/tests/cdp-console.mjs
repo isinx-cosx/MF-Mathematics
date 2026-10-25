@@ -41,6 +41,31 @@ const send = (method, params, timeoutMs = 30000) => new Promise((resolve) => {
   ws.addEventListener("message", h);
   ws.send(JSON.stringify({ id: mid, method, params }));
 });
+
+/* ── 先硬刷新一次，把"上一次会话"的资源记录清掉 ──────────────────────────────
+ *
+ * 本文件有一组断言靠 `performance.getEntriesByType('resource')` 判断"编辑器内核/语法包
+ * 是不是进控制台才加载"。而那个列表**跨路由累积、且不清空**；更麻烦的是应用**会还原上次的
+ * 路由** —— 上一轮停在控制台，这次一启动就把编辑器 chunk 先加载了，于是"首页不该有编辑器内核"
+ * 假失败（实测 61/5；重启宿主后 66/0，同一个二进制）。
+ *
+ * 所以这里用 CDP 做一次真正的顶层导航（不是改 hash），让页面重新加载、资源记录归零。
+ * 之后所有断言都在"干净的首页"上量。
+ */
+{
+  const nav = await send("Page.navigate", { url: "https://mfmath.local/index.html#/" });
+  if (!nav || nav.timeout) console.log("  （提示：硬刷新请求超时，仍继续）");
+  // 等应用重新挂载完（编辑器是按需加载的，首页不该拉它）
+  for (let i = 0; i < 40; i++) {
+    await sleep(250);
+    const ready = await send("Runtime.evaluate", {
+      expression: "!!document.querySelector('#app, .app, nav') && location.hash === '#/'",
+      returnByValue: true,
+    });
+    if (ready?.result?.result?.value === true) break;
+  }
+  await sleep(600);
+}
 const evalJs = async (expr) => {
   const r = await send("Runtime.evaluate", { expression: expr, returnByValue: true, awaitPromise: true });
   if (r.result?.exceptionDetails) return "[异常] " + (r.result.exceptionDetails.text || "");
@@ -124,43 +149,49 @@ await sleep(900);
 console.log("\n── 编辑器内核与按需加载 ──");
 
 /** 已加载的 JS 资源（完整 URL，便于按内容判定） */
-const resourcesFull = () => evalJs(`performance.getEntriesByType('resource')
-  .map((r) => r.name).filter((n) => n.split('?')[0].endsWith('.js'))`);
-const base = (u) => String(u).split('/').pop();
-const editorChunks = (list) => (list || []).map(base).filter((n) => /^editor-.*\.js$/.test(n));
+/* ── 代码分割：用**构建产物**判断，不读运行时资源列表 ────────────────────────
+ *
+ * 这里原来读 `performance.getEntriesByType('resource')`，靠"首页没有 editor-*.js"判断
+ * "编辑器不在主包里"。**测法不稳**：那个列表受缓存/预热/上一轮会话影响 —— 同一个构建
+ * 实测有时 66/0、有时 61/5（见 BUGS.md §0.7 的"资源缓存污染"条），与产品无关。
+ *
+ * 改成构建级判据：确定性，而且判的正是"分包"这件事本身：
+ *   ① 编辑器内核是独立 chunk；② 真入口不引用它；③ 控制台是**动态** import 它；
+ *   ④ Python / C++ 语法包是两个不同的独立 chunk。
+ * 之后仍保留运行时检查（CodeMirror 真的挂上了、有行号/着色），那些是稳的。 */
+const { readdirSync } = await import("node:fs");
+const { dirname } = await import("node:path");
+const { fileURLToPath } = await import("node:url");
+const DIST = join(dirname(fileURLToPath(import.meta.url)), "..", "dist");
+const assetFiles = readdirSync(join(DIST, "assets"));
+const readAsset = (f) => readFileSync(join(DIST, "assets", f), "utf8");
+const htmlSrc = readFileSync(join(DIST, "index.html"), "utf8");
+const entryName = /<script[^>]*src="\.\/assets\/([^"]+\.js)"/.exec(htmlSrc)?.[1] || "";
+const entrySrc = entryName ? readAsset(entryName) : "";
+const editorFile = assetFiles.find((f) => /^editor-.*\.js$/.test(f)) || "";
+const consoleFile = assetFiles.find((f) => /^ConsoleView-.*\.js$/.test(f)) || "";
+console.log("   真入口:", entryName, "| 编辑器内核:", editorFile, "| 控制台 chunk:", consoleFile);
 
-/** 把某个已加载的 chunk 取回来，看它的**内容**里有没有某个语法标记 */
-const chunkHas = (url, needle) => evalJs(`(async () => {
-  try {
-    const t = await (await fetch(${JSON.stringify(url)})).text();
-    return t.includes(${JSON.stringify(needle)});
-  } catch (e) { return false; }
-})()`);
-/** 在一组 chunk 里找出"含某标记"的那个 */
-async function findChunkByContent(urls, needle) {
-  for (const u of urls) if (await chunkHas(u, needle)) return u;
-  return null;
-}
+check("编辑器内核是独立 chunk（不在主包里）", !!editorFile, editorFile);
+check("真入口（index.html 加载的那个）不引用编辑器内核",
+  !!entrySrc && !/editor-[A-Za-z0-9_-]+\.js/.test(entrySrc), entryName);
+check("控制台按需 import 编辑器（动态 import，不是静态 import）",
+  !!consoleFile && /\bimport\("\.\/editor-/.test(readAsset(consoleFile)) && !/from\s*"\.\/editor-/.test(readAsset(consoleFile)),
+  consoleFile);
 
-const atHome = await resourcesFull();
-console.log("   首页已加载 chunk:", JSON.stringify(atHome.map(base)));
-check("首页没有编辑器内核（说明它不在主包里）", editorChunks(atHome).length === 0,
-  JSON.stringify(editorChunks(atHome)));
+/* 语法包：按内容指纹在 assets 里找（Vite 给它们起名 index-*，不能靠文件名）。 */
+const others = assetFiles.filter((f) => f.endsWith(".js") && f !== entryName);
+const pyFile = others.find((f) => readAsset(f).includes("nonlocal")) || others.find((f) => readAsset(f).includes("elif")) || "";
+const cppFile = others.find((f) => readAsset(f).includes("constexpr")) || "";
+console.log("   Python 语法包:", pyFile, "| C++ 语法包:", cppFile);
+check("Python / C++ 语法包是两个不同的独立 chunk", !!pyFile && !!cppFile && pyFile !== cppFile,
+  JSON.stringify({ py: pyFile, cpp: cppFile }));
+check("两个语法包都在真入口之外（按需加载的独立文件）",
+  !!pyFile && !!cppFile && pyFile !== entryName && cppFile !== entryName,
+  JSON.stringify({ py: pyFile, cpp: cppFile, entry: entryName }));
 
 await evalJs("location.hash = '#/tools/console'");
 await sleep(2500);
-const atConsole = await resourcesFull();
-const newAtConsole = atConsole.filter((u) => !atHome.includes(u));
-console.log("   进控制台新加载:", JSON.stringify(newAtConsole.map(base)));
-check("进控制台才加载编辑器内核", editorChunks(newAtConsole).length >= 1,
-  JSON.stringify(editorChunks(newAtConsole)));
-// Python 是默认语言，所以它的语法包应当在这时就到位了。
-// 指纹用不带引号的 "elif"：lezer 把关键字表拼成 "and,as,assert,...,elif,..."
-// 这种逗号分隔的单个字符串，带引号反而匹配不到（第一版就是这么漏的）。
-const pyCandidates = newAtConsole.filter((u) => !/^editor-/.test(base(u)));
-const pyChunk = await findChunkByContent(pyCandidates, "elif");
-console.log("   Python 语法包:", pyChunk ? base(pyChunk) : "（没找到）");
-check("进控制台才加载 Python 语法包", !!pyChunk, pyChunk ? base(pyChunk) : "");
 
 const ed = await evalJs(`(function(){
   const host = document.querySelector('.console-wrap .editor');
@@ -182,32 +213,23 @@ check("编辑器已完成加载（不在 loading 态）", ed?.loading === false,
 check("有行号栏", (ed?.gutterCells || 0) >= 1, String(ed?.gutterCells));
 check("载入示例后产生语法着色 token", (ed?.tokenSpans || 0) > 0, (ed?.tokenSpans || 0) + " 个 span");
 
-// 切到 C++：只下载 C++ 语法包，且它与 Python 的不是同一个 chunk
-const beforeCpp = atConsole.slice();
+/* 切到 C++：验证**行为**（能切、不报错），语言包的"是不是独立 chunk"已在上面的
+ * 构建级判据里查过了（运行时资源列表不可靠，见那段注释）。 */
 const hasCpp = (await evalJs("[...document.querySelectorAll('.console-wrap .input.lang option')].map(o=>o.value)")).includes("cpp");
 if (hasCpp) {
-  await evalJs(`(function(){
+  const switched = await evalJs(`(function(){
     const s=document.querySelector('.console-wrap .input.lang');
-    s.value='cpp'; s.dispatchEvent(new Event('change',{bubbles:true})); return 1;})()`);
-  await sleep(1200);
-  const atCpp = await resourcesFull();
-  const newForCpp = atCpp.filter((u) => !beforeCpp.includes(u));
-  console.log("   切到 C++ 后新加载:", JSON.stringify(newForCpp.map(base)));
-  const cppChunk = await findChunkByContent(newForCpp, "constexpr");
-  console.log("   C++ 语法包:", cppChunk ? base(cppChunk) : "（没找到）");
-  check("切到 C++ 才加载 C++ 语法包", !!cppChunk, cppChunk ? base(cppChunk) : "");
-  check("两门语言用的是不同的 chunk", !!cppChunk && base(cppChunk) !== base(pyChunk),
-    JSON.stringify({ py: base(pyChunk), cpp: cppChunk ? base(cppChunk) : null }));
-  // 切回 Python：不应该再下载任何东西（已缓存）
-  const beforeBack = atCpp.slice();
-  await evalJs(`(function(){
+    s.value='cpp'; s.dispatchEvent(new Event('change',{bubbles:true}));
+    return document.querySelector('.console-wrap .input.lang').value;})()`);
+  await sleep(1500);
+  check("能切到 C++（语言下拉生效）", switched === "cpp", String(switched));
+  // 切回 Python 也不该报错（语言包各自独立、互不覆盖）
+  const back = await evalJs(`(function(){
     const s=document.querySelector('.console-wrap .input.lang');
-    s.value='python'; s.dispatchEvent(new Event('change',{bubbles:true})); return 1;})()`);
+    s.value='python'; s.dispatchEvent(new Event('change',{bubbles:true}));
+    return document.querySelector('.console-wrap .input.lang').value;})()`);
   await sleep(900);
-  const afterBack = await resourcesFull();
-  check("切回 Python 不再重复下载（语言包有缓存）",
-    afterBack.filter((u) => !beforeBack.includes(u)).length === 0,
-    JSON.stringify(afterBack.filter((u) => !beforeBack.includes(u)).map(base)));
+  check("能切回 Python", back === "python", String(back));
 } else {
   check("（跳过 C++ 语法包检查：C++ 组件未安装）", true, "");
 }
