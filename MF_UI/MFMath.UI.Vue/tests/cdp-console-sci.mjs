@@ -79,8 +79,18 @@ if (!comp || !comp.python?.installed) {
   process.exit(0);
 }
 console.log(`  组件：CPython ${comp.python.version}，${(comp.python.bytes / 1024 / 1024).toFixed(1)} MB`);
-check("组件体积是「带科学计算包」的量级（>120 MB，官方 embed 只有 10 MB）",
-  (comp.python.bytes || 0) > 120 * 1024 * 1024, `${(comp.python.bytes / 1024 / 1024).toFixed(1)} MB`);
+/* ⚠ 本套件测的是**可选变体**「带科学计算包的 CPython」（sympy/numpy/scipy/mpmath，>120 MB）。
+ * 装的是官方 embed（约 20 MB）时，那四个包**本来就不存在** —— 这是"这个变体没装"，
+ * 不是产品坏了。以前只有"Python 完全没装"才 SKIP，于是装了官方 embed 之后
+ * 这 6 条会全部变成"失败"，读起来像功能坏了。按 run-all 的 SKIP 约定如实跳过：
+ * 打 [SKIP] + 不打印 RESULT 行（否则会被当成 0|0 的假绿）。 */
+if (!((comp.python.bytes || 0) > 120 * 1024 * 1024)) {
+  console.log(`  [SKIP] 当前装的是官方 embed（${(comp.python.bytes / 1024 / 1024).toFixed(1)} MB），不含 sympy/numpy/scipy`);
+  console.log("         本套件针对「带科学计算包」的可选变体（>120 MB）—— 装那个变体后才有意义");
+  ws.close();
+  process.exit(0);
+}
+check("组件体积是「带科学计算包」的量级（>120 MB，官方 embed 只有 10 MB）", true, "已按变体门槛放行");
 
 console.log("=== 三个科学计算包能不能 import、能不能真算 ===");
 const sci = await runPython([

@@ -487,6 +487,33 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File tests\run-all.ps1 -NoLaunch
 - 所以：**换个能出去的网/代理**，或把包放进 `%LOCALAPPDATA%\MFMath\components\cache\` 离线安装，
   或 `SetDownloadBase` 指向可达的镜像 —— 三条都不需要改代码。
 
+**补充二：JS/TS 也读不到（2026-10-17 晚，又一组实测）**
+- 页面里 `fetch(url)`（默认 cors）⇒ `Failed to fetch`；CDP 给出的真因是 **`MissingAllowOriginHeader`**
+  —— 服务端**没有 `Access-Control-Allow-Origin`**，所以状态码/长度/字节**全拿不到**
+  （`no-cors` 只能拿到 opaque 响应：请求确实出去了，但内容读不了）。
+  ⇒「让前端 fetch 下来再交给宿主安装」这条路，在现服务端配置下**走不通**（除非服务端加 CORS 头）。
+- **但 Chromium 的「下载」动作是好的**：页面里点一个 `<a download>` 链接，WebView2 **真的把文件落盘**了
+  —— 实测 `python-3.13.15-embed-amd64.zip`（11,009,825 B）与 `mingw-16.1.0-x86_64-seh.zip`
+  （64,564,977 B）都完整下到「下载」目录。**下载不受 CORS 约束**（它不是 fetch）。
+  ⇒ 受限机器上有一条**可用绕道**：让 Chromium 下载 → 再让宿主把它收进 `cache/` 安装。
+  最顺的产品化形态是**宿主接管 `DownloadStarting` 并把目标路径直接指到 `components\cache\`**。
+- 顺带踩到并绕过的两个坑（都记下来）：
+  1. **跑着的宿主二进制可能比源码旧**：`target\debug\mfmath-host-rust.exe` 是 11:52 编的，
+     而 `console.rs` 在 21:47 改过（MinGW 期望值 54 MB → 64.5 MB）。用字符串搜二进制验证：
+     Python 的新哈希在里面、**MinGW 的新哈希不在** ⇒ 于是"文件明明对（实测 SHA-256 与源码常量一致）
+     却报校验失败"。绕法：在包旁边放 `<文件名>.sha256`（源码支持，旁文件优先）——实测立即可装。
+     A 面重编后就不需要这个旁文件了。
+  2. **`cdp-console` 有 3 条断言会被"会话资源缓存"污染**：它比较 `performance` 里的资源列表，
+     而那个列表**跨导航累积** —— 在同一页面里反复进出控制台后，"首页不该有编辑器内核"之类
+     会假失败（实测 61/5 → **重启宿主换干净页面后 66/0**）。跑控制台用例前要重启宿主。
+
+**补充三：组件已装上，C++ 回来了（本机实测）**
+- 用上面的绕道装了：Python 3.13.15（20.4 MB）+ MinGW 16.1.0（288 MB，`lib` 1052 个文件、
+  `x86_64-w64-mingw32` 2683 个文件）；语言下拉变回 `["python","cpp"]`。
+- 随之：`cdp-push` **20/0**、`cdp-console` **66/0**（干净页面）；
+  `cdp-console-sci` 现在**如实 SKIP** —— 它测的是可选变体「带科学计算包的 CPython」（>120 MB），
+  我们装的是官方 embed（20 MB），sympy/numpy/scipy 本来就不在，不该报成 6 条失败。
+
 - 逐套件绿：`unit-userfn 29/0`、`cdp-plot-fn 14/0`、`cdp-calc-workspace 65/0`、
   `cdp-plot-workspace 24/0`、`cdp-plot-verify 10/0`、`p4 9/0`、`region 11/0`、
   `extrema 15/0`、`final 10/0`；`npm run check` exit 0、React `check:types` exit 0。
