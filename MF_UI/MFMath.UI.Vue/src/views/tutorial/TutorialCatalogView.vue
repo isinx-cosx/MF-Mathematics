@@ -19,6 +19,7 @@ import {
   savedTourStep, storageError, resetAllProgress, initTutorials,
 } from "../../lib/tutorial/store.js";
 import { start } from "../../lib/tutorial/tour.js";
+import SelectBox from "../../components/ui/SelectBox.vue";
 
 initTutorials();
 const router = useRouter();
@@ -37,6 +38,9 @@ const DIFFS = [
   { id: "intermediate", label: "🟡 进阶" },
   { id: "advanced", label: "🟣 高级" },
 ];
+/* 自绘下拉的选项（{value,label} 形状；CATS/DIFFS 用的是 id） */
+const catOptions = computed(() => CATS.value.map((c) => ({ value: c.id, label: c.label })));
+const diffOptions = DIFFS.map((d) => ({ value: d.id, label: d.label }));
 
 const list = computed(() =>
   TUTORIALS.filter((t) => (!cat.value || t.category === cat.value) && (!diff.value || t.difficulty === diff.value))
@@ -62,12 +66,9 @@ function reset() {
         </p>
       </div>
       <div class="tc-filters">
-        <select v-model="cat" class="tc-select">
-          <option v-for="c in CATS" :key="c.id" :value="c.id">{{ c.label }}</option>
-        </select>
-        <select v-model="diff" class="tc-select">
-          <option v-for="d in DIFFS" :key="d.id" :value="d.id">{{ d.label }}</option>
-        </select>
+        <!-- 自绘下拉（类名 tc-select 仍挂在隐藏原生 select 上，兼容既有选择器） -->
+        <SelectBox v-model="cat" :options="catOptions" native-class="tc-select" aria-label="分类" />
+        <SelectBox v-model="diff" :options="diffOptions" native-class="tc-select" aria-label="难度" />
         <button v-if="!confirmingReset" class="btn btn-ghost" title="清空所有已学标记与引导进度" @click="confirmingReset = true">重置进度</button>
         <span v-else class="tc-confirm">
           确定重置？<button class="btn btn-ghost" @click="reset">确定</button>

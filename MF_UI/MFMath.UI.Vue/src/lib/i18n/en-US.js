@@ -87,6 +87,7 @@ export const EN = {
   /* ── 计算页：界面文案 ── */
   "计算中…": "Computing…",
   "计算结果": "Compute",
+  "计算操作": "Operation",
   "错误": "Error",
   "删除": "Delete",
   "输入参数": "Parameters",

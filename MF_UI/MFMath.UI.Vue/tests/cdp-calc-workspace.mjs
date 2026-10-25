@@ -41,6 +41,26 @@ const evalJs = async (expr) => {
 await send("Runtime.enable");
 await sleep(1500);
 
+/* ── 先硬刷新到首页：本套件假设"从干净状态开始算第一个模式" ──────────────────
+ * 它前面跑的套件（典型是 cdp-modes-render：会把所有模式挨个点一遍）会留下
+ * 未关闭的结果弹窗/停在别的模式上，于是这里的「解方程/组给出结果」会间歇性失败
+ * （实测：单独跑 65/0，紧跟 modes-render 后 60/5，同一个构建）。
+ * 用 CDP 做一次真正的顶层导航（不是改 hash）把状态清掉 —— 与 cdp-console 同款处理。
+ */
+{
+  const nav = await send("Page.navigate", { url: "https://mfmath.local/index.html#/" });
+  if (!nav || nav.timeout) console.log("  （提示：硬刷新请求超时，仍继续）");
+  for (let i = 0; i < 40; i++) {
+    await sleep(250);
+    const ready = await send("Runtime.evaluate", {
+      expression: "!!document.querySelector('#app, .app, nav') && location.hash === '#/'",
+      returnByValue: true,
+    });
+    if (ready?.result?.result?.value === true) break;
+  }
+  await sleep(600);
+}
+
 let pass = 0, fail = 0;
 const check = (label, ok, detail = "") => {
   ok ? pass++ : fail++;
@@ -89,9 +109,41 @@ const setBlock = async (expr, mode) => {
   return r;
 };
 
-const clickCalc = () => evalJs(`(function(){
-  const b = document.querySelector('.cb-calc'); if (!b) return 'no-btn'; b.click(); return 'clicked';
-})()`);
+/* 点「计算结果」。⚠ 为什么不是一句 b.click()：
+ * 按钮带 `:disabled="b.computing"` —— 上一次计算（或还原/切换模式的异步链）还没走完时，
+ * 点击会被浏览器**直接丢弃**，随后 readDialog() 得到 null，看起来像"产品算不出结果"。
+ * 实测这条会间歇性挂（65/0 与 60/5 交替，现场诊断显示输入/模式/无错误全都正常）。
+ * 所以：等按钮可用 → 点 → 等弹窗；没有就补点一次，并把"第一次被吞"记进日志（那是产品手感问题）。 */
+const clickCalc = async () => {
+  const waitEnabled = async (ms) => {
+    const t0 = Date.now();
+    while (Date.now() - t0 < ms) {
+      const st = await evalJs(`(function(){
+        const b = document.querySelector('.cb-calc');
+        if (!b) return 'no-btn';
+        return b.disabled ? 'disabled' : 'ready';
+      })()`);
+      if (st === "ready") return true;
+      if (st === "no-btn") return false;
+      await sleep(120);
+    }
+    return false;
+  };
+  await waitEnabled(3000);
+  const first = await evalJs(`(function(){
+    const b = document.querySelector('.cb-calc'); if (!b) return 'no-btn'; b.click(); return b.disabled ? 'clicked-but-disabled' : 'clicked';
+  })()`);
+  if (first === "clicked-but-disabled") console.log("   （按钮点下去时仍是 disabled —— 这一下会被丢掉）");
+  await sleep(1200);
+  const hasDialog = await evalJs(`!!document.querySelector('.dialog')`);
+  if (!hasDialog) {
+    console.log("   （第一次点击没有弹出结果，补点一次）");
+    await waitEnabled(3000);
+    await evalJs(`(function(){ const b=document.querySelector('.cb-calc'); if (b) b.click(); return 1; })()`);
+    await sleep(1500);
+  }
+  return first;
+};
 
 const readDialog = () => evalJs(`(function(){
   const dlg = document.querySelector('.dialog');

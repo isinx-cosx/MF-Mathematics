@@ -22,12 +22,19 @@
  */
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 
+/* 组件根是 <span>，但调用方写的 data-tour 之类应当落在**看得见的触发区**上，
+ * 否则教程引导会高亮到一个 1px 的隐藏 select。所以关掉自动继承、手动 v-bind 到 trigger。 */
+defineOptions({ inheritAttrs: false });
+
 const props = defineProps({
   modelValue: { type: String, default: "" },
-  /** [{ value, label }] */
+  /** [{ value, label, data? }] —— `data` 会展开到隐藏原生 `<option>` 的 data-* 上
+   *  （计算页的模式下拉靠 `option.dataset.mapped` / `dataset.varDialog` 判断"接没接引擎"） */
   options: { type: Array, default: () => [] },
   /** 隐藏原生 select 的类名（调用方靠它兼容既有用例/选择器） */
   nativeClass: { type: String, default: "input" },
+  /** 额外落到**隐藏原生 select** 上的属性（如 `data-search="engine"`：用例按属性找它） */
+  nativeAttrs: { type: Object, default: () => ({}) },
   ariaLabel: { type: String, default: "" },
   placeholder: { type: String, default: "请选择" },
   disabled: { type: Boolean, default: false },
@@ -148,6 +155,7 @@ onBeforeUnmount(() => {
       aria-haspopup="listbox"
       :aria-expanded="open ? 'true' : 'false'"
       :aria-label="ariaLabel || undefined"
+      v-bind="$attrs"
       @click="toggle"
     >
       <span class="sb-label">{{ currentLabel }}</span>
@@ -177,7 +185,7 @@ onBeforeUnmount(() => {
       </li>
     </ul>
 
-    <!-- 隐藏的原生 select：数据真相 + 无障碍 + 兼容既有用例（见文件头 ① ） -->
+    <!-- 隐藏的原生 select：数据真相 + 兼容既有用例（见文件头 ① ） -->
     <select
       ref="nativeSel"
       class="sr-select"
@@ -186,63 +194,18 @@ onBeforeUnmount(() => {
       aria-hidden="true"
       :value="modelValue"
       :disabled="disabled"
+      v-bind="nativeAttrs"
       @change="onNativeChange"
     >
-      <option v-for="o in options" :key="o.value" :value="o.value">{{ o.label }}</option>
+      <option
+        v-for="o in options"
+        :key="o.value"
+        :value="o.value"
+        v-bind="o.data || {}"
+      >{{ o.label }}</option>
     </select>
   </span>
 </template>
 
-<style>
-/* 非 scoped：颜色/字体一律用主题变量，切主题、切字体预设自动生效 */
-.sb { position: relative; display: inline-flex; align-items: center; flex: 0 0 auto; }
+<style src="../../styles/select-box.css"></style>
 
-/* 触发区：与「虚影」输入框同一套观感（淡底 + 极淡内描边），聚焦出主题色光环 */
-.sb-trigger {
-  display: inline-flex; align-items: center; gap: 8px;
-  height: var(--input-h, 30px); padding: 0 10px 0 12px;
-  border: 1px solid transparent; border-radius: var(--r-sm);
-  background: var(--surface-alt); color: var(--text);
-  box-shadow: inset 0 0 0 1px rgba(127, 127, 127, .18);
-  font-family: var(--font-ui); font-size: 13px; font-weight: 500;
-  cursor: pointer; white-space: nowrap;
-  transition: background .12s, box-shadow .12s, color .12s;
-}
-.sb-trigger:hover { box-shadow: inset 0 0 0 1px rgba(127, 127, 127, .30); }
-.sb-trigger:focus-visible,
-.sb.is-open .sb-trigger {
-  outline: none; background: var(--surface);
-  box-shadow: inset 0 0 0 1px rgba(127, 127, 127, .24), 0 0 0 3px var(--accent-soft);
-}
-.sb-label { max-width: 160px; overflow: hidden; text-overflow: ellipsis; }
-.sb-caret { width: 12px; height: 12px; flex: 0 0 auto; color: var(--text-subtle); transition: transform .15s; }
-.sb.is-open .sb-caret { transform: rotate(180deg); }
-.sb.is-disabled .sb-trigger { opacity: .55; cursor: not-allowed; }
-
-/* 弹层：跟随主题的表面/描边/阴影/圆角；深色主题下不会再弹出浅色系统列表 */
-.sb-list {
-  position: absolute; z-index: 60; top: calc(100% + 4px); left: 0;
-  min-width: max(100%, 132px); max-width: 320px; max-height: 264px; overflow: auto;
-  margin: 0; padding: 4px; list-style: none;
-  background: var(--surface); color: var(--text);
-  border: 1px solid var(--border); border-radius: var(--r-md, 10px);
-  box-shadow: var(--shadow-2, 0 10px 30px rgba(0, 0, 0, .18));
-  font-family: var(--font-ui); font-size: 13px;
-}
-.sb-opt {
-  display: flex; align-items: center; gap: 8px;
-  padding: 7px 8px; border-radius: var(--r-sm);
-  cursor: pointer; white-space: nowrap;
-}
-.sb-opt.is-active { background: var(--accent-soft); color: var(--text); }
-.sb-opt.is-selected { font-weight: 600; }
-.sb-opt-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.sb-check { width: 12px; height: 12px; color: var(--accent); flex: 0 0 auto; }
-
-/* 隐藏原生 select：仍可被脚本读写、仍参与无障碍树，但不占视觉位置 */
-.sr-select {
-  position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0;
-  overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%);
-  border: 0; opacity: 0; pointer-events: none;
-}
-</style>

@@ -9,6 +9,7 @@
  */
 import { ref, computed, watch, onMounted, onBeforeUnmount } from "vue";
 import MathField from "../../components/math/MathField.vue";
+import SelectBox from "../../components/ui/SelectBox.vue";
 import { useRoute } from "vue-router";
 import MultiVarDialog from "../../components/calc/MultiVarDialog.vue";
 import ResultDialog from "../../components/calc/ResultDialog.vue";
@@ -202,6 +203,28 @@ onBeforeUnmount(() => { if (unregisterUndo) unregisterUndo(); });
  * 再用旧模式去算一个不匹配的表达式（`cdp-calc-workspace` 的「解方程/组给出结果」
  * 就是间歇性挂在这上面）。就地改字段即可：响应式对象改属性照样触发更新。
  */
+/**
+ * 模式下拉的选项（给自绘 SelectBox 用）。
+ *
+ * ⚠ 两件事必须保持原样，否则既有用例会红：
+ *   ① **标签文案**：`t(m)` + 没接引擎时补「（未接入引擎）」；
+ *   ② **`data.mapped` / `data.varDialog`**：它们会落到隐藏原生 `<option>` 的 data-* 上，
+ *      用例靠 `option.dataset.mapped === 'true'` 挑"接了引擎且不需要变量弹窗"的模式。
+ *      Vue 绑定 boolean 到 data-* 会变成 "true"/"false" 字符串，这里用 String() 显式对齐。
+ */
+const modeOptions = computed(() =>
+  modes.value.map((m) => ({
+    value: m,
+    label: t(m) + (hasEngineMode(m) ? "" : t("（未接入引擎）")),
+    /* ⚠ 键名必须写全 `data-*`：`v-bind="{ mapped: ... }"` 绑出来的是 `mapped="..."`，
+     *   **不会**自动加 `data-` 前缀，用例读 `option.dataset.mapped` 就拿不到。 */
+    data: {
+      "data-mapped": String(hasEngineMode(m)),
+      "data-var-dialog": String(needsVarDialog(m)),
+    },
+  }))
+);
+
 function onModeChanged(b) {
   b.blocked = "";
   b.error = "";
@@ -480,16 +503,14 @@ const varDialogCount = computed(() => modes.value.filter((m) => needsVarDialog(m
                 @change="b.latex = $event"
                 @enter="calc(b)"
               />
-              <select v-model="b.mode" class="select cb-mode" data-tour="calc_block.action_dropdown"
-                      @change="onModeChanged(b)">
-                <option
-                  v-for="m in modes"
-                  :key="m"
-                  :value="m"
-                  :data-mapped="hasEngineMode(m)"
-                  :data-var-dialog="needsVarDialog(m)"
-                >{{ t(m) }}{{ hasEngineMode(m) ? "" : t("（未接入引擎）") }}</option>
-              </select>
+              <SelectBox
+                v-model="b.mode"
+                :options="modeOptions"
+                native-class="select cb-mode"
+                data-tour="calc_block.action_dropdown"
+                :aria-label="t('计算操作')"
+                @change="onModeChanged(b)"
+              />
               <button class="btn btn-primary cb-calc" data-tour="calc_block.calc_button"
                       :disabled="b.computing" @click="calc(b)">
                 {{ b.computing ? t("计算中…") : t("计算结果") }}

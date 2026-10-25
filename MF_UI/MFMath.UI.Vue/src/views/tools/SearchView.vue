@@ -21,12 +21,15 @@ import {
   searchConfigure, openUrl, extractExpr,
 } from "../../lib/search/bridge.js";
 import { setPending } from "../../lib/workspace/pendingInput.js";
+import SelectBox from "../../components/ui/SelectBox.vue";
 
 const route = useRoute();
 const router = useRouter();
 
 const draft = ref("");
 const engine = ref("");
+/* 引擎下拉的选项（给自绘 SelectBox）：{value,label} 形状 */
+const engineOptions = computed(() => SEARCH_ENGINES.map((e) => ({ value: e.value, label: e.label })));
 const copied = ref("");
 
 onMounted(() => {
@@ -130,9 +133,15 @@ function sendToCalc(expr) {
         <!-- 教程引导的目标名沿用 v1 的语义 ID（search_panel.*） -->
         <input v-model="draft" data-search="input" data-tour="search_panel.input" class="sv-input" type="search"
                placeholder="搜概念、找公式、查定义…（Enter 开始）" @keydown="onKeydown" />
-        <select v-model="engine" data-search="engine" class="sv-select" @change="onEngineChange">
-          <option v-for="e in SEARCH_ENGINES" :key="e.value" :value="e.value">{{ e.label }}</option>
-        </select>
+        <!-- 自绘下拉：`data-search="engine"` 仍挂在**隐藏的原生 select** 上（用例按属性找它） -->
+        <SelectBox
+          v-model="engine"
+          :options="engineOptions"
+          native-class="sv-select"
+          :native-attrs="{ 'data-search': 'engine' }"
+          aria-label="搜索引擎"
+          @change="onEngineChange"
+        />
         <button v-if="!searchState.running" class="btn btn-primary" data-search="go" @click="doSearch()">搜索</button>
         <button v-else class="btn" data-search="stop" @click="cancelSearch">停止</button>
         <button class="btn btn-ghost" data-search="nocache" title="跳过缓存，强制重新抓取"

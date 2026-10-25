@@ -1,0 +1,60 @@
+/* ── SelectBox：自绘下拉的样式（Vue 与 React 两份实现**共用这一份**）──────────────
+ *
+ * 为什么单独一个文件：`SelectBox.vue` 与 `SelectBox.tsx` 是同一套视觉的两份实现，
+ * 样式必须同源，否则换个主题两边就走样。谁改这里，两边一起生效。
+ *
+ * 颜色/字体**一律用主题变量**（--surface / --border / --accent-soft / --accent /
+ * --r-sm / --shadow-2 / --font-ui），所以切主题、切「字体预设」、玻璃拟态都会自动跟上
+ * —— 这也正是"自己写下拉"的意义：原生 <select> 的弹层由系统绘制，CSS 管不到。
+ */
+
+.sb { position: relative; display: inline-flex; align-items: center; flex: 0 0 auto; }
+
+/* 触发区：与「虚影」输入框同一套观感（淡底 + 极淡内描边），聚焦出主题色光环 */
+.sb-trigger {
+  display: inline-flex; align-items: center; gap: 8px;
+  height: var(--input-h, 30px); padding: 0 10px 0 12px;
+  border: 1px solid transparent; border-radius: var(--r-sm);
+  background: var(--surface-alt); color: var(--text);
+  box-shadow: inset 0 0 0 1px rgba(127, 127, 127, .18);
+  font-family: var(--font-ui); font-size: 13px; font-weight: 500;
+  cursor: pointer; white-space: nowrap;
+  transition: background .12s, box-shadow .12s, color .12s;
+}
+.sb-trigger:hover { box-shadow: inset 0 0 0 1px rgba(127, 127, 127, .30); }
+.sb-trigger:focus-visible,
+.sb.is-open .sb-trigger {
+  outline: none; background: var(--surface);
+  box-shadow: inset 0 0 0 1px rgba(127, 127, 127, .24), 0 0 0 3px var(--accent-soft);
+}
+.sb-label { max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
+.sb-caret { width: 12px; height: 12px; flex: 0 0 auto; color: var(--text-subtle); transition: transform .15s; }
+.sb.is-open .sb-caret { transform: rotate(180deg); }
+.sb.is-disabled .sb-trigger { opacity: .55; cursor: not-allowed; }
+
+/* 弹层：跟随主题的表面/描边/阴影/圆角；深色主题下不会再弹出浅色系统列表 */
+.sb-list {
+  position: absolute; z-index: 60; top: calc(100% + 4px); left: 0;
+  min-width: max(100%, 132px); max-width: 320px; max-height: 264px; overflow: auto;
+  margin: 0; padding: 4px; list-style: none;
+  background: var(--surface); color: var(--text);
+  border: 1px solid var(--border); border-radius: var(--r-md, 10px);
+  box-shadow: var(--shadow-2, 0 10px 30px rgba(0, 0, 0, .18));
+  font-family: var(--font-ui); font-size: 13px;
+}
+.sb-opt {
+  display: flex; align-items: center; gap: 8px;
+  padding: 7px 8px; border-radius: var(--r-sm);
+  cursor: pointer; white-space: nowrap;
+}
+.sb-opt.is-active { background: var(--accent-soft); color: var(--text); }
+.sb-opt.is-selected { font-weight: 600; }
+.sb-opt-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.sb-check { width: 12px; height: 12px; color: var(--accent); flex: 0 0 auto; }
+
+/* 隐藏原生 select：仍可被脚本读写（既有用例依赖它），但不占视觉位置、不进无障碍树 */
+.sr-select {
+  position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0;
+  overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%);
+  border: 0; opacity: 0; pointer-events: none;
+}

@@ -3,6 +3,7 @@ import { engineCall, engineCallAsync, isHosted } from "@shared/bridge.js";
 import { describeWork, shouldRunAsync } from "@shared/engine/asyncPolicy.js";
 import { exportCanvas } from "@shared/plot/exportImage.js";
 import { loadPlotPage, usePlotWorkspace, numOr, boolOr, strOr } from "../lib/plotWorkspace";
+import SelectBox from "../components/SelectBox";
 import type { JobProgress } from "../lib/jobProgress";
 import "../styles/plot-fractal.css";
 
@@ -56,6 +57,13 @@ const SCHEMES: Record<string, Stop[]> = {
   ],
 };
 
+/** 配色方案下拉的选项（自绘 SelectBox 用；文案与原来的 <option> 逐字一致） */
+const SCHEME_OPTIONS = [
+  { value: "classic", label: "经典（蓝白橙）" },
+  { value: "sunset", label: "日落" },
+  { value: "ocean", label: "海洋" },
+  { value: "mono", label: "黑白" },
+];
 function schemeColor(stops: Stop[], t: number): [number, number, number] {
   const x = Math.max(0, Math.min(1, t));
   for (let i = 0; i + 1 < stops.length; i++) {
@@ -313,12 +321,13 @@ export default function PlotFractalPage({ routePath = "#/plot/fractal" }: { rout
         </div>
         <div className="field">
           <label>配色方案</label>
-          <select className="select" value={scheme} onChange={(e) => setScheme(e.target.value)}>
-            <option value="classic">经典（蓝白橙）</option>
-            <option value="sunset">日落</option>
-            <option value="ocean">海洋</option>
-            <option value="mono">黑白</option>
-          </select>
+          <SelectBox
+            value={scheme}
+            options={SCHEME_OPTIONS}
+            nativeClass="select"
+            ariaLabel="配色方案"
+            onChange={setScheme}
+          />
         </div>
         <div className="field opts">
           <label className="chk">
