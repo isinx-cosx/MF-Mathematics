@@ -29,8 +29,10 @@ AI 不承担计算，只能调引擎。系统提示写死「所有计算由 C++ 
 
 ## 5. 为什么有的模式写着「（未接入引擎）」？
 
-那个模式不在界面模式表里，前端没有它的函数映射，所以算不了。这种「引擎有、页面选不到」的
-中间态不许静默。要调这些函数，用「工具 → 函数工具箱」，它列出全部 424 个引擎函数。
+这个标签表示该模式在界面模式表里没有函数映射，前端因此算不了。它只在缺失时出现：当前 14 个学科
+视图共 393 个模式，全部都有映射，所以现在看不到这个标签；新增模式而没配映射时它会立刻显出来，
+不被静默跳过。引擎另有 53 个函数不在任何视图的模式表里，它们要在「工具 → 函数工具箱」里调，
+工具箱列出全部 424 个引擎函数。
 
 ## 6. 断网还能用吗？
 
@@ -49,9 +51,11 @@ AI 不承担计算，只能调引擎。系统提示写死「所有计算由 C++ 
 
 ## 9. 日志和诊断包在哪？
 
-日志在 `%LOCALAPPDATA%\MFMath\logs`：常规日志 `app.log`（单文件上限 2 MB），崩溃日志
-`crash-*.log`（含 `app.log` 尾部 200 行，只留最近 20 个）。诊断包在「设置 → 存储与数据 →
-导出诊断包」生成，跳过凭据文件。发给别人前注意：诊断包会带上你的 AI 会话原文。
+日志在 `%LOCALAPPDATA%\MFMath\logs`：常规日志 `app.log`（单文件上限 2 MB，轮转成 `app.1.log`），
+崩溃日志 `crash-<时间戳>.log`（含 `app.log` 尾部 200 行，只留最近 20 个）。诊断包在「设置 → 存储与数据
+→ 导出诊断包」一行点「导出」生成，落在 `%LOCALAPPDATA%\MFMath\diagnostics-<时间戳>.txt`，内容是环境、
+引擎清单、设置内容、日志尾部与最近一次崩溃记录。它跳过凭据文件（`ai`、`account`、`search`），
+但 AI 会话原文存在 `ai-chat.json`，不在排除名单里。发给别人前注意这一点。
 
 ## 10. 我的密钥存在哪？
 
@@ -87,10 +91,10 @@ Visual Studio C++ 工具链、vcpkg、Node.js 与 Rust。非 Windows 平台没�
 .\MFMath.Installer\tools\build-setup.ps1
 ```
 
-产物 `MFMath.Installer\target\release\Multifunctional-Mathematics_<版本>_x64-setup.exe`（约 18 MB），
-向导里可选安装位置、是否建桌面快捷方式、装完是否运行；每用户安装、不请求管理员权限，装到
-`%LOCALAPPDATA%\Programs\Multifunctional-Mathematics\`，卸载入口在「设置 → 应用」，卸载默认保留
-`%LOCALAPPDATA%\MFMath` 里的用户数据。
+产物 `MFMath.Installer\target\release\Multifunctional-Mathematics_<版本>_x64-setup.exe`（实测
+18.29 MB），向导里可选安装位置、是否建桌面快捷方式、装完是否运行；每用户安装、不请求管理员权限，
+装到 `%LOCALAPPDATA%\Programs\Multifunctional-Mathematics\`，卸载入口在「设置 → 应用」，卸载默认
+保留 `%LOCALAPPDATA%\MFMath` 里的用户数据。
 
 验证到哪一步：「安装 → 启动 → 卸载」已在 Windows 11 本机跑通（装完主程序自检 5/5，卸载后目录、
 快捷方式、注册表项全清）。**未验证**的是其它 Windows 版本、高 DPI 缩放下的界面观感，以及全新机器上
@@ -134,8 +138,9 @@ Visual Studio C++ 工具链、vcpkg、Node.js 与 Rust。非 Windows 平台没�
 
 ## 22. 界面语言为什么只翻了一部分？
 
-因为多语言是逐步扩大的。导航、顶栏与 14 个学科视图已中英双语，可在「设置 → 外观 → 界面语言」
-切换并记忆；页面正文与教程正文仍是中文。UI 语言与 AI 的回答语言是两件事。
+因为多语言是逐步扩大的。已经中英双语的是界面层：导航、顶栏、模式名、参数弹窗标签、结果字段与
+键盘分类，可在「设置 → 外观 → 界面语言」切换并记忆（存 `localStorage` 的 `mf.lang`）。页面正文与
+教程正文仍是中文。UI 语言与 AI 的回答语言是两件事。
 
 ## 23. 计算需要 Python 后端吗？
 

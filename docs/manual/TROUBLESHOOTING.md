@@ -42,8 +42,10 @@ Select-String -Path (Join-Path $env:LOCALAPPDATA 'MFMath\logs\app.log') -Pattern
 
 ### 引擎在算
 
-同步引擎调用会占住界面线程。重的活走后台任务通道，分界线由 `asyncPolicy.js` 决定。「取消」只能
-停止等待并丢弃结果，引擎没有取消钩子，工作线程会把它算完，所以界面文案是「已取消等待」。
+同步引擎调用会占住界面线程。重的活走后台任务通道，分界线由 `asyncPolicy.js` 决定。
+引擎没有取消钩子：宿主能做到的只有「停止等待并丢弃结果」，工作线程仍会把这一步算完。
+因此取消之后不会立刻省下这段时间，返回值是「已取消等待（引擎会把这一步算完后丢弃结果）」，
+不是「已停止计算」。
 
 已知会慢的算法（持续同调、12×12 以上符号矩阵等）见 [../HANG-OPTIMIZATION.md](../HANG-OPTIMIZATION.md)。
 大规模病态输入现在会快速报错并给出上限说明，看到「超出可计算范围」就是这一层，不是坏了。
@@ -118,10 +120,11 @@ $p = "MF_Mathematics\build\bin\Release\probe_call.exe"
 | 项 | 位置与内容 |
 | --- | --- |
 | 常规日志 | `%LOCALAPPDATA%\MFMath\logs\app.log`，单文件上限 2 MB，轮转成 `app.1.log` |
-| 崩溃日志 | `crash-<时间戳>.log`，含异常与 `app.log` 尾部 200 行，只留最近 20 个 |
-| 诊断包 | 设置 → 存储与数据 → 「导出诊断包」，含环境、引擎清单、设置内容与日志尾部 |
+| 崩溃日志 | `%LOCALAPPDATA%\MFMath\logs\crash-<时间戳>.log`，含异常与 `app.log` 尾部 200 行，只留最近 20 个 |
+| 诊断包 | 设置 → 存储与数据 → 「导出诊断包」一行右侧的「导出」按钮；生成 `%LOCALAPPDATA%\MFMath\diagnostics-<时间戳>.txt`，含环境、引擎清单、设置内容、`app.log` 尾部 200 行与最近一次崩溃记录 |
 
-崩溃与前端异常只写本地，不联网上报。诊断包跳过凭据（`ai`、`account`、`search` 三个设置文件）。
+崩溃与前端异常只写本地，不联网上报。诊断包跳过凭据（`ai`、`account`、`search` 三个设置文件），
+但 AI 会话原文存在另一份 `ai-chat.json` 里，会一并带走。
 
 日志目录是空的，按顺序查：exe 是否跑在工作区内（工作区内进程写不了 `%LOCALAPPDATA%`）、
 `LOCALAPPDATA` 是否被重定向、宿主是否根本没启动。
