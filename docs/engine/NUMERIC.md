@@ -170,7 +170,7 @@ MF_Mathematics\build\bin\Release\probe_call.exe complex_grid '{"expr":"erfc(z)",
 | `condition_number` | 差分 `eps` 默认 `1e-8`；`|f(x)|<1e-15` → `+inf` |
 | `truncation_error` | `|true_value| > 1e-15` 时用真值，否则用第 `n+1` 项差 |
 | `is_stable` | 输入相对扰动 `1e-8`，结果相对差 `< 1e-4` 判稳定 |
-| 梯度下降 | `tol` 默认 `1e-6`；无解析导数时中心差分 `h_fd = 1e-6` |
+| 梯度下降 | `tol` 默认 `1e-6`；梯度由 `mf::expr::differentiate` 符号求导（`optimization.cpp`），不走有限差分（`h_fd = 1e-6` 只存在于未进入编译列表的 `optimization_core.*`） |
 | 迭代线代 / 特征值 | `tol` 默认 `1e-6`（线代）/ `1e-8`（幂法、QR），`max_iter` 默认 `1000` |
 | 概率层连分数与级数 | `maxit=200`、`eps=3e-14`、`tiny=1e-300` |
 | 正态 / t 分位数 | Acklam 有理逼近 + 两次牛顿修正；t 用牛顿迭代 ≤80 次，停判 `|step|<1e-12·(1+|t|)` |

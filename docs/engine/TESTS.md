@@ -143,7 +143,7 @@ target_link_options(mf_mathematics PRIVATE "/WHOLEARCHIVE:$<TARGET_FILE:mf_mathe
 Select-String -Path MF_Mathematics/CMakeLists.txt -Pattern 'WHOLEARCHIVE'
 ```
 
-守门断言是 `list_functions` 的 `count` 取值 424。核对命令：
+守门断言是 `list_functions` 的 `count` 取值 424。它是**人工核对**，CTest 里没有等价断言：`test_symbolic_contract` 只检查 `count` 键存在、结果里含 `compare_expr` 与 `intersections` 两个名字。核对命令：
 
 ```powershell
 $j = & MF_Mathematics\build\bin\Release\probe_call.exe list_functions '{}' | ConvertFrom-Json
@@ -176,7 +176,7 @@ add_test(NAME foo COMMAND test_foo)
 | 细节 | 说明 |
 | --- | --- |
 | `/utf-8` 不可省略 | 源码含中文字面量，缺它 MSVC 按本地代码页解释 |
-| SymEngine / Eigen 需显式加 | 库链接是 PRIVATE、不传递；用 SymEngine 需再加四个 `.lib` 与 include 目录，用 Eigen 需加 `${MF_EIGEN_INCLUDE_DIR}` |
+| SymEngine / Eigen 的 include 目录须显式加 | 四个 `.lib` 由 `mf_mathematics_core` 以 `PUBLIC` 链接（`target_link_libraries(mf_mathematics_core PUBLIC …)`），会传递给测试；但 `${MF_SYMENGINE_ROOT}/include` 不在该目标的 `PUBLIC` include 目录里，直接包含 SymEngine 头的测试仍要自己加这一条 include，用 Eigen 时同理加 `${MF_EIGEN_INCLUDE_DIR}`。现有测试块把四个 `.lib` 也逐条重列，属冗余写法 |
 | `NAME` 与目标名解耦 | `ctest -R` 匹配 `NAME`，不是目标名 |
 
 源文件形状以 `test_limits.cpp` 为范式：`g_checks` 与 `g_failures` 两个计数、`CHECK` 宏累计，`main` 末尾打印检查数与失败数并返回 `g_failures == 0 ? 0 : 1`。期望值必须来自独立参考实现或数学事实，不能来自「当前实现输出」。

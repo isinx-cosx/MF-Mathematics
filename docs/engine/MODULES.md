@@ -197,12 +197,12 @@ Select-String -Path MF_Mathematics/numerical/*_core.cpp -Pattern 'PYBIND11_MODUL
 | `expr_api.cpp` | 9 | `prepare_expr`、`expr_eval`、`expr_eval2`、`expr_eval_vars`、`expr_eval_batch`、`expr_eval_vars_batch`、`expr_eval_grid`、`to_engine_expr`、`sym_latex` | 无专属用例 |
 | `symbolic_api.cpp` | 7 | `simplify_sym`、`factor_sym`、`solve_sym`、`compare_expr`、`discriminant_sym`、`extrema_sym`、`free_symbols_of` | `symbolic_contract` |
 | `plot_api.cpp` | 4 | `complex_grid`、`complex_eval`、`complex_eval_many`、`intersections` | `complex_grid` |
-| `introspect_api.cpp` | 1 | `list_functions` | 间接（`count == 424` 断言） |
+| `introspect_api.cpp` | 1 | `list_functions` | 间接（`test_symbolic_contract` 只查 `count` 键存在与两个函数名，不钉住 424） |
 | `fractal_api.cpp` | 1 | `mandelbrot` | 无专属用例 |
 
 两条影响返回值形状的跨模块上界：
 
 - `complex_grid` 点数上限 400,000（`plot_api.cpp`），`expr_eval_grid` 对齐到同一值（`expr_api.cpp`）。
-- `mandelbrot` 的点数上限是 4,000,000（`fractal_api.cpp`），因为分形结果不逐点回传。
+- `mandelbrot` 的点数上限是 4,000,000（`fractal_api.cpp`），因为结果要逐点序列化成 JSON：2000×2000 已是 4e6 个数，再多既算不完也传不回来。
 
 符号层 `expr_api.cpp` / `symbolic_api.cpp` 的细节见 [`SYMBOLIC.md`](SYMBOLIC.md)，采样与视口层 `plot_api.cpp` / `fractal_api.cpp` 见 [`PLOT.md`](PLOT.md)。

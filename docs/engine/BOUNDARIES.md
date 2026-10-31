@@ -36,7 +36,7 @@
 
 ### 2.3 不定式极限
 
-`calculus/limits.cpp` 对某几类形式兜底抛「不定式「<形式>」暂未实现该形式的求解（不猜结果）」。振荡型（如 `x*sin(1/x)` 在 0 处）被拒绝；而 `abs(x)/x` 在 0 处返回「极限不存在：左 -1、右 1（两侧不等）」，那是结论不是拒绝。判据是「确定形式给对值、不定式给对或如实拒绝」。
+`calculus/limits.cpp` 对某几类形式兜底抛「不定式「<形式>」暂未实现该形式的求解（不猜结果）」。振荡型（如 `x*sin(1/x)` 在 0 处）被拒绝；而 `abs(x)/x` 在 0 处返回「极限不存在：左 -1.000000、右 1.000000（两侧不等）」（数值经 `std::to_string` 展开为 6 位小数），那是结论不是拒绝。判据是「确定形式给对值、不定式给对或如实拒绝」。
 
 ### 2.4 未识别的拓扑空间名
 
@@ -50,7 +50,7 @@
 | --- | --- |
 | `isError:false` + 字面量 `"未实现"` | `integrate`、`integrate_double`、`integrate_triple` |
 | `isError:true` + 中文文案 | `integrate_complex`（复符号积分失败）、`limit` 的不定式、未识别拓扑空间 |
-| `isError:true` + 第三方英文原文 | `complex_eval` 对 `zeta(1+14.13i)` 返回 `Not Implemented` |
+| `isError:true` + 第三方英文原文 | `complex_eval` 对 `zeta(1+14.13i)` 返回 `"复数求值失败：Not Implemented"`（中文前缀 + SymEngine 原文） |
 
 第三种形状来自 SymEngine 覆盖边界：`complex_numeric.h` 记录了 `zeta(2)` 能算、`zeta(1+14.13i)` 直接 `Not Implemented`，`gamma` 同理，`erf/erfc` 连实数都不支持。而复数绘图路径 `complex_grid` 接了引擎自己的复数求值，能画 ζ，于是「绘图能画、单点求值报英文错」——这是接口不一致，不是数学边界。
 
@@ -82,7 +82,7 @@ cd MF_UI/MFMath.UI.Vue; node tools/check-ui.mjs
 
 ### 3.3 守卫看不见的部分
 
-可达性断言只遍历 `ENGINE_MAP ∪ EXTRA_MAP`（415 个模式名），而引擎注册表是 424 个 action。两者差 53 个 action 完全不在任何 `ENGINE_MAP` 条目里，守卫对它们不下一句断言。这 53 个里大部分是内部/画图通路（`expr_eval*`、`complex_grid`、`mandelbrot`、`sym_latex`、`to_engine_expr`、`prepare_expr`、`list_functions`），也夹着看着像用户能力的（`integrate_complex`、`real_integral`、`taylor_series`、`zeta_negative`、`is_harmonic`、`is_conformal`、`is_connected`、`matrix_multiply` 等）。函数工具箱以签名表为唯一数据源列出全部 424 个 action 并可调用，因此「学科页选不到」不等于「没有入口」。
+可达性断言只遍历 `ENGINE_MAP ∪ EXTRA_MAP`（415 个模式名，对应 371 个不同的 `fn`），而引擎注册表是 424 个 action。差集是 53 个 action，完全不在任何 `ENGINE_MAP` 条目里，守卫对它们不下一句断言。这 53 个里大部分是内部/画图通路（`expr_eval*`、`complex_grid`、`mandelbrot`、`sym_latex`、`to_engine_expr`、`prepare_expr`、`list_functions`），也夹着看着像用户能力的（`integrate_complex`、`real_integral`、`taylor_series`、`zeta_negative`、`is_harmonic`、`is_conformal`、`is_connected`、`matrix_multiply` 等）。函数工具箱以签名表为唯一数据源列出全部 424 个 action 并可调用，因此「学科页选不到」不等于「没有入口」。
 
 差集复跑：
 

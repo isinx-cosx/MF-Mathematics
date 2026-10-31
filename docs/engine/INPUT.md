@@ -29,7 +29,7 @@
 
 这条分界线的判据：
 
-- 前端不做数学语义改写。`calcArgs.js` 的 `toEngineExpr` 是恒等函数（`return String(s)`）；语法归一化只发生在引擎一处。
+- 前端不做数学语义改写。`calcArgs.js` 的 `toEngineExpr` 是恒等函数（`return String(s == null ? "" : s)`）；语法归一化只发生在引擎一处。
 - 引擎不做分段。`;` 是纯前端约定，引擎从头到尾不认识 `;`。
 - 引擎按参数键决定是否归一化，而不是按「看起来像不像数学」。白名单在 `api_helpers.h` 的 `is_expression_key`（`expr`/`eq`/`f`/`g`/`func`/`seq`/`rule`/`body`/`series`/`expression` 等 21 个键）。
 

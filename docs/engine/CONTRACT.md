@@ -87,8 +87,8 @@ math_call("no_such_action_xyz", {})             →  {"isError":true,"value":"�
 
 | 取值器 | 需要的 JSON 类型 | 缺键 |
 | --- | --- | --- |
-| `get_int` / `get_int_opt` | 整数（小数报错） | 抛「缺少必填参数」/ 返回缺省 |
-| `get_int_bounded` / `get_int_opt_bounded` | 整数 + 闭区间上界 | 抛 / 返回缺省 |
+| `get_int` / `get_int_opt` | 整数（整值浮点如 `2.0` 也接受，`2.5` 报「应为整数」） | 抛「缺少必填参数」/ 返回缺省 |
+| `get_int_bounded` / `get_int_opt_bounded` | 整数 + 闭区间 `[lo, hi]` | 抛 / 返回缺省 |
 | `get_double` / `get_double_opt` | 数字 | 抛 / 返回缺省 |
 | `get_bool_opt` | JSON 布尔 | 返回缺省 |
 | `get_string` / `get_string_opt` | 字符串（表达式键归一化） | 抛 / 返回缺省 |
@@ -157,7 +157,13 @@ uniform_continuity {}   → 缺少必填参数 expr（应为字符串）。本�
 diff_at {"expr":"x^2"}  → 缺少必填参数 point（应为数字）。本次调用传入的参数键：expr
 ```
 
-「期望签名」只对少数 handler 有：向 `make_handler` 传了非空签名字符串的调用点是 14 处，多数 action 的错误里没有这一段。
+「期望签名」只对少数 handler 有：向 `make_handler` 传了非空签名字符串的调用点是 12 处，多数 action 的错误里没有这一段。
+
+```powershell
+(Get-ChildItem MF_Mathematics -Recurse -File -Filter *_api.cpp |
+   Where-Object { $_.FullName -notmatch '\\build\\' } |
+   Select-String -Pattern '\}\s*,\s*"').Count   # 12：expr_api.cpp 4、symbolic_api.cpp 7、introspect_api.cpp 1
+```
 
 ### 5.2 前端侧：拒绝发生在调用点
 

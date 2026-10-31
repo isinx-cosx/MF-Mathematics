@@ -172,7 +172,15 @@ integrate（calculus_api.cpp）
 
 硬上限（`limits.cpp` 的常量，定位 `Select-String -Path MF_Mathematics/calculus/limits.cpp -Pattern 'kLimMaxDepth|kLimMaxLhopital|kLimMaxNormalize|kLimMaxSteps|kLimBudgetMs'`）：递归深度 12、洛必达轮数 10、归一化 12、策略步数 3000、墙钟预算 1500 ms。
 
-`±∞` 结果转成字符串 `"oo"` / `"-oo"`（`calculus_api.cpp` 的 `limit` 分发），因为 JSON 无 `inf` 字面量。输入允许课本方程写法（`x^2+2x+1=0` 与 `x^2+2x+1` 等价，都按 =0 求解），由 `get_equation` 与 `equation_to_zero` 整理。
+`±∞` 结果转成字符串 `"oo"` / `"-oo"`（`calculus_api.cpp` 的 `limit` 分发），因为 JSON 无 `inf` 字面量。`limit` 只收表达式：输入里出现等号时由 `friendly_parse_error` 给出中文说明，而不是把 `Unknown token: '='` 原样抛出。
+
+收等号的只有语义上就是方程的函数。`get_equation` 的调用点共三处，它们经 `normalize_equation_arg` 走 `equation_to_zero`：
+
+```powershell
+Select-String -Path MF_Mathematics/*_api.cpp,MF_Mathematics/*/*_api.cpp -Pattern 'get_equation\(args'   # 3 处：implicit_diff 的 eq、solve_sym 与 discriminant_sym 的 expr
+```
+
+`algebra` 的解方程与判别式收等号是另一条路径：`algebra/equation.cpp` 的 `to_rhs_zero` 自行把 `左 = 右` 整理成 `左 − 右`，不经过 `get_equation`。
 
 ## 8. 排版输出
 
