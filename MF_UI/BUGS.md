@@ -459,11 +459,23 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File tests\run-all.ps1 -NoLaunch
 | **④** | `f(x)` 被当成 `f*(x)` | **引擎**的 `to_engine_expr` 把未知标识符当隐式乘法：`f(x)`→`f*(x)`；多字母更狠：`zzz(2)`→`z*z*z*(2)`（`central` 同理）。前端 `toEngineExpr` 刻意不插号，所以插号在引擎侧 | **L1 输入层**：`prepare.js` 在**归一化之前**把"像函数调用"的名字临时换成归一化不动的内置名（`arcsin` 一类），归一化后再换回。**不能"归一化之后再修回来"**——那时 `f(` 已被拆没了（实测踩到，见下）。自变量 `x/y/t/r/θ` 不保护，`x(x+1)` 语义不变。**L2**：新增 `userFn.js`（定义/收集/展开/未定义检测）+ `knownNames.js`（共用名字表，避免循环依赖）+ `plotMath.resolveExpr`。**L3**：12 处 `parseExpr(` → `resolveExpr(` | `unit-userfn` **29/0**（`f(a+1)` 必须变 `(a+1)^2`、`f(g(x))` 要配平、循环定义要停、`1/2x` 不许被插号等回归全在） |
 | **⑤** | `f(x)=e^x` 画不出来 | 同 ④：定义行落到"隐式方程"分支 `(f(x))-(e^x)` → `f` 未绑定 → 引擎返回全 null → **曲线静默消失且不报错** | `parseExpr` 加 `definition` 分支（**先于**所有等式分支）：定义行不绘制、不采样、不造参数；`resolveExpr` **无条件**检查未定义调用 → 行内报「未定义的函数 f（可用 f(x)=… 定义）」；定义行本身被 `usePlotSampling` 跳过 | `cdp-plot-fn` **14/0**：定义行保留 `f(`、只采样 1 条曲线、无 `f` 滑块；**清空定义后引用行明确报错**（不静默） |
 
-**这一轮的最新一次全量（2026-10-25，自绘下拉全部替换完成后）**
+**这一轮的最新一次全量（2026-10-31，控制台改版 + 侧栏图标导轨 + 绘图去默认函数之后）**
 
 ```
 ==== TOTAL: 2240 pass / 0 fail (1 skipped) ====
 ```
+
+- 唯一 skip 仍是 `cdp-console-sci`（官方 embed 不含 sympy）。
+- 本轮改了 3 处界面行为，**用例判据同步更新**（不是产品回归）：
+  - `cdp-console`：状态行从右侧 bar 挪到底部输出面板的标题行 ⇒ 断言改按 `.badge` 找容器；
+  - `cdp-input-notation`：绘图页不再预置函数 ⇒ 空输入框的 shadow DOM 里没有 `.ML__latex`，
+    改为先写 `\frac{1}{2}` 再验"框内就地排版"；
+  - `cdp-plot-verify`：删掉"默认表达式 y=x^2"，改成"初始不带默认函数" + 自己写 `y=x^2` 验采样/绘制，
+    并加"开局清工作区"（否则会还原上一轮留下的 `y=tan(x)` 与 a,b 滑块，假失败）。
+- **遗留（明确未做，不假装做了）**：示例任务库的 `setPending({expr,…})` 目前只有
+  **2D / 极坐标**两页消费（`ReactPlotView.vue` → `PlotPage` 的 `seedExpr`）。
+  `/plot/3d`、`/plot/complex`、`/plot/vector`、`/plot/geometry`、`/plot/fractal`
+  仍未接 —— 从库里点这几类示例，表达式依旧到不了页面（那几页的载荷模型各不相同，要逐页定语义）。
 
 - 唯一 skip 是 `cdp-console-sci`（官方 embed 不含 sympy/numpy/scipy，已如实 SKIP）；
 - 包括 `cdp-engine-coverage` **393/0**、`cdp-modes-render` **190/0**、`cdp-calc-workspace` **65/0**、
