@@ -256,11 +256,15 @@ powershell -NoProfile -File MF_UI/MFMath.UI.Vue/tests/run-all.ps1
 | --- | --- |
 | [`MF_Mathematics/`](MF_Mathematics/) | 引擎：C++17，110 个 `.cpp`（不含 `build/` 与 `tests/`）；`tests/` 下 19 个可执行目标 |
 | [`MFMath.Host.Rust/`](MFMath.Host.Rust/) | 现役宿主：Rust + Tauri + WebView2，9 个宿主对象；`build.rs` 负责同步引擎与 UI；`console/` 下是控制台的 Python/C++ 门面 |
-| [`MF_UI/MFMath.UI.Vue/`](MF_UI/MFMath.UI.Vue/) | Vue 3 界面：`src/`（109 个文件）、`tests/`（49 个 CDP 用例）、`tools/`（构建期闸门） |
+| [`MF_UI/MFMath.UI.Vue/`](MF_UI/MFMath.UI.Vue/) | Vue 3 界面：`src/`（111 个文件）、`tests/`（49 个 CDP 用例）、`tools/`（构建期闸门） |
 | [`MF_UI/MFMath.UI.React/`](MF_UI/MFMath.UI.React/) | React 绘图组，经 `@shared` 别名复用 Vue 侧 `src/lib/` 下与框架无关的模块 |
 | [`MFMath.Installer/`](MFMath.Installer/) | 安装器：Rust 写的向导程序 + 打包脚本，产出自解压安装包；设计与验证记录见 [`MFMath.Host.Rust/docs/INSTALLER.md`](MFMath.Host.Rust/docs/INSTALLER.md) |
 | [`docs/`](docs/) | 文档，入口是 [`docs/README.md`](docs/README.md) |
 | [`tools/`](tools/) | 仓库级小工具 |
+
+```powershell
+(Get-ChildItem MF_UI/MFMath.UI.Vue/src -Recurse -File).Count   # 111，即上表 `src/` 的文件数
+```
 
 `MF_UI/MFMath.UI.React/` 与 Vue 侧共享 `src/lib/` 下的纯 JS 模块（经 `@shared` 别名），某个能力在 React 侧看似无引用时，在 Vue 侧仍可能是活的——查引用要同时覆盖两个工程（[`docs/ui/README.md`](docs/ui/README.md)）。
 

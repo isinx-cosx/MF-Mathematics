@@ -131,7 +131,7 @@ React 工程经 `@shared/*` 指到 Vue 的 `src/lib`，桥因此只有一份实�
 
 | 调用点 | 形状 |
 | --- | --- |
-| `usePlotSampling.ts` 的 `batchEval` | 每条曲线一次 `expr_eval_vars_batch` |
+| `MFMath.UI.React/src/plot/usePlotSampling.ts` 的 `batchEval` | 每条曲线一次 `expr_eval_vars_batch` |
 | `PlotView.vue` 的 `sampleAll` | 每条曲线一次 `expr_eval_vars_batch` |
 | `Plot3DView.vue` | 曲面一次 `expr_eval_grid` |
 | `PlotVectorView.vue` | 向量场每个分量一次 `expr_eval_grid` |

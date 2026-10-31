@@ -40,7 +40,7 @@
 | 事项 | 为什么 | 机制落点 | 推翻门槛 |
 | --- | --- | --- | --- |
 | 不重建后端（用户系统 / 组件清单 / 版本检测） | 站点已有这些能力，重建等于维护两份真相 | 复用既有站点端点，默认基址 `https://mf-vis-science.cn`（`Select-String -Path MFMath.Host.Rust/src/site.rs -Pattern "DEFAULT_BASE_URL"`） | 站点侧长期不可用，且有实测证明挡住发布 |
-| 更新不自动下载、不自动安装 | 只提示有新版，下载交给浏览器 | `update` 宿主对象只有 `Check` / `OpenDownloadPage` / `PreviewDownloadUrl`，无下载与执行入口（`Select-String -Path MFMath.Host.Rust/src/main.rs -Pattern "UPDATE_SPEC"`） | 出现需要客户端自动落盘与执行的场景 |
+| 更新不自动下载、不自动安装 | 只提示有新版，下载交给浏览器 | `update` 宿主对象 6 个方法（`Info` / `Check` / `OpenDownloadPage` / `PreviewDownloadUrl` / `CancelAll` / `SelfCheck`），无下载与执行入口（`Select-String -Path MFMath.Host.Rust/src/main.rs -Pattern "UPDATE_SPEC"`） | 出现需要客户端自动落盘与执行的场景 |
 | 崩溃与前端异常不上报 | 数学工具的使用内容可反推用户在研究什么，隐私优先 | 只写 `%LOCALAPPDATA%\MFMath\logs\`，由用户主动导出诊断包（`sys.ExportDiagnostics`） | 需要线上崩溃分布才能定位的问题反复出现 |
 | AI 密钥不走 DPAPI 密文 | 密钥由页面直连使用，宿主侧没有 `ai` 桥 | 明文存 `%LOCALAPPDATA%\MFMath\settings\ai.json` 的 `apiKey` 字段，界面标 `keySource: "file"`（`Select-String -Path MF_UI/MFMath.UI.Vue/src/lib/ai/bridge.js -Pattern "keySource"`） | 有明确的安全需求变更 |
 | 数学能力不硬凑 | 非初等函数的不定积分返回「未实现」，不返回错误原函数 | `MF_Mathematics/calculus/integrals.cpp` 的 `"未实现"`、`1e12` 安全阀与瑕点检测 | 出现必须给出原函数才能使用的场景 |
@@ -84,7 +84,7 @@
 | 边界 | 现状 | 为什么是有意的 | 机制落点 |
 | --- | --- | --- | --- |
 | 前端不计算 | 没有宿主进程就没有数学，浏览器预览里 `engineCall()` 返回 `null` | 单一计算来源，数值与符号结果只来自引擎 | `MF_UI/MFMath.UI.Vue/src/lib/bridge.js` 的 `if (!mf) return null` |
-| 取消不真停 | `CancelJob` 只做到「停止等待 + 丢弃结果」，工作线程会把这一步算完 | 引擎没有取消钩子；真停只能靠进程边界 | `MFMath.Host.Rust/src/jobs.rs` 的 `cancel_job()`，界面文案「已停止等待」 |
+| 取消不真停 | `CancelJob` 只做到「停止等待 + 丢弃结果」，工作线程会把这一步算完 | 引擎没有取消钩子；真停只能靠进程边界 | `MFMath.Host.Rust/src/jobs.rs` 的 `cancel_job()` 返回「已停止等待」，界面显示 `MF_UI/MFMath.UI.Vue/src/lib/bridge.js` 的「已取消等待」 |
 | 引擎调用串行 | 一次只跑一个重活 | 引擎除一个 `thread_local` 外无同步原语，并发会踩 FLINT / SymEngine 全局缓存 | `MFMath.Host.Rust/src/jobs.rs` 的 `worker_loop()` |
 | 同步与异步的分界是规模阈值 | `mandelbrot` 1.5e8、`complex_grid` 2.5e5、`expr_eval_grid` 2.5e5、`matrix_multiply` 2e6 以上走异步 job 通道 | 判据是数出来的工作量，不是「重不重」；绘图页每条曲线一次的采样保持同步 | `MF_UI/MFMath.UI.Vue/src/lib/engine/asyncPolicy.js` 的阈值 |
 | C ABI 只暴露两个函数 | 跨进程边界只有 `math_call` 与 `function_exists`，只收发 `const char*` 与调用方缓冲区 | DLL 边界不暴露 `std::string` / `std::vector` / `SymEngine::RCP`，内部签名可自由重构 | `MF_Mathematics/api.h` 与 `api.cpp` |

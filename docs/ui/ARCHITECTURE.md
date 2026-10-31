@@ -39,11 +39,12 @@
 | --- | --- | --- |
 | `src/`（根） | 2 | `App.vue`、`main.js` |
 | `src/views/` | 16 | 页面组件 |
-| `src/components/` | 33 | 可复用组件（含 1 个 React 桥） |
-| `src/lib/` | 51（43 `.js` + 7 `.ts` + 2 根文件） | 非组件代码 |
+| `src/components/` | 34 | 可复用组件（含 1 个 React 桥） |
+| `src/lib/` | 53（45 `.js` + 7 `.ts` + 1 `.json`） | 非组件代码 |
 | `src/router/` | 2 | `index.js`、`registry.js` |
-| `src/styles/` | 1 | `theme.css` |
+| `src/styles/` | 2 | `theme.css`（全局）、`select-box.css`（只被 `SelectBox.vue` import） |
 | `src/types/` | 1 | `webview.d.ts` |
+| `src/tutorials/` | 1 | `tutorials.json`（构建产物） |
 
 `src/views/` 二级拆分：
 
@@ -52,7 +53,7 @@
 | `calc/` | 2 |
 | `tools/` | 3 |
 | `tutorial/` | 2 |
-| `plot/`（冻结，见 §6） | 6 |
+| `plot/`（冻结，见 §7） | 6 |
 | `account/`、`settings/`、根 `HomeView.vue` | 各 1 |
 
 `src/components/` 二级拆分（`tools/` 为空目录）：
@@ -63,14 +64,15 @@
 | `plot/`（冻结组件） | 6 |
 | `ai/`、`math/` | 各 4 |
 | `calc/`、`tutorial/` | 各 3 |
-| `console/`、`history/`、`plot-react/` | 各 1 |
+| `console/`、`history/`、`plot-react/`、`ui/` | 各 1 |
 
 `src/lib/` 二级拆分（根文件为 `bridge.js`、`push.js`）：
 
 | 子目录 | 文件数 |
 | --- | --- |
 | `ai/` | 9（含生成物 `engine-signatures.json`） |
-| `engine/`、`plot/` | 各 7 |
+| `engine/` | 7 |
+| `plot/` | 9 |
 | `i18n/` | 5 |
 | `settings/` | 4 |
 | `math/`、`tutorial/` | 各 3 |
@@ -147,7 +149,7 @@ node --input-type=module -e 'const v=await import("./src/lib/engine/viewConfigs.
 
 | 文件 | 导出 | 键数 | 覆盖 |
 | --- | --- | --- | --- |
-| `en-US.js` | `EN` | 101 | 外壳文案（分组标题、导航条目、顶栏、外观浮层、键盘面板文案、视图描述、缺参提示） |
+| `en-US.js` | `EN` | 102 | 外壳文案（分组标题、导航条目、顶栏、外观浮层、键盘面板文案、视图描述、缺参提示） |
 | `en-modes.js` | `EN_MODES` | 415 | 引擎模式显示名 |
 | `en-vars.js` | `EN_VARS` | 187 | 参数弹窗字段标签 |
 | `en-results.js` | `EN_RESULTS` | 78 | 结果面板字段标签 |
@@ -160,7 +162,7 @@ node --input-type=module -e 'const m=await import("./src/lib/i18n/en-modes.js");
 
 ### 5.3 覆盖范围
 
-`t()` 的实际调用点集中在 8 个文件：`App.vue`、`MathKeypad.vue`、`AppearanceGroup.vue`、`MultiVarDialog.vue`、`ResultDialog.vue`、`CalcView.vue`、`resultModel.js`，另有 `plotMath.js` 里的同名局部函数（非 i18n）。`check-ui.mjs` 的对应计数是「已用 t() 包裹 50 条」。
+`t()` 的实际调用点集中在 7 个文件：`App.vue`、`MathKeypad.vue`、`AppearanceGroup.vue`、`MultiVarDialog.vue`、`ResultDialog.vue`、`CalcView.vue`、`resultModel.js`，另有 `plotMath.js` 里的同名局部函数（非 i18n）。`check-ui.mjs` 的对应计数是「已用 t() 包裹 51 条」。
 
 未覆盖范围：首页、全部绘图页（React 侧零 i18n）、工具页、设置分组、教程与示例库、历史浮层、账号页、AI 面板。
 

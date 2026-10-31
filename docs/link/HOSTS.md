@@ -41,7 +41,7 @@ Select-String -Path MFMath.Host.Rust/src/main.rs -Pattern "selftest-jobs|selftes
 
 页面地址由两个常量给出：`UI_HOST` 的取值是 `mfmath.local`，`UI_URL` 的取值是 `https://mfmath.local/index.html`（`Select-String -Path MFMath.Host.Rust/src/main.rs -Pattern "const UI_HOST|const UI_URL"`）。
 
-宿主不把前端直接嵌进 exe。存在 exe 同目录 `wwwroot` 时，宿主用 `SetVirtualHostNameToFolderMapping` 把该目录映射到 `mfmath.local`，再在注册完宿主对象后 `Navigate` 到 `UI_URL`（`Select-String -Path MFMath.Host.Rust/src/main.rs -Pattern "SetVirtualHostNameToFolderMapping"`）。Tauri 的内嵌资产（`frontendDist`）只作兜底：`wwwroot` 里没有 `index.html` 时页面退回内嵌资产，地址变为 `http://tauri.localhost`。
+页面优先从 exe 同目录的 `wwwroot` 读取。存在该目录时，宿主用 `SetVirtualHostNameToFolderMapping` 把该目录映射到 `mfmath.local`，再在注册完宿主对象后 `Navigate` 到 `UI_URL`（`Select-String -Path MFMath.Host.Rust/src/main.rs -Pattern "SetVirtualHostNameToFolderMapping"`）。Tauri 的内嵌资产（`frontendDist`）只作兜底：`wwwroot` 里没有 `index.html` 时页面退回内嵌资产，地址变为 `http://tauri.localhost`。
 
 49 个 `cdp-*.mjs` 用例按正则 `mfmath.local|index.html` 从 `http://127.0.0.1:9222/json/list` 取页，地址改变会使这批用例取不到页面。
 

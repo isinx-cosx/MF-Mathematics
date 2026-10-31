@@ -93,10 +93,11 @@ Select-String -Path MFMath.Host.Rust/src/main.rs -Pattern "HOST_OBJECTS"
 
 代价：仓库留有一份不可达但需维护的代码，删除更干净但失去回退路径。迁移期只过类型检查不真跑，会漏掉只在运行期可见的失效；相关回归判据在 `tests/cdp-plot-*.mjs` 与 `tests/cdp-plot-workspace.mjs`。
 
-现状：自检输出「冻结的 Vue 绘图组：6/6 个文件在位，被 import 0 处」。React 工程 `src/` 下 37 个源文件 / 6,340 行，独立跑 `npm run check:types`（`tsc --noEmit`）。
+现状：自检输出「冻结的 Vue 绘图组：6/6 个文件在位，被 import 0 处」。React 工程 `src/` 下 38 个源文件 / 6,620 行，独立跑 `npm run check:types`（`tsc --noEmit`）。
 
 ```powershell
 npm --prefix MF_UI/MFMath.UI.React run check:types
+(Get-ChildItem MF_UI/MFMath.UI.React/src -Recurse -File).Count
 (Get-ChildItem MF_UI/MFMath.UI.React/src -Recurse -File | Get-Content | Measure-Object -Line).Lines
 Select-String -Path MF_UI/MFMath.UI.Vue/tools/check-ui.mjs -Pattern "FROZEN_VUE_PLOT_FILES"
 ```
@@ -127,7 +128,7 @@ Select-String -Path MF_UI/MFMath.UI.Vue/tools/check-ui.mjs -Pattern "FROZEN_VUE_
 
 窗口行为与 C# 宿主对齐：无边框、1240×820、最小 980×640、DWM 圆角与投影、数据目录 `%LOCALAPPDATA%\MFMath`、CDP 端口 9222。
 
-代价：早期的 C# 宿主实现细节（桥面契约、DPAPI、搜索解析器）不再维护。`tests/run-all.ps1` 的宿主解析顺序是 `$env:MF_HOST_EXE` 再到 `..\..\..\MFMath.Host.Rust\target\release\mfmath-host-rust.exe`。安装到启动的路径尚未在真机验证，打包步骤见 [`PACKAGING.md`](../MFMath.Host.Rust/docs/PACKAGING.md)。
+代价：早期的 C# 宿主实现细节（桥面契约、DPAPI、搜索解析器）不再维护。`tests/run-all.ps1` 的宿主解析顺序是 `$env:MF_HOST_EXE` 再到 `..\..\..\MFMath.Host.Rust\target\release\mfmath-host-rust.exe`。「安装 → 启动 → 卸载」已在 Windows 11 本机验证，出包步骤见 [`INSTALLER.md`](../MFMath.Host.Rust/docs/INSTALLER.md)。
 
 现状：无头自检 `--selftest-jobs` 与 `--selftest-common` 不需要 WebView2，验收基线见 [`ACCEPTANCE.md`](../MFMath.Host.Rust/docs/ACCEPTANCE.md)。
 
@@ -154,7 +155,7 @@ Select-String -Path MFMath.Host.Rust/src/main.rs -Pattern "HOST_OBJECTS"
 | 数学键盘 | 6 分类 / 126 键 |
 | 端到端用例 | cdp-* 49 个，已登记 49 个 |
 
-代价：自检本身是要维护的代码，`tools/check-ui.mjs` 35,468 字节；加界面、模式或 i18n 键都要同步登记。`check-ui.mjs` 不读引擎源码（那是树外路径），检查的是登记表，登记表写错它抓不到；真正读引擎源码对账的是 `tools/engine-signatures.mjs`。运行期才可见的行为（布局、绘制、交互时序）靠端到端用例，构建期自检替代不了。
+代价：自检本身是要维护的代码，`tools/check-ui.mjs` 35,397 字节；加界面、模式或 i18n 键都要同步登记。`check-ui.mjs` 不读引擎源码（那是树外路径），检查的是登记表，登记表写错它抓不到；真正读引擎源码对账的是 `tools/engine-signatures.mjs`。运行期才可见的行为（布局、绘制、交互时序）靠端到端用例，构建期自检替代不了。
 
 ```powershell
 npm --prefix MF_UI/MFMath.UI.Vue run check

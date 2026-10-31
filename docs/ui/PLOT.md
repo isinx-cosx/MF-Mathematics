@@ -10,8 +10,8 @@
 | --- | --- | --- |
 | Vue 壳 | `MF_UI/MFMath.UI.Vue/` | 路由、导航、侧栏、教程、AI、计算页。`/plot/*` 的 7 条路由全部指向同一个包装组件 |
 | 包装组件 | `src/components/plot-react/ReactPlotView.vue` | 用 `createRoot` 把 React 页挂进一个 Vue 组件，按 `meta.reactPage` 动态 import |
-| React 绘图页 | `MF_UI/MFMath.UI.React/src/plot/` | 13 个文件、5,225 行：6 个页面组件、4 个画布组件、2D 页的 3 个零件 |
-| 共享逻辑层 | `MF_UI/MFMath.UI.Vue/src/lib/plot/` | 7 个文件、970 行：采样、坐标映射、表达式解析、配色、导出。零框架依赖，两侧引用同一批模块 |
+| React 绘图页 | `MF_UI/MFMath.UI.React/src/plot/` | 13 个文件、5,306 行：6 个页面组件、4 个画布组件、2D 页的 3 个零件 |
+| 共享逻辑层 | `MF_UI/MFMath.UI.Vue/src/lib/plot/` | 9 个文件、1,276 行：采样、坐标映射、表达式解析、配色、导出。零框架依赖，两侧引用同一批模块 |
 | 冻结的 Vue 实现 | `MF_UI/MFMath.UI.Vue/src/views/plot/`、`src/components/plot/` | 迁移前的绘图页，不在构建图、不在类型检查范围、无用例覆盖 |
 
 页面在 React，算法在共享层。React 侧源码写的是 `@shared/plot/*` 与 `@shared/bridge.js`，由别名指回 Vue 工程的 `src/lib`，因此不存在两套算法。
@@ -57,11 +57,13 @@ Select-String -Path MF_UI/MFMath.UI.Vue/src/components/plot-react/ReactPlotView.
 | --- | --- | --- |
 | `view.js` | 149 | 视图矩形数学、网格步长、缩放/平移、默认视图 |
 | `sampling.js` | 92 | `adaptiveSample` 与 `linspace` |
-| `plotMath.js` | 246 | `parseExpr`、`validate`、`toEngineExpr` |
+| `plotMath.js` | 308 | `parseExpr`、`validate`、`toEngineExpr` |
+| `userFn.js` | 174 | 用户自定义函数的定义收集与调用展开 |
+| `knownNames.js` | 27 | `plotMath.js` 与 `userFn.js` 共用的已知常量/函数名表 |
 | `cartesian.js` | 216 | `drawCartesianGrid` / `drawPolarGrid` |
 | `colors.js` | 54 | 色板 `PLOT_COLORS`、`colorAt`、`gridFor` |
 | `exportImage.js` | 115 | 画布转 PNG（离屏 2 倍像素、走宿主写盘） |
-| `prepare.js` | 98 | `prepare_expr` 包装：输入规范化与 LaTeX 预览 |
+| `prepare.js` | 141 | `prepare_expr` 包装：输入规范化与 LaTeX 预览 |
 
 引擎桥（`engineCall` / `engineCallAsync` / `isHosted`）与 `asyncPolicy.js` 在 `src/lib/` 下，同样只有一份实现。两侧共用避免了同一算法的两套漂移。
 
@@ -164,7 +166,7 @@ Select-String -Path MF_UI/MFMath.UI.Vue/src/components/plot-react/ReactPlotView.
 # 冻结白名单 6/6 在位、被 import 0 处
 cd MF_UI\MFMath.UI.Vue; node tools\check-ui.mjs
 
-# 三组文件的行数（本文表格来源）
+# 四组文件的行数（本文表格来源）
 Get-ChildItem MF_UI\MFMath.UI.React\src\plot -File | % { "{0} {1}" -f $_.Name,(Get-Content $_.FullName).Count }
 Get-ChildItem MF_UI\MFMath.UI.Vue\src\views\plot -File | % { "{0} {1}" -f $_.Name,(Get-Content $_.FullName).Count }
 Get-ChildItem MF_UI\MFMath.UI.Vue\src\components\plot -File | % { "{0} {1}" -f $_.Name,(Get-Content $_.FullName).Count }
@@ -174,4 +176,4 @@ Get-ChildItem MF_UI\MFMath.UI.Vue\src\lib\plot -File | % { "{0} {1}" -f $_.Name,
 cd ..\MFMath.UI.React; npm run check:types
 ```
 
-绘图组端到端用例共 16 个 `cdp-plot-*.mjs`，另有 `cdp-export-image`、`cdp-workspace`、`cdp-plot-workspace`、`cdp-shortcuts-prefs` 覆盖导出与工作区，均需宿主运行，由 `tests/run-all.ps1` 统一登记。
+绘图组端到端用例共 17 个 `cdp-plot-*.mjs`，另有 `cdp-export-image`、`cdp-workspace`、`cdp-plot-workspace`、`cdp-shortcuts-prefs` 覆盖导出与工作区，均需宿主运行，由 `tests/run-all.ps1` 统一登记。

@@ -10,12 +10,12 @@
 | --- | --- | --- | --- | --- |
 | 登录 token | `%LOCALAPPDATA%\MFMath\settings\account.json` 的 `token_protected` | DPAPI 密文（base64） | `account.rs` 的 `store_token` | `loggedIn`、`tokenSource`（`dpapi` / `memory` / `none`） |
 | Wolfram App ID | `search.json` 的 `wolfram_key_protected` | DPAPI 密文（base64） | `search.rs` 的 `set_wolfram_key` | `hasWolframKey`、`wolframKeySource` |
-| AI API Key | `ai.json` 的 `apiKey` | 明文 | 页面 `bridge.js` 的 `aiSetKey`（经 `sys.StoreWrite`） | 明文本身，显示在设置面板的输入框 |
+| AI API Key | `ai.json` 的 `apiKey` | 明文 | 页面 `bridge.js` 的 `aiSetKey`（经 `sys.StoreWrite`） | 明文本身，经 `sys.StoreRead` 读入页面并交给 `relay.ts` 的 `creds`；设置面板的输入框只接收新密钥（`type="password"`），不回显已存密钥 |
 
 前两类的脱敏由断言守住：
 
 - `account.rs` 的 `self_check` 断言 `info()` 的返回文本不含 `access_token`、不含 `tokenProtected`、不含 token 本体。
-- `search.rs` 的 `info()` 只返回 `hasWolframKey` 与 `wolframKeySource`，不返回 App ID 与密文。
+- `search.rs` 的 `info()` 中与密钥有关的字段只有 `hasWolframKey` 与 `wolframKeySource`，不返回 App ID 与密文。
 
 ```powershell
 Select-String -Path MFMath.Host.Rust/src/account.rs -Pattern "tokenProtected|access_token"

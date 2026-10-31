@@ -42,10 +42,10 @@ Select-String -Path MF_UI/MFMath.UI.Vue/package.json -Pattern '"react"'
 | 位置 | 数量 | 计数命令（仓库根） |
 | --- | --- | --- |
 | `MFMath.UI.Vue/src/views/**/*.vue` | 16 | `(Get-ChildItem MF_UI/MFMath.UI.Vue/src/views -Recurse -Filter *.vue).Count` |
-| `MFMath.UI.Vue/src/components/**/*.vue` | 33 | 同上，路径换 `components` |
-| `MFMath.UI.Vue/src/lib/**/*.js` | 43 | 同上，路径换 `lib`，过滤器换 `*.js` |
+| `MFMath.UI.Vue/src/components/**/*.vue` | 34 | 同上，路径换 `components` |
+| `MFMath.UI.Vue/src/lib/**/*.js` | 45 | 同上，路径换 `lib`，过滤器换 `*.js` |
 | `MFMath.UI.Vue/src/lib/**/*.ts` | 7 | 同上，过滤器换 `*.ts`（全部在 `src/lib/ai/`） |
-| `MFMath.UI.React/src/**/*.tsx` | 16 | `(Get-ChildItem MF_UI/MFMath.UI.React/src -Recurse -Filter *.tsx).Count` |
+| `MFMath.UI.React/src/**/*.tsx` | 17 | `(Get-ChildItem MF_UI/MFMath.UI.React/src -Recurse -Filter *.tsx).Count` |
 | `MFMath.UI.React/src/**/*.ts` | 6 | 同上，过滤器换 `*.ts` |
 | `MFMath.UI.React/src/**/*.css` | 15 | 同上，过滤器换 `*.css` |
 | `MFMath.UI.React/src/plot/` 文件数 | 13（其中 6 个 `*Page.tsx`） | `(Get-ChildItem MF_UI/MFMath.UI.React/src/plot -File).Count` |

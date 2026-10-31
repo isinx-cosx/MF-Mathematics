@@ -122,7 +122,7 @@ for ($i = 1; $i -lt $parts.Count; $i += 2) {
 
 | 方法 | 参数 | 返回 | 说明 |
 | --- | --- | --- | --- |
-| `Info` | — | Str | 脱敏登录态，含 `hasToken` 一类字段 |
+| `Info` | — | Str | 脱敏登录态，含 `loggedIn`、`tokenSource` 一类字段 |
 | `Configure` | `json` | Str | 站点地址等配置 |
 | `ClearLocal` | — | Str | 清本地登录态 |
 | `Login` | `username`, `password` | Str | 登录 |
@@ -137,7 +137,7 @@ for ($i = 1; $i -lt $parts.Count; $i += 2) {
 | `ResendCode` | `username`, `email` | Str | 重发验证码 |
 | `ChangePassword` | `oldPassword`, `newPassword` | Str | 改密 |
 | `LoginHistory` | — | Str | 登录历史 |
-| `SiteVersion` | — | Str | 站点版本（含 sha256/size） |
+| `SiteVersion` | — | Str | 站点版本与关系：`latest`、`date`、`downloadUrl`、`hasUpdate`、`relation`，不含 `sha256` 与 `size` |
 | `Busy` | — | Bool | 是否有在途请求 |
 | `CancelAll` | — | Empty | 取消全部在途请求 |
 | `SelfCheck` | — | Str | 自检，含"信息不泄漏"断言 |

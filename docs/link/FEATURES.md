@@ -139,7 +139,7 @@ Select-String -Path MFMath.Host.Rust/src/search.rs,MFMath.Host.Rust/src/site.rs,
 
 ### 3.2 `sha256` 只显示，不校验
 
-`parse_version_body` 只透传站点给的 `sha256`；没给就返回 `null` 并附 `sha256_reason`（或默认文案）。`pack::sha256_eq` 的调用点只有组件包解压前校验与两处自检，更新链没有校验路径，与「不提供下载」自洽。定位：`Select-String -Path MFMath.Host.Rust/src/*.rs -Pattern "sha256_eq"`。
+`parse_version_body` 只透传站点给的 `sha256`；没给就返回 `null` 并附 `sha256Reason`（取站点给的 `sha256_reason`，没有则写"站点没有提供校验值"）。`pack::sha256_eq` 的调用点只有组件包解压前校验与两处自检，更新链没有校验路径，与「不提供下载」自洽。定位：`Select-String -Path MFMath.Host.Rust/src/*.rs -Pattern "sha256_eq"`。
 
 ### 3.3 版本比较
 
@@ -200,11 +200,16 @@ Select-String -Path MFMath.Host.Rust/src/search.rs,MFMath.Host.Rust/src/site.rs,
 
 ### 5.1 语言与组件清单
 
-语言只有 `python` 与 `cpp`，非 `cpp` 一律按 Python 处理。清单是编译进代码的常量，无远程清单：`PYTHON_VERSION = 3.13.15`（包 11,009,825 字节）、`CPP_VERSION = 16.1.0`（包 54,084,880 字节），期望 SHA-256 与字节数也是内置常量，可在包旁放同名 `.sha256` 旁文件覆盖。安装/卸载用 `cpp`，下载路径是 `{base}/download/component/mingw`。
+语言只有 `python` 与 `cpp`，非 `cpp` 一律按 Python 处理。清单是编译进代码的常量，无远程清单：`PYTHON_VERSION = 3.13.15`、`CPP_VERSION = 16.1.0`（两个包的确切字节数见下方命令），期望 SHA-256 与字节数也是内置常量，可在包旁放同名 `.sha256` 旁文件覆盖。安装/卸载用 `cpp`，下载路径是 `{base}/download/component/mingw`。
+
+```powershell
+# 包大小与版本常量（`PYTHON_PAYLOAD_BYTES` / `CPP_PAYLOAD_BYTES`）
+Select-String -Path MFMath.Host.Rust/src/console.rs -Pattern "PYTHON_VERSION|CPP_VERSION|PYTHON_PAYLOAD_BYTES|CPP_PAYLOAD_BYTES"
+```
 
 ### 5.2 安装 / 卸载 / 取消
 
-安装：找包（先缓存再 exe 目录）→ 下载 → SHA-256 校验 → 解压到 `.staging`（`pack::unzip_to` 带路径穿越防护）→ 补门面文件 → 校验关键可执行文件 → 替换目录。C++ 额外做 `flatten_single_root`、拷头文件、用 `.def` + `dlltool` 生成导入库（导出 `function_exists`/`math_call`）。安装作业初值必须是 `running`；未知组件名也返回 `jobId`，失败延后到 `state="error"`。卸载只认 `python`/`cpp`，成功返回删前体积，失败返回系统错误原文，不删 `cache/`。取消只在检查点生效（请求前、下载循环每轮、写盘每 1 MiB 块），校验/解压/dlltool/替换目录不响应；取消用 `state="error"` 承载，无独立 `cancelled` 状态。`CancelInstall` 返回键是 `canceled`（单 L），「id 不存在」与「标记没设上」同为 `{canceled:false}`。失败/取消清理 `.staging`、保留 `.part`。无「同组件只允许一个安装作业」的并发闸门（后果未验证）。
+安装：找包（先缓存再 exe 目录）→ 下载 → SHA-256 校验 → 解压到 `.staging`（`pack::unzip_to` 带路径穿越防护）→ 补门面文件 → 校验关键可执行文件 → 替换目录。C++ 额外做 `flatten_single_root`、拷头文件、用 `.def` + `dlltool` 生成导入库（导出 `function_exists`/`math_call`）。安装作业初值必须是 `running`；未知组件名也返回 `jobId`，失败延后到 `state="error"`。卸载只认 `python`/`cpp`，成功返回删前体积，失败返回系统错误原文，不删 `cache/`。取消只在检查点生效（发起请求前、每轮重试前、下载循环的每次读取），校验/解压/dlltool/替换目录不响应；取消用 `state="error"` 承载，无独立 `cancelled` 状态。`CancelInstall` 返回键是 `canceled`（单 L），id 不在作业表里时返回 `{canceled:false}`。失败/取消清理 `.staging`、保留 `.part`。无「同组件只允许一个安装作业」的并发闸门（后果未验证）。
 
 ### 5.3 下载与断点续传
 

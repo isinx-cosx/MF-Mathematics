@@ -100,7 +100,7 @@
 | 冻结要看得见 | Vue 绘图组 6 个文件是冻结的回退资产，白名单逐一对应，且必须仍然无人 import | `check-ui.mjs` 的 `FROZEN_VUE_PLOT_FILES` |
 | 参数契约不许静默失效 | 由 `get_interval` 读区间的 handler 固定列在 `INTERVAL_FNS`，其 args 缺少 `interval` 键即失败 | `check-ui.mjs` 的 `INTERVAL_FNS` |
 | 默认路径要能过 | 概率表类模式必须能用弹窗自带默认值构造出非空表 | `check-ui.mjs` 的 `prob_table` 段 |
-| 降级要可见 | 取消在引擎层做不到真停，界面文案是「已停止等待」，不写「已停止」 | `jobs.rs` 的 `cancel_job()` |
+| 降级要可见 | 取消在引擎层做不到真停，界面文案是「已取消等待」，不写「已停止」 | `bridge.js` 的 `engineCallAsync()` 与 `jobs.rs` 的 `cancel_job()` |
 | 慢活不许假死 | 重活走后台任务通道：`DispatchJob` 入队即返回 jobId，界面用 `PollJob` 轮询 | `jobs.rs` 的 `dispatch_job()` / `poll_job()` |
 
 这些判据是自检的输出。单独复跑命令（在 `MF_UI/MFMath.UI.Vue/` 下执行）：
