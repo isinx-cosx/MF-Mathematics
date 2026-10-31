@@ -76,6 +76,7 @@ export default function PlotPage({
   gridMode = "rect" as "rect" | "polar",
   onStatusText,
   routePath = "#/plot/2d",
+  seedExpr = "",
 }: {
   gridMode?: "rect" | "polar";
   /** 采样状态回传给外壳的状态栏（Vue 版由 App 持有 statusText） */
@@ -83,6 +84,10 @@ export default function PlotPage({
   /** 本页路由。工作区按 `route.path` 分页存（2d 与 polar 各一份），
    *  导出文件名也用它 —— 所以必须由外层如实传进来，不能在本页写死（BUGS.md B14/B15）。 */
   routePath?: string;
+  /** 示例任务库「加载到工作区」带过来的表达式（外层从 takePending() 取到后传进来）。
+   *  以前**没有任何绘图页消费 pending**（只有 CalcView/BasicCalcView 调 takePending），
+   *  于是库里的函数表达式被静默丢掉、页面只剩默认函数 —— 用户看到的就是"加不进来也不绘制"。 */
+  seedExpr?: string;
 }) {
   /* ── 工作区还原（BUGS.md B14）──────────────────────────────────────────────
    * 载荷形状与 Vue 版 PlotView.vue 的 capturePlot() **逐字一致**（`kind:"plot"` +
@@ -92,19 +97,30 @@ export default function PlotPage({
    * 于是"默认值盖掉还原内容"这个问题从根上不存在。 */
   const saved = loadPlotPage(routePath, "plot");
   const savedExprs = Array.isArray(saved?.expressions) ? (saved!.expressions as { text?: unknown; latex?: unknown; color?: unknown; visible?: unknown }[]) : null;
-  const [rows, setRows] = useState<Expr[]>(() =>
-    savedExprs && savedExprs.length
-      ? savedExprs.map((e, i) => ({
-          id: nextId++,
-          text: String(e.text ?? ""),
-          // 老载荷没有 latex → 空串 → 输入框回退显示 text（与升级前一致）
-          latex: typeof e.latex === "string" ? e.latex : "",
-          color: typeof e.color === "string" ? e.color : colorAt(i),
-          visible: e.visible !== false,
-          error: null,
-        }))
-      : [{ id: nextId++, text: "y=x^2", latex: "", color: colorAt(0), visible: true, error: null }]
-  );
+  const [rows, setRows] = useState<Expr[]>(() => {
+    /* ① 示例任务库带过来的表达式**优先**：用户刚点的动作，不该被上次保存的内容顶掉
+     *   （与 CalcView 的 `pending` 优先于工作区一致）。 */
+    const seed = String(seedExpr || "").trim();
+    if (seed) {
+      return [{ id: nextId++, text: seed, latex: "", color: colorAt(0), visible: true, error: null }];
+    }
+    /* ② 工作区里存过 → 用存的 */
+    if (savedExprs && savedExprs.length) {
+      return savedExprs.map((e, i) => ({
+        id: nextId++,
+        text: String(e.text ?? ""),
+        // 老载荷没有 latex → 空串 → 输入框回退显示 text（与升级前一致）
+        latex: typeof e.latex === "string" ? e.latex : "",
+        color: typeof e.color === "string" ? e.color : colorAt(i),
+        visible: e.visible !== false,
+        error: null,
+      }));
+    }
+    /* ③ 全新页面：**不给默认函数**，只留一行空输入框。
+     *   以前这里塞的是 `y=x^2`，用户一进绘图像是"自带一条曲线"，而且会把
+     *   示例任务库带来的函数挤掉/混在一起（用户明确要求：绘图模式不要带默认函数）。 */
+    return [{ id: nextId++, text: "", latex: "", color: colorAt(0), visible: true, error: null }];
+  });
   const [activeId, setActiveId] = useState<number | null>(() => rows[0]?.id ?? 1);
   const [view, setView] = useState<View>(() =>
     isViewLike(saved?.view) ? (saved!.view as View) : initialView(800, 600)

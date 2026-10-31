@@ -68,6 +68,29 @@ function toggleSidebar() {
   try { localStorage.setItem("mf_sidebar", sidebarCollapsed.value ? "1" : "0"); } catch { /* 忽略 */ }
 }
 
+/** 收起态的分组图标（24×24 视框，纯描边；只用来"认"，不需要精确语义） */
+const GROUP_ICONS = {
+  // 计算模式：计算器
+  calc: "M6 3h12a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z M8.5 6.5h7 M8.5 11h1 M12 11h1 M15.5 11h1 M8.5 14.5h1 M12 14.5h1 M15.5 14.5h1 M8.5 18h1 M12 18h1 M15.5 18h1",
+  // 绘图模式：坐标轴 + 曲线
+  plot: "M4 20V4 M4 20h16 M6 16c3.5-9 6 3.5 12-7",
+  // 工具：齿轮
+  tools: "M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7z M12 2.5v2.2 M12 19.3v2.2 M2.5 12h2.2 M19.3 12h2.2 M5.3 5.3l1.6 1.6 M17.1 17.1l1.6 1.6 M18.7 5.3l-1.6 1.6 M6.9 17.1l-1.6 1.6",
+  // 帮助：问号圆圈
+  help: "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z M9.6 9.6a2.5 2.5 0 1 1 3.4 2.3c-.7.3-1 .9-1 1.6v.5 M12 17.3v.2",
+  other: "M12 5a7 7 0 1 0 0 14 7 7 0 0 0 0-14z",
+};
+
+/** 从收起态的大图标进入某个分组：展开侧栏 + 展开该组 */
+function openGroupFromRail(id) {
+  sidebarCollapsed.value = false;
+  groupCollapsed.value[id] = false;
+  try {
+    localStorage.setItem("mf_sidebar", "0");
+    localStorage.setItem("mf_nav_" + id, "0");
+  } catch { /* 忽略 */ }
+}
+
 /* ── 分组手风琴（localStorage 记忆）── */
 const groupCollapsed = ref({});
 function toggleGroup(g) {
@@ -308,7 +331,21 @@ function openUpdateSettings() {
       </div>
 
       <nav id="nav" data-tour="main_window.toolbar">
-        <template v-for="g in NAV_GROUPS" :key="g.id">
+        <!-- 收起态：**只给一排分组大图标**（一个文字都没有）。
+             比"每个条目一个首字方块"（27 个"基/代/微…"，用户反馈特别丑）干净得多；
+             点一下 = 展开侧栏并打开该分组。图标 22px，比原来那个 15px 的小字符明显好认。 -->
+        <div v-if="sidebarCollapsed" class="rail-groups">
+          <button v-for="g in NAV_GROUPS" :key="g.id" class="rail-btn"
+                  :class="{ active: current && current.group.id === g.id }"
+                  :title="t(g.title)" :aria-label="t(g.title)" @click="openGroupFromRail(g.id)">
+            <svg class="rail-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+              <path :d="GROUP_ICONS[g.id] || GROUP_ICONS.other" />
+            </svg>
+          </button>
+        </div>
+
+        <template v-for="g in NAV_GROUPS" :key="'g-' + g.id">
           <p class="nav-group" :class="{ collapsed: groupCollapsed[g.id] }" @click="toggleGroup(g.id)"
              :data-tour="g.id === 'calc' ? 'toolbar.calc_button' : (g.id === 'plot' ? 'toolbar.plot_button' : undefined)">
             {{ t(g.title) }} <span class="nav-arrow">▾</span>
@@ -316,8 +353,11 @@ function openUpdateSettings() {
           <!-- 计算模式列表 = 旧版教程里说的「这里切换子模式」，故沿用 main_window.mode_selector -->
           <ul class="mode-list" :class="{ collapsed: groupCollapsed[g.id] }"
               :data-tour="g.id === 'calc' ? 'main_window.mode_selector' : undefined">
+            <!-- 收起成导轨时靠 CSS 伪元素显示首字（data-mono），**不改 li 的文本内容**：
+                 套件是按 textContent 找导航项的，塞个 <span> 会把它们变成"基础运算基"。 -->
             <li v-for="it in g.items" :key="it.route"
                 :class="{ active: current && current.item.route === it.route }"
+                :title="t(it.name)"
                 @click="$router.push(it.route)">{{ t(it.name) }}</li>
           </ul>
         </template>

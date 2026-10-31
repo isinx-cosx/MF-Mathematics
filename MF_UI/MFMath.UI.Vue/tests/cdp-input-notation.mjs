@@ -109,6 +109,10 @@ await evalJs(`(function(){
 await sleep(600);
 
 console.log("── 就地排版（而不是下方预览）──");
+/* 绘图页**不再预置默认函数**（用户要求：带默认函数会让示例任务库的图像加不进来），
+ * 所以刚进页面时输入框是空的、shadow DOM 里也就没有 .ML__latex 节点。
+ * 这里先写一个分数，再看它是否被就地排版 —— 判的还是"框内排版"这件事本身。 */
+await setExpr("\\frac{1}{2}");
 let st = await readField();
 console.log("   元素:", st.tag, " shadowDOM:", st.hasShadow, " 框内文本:", JSON.stringify(st.renderedText));
 check("输入框是 <math-field>", st.tag === "MATH-FIELD", String(st.tag));

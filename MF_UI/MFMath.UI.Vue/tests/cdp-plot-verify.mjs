@@ -47,12 +47,24 @@ const check = (label, ok, detail = "") => {
   console.log(`  ${ok ? "[OK]" : "[FAIL]"} ${label}${detail ? "   " + detail : ""}`);
 };
 
+/* 开局先把工作区清空：本套件要验"**全新**绘图的默认状态"（不带默认函数、不自动铺滑块）。
+ * 不清的话，工作区会把上一轮/别的套件留下的表达式与参数（实测出现过 y=tan(x) 与 a,b 两个滑块）
+ * 还原出来，于是"初始是空的"这类断言会假失败 —— 那是残留状态，不是产品行为。 */
+await evalJs(`(function(){
+  try { window.__mfWorkspace && window.__mfWorkspace.clearAll && window.__mfWorkspace.clearAll(); } catch (e) {}
+  return 'cleared';
+})()`);
+await sleep(600);
+
 // ① 导航到 2D 绘图路由
+await evalJs("location.hash = '#/'");
+await sleep(600);
 await evalJs("location.hash = '#/plot/2d'");
 await sleep(2500);
 
-console.log("── 绘图器结构与引擎采样 ──");
-const info = await evalJs(`(function(){
+console.log("── 绘图器结构 ──");
+/** 读页面状态（画布像素 / 输入框 / 侧栏状态 / 滑块） */
+const readInfo = () => evalJs(`(function(){
   const cv = document.querySelector('canvas');
   const inputs = [...document.querySelectorAll('.expr-input')].map(i=>i.value);
   const status = document.querySelector('.side-status')?.textContent || '';
@@ -70,11 +82,32 @@ const info = await evalJs(`(function(){
   return { hasCanvas: !!cv, w: cv?cv.width:0, h: cv?cv.height:0,
     inputs, status, sliders, painted, total };
 })()`);
+/** 往第一行输入表达式（MathLive 的 <math-field>） */
+const setExpr = async (text) => {
+  await evalJs(`(function(){
+    const el = document.querySelector('.expr-input');
+    if (!el) return 'no-input';
+    el.value = ${JSON.stringify(text)};
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+    return 'ok';
+  })()`);
+  await sleep(1600);
+};
+
+let info = await readInfo();
 console.log("   canvas:", info.w + "x" + info.h, "| 输入框:", JSON.stringify(info.inputs));
 console.log("   状态:", info.status, "| 滑块:", JSON.stringify(info.sliders));
-console.log("   非白像素:", info.painted, "/", info.total, "=", ((info.painted / (info.total || 1)) * 100).toFixed(1) + "%");
 check("画布存在", info.hasCanvas);
-check("默认表达式 y=x^2", info.inputs.some((v) => v.includes("x^2")));
+/* 产品在 2026-10 改成"绘图模式不带默认函数"（用户要求：带默认函数会让示例任务库的
+ * 函数图像加不进来）。所以这里先断言"初始是空的"，再自己写一条曲线去验采样与绘制。 */
+check("初始不带默认函数（空输入框）", info.inputs.length > 0 && info.inputs.every((v) => !String(v).trim()),
+  JSON.stringify(info.inputs));
+
+// ①-b 自己写 y=x^2 → 引擎采样 1 条曲线 + 画布真的画出东西
+await setExpr("y=x^2");
+info = await readInfo();
+console.log("   状态:", info.status, "| 非白像素:", info.painted, "/", info.total,
+  "=", ((info.painted / (info.total || 1)) * 100).toFixed(1) + "%");
 check("引擎采样成功（状态含'引擎采样 1 条曲线'）", /引擎采样\s*1\s*条曲线/.test(info.status), info.status);
 check("画布已绘制网格与曲线（非白像素 > 5%）", info.painted / (info.total || 1) > 0.05);
 

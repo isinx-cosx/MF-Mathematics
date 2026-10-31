@@ -23,6 +23,7 @@ import { onBeforeUnmount, onMounted, ref, shallowRef, watch } from "vue";
 import { useRoute } from "vue-router";
 import { createElement } from "react";
 import { createRoot } from "react-dom/client";
+import { takePending } from "../../lib/workspace/pendingInput.js";
 
 /** 页面键 → React 组件加载器（与 router/index.js 的 REACT_PAGES 对应） */
 const LOADERS = {
@@ -70,8 +71,17 @@ async function mount(key) {
    * （`/plot/2d` 与 `/plot/polar` 各一份），导出图片的默认文件名与提示也用它。
    * 以前这两条只传 gridMode，于是 2D/极坐标页既存不进工作区，导出也不写"导到哪了"。
    * 其余页本来就在传 routePath。 */
+  /* 示例任务库「加载到工作区」走的是 `setPending({expr, mode, …})` + 跳路由。
+   * ⚠ 以前**没有任何绘图页消费它**（只有 CalcView / BasicCalcView 调 takePending），
+   *   于是库里点绘图示例 → 表达式被静默丢掉 → 页面只剩一个默认函数，
+   *   用户看到的就是"示例的函数图像加不进来、也不绘制"。
+   * 现在：能接表达式的页（2d / polar，用的是同一个 PlotPage）取一次 pending 交给它；
+   * 接不了的页（3d / 复平面 / 向量场 / 几何 / 分形）**不动 pending**，不静默吞掉。
+   * 取一次即清空（takePending 的语义），避免下次进来被旧示例反复覆盖。 */
+  const canSeed = key === "2d" || key === "polar";
+  const seedExpr = canSeed ? String(takePending()?.expr || "") : "";
   const props = key === "2d" || key === "polar"
-    ? { gridMode: key === "polar" ? "polar" : "rect", routePath: route.path }
+    ? { gridMode: key === "polar" ? "polar" : "rect", routePath: route.path, seedExpr }
     : { routePath: route.path };
   root = createRoot(host.value);
   root.render(createElement(mod.default, props));

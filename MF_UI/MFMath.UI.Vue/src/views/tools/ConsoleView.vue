@@ -44,6 +44,8 @@ const running = ref(false);
 const exitCode = ref(null);
 const elapsedMs = ref(0);
 const truncated = ref(false);
+/** 输出面板是否收起（收起后编辑器能再长高一点；不持久化，保持"默认给输出留位置"） */
+const outFolded = ref(false);
 const status = ref(hosted ? "就绪" : "浏览器预览：无宿主桥，控制台不可用");
 const installJob = ref(null);
 const installPct = ref(0);
@@ -439,16 +441,14 @@ watch([lang, code, stdin], () => {
 
 <template>
   <div class="console-wrap">
-    <div class="ws-title">控制台</div>
-    <div class="ws-desc">
-      在应用里直接写小程序试算：Python 与 C++ 都能调同一套 C++ 引擎（<code class="mono">mfmath</code>）。
-      语言运行时是可选的独立组件，不需要时不下载，主程序体积不受影响。
+    <div class="ws-head">
+      <span class="ws-title">控制台</span>
+      <span class="ws-desc">Python / C++ 都能调同一套 C++ 引擎（<code class="mono">mfmath</code>），运行时按需安装。</span>
     </div>
 
-    <div class="layout">
-      <!-- 左：编辑区 -->
-      <div class="pane">
-        <div class="bar">
+    <!-- 一行工具条：只留"要动手的"（语言 · 示例 · 运行/终止 · 清空 · 重置）。
+         退出码/耗时等状态挪到底部输出面板的标题行里。 -->
+    <div class="bar">
           <!-- 自绘下拉（components/ui/SelectBox.vue）：原生 <select> 的弹层由系统绘制，
                主题/字体预设都管不到它；这里换成自绘层，同时**保留隐藏的原生 select**
                （类名 `input lang` / `input sample` 不变）作为数据源与无障碍语义。 -->
@@ -477,11 +477,42 @@ watch([lang, code, stdin], () => {
           </span>
         </div>
 
-        <!-- 代码编辑区：CodeMirror 6（进控制台才加载，语法包按语言再单独加载）
+        <!-- 代码编辑区：**整页最大的一块**（flex:1 吃满剩余高度）。
+             CodeMirror 6 进控制台才加载，语法包按语言再单独加载；
              Ctrl/Cmd+Enter 由编辑器内核转发成 run 事件 -->
-        <CodeEditor v-model="code" :language="lang" :candidates="candidates" @run="run"
+        <CodeEditor class="cv-editor" v-model="code" :language="lang" :candidates="candidates" @run="run"
                     placeholder="在这里写代码（Ctrl+Enter 运行，Ctrl+Space 补全引擎函数）" />
 
+    <!-- 输出：贴在底部，自带标题行（状态徽标 / 耗时 / 编译 / 说明），可整体收起 -->
+    <section class="cv-out" :class="{ folded: outFolded }">
+      <header class="cv-out-head">
+        <span class="io-title">输出</span>
+        <span class="badge" :class="{ ok: exitCode === 0, bad: exitCode !== null && exitCode !== 0 }">
+          {{ exitCode === null ? "未运行" : "退出码 " + exitCode }}
+        </span>
+        <span class="meta">{{ elapsedMs }} ms</span>
+        <!-- C++ 多一个编译阶段：单独列出来，免得用户以为程序跑得慢 -->
+        <span v-if="compileMs !== null" class="meta">编译 {{ compileMs }} ms</span>
+        <span v-if="truncated" class="meta warn">输出已截断</span>
+        <span class="spacer"></span>
+        <span class="meta">{{ status }}</span>
+        <button class="btn btn-ghost cv-out-toggle" :title="outFolded ? '展开输出' : '收起输出'"
+                @click="outFolded = !outFolded">{{ outFolded ? "展开 ▾" : "收起 ▴" }}</button>
+      </header>
+      <div v-show="!outFolded" class="cv-out-body">
+        <pre class="out mono">{{ out || "（还没有输出）" }}</pre>
+        <template v-if="err">
+          <div class="io-title bad">错误</div>
+          <pre class="out mono err">{{ err }}</pre>
+        </template>
+      </div>
+    </section>
+
+    <!-- 标准输入 + 组件：默认**收起**（用户要"简洁"，这两块平时用不到；点标题就能展开）。
+         .comp-row 的文本仍在 DOM 里，既有用例按 textContent 读安装状态不受影响。 -->
+    <details class="cv-more">
+      <summary class="cv-more-sum">更多 · 标准输入与组件</summary>
+      <div class="cv-more-body">
         <!-- 会话态说明：宿主每次运行都起新进程，这一点必须让用户知道，
              否则他会以为"上次算出的 a 这次还能用"（原版 PyQt 是同进程持久命名空间） -->
         <p class="hint">
@@ -491,30 +522,6 @@ watch([lang, code, stdin], () => {
         <div class="row">
           <label class="lbl">标准输入（可选）</label>
           <input v-model="stdin" class="input mono stdin" placeholder="每行一个输入，运行时会喂给程序" />
-        </div>
-      </div>
-
-      <!-- 右：输出 + 组件 -->
-      <div class="pane">
-        <div class="bar">
-          <span class="badge" :class="{ ok: exitCode === 0, bad: exitCode !== null && exitCode !== 0 }">
-            {{ exitCode === null ? "未运行" : "退出码 " + exitCode }}
-          </span>
-          <span class="meta">{{ elapsedMs }} ms</span>
-          <!-- C++ 多一个编译阶段：单独列出来，免得用户以为程序跑得慢 -->
-          <span v-if="compileMs !== null" class="meta">编译 {{ compileMs }} ms</span>
-          <span v-if="truncated" class="meta warn">输出已截断</span>
-          <span class="spacer"></span>
-          <span class="meta">{{ status }}</span>
-        </div>
-
-        <div class="io">
-          <div class="io-title">输出</div>
-          <pre class="out mono">{{ out || "（还没有输出）" }}</pre>
-        </div>
-        <div class="io" v-if="err">
-          <div class="io-title bad">错误</div>
-          <pre class="out mono err">{{ err }}</pre>
         </div>
 
         <div class="comps">
@@ -566,18 +573,49 @@ watch([lang, code, stdin], () => {
           </div>
         </div>
       </div>
-    </div>
+    </details>
   </div>
 </template>
 
 <style scoped>
-.console-wrap { padding: 4px 2px 12px; }
-.layout { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
-@media (max-width: 1100px) { .layout { grid-template-columns: 1fr; } }
-.pane { display: flex; flex-direction: column; gap: 8px; }
-/* 工具条：挤不下时**整件换行**，绝不压缩件内部文字（按钮已 nowrap、且不参与收缩）。
+/* ── 布局：单列纵向，**编辑器吃满剩余高度**（用户反馈"输入要最大、界面要简洁"）──────
+ * 以前是左右两栏 1fr/1fr：左边编辑、右边挤着 输出+组件+标准输入，视线要来回跳，
+ * 而真正的编辑区只占一半。现在：工具条一行 → 编辑器（flex:1）→ 输出（底部，可收起）
+ * → 「更多」折叠区（标准输入 + 组件）。.view-host 是 overflow:auto 的 flex 子项，
+ * 高度确定，所以这里的 height:100% 能生效。 */
+.console-wrap {
+  display: flex; flex-direction: column; gap: 10px;
+  height: 100%; min-height: 0; padding: 4px 2px 10px;
+}
+.ws-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.ws-desc { font-size: 12.5px; color: var(--text-muted); }
+/* 编辑器：最大的一块。CodeEditor 内部有 min-height:380px，别在这里压它。 */
+.cv-editor { flex: 1 1 auto; min-height: 300px; }
+
+/* 输出面板：固定在底部，标题行含状态；整块可收起成一行 */
+.cv-out { flex: 0 0 auto; display: flex; flex-direction: column; gap: 6px; min-height: 0; }
+.cv-out-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; row-gap: 4px; }
+.cv-out-head .io-title { font-weight: 600; }
+.cv-out-toggle { flex: 0 0 auto; }
+.cv-out-body { display: flex; flex-direction: column; gap: 6px; min-height: 0; }
+/* 输出区有上限：编辑器才是主角，输出不能把它的高度吃掉（收起面板后编辑器自动长高） */
+.cv-out-body .out { max-height: 22vh; }
+
+/* 「更多」折叠区：默认 open（用例要看 comp-row），收起时只留一行标题 */
+.cv-more { flex: 0 0 auto; border-top: 1px solid var(--border); padding-top: 6px; }
+.cv-more-sum {
+  cursor: pointer; font-size: 12.5px; font-weight: 600; color: var(--text-muted);
+  padding: 2px 0; list-style: none; user-select: none;
+}
+.cv-more-sum::-webkit-details-marker { display: none; }
+.cv-more-sum::before { content: "▸ "; font-size: 10px; }
+.cv-more[open] .cv-more-sum::before { content: "▾ "; }
+.cv-more-sum:hover { color: var(--text); }
+.cv-more-body { display: flex; flex-direction: column; gap: 8px; padding: 8px 0 2px; }
+
+/* 工具条：挤不下时**整件换行**，绝不压缩内部文字（按钮已 nowrap、且不参与收缩）。
  * 以前这里没有 flex-wrap，窗口一窄就出现"清空/输出"竖排、"重/置"上下摞 —— 看着像坏了。 */
-.bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; row-gap: 6px; }
+.bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; row-gap: 6px; flex: 0 0 auto; }
 .bar > .btn, .bar > select, .bar > .bar-actions { flex: 0 0 auto; }
 .bar > select { max-width: 200px; }
 /* 动作按钮整组：要么都在右端，要么整组换到下一行（不会把其中一个单独甩下去） */

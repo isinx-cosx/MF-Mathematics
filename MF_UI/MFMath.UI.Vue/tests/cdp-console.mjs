@@ -751,9 +751,11 @@ check("C++ 侧能看到引擎函数表", /引擎函数总数 = \d{3,}/.test(r4?.
   (r4?.out || "").match(/引擎函数总数 = \d+/)?.[0] || "");
 
 // 编译阶段必须真的被报告出来（不允许"点一下就说跑完了"）。
-// 注意要选**右边那根** bar：左边编辑区也有一根 .bar，按 class 直接取会取错。
+// ⚠ 状态行在 2026-10 的布局改版里从"右侧那根 bar"挪到了**底部输出面板的标题行**，
+//   所以不能再用 `.bar` 定位；改为"含 .badge 的那一行"（container 取最近的 .cv-out-head 或 .bar）。
 const stageInfo = await evalJs(`(function(){
-  const b=[...document.querySelectorAll('.console-wrap .bar')].find(x=>x.querySelector('.badge'));
+  const badge=document.querySelector('.console-wrap .badge');
+  const b=badge ? (badge.closest('.cv-out-head') || badge.closest('.bar') || badge.parentElement) : null;
   return b ? b.textContent.replace(/\\s+/g,' ').trim() : '';})()`);
 console.log("   状态栏:", JSON.stringify(stageInfo));
 check("状态栏报告了编译耗时", /编译\s*\d+\s*ms/.test(stageInfo || ""), String(stageInfo));
