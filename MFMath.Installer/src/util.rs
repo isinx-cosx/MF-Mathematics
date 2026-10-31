@@ -107,6 +107,18 @@ pub fn desktop_dir() -> PathBuf {
 }
 
 /// 本进程可执行文件的完整路径。
+/// 自身是否就是卸载器（安装时复制出来的 `uninstall.exe`）。
+///
+/// 用户在安装目录里直接双击 `uninstall.exe` 时没有任何命令行参数，
+/// 若只按 `/uninstall` 判定，就会落进安装分支、弹出安装向导。
+/// 因此这里按自身文件名自识别，作为无参数时的默认行为。
+pub fn is_uninstaller_exe() -> bool {
+    current_exe()
+        .ok()
+        .and_then(|p| p.file_name().map(|n| n.to_string_lossy().to_lowercase()))
+        .map(|n| n == UNINSTALL_EXE_NAME)
+        .unwrap_or(false)
+}
 pub fn current_exe() -> anyhow::Result<PathBuf> {
     Ok(std::env::current_exe()?)
 }

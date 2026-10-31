@@ -171,7 +171,10 @@ fn run(args: &Args) -> Result<()> {
         return pack::run(dir, out, &version);
     }
 
-    if args.uninstall {
+    // 无参数双击 uninstall.exe 时按卸载处理（否则会落进安装分支、弹出安装向导）。
+    let uninstall_mode = args.uninstall || util::is_uninstaller_exe();
+
+    if uninstall_mode {
         let dir = match &args.dir {
             Some(d) => d.clone(),
             None => util::current_exe()?
