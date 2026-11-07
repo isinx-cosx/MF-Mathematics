@@ -261,7 +261,7 @@ pub fn save_binary_file(
 
 /// 决定目标路径：给了 `path` 就直接用（自动化钩子）；否则弹系统对话框。
 /// `Ok(None)` = 用户取消。
-fn pick_target(
+pub(crate) fn pick_target(
     title: &str, default_name: &str, filter: &str, path: &str, save: bool,
 ) -> Result<Option<String>, String> {
     if !path.trim().is_empty() {
@@ -337,7 +337,7 @@ fn dialog(title: &str, default_name: &str, filter: &str, save: bool) -> Result<O
 
 /// 标准 base64 解码（忽略空白；拒绝非法字符与错误填充）。
 /// 手写而不引 crate：这一段只有二十来行，换来的是宿主依赖表不再增加。
-fn base64_decode(s: &str) -> Result<Vec<u8>, String> {
+pub(crate) fn base64_decode(s: &str) -> Result<Vec<u8>, String> {
     fn val(c: u8) -> Option<u8> {
         match c {
             b'A'..=b'Z' => Some(c - b'A'),

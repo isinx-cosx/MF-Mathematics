@@ -562,6 +562,22 @@ export function openTextFile({ title = "打开", filter = "", path = "" } = {}) 
 }
 
 /**
+ * 保存文档（工作区 / 课件的 zip 容器）。宿主侧负责压包与上限校验。
+ * `assets` 是 `[{name, base64}]` 的 JSON 文本；工作区传空数组即可。
+ */
+export function saveDocFile({ title = "保存", defaultName = "", filter = "", document = "", assets = "[]", path = "" } = {}) {
+  return callWinJson("SaveDocFile", title, defaultName, filter, document, assets, path);
+}
+
+/**
+ * 打开文档。兼容旧的纯 JSON 工作区，返回形状一致：
+ * `{ok, path, document, assetRoot, assets[]}`。
+ */
+export function openDocFile({ title = "打开", filter = "", path = "" } = {}) {
+  return callWinJson("OpenDocFile", title, filter, path);
+}
+
+/**
  * 保存二进制（base64）到文件 —— 导出图片用。
  * 可以直接传完整的 `data:image/png;base64,…`，宿主会自己剥前缀。
  */

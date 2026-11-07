@@ -251,6 +251,19 @@ fn win(method: &str, args: &[Arg]) -> Ret {
             arg_str(args, 3).unwrap_or(""),
             arg_str(args, 4).unwrap_or(""),
         )),
+        "SaveDocFile" => Ret::Str(crate::docfile::save_doc_file(
+            arg_str(args, 0).unwrap_or(""),
+            arg_str(args, 1).unwrap_or(""),
+            arg_str(args, 2).unwrap_or(""),
+            arg_str(args, 3).unwrap_or(""),
+            arg_str(args, 4).unwrap_or(""),
+            arg_str(args, 5).unwrap_or(""),
+        )),
+        "OpenDocFile" => Ret::Str(crate::docfile::open_doc_file(
+            arg_str(args, 0).unwrap_or(""),
+            arg_str(args, 1).unwrap_or(""),
+            arg_str(args, 2).unwrap_or(""),
+        )),
         other => Ret::Str(err_envelope(&format!("win 没有这个方法：{other}"))),
     }
 }

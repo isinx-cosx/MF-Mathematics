@@ -39,6 +39,7 @@ mod site;
 mod sys;
 mod update;
 mod winbridge;
+mod docfile;
 
 use raw_window_handle::HasWindowHandle;
 use webview2_com::Microsoft::Web::WebView2::Win32::{
@@ -110,6 +111,8 @@ const WIN_SPEC: &[MethodSpec] = &[
     MethodSpec { name: "SaveTextFile", params: &["title", "defaultName", "filter", "content", "path"], ret: RetKind::Str },
     MethodSpec { name: "OpenTextFile", params: &["title", "filter", "path"], ret: RetKind::Str },
     MethodSpec { name: "SaveBinaryFile", params: &["title", "defaultName", "filter", "base64", "path"], ret: RetKind::Str },
+    MethodSpec { name: "SaveDocFile", params: &["title", "defaultName", "filter", "document", "assets", "path"], ret: RetKind::Str },
+    MethodSpec { name: "OpenDocFile", params: &["title", "filter", "path"], ret: RetKind::Str },
 ];
 
 /// `push`：宿主 → 页面 的推送通道（对照 C# PushHub/PushBridge）。
