@@ -20,7 +20,7 @@ import {
 // 取引擎函数表（list_functions）作为补全候选
 import { engineCall } from "../../lib/bridge.js";
 import { initPush, onPush, isPushHosted } from "../../lib/push.js";
-import { getPage, setPage } from "../../lib/workspace/store.js";
+import { getPage, setPage, MAX_SNIPPETS } from "../../lib/workspace/store.js";
 import CodeEditor from "../../components/console/CodeEditor.vue";
 import SelectBox from "../../components/ui/SelectBox.vue";
 
@@ -46,6 +46,66 @@ const elapsedMs = ref(0);
 const truncated = ref(false);
 /** 输出面板是否收起（收起后编辑器能再长高一点；不持久化，保持"默认给输出留位置"） */
 const outFolded = ref(false);
+
+/* ── 代码段：一个工作区可存多段（上限来自 workspace/store.js，两边同一个数）────
+ * 编辑器始终编辑「当前段」：lang/code/stdin 是活动段的编辑缓冲，
+ * 切换段时先从缓冲写回旧段、再把新段读进缓冲。 */
+const snippets = ref([]);
+const activeId = ref("");
+const snippetOptions = computed(() => snippets.value.map((s) => ({ value: s.id, label: s.name })));
+const activeSnippet = computed(() => snippets.value.find((s) => s.id === activeId.value) || null);
+const snippetLimitReached = computed(() => snippets.value.length >= MAX_SNIPPETS);
+
+function newSnippetId() {
+  let i = 1;
+  while (snippets.value.some((s) => s.id === `c${i}`)) i += 1;
+  return `c${i}`;
+}
+/** 把编辑缓冲写回当前段 */
+function commitSnippet() {
+  const s = activeSnippet.value;
+  if (!s) return;
+  s.lang = lang.value;
+  s.code = code.value;
+  s.stdin = stdin.value;
+}
+/** 把某段读进编辑缓冲 */
+function applySnippet(id) {
+  const s = snippets.value.find((x) => x.id === id);
+  if (!s) return;
+  activeId.value = id;
+  lang.value = ["python", "cpp"].includes(s.lang) ? s.lang : "python";
+  code.value = s.code || "";
+  stdin.value = s.stdin || "";
+}
+function addSnippet() {
+  if (snippetLimitReached.value) {
+    status.value = `最多 ${MAX_SNIPPETS} 段代码，请先删除一段`;
+    return;
+  }
+  commitSnippet();
+  const id = newSnippetId();
+  snippets.value.push({ id, name: `代码 ${snippets.value.length + 1}`, lang: lang.value, code: "", stdin: "" });
+  applySnippet(id);
+  status.value = "已新建代码段";
+}
+function removeSnippet() {
+  if (snippets.value.length <= 1) {
+    status.value = "至少要保留一段代码";
+    return;
+  }
+  const i = snippets.value.findIndex((s) => s.id === activeId.value);
+  if (i < 0) return;
+  snippets.value.splice(i, 1);
+  applySnippet(snippets.value[Math.max(0, i - 1)].id);
+  status.value = "已删除代码段";
+}
+function renameSnippet() {
+  const s = activeSnippet.value;
+  if (!s) return;
+  const name = window.prompt("代码段名称（最多 40 字）", s.name);
+  if (name && name.trim()) s.name = name.trim().slice(0, 40);
+}
 const status = ref(hosted ? "就绪" : "浏览器预览：无宿主桥，控制台不可用");
 const installJob = ref(null);
 const installPct = ref(0);
@@ -400,13 +460,33 @@ onMounted(async () => {
   await refreshComponents();
   // 工作区还原优先：存过的代码/语言就用它，否则才回到示例
   const saved = getPage(route.path);
-  if (saved && saved.kind === "console" && typeof saved.code === "string" && saved.code.trim()) {
-    lang.value = ["python", "cpp"].includes(saved.lang) ? saved.lang : "python";
-    code.value = saved.code;
-    if (typeof saved.stdin === "string") stdin.value = saved.stdin;
+  if (saved && saved.kind === "console" && Array.isArray(saved.snippets) && saved.snippets.length) {
+    // v2：多段
+    snippets.value = saved.snippets.slice(0, MAX_SNIPPETS).map((s, i) => ({
+      id: String(s?.id || `c${i + 1}`),
+      name: String(s?.name || `代码 ${i + 1}`),
+      lang: ["python", "cpp"].includes(s?.lang) ? s.lang : "python",
+      code: typeof s?.code === "string" ? s.code : "",
+      stdin: typeof s?.stdin === "string" ? s.stdin : "",
+    }));
+    applySnippet(
+      snippets.value.some((s) => s.id === saved.activeId) ? saved.activeId : snippets.value[0].id,
+    );
+    status.value = "已从工作区还原";
+  } else if (saved && saved.kind === "console" && typeof saved.code === "string") {
+    // v1：单段（store 的迁移一般已经转过来了，这里兜底）
+    snippets.value = [{
+      id: "c1", name: "控制台",
+      lang: ["python", "cpp"].includes(saved.lang) ? saved.lang : "python",
+      code: saved.code, stdin: typeof saved.stdin === "string" ? saved.stdin : "",
+    }];
+    applySnippet("c1");
     status.value = "已从工作区还原";
   } else {
+    snippets.value = [{ id: "c1", name: "代码 1", lang: lang.value, code: "", stdin: "" }];
+    applySnippet("c1");
     loadSample(0);
+    commitSnippet();
   }
   syncWorkspace = true;
   // 推送：宿主在编译/运行阶段切换与结束时主动通知，收到就立刻 tick 一次
@@ -432,10 +512,20 @@ onBeforeUnmount(() => {
   if (offPush) offPush();
 });
 
-/* 工作区：控制台存的是"语言 + 代码 + 标准输入"，不存运行结果 */
+/* 工作区：存「多段代码」（v2），不存运行结果。
+ * 每段自带 lang/code/stdin；activeId 记住上次编辑的是哪一段。 */
 let syncWorkspace = false;
-watch([lang, code, stdin], () => {
-  if (syncWorkspace) setPage(route.path, { kind: "console", lang: lang.value, code: code.value, stdin: stdin.value });
+watch([lang, code, stdin, snippets, activeId], () => {
+  if (!syncWorkspace) return;
+  commitSnippet();
+  setPage(route.path, {
+    kind: "console",
+    v: 2,
+    activeId: activeId.value,
+    snippets: snippets.value.map((s) => ({
+      id: s.id, name: s.name, lang: s.lang, code: s.code, stdin: s.stdin,
+    })),
+  });
 }, { deep: true });
 </script>
 
@@ -452,6 +542,21 @@ watch([lang, code, stdin], () => {
           <!-- 自绘下拉（components/ui/SelectBox.vue）：原生 <select> 的弹层由系统绘制，
                主题/字体预设都管不到它；这里换成自绘层，同时**保留隐藏的原生 select**
                （类名 `input lang` / `input sample` 不变）作为数据源与无障碍语义。 -->
+          <!-- 代码段：一个工作区可存多段（上限来自 store.js）。切换前先把编辑缓冲写回旧段。 -->
+          <SelectBox
+            :model-value="activeId"
+            :options="snippetOptions"
+            native-class="input snippet"
+            aria-label="代码段"
+            @change="applySnippet($event)"
+          />
+          <button class="btn btn-ghost" :disabled="snippetLimitReached"
+                  :title="snippetLimitReached ? `最多 ${MAX_SNIPPETS} 段，请先删除一段` : '新建代码段'"
+                  @click="addSnippet">新建</button>
+          <button class="btn btn-ghost" :disabled="snippets.length <= 1"
+                  title="删除当前代码段" @click="removeSnippet">删除</button>
+          <button class="btn btn-ghost" title="重命名当前代码段" @click="renameSnippet">改名</button>
+          <span class="snippet-count" :title="`本工作区已存 ${snippets.length} / ${MAX_SNIPPETS} 段`">{{ snippets.length }}/{{ MAX_SNIPPETS }}</span>
           <SelectBox
             v-model="lang"
             :options="languages"
