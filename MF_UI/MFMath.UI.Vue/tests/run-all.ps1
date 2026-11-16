@@ -1,4 +1,4 @@
-﻿# One-click regression: launch host with CDP port, run all verification scripts, summarize.
+# One-click regression: launch host with CDP port, run all verification scripts, summarize.
 # Usage (Windows PowerShell 5.1 or PowerShell 7):
 #   powershell -ExecutionPolicy Bypass -File run-all.ps1
 #   powershell -ExecutionPolicy Bypass -File run-all.ps1 -NoLaunch      # attach to a host you started
@@ -96,6 +96,9 @@ $tests = @(
   # 覆盖配置 / 密钥不外泄 / 流式 / 停止 / 七类异常 / 隐私开关 /「AI 不得当计算源」。
   # 用例跑完会把密钥与 AI 配置还原（不污染用户环境）。
   "cdp-ai",
+  # 数学工具层（移植自 MVS官网/math-assistant）：verify_step 逐步核验 + search_knowledge 本地检索。
+  # 重点守住移植时修掉的洞：tol 无上界 / expected 非有限 / 未知参数静默忽略 / KB 提示注入面。
+  "cdp-math-tools",
   # 本轮新增：联网搜索（宿主 SearchBridge + 三个后端 + 缓存；页面 /tools/search）。
   # 自带假搜索端点（tests/fake-search-server.mjs），场景由查询词触发（500/慢速/空/改版）。
   # ⚠ 宿主必须带 MF_SEARCH_ENDPOINTS 启动指向假端点 —— 端点覆盖走环境变量是有意的：

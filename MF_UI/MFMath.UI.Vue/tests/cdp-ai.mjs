@@ -407,8 +407,15 @@ const toolFacts = JSON.parse(String(await evalJs(`JSON.stringify({
   gated: window.__mfAi.tools.execute("engine_call", { fn: "gcd", args: { a: 12, b: 18 } }, false)
 })`)));
 check("引擎函数目录够大（424 个动作 → 唯一的函数名）", toolFacts.count >= 300, `${toolFacts.count} 个`);
-check("只暴露两个工具（查 + 调），不是把 370 个函数都塞进 schema",
-  JSON.stringify(toolFacts.names) === '["engine_find","engine_call"]', JSON.stringify(toolFacts.names));
+/* 工具集从 2 个扩到 4 个（接入 math-assistant 的数学工具层）：
+ * engine_find/engine_call 仍是查+调，新增 verify_step（逐步自检）与 search_knowledge（本地教材检索）。
+ * 断言改成"必须是这四个、且不能多出任何能碰文件/进程的工具" —— 边界比数量更重要。 */
+check("工具集就是这四个（查 / 调 / 核验 / 检索）",
+  JSON.stringify(toolFacts.names) === '["engine_find","engine_call","verify_step","search_knowledge"]',
+  JSON.stringify(toolFacts.names));
+check("没有任何能碰文件/进程的工具混进来",
+  !toolFacts.names.some((n) => /file|save|write|exec|shell|run|spawn|process/i.test(n)),
+  JSON.stringify(toolFacts.names));
 check("engine_call 真的调到了引擎（x^2-4 的根由引擎给出）",
   toolFacts.ok.ok === true && /"value"/.test(toolFacts.ok.content) && /2/.test(toolFacts.ok.content), toolFacts.ok.content.slice(0, 110));
 check("表外的函数名被拒（不会盲调）", toolFacts.badfn.ok === false && /引擎里没有/.test(toolFacts.badfn.content), toolFacts.badfn.content.slice(0, 110));
@@ -431,7 +438,12 @@ const toolMsgs = (secondBody.messages || []).filter((m) => m.role === "tool");
 check("第二次请求里带了 role:tool 的消息", toolMsgs.length === 1, JSON.stringify((secondBody.messages || []).map((m) => m.role)));
 check("**回传给模型的是引擎的输出**（含引擎算出的两个根）",
   /"ok":true/.test(String(toolMsgs[0]?.content)) && /2/.test(String(toolMsgs[0]?.content)), String(toolMsgs[0]?.content).slice(0, 130));
-check("请求里确实声明了工具（tools 字段）", Array.isArray(secondBody.tools) && secondBody.tools.length === 2,
+// 工具集现在是 4 个（接入 math-assistant 数学工具层后 +verify_step +search_knowledge）；
+// 这里判"四个都声明了"，而不是钉死 2 —— 数量不是边界，边界是"没有能碰文件/进程的工具"。
+check("请求里确实声明了工具（tools 字段，四个都在）",
+  Array.isArray(secondBody.tools) &&
+    ["engine_find", "engine_call", "verify_step", "search_knowledge"].every((n) =>
+      (secondBody.tools || []).some((t) => t.function?.name === n)),
   JSON.stringify((secondBody.tools || []).map((t) => t.function?.name)));
 const assistantWire = (secondBody.messages || []).find((m) => m.role === "assistant" && m.tool_calls);
 check("助手那条带 tool_calls（协议形状对得上）", !!assistantWire && assistantWire.tool_calls[0].function.name === "engine_call",

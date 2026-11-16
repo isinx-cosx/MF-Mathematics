@@ -20,6 +20,17 @@ import { ENGINE_MAP } from "../engine/engineMap.js";
 import { engineCall } from "../bridge.js";
 import type { ToolSchema } from "./types.ts";
 import SIGNATURES from "./engine-signatures.json";
+/* 数学工具层（移植自 MVS官网/math-assistant，见 ai/math/mfmath.ts 的加固说明）：
+ * verify_step 逐步核验 + search_knowledge 本地知识库检索；engine_find/engine_call 仍由本文件提供。 */
+import {
+  MATH_TOOLS,
+  MATH_TOOL_NAMES,
+  executeMathTool,
+  mathSystemPrompt,
+  looksLikeMathQuestion,
+  type MathDeps,
+} from "./math/mfmath.ts";
+import { searchKb } from "./math/kb.ts";
 
 /** 一个引擎函数（由 ENGINE_MAP 反推：多个中文模式可能指向同一个 fn） */
 export interface EngineFn {
@@ -180,7 +191,7 @@ export function validateArgs(e: EngineFn, args: Record<string, unknown>):
  * 描述里最重要的那句是"不要自己算"：模型天然倾向于心算，
  * 而这一层的全部意义就是让计算发生在引擎里。
  */
-export const AI_TOOLS: ToolSchema[] = [
+const BASE_TOOLS: ToolSchema[] = [
   {
     name: "engine_find",
     description:
@@ -213,6 +224,23 @@ export const AI_TOOLS: ToolSchema[] = [
   },
 ];
 
+/**
+ * 给模型的工具集 = 本文件的两个引擎工具 + 数学工具层（verify_step / search_knowledge）。
+ *
+ * 为什么不是 424 个动作的工具（见文件头 ①）：查 + 调两个足够，其余靠 engine_find 现查。
+ * 数学工具层只补引擎工具表达不了的两件事：**逐步自检** 与 **本地教材口径检索**。
+ */
+export const AI_TOOLS: ToolSchema[] = [...BASE_TOOLS, ...MATH_TOOLS];
+
+/**
+ * 数学工具的宿主依赖：引擎走**同一个** `engineCall`（不另开通道），知识库走本地教程索引。
+ * 隐私闸门不在这里 —— 由 `executeTool` 的 `allowResults` 统一管（见下）。
+ */
+const mathDeps: MathDeps = {
+  engineCall: (fn, args) => engineCall(fn, args) as { isError: boolean; value: unknown } | null,
+  searchKb: (query, topK) => searchKb(query, topK),
+};
+
 export const TOOL_NAMES = new Set(AI_TOOLS.map((t) => t.name));
 
 /* ── 执行 ─────────────────────────────────────────────────────────────── */
@@ -235,8 +263,35 @@ export function executeTool(name: string, args: Record<string, unknown>, allowRe
   const done = (rec: Omit<ToolCallRecord, "ms">): ToolCallRecord => ({ ...rec, ms: Date.now() - t0 });
 
   if (!TOOL_NAMES.has(name)) {
-    const content = `{"ok":false,"error":"没有这个工具：${name}。可用工具只有 engine_find 与 engine_call。"}`;
+    const content = `{"ok":false,"error":"没有这个工具：${name}。可用工具：${[...TOOL_NAMES].join("、")}。"}`;
     return done({ name, ok: false, content, summary: content });
+  }
+
+  /* ── 数学工具层分支（verify_step / search_knowledge）────────────────────────
+   *
+   * 隐私闸门与 engine_call **同一口径**：两者的结果都要回传给模型，那就是
+   * "把本地算出来的东西发出去"，不能绕过用户的「发送引擎结果」开关。
+   * 例外：没有知识库时让 search_knowledge 如实回"没有知识库"，
+   * 否则模型会拿到一句"被隐私开关拦住"，误以为知识库存在。 */
+  if (MATH_TOOL_NAMES.has(name)) {
+    const isKbOnly = name === "search_knowledge";
+    if (!(isKbOnly && !mathDeps.searchKb) && !allowResults) {
+      const content = JSON.stringify({
+        ok: false,
+        error: "用户关闭了「发送引擎结果」，而工具调用的结果必须回传给模型 —— 所以现在不能调用这个工具。",
+        hint: "请告诉用户：要用工具核验/检索，需要在 AI 设置里打开「发送引擎结果」。不要自己估算数值。",
+      });
+      return done({ name, ok: false, content, summary: "被隐私开关拦住（未开启「发送引擎结果」）" });
+    }
+    const rec = executeMathTool(name, args, mathDeps);
+    return done({
+      name: rec.name,
+      fn: rec.fn,
+      args: rec.args,
+      ok: rec.ok,
+      content: clip(rec.content, MAX_CONTENT),
+      summary: clip(rec.summary, MAX_SUMMARY),
+    });
   }
 
   if (name === "engine_find") {
@@ -379,6 +434,10 @@ export function initAiToolsHook() {
       },
       tools: () => AI_TOOLS,
       execute: executeTool,
+      /** 数学工具层的探针（用例断言"prompt 拼上了 / 题型判断对"用） */
+      mathPrompt: () => mathSystemPrompt({ toolMode: true }),
+      looksMath: (q: string) => looksLikeMathQuestion(q),
+      mathToolNames: () => [...MATH_TOOL_NAMES],
       nameOf: (fn: string) => BY_NAME.get(String(fn).toLowerCase())?.fn ?? "",
       /** 表与运行中引擎的一致性（漂移检测） */
       verify: verifyEngineTable,

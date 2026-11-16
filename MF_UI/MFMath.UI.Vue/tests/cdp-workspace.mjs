@@ -96,6 +96,15 @@ async function reconnect() {
 
 console.log("=== ① 在三个页面留下内容 ===");
 
+/* 开局把工作区清空：本套件要验"计算页留下 2 个块"，而计算页会**从工作区还原**上一轮保存的
+ * 块（实测多出第 3 个：x^3-3*x 因式分解），于是"2 个块"必然对不上。
+ * 那是残留状态，不是产品行为 —— 先清干净再种。 */
+await evalJs(`(function(){
+  try { window.__mfWorkspace && window.__mfWorkspace.clearAll && window.__mfWorkspace.clearAll(); } catch (e) {}
+  return 'cleared';
+})()`);
+await sleep(800);
+
 // 计算页：两个计算块（解方程 + 求导），证明"多块"也能存
 await goto("/calc/algebra");
 await waitTrue(`!!document.querySelector('math-field.cb-input')`);
@@ -174,9 +183,11 @@ check("数据目录里出现 workspace 文件", names.includes("workspace"), nam
 const filePath = wsFilePath;
 check("磁盘上确实有 workspace.json", existsSync(filePath), filePath);
 const onDisk = existsSync(filePath) ? JSON.parse(readFileSync(filePath, "utf8")) : null;
+/** 当前程序声明的工作区版本（宿主/前端把 schema 升到 v2 后，写死 1 就会假失败） */
+const VERSION_NOW = Number(await evalJs("window.__mfWorkspace && window.__mfWorkspace.VERSION"));
 check("文件里的版本号与页面数正确",
-  onDisk?.version === 1 && Object.keys(onDisk?.pages || {}).length >= 3,
-  onDisk ? `version=${onDisk.version} pages=${Object.keys(onDisk.pages).length}` : "（读不到）");
+  onDisk?.version === VERSION_NOW && Object.keys(onDisk?.pages || {}).length >= 3,
+  onDisk ? `version=${onDisk.version}（期望 ${VERSION_NOW}） pages=${Object.keys(onDisk.pages).length}` : "（读不到）");
 
 console.log("=== ③ 刷新页面后仍能载入并还原 ===");
 await evalJs(`location.hash = "/calc/algebra"; true`);
@@ -239,9 +250,32 @@ const tmpFile = join(process.env.TEMP || ".", "mf-workspace-test.mfws.json");
 try { rmSync(tmpFile, { force: true }); } catch { /* 忽略 */ }
 const saveFileRes = await evalJs(`JSON.stringify(window.__mfWorkspace.saveToFile("/calc/algebra", ${JSON.stringify(tmpFile)}))`);
 check("另存为写到了指定文件", /"ok":true/.test(String(saveFileRes)) && existsSync(tmpFile), String(saveFileRes).slice(0, 120));
-const fileJson = existsSync(tmpFile) ? JSON.parse(readFileSync(tmpFile, "utf8")) : null;
-check("写出的文件是合法的工作区（版本+页面）", fileJson?.version === 1 && !!fileJson?.pages?.["/plot/2d"],
-  fileJson ? Object.keys(fileJson.pages).join(", ") : "（读不到）");
+/* ⚠ 写出来的是**zip 容器**（宿主 docfile 的行为：`PK\x03\x04` + 内部 document.json），
+ * 不再是纯 JSON 字节。所以不能 `JSON.parse(readFileSync(...))` —— 走宿主的 OpenDocFile 解包，
+ * 断言落在**里面那份 JSON** 上（这同时验证了"宿主能把自己写的东西读回来"）。
+ * 兼容：老版纯 JSON 文件宿主也接受（document 就是原文），下面的坏输入用例依赖这一点。 */
+const fileDoc = await evalJs(`(function(){
+  try {
+    const r = window.chrome.webview.hostObjects.sync.win.OpenDocFile("打开工作区", "", ${JSON.stringify(tmpFile)});
+    return JSON.stringify(r);
+  } catch (e) { return JSON.stringify({ ok: false, error: String(e && e.message || e) }); }
+})()`);
+/* ⚠ 宿主返回的是**JSON 字符串**（页面里再 JSON.stringify 一次会变成双重编码），
+ * 所以要"能穿两层就穿两层"：先解外层（字符串或对象），再解里面的 document。 */
+const fileOuter = (() => {
+  try {
+    const once = JSON.parse(String(fileDoc));
+    return typeof once === "string" ? JSON.parse(once) : once;
+  } catch { return null; }
+})();
+const fileJson = (() => { try { return JSON.parse(String(fileOuter?.document || "")); } catch { return null; } })();
+check("写出的文件是合法的工作区容器（宿主能读回：版本+页面）",
+  fileOuter?.ok === true && fileJson?.format === "mfmath.document" && fileJson?.kind === "workspace" &&
+    typeof fileJson?.version === "number" && !!fileJson?.pages?.["/plot/2d"],
+  fileJson ? `v${fileJson.version} / ${Object.keys(fileJson.pages).join(", ")}` : String(fileDoc).slice(0, 120));
+check("容器是 zip（PK 头），不是裸 JSON",
+  existsSync(tmpFile) && (() => { const b = readFileSync(tmpFile); return b[0] === 0x50 && b[1] === 0x4b; })(),
+  existsSync(tmpFile) ? readFileSync(tmpFile).subarray(0, 4).toString("hex") : "（无文件）");
 
 // 换一个完全不同的内容，再从文件载入 —— 必须把刚才那份盖回来
 await evalJs(`window.__mfWorkspace.clearAll(); window.__mfWorkspace.setPage("/calc/algebra", { kind: "calc", blocks: [{ expr: "1+1", mode: "解方程/组" }] })`);

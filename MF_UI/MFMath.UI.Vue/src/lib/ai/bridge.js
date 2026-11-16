@@ -33,6 +33,9 @@ import {
 } from "./relay.ts";
 import { parseInline } from "./markdown.ts";
 import { AI_TOOLS, executeTool, initAiToolsHook, ENGINE_FN_COUNT } from "./tools.ts";
+/* 数学讲解片段（移植自 MVS官网/math-assistant）：题型策略 + 自检纪律 + 知识库引用纪律。
+ * 只在"看起来是数学题"时拼接，避免把非数学问答也套上数学模板。 */
+import { mathSystemPrompt, looksLikeMathQuestion } from "./math/mfmath.ts";
 
 /* ── 设置文件（只借 `sys` 桥读写 ai.json；AI 那条宿主桥已经不用了）─────── */
 
@@ -562,7 +565,13 @@ export function currentContext(route) {
  * 面板上的"将发送约 N token / 包含哪些内容"直接用它算，不另算一遍。
  */
 export function buildMessages({ userText, history = [], context = null, cfg = aiConfig.value }) {
-  const out = [{ role: "system", content: SYSTEM_PROMPT }];
+  /* 数学题才拼数学讲解片段；`toolMode` 跟着"工具是否启用"走 ——
+   * 工具关着时还叫模型用 verify_step，它只会发一个注定失败的调用。 */
+  const isMath = looksLikeMathQuestion(userText);
+  const systemText = isMath
+    ? [SYSTEM_PROMPT, mathSystemPrompt({ toolMode: cfg?.toolsEnabled !== false })].join("\n\n")
+    : SYSTEM_PROMPT;
+  const out = [{ role: "system", content: systemText }];
 
   const lines = [];
   if (context) {
