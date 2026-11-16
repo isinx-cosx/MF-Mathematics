@@ -57,17 +57,49 @@ function collectParams(bodies: string[]): string[] {
   return [...out].sort();
 }
 
-export default function PlotVectorPage({ routePath = "#/plot/vector" }: { routePath?: string }) {
+/**
+ * 从示例表达式里拆出向量场的两个分量。
+ *
+ * 示例库里的写法是 `F(x,y)=[-y, x]`、`[2x, 2y]`、`(-y, x)` 这几种；这一页要的是
+ * 分开的 dx / dy 两个输入框。拆不出来时返回 null（调用方退回默认场，并在状态行说明）。
+ */
+export function splitVectorField(raw: string): { dx: string; dy: string } | null {
+  let t = String(raw || "").trim();
+  if (!t) return null;
+  // 去掉 `F(x,y)=` / `F=` / `\vec{F}=` 这类前缀
+  t = t.replace(/^\s*\\?vec\{?F\}?\s*(\(\s*x\s*,\s*y\s*\))?\s*=\s*/i, "");
+  t = t.replace(/^\s*F\s*(\(\s*x\s*,\s*y\s*\))?\s*=\s*/i, "");
+  // 统一成 [a, b]
+  const m = /^[[(]\s*([^,\]]+?)\s*,\s*([^)\]]+?)\s*[\])]$/.exec(t.trim());
+  if (m) return { dx: m[1]!.trim(), dy: m[2]!.trim() };
+  // `a;b` 也算一种写法
+  const semi = t.split(";");
+  if (semi.length === 2 && semi[0]!.trim() && semi[1]!.trim()) {
+    return { dx: semi[0]!.trim(), dy: semi[1]!.trim() };
+  }
+  return null;
+}
+
+export default function PlotVectorPage({ routePath = "#/plot/vector", seedExpr = "" }: {
+  routePath?: string;
+  /** 示例任务库带过来的向量场（形如 `F(x,y)=[-y, x]`）。示例优先于工作区，与其它绘图页一致。 */
+  seedExpr?: string;
+}) {
   const hosted = isHosted();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [statusText, setStatusText] = useState("就绪");
 
   /* 工作区还原（BUGS.md B14）：这一页在 Vue 版时代也没接过工作区，属于补齐。 */
   const saved = loadPlotPage(routePath, "plot-vector");
-  const [dxInput, setDxInput] = useState(() => strOr(saved?.dxInput, "-y"));
-  const [dyInput, setDyInput] = useState(() => strOr(saved?.dyInput, "x"));
+  const seeded = splitVectorField(seedExpr);
+  const [dxInput, setDxInput] = useState(() => seeded?.dx ?? strOr(saved?.dxInput, "-y"));
+  const [dyInput, setDyInput] = useState(() => seeded?.dy ?? strOr(saved?.dyInput, "x"));
   const [dxError, setDxError] = useState<string | null>(null);
   const [dyError, setDyError] = useState<string | null>(null);
+  /* 示例带了表达式但拆不出两个分量 → 状态行如实说一句，别让人以为"点了没反应" */
+  const seedNote = String(seedExpr || "").trim() && !seeded
+    ? `示例表达式「${String(seedExpr).trim()}」不是 [dx, dy] 形式，已保留默认向量场；请手动填入两个分量。`
+    : "";
 
   const dxBody = useMemo(() => bodyOf(dxInput), [dxInput]);
   const dyBody = useMemo(() => bodyOf(dyInput), [dyInput]);
@@ -250,6 +282,7 @@ export default function PlotVectorPage({ routePath = "#/plot/vector" }: { routeP
         )}
 
         <div className="status">{statusText}</div>
+        {seedNote ? <div className="seed-note" role="status">{seedNote}</div> : null}
       </aside>
 
       <div className="vf-main">

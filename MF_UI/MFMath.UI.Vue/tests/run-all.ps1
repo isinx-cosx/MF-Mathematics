@@ -56,6 +56,8 @@ $tests = @(
   # 工作区载荷是**新设计**的（Vue 版时代没接过），只过了类型检查 —— 这个用例补那一块。
   # ⚠ 它对"别人同时驱动同一个页面"极敏感（并行会话会互相踩），失败时先看它的 INTERFERENCE 提示。
   "cdp-plot-workspace",
+  # 示例任务库「加载到工作区」→ 各绘图页（2D/3D/复平面/向量场）能不能真的接住表达式。
+  "cdp-plot-seed",
   "cdp-plot-fn",
   "cdp-diff-at-param", "cdp-fractal-orient", "cdp-fractal-clickzoom", "cdp-geometry-line", "cdp-geometry-aspect", "cdp-canvas-theme",
   "cdp-console", "cdp-modes-render",

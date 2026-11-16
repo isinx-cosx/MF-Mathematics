@@ -106,7 +106,11 @@ function paintGrid(
   ctx.imageSmoothingEnabled = true;
 }
 
-export default function PlotComplexPage({ routePath = "#/plot/complex" }: { routePath?: string }) {
+export default function PlotComplexPage({ routePath = "#/plot/complex", seedExpr = "" }: {
+  routePath?: string;
+  /** 示例任务库带过来的复变函数（`z^2`、`exp(z)`）。示例优先于工作区，与其它绘图页一致。 */
+  seedExpr?: string;
+}) {
   const hosted = isHosted();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [statusText, setStatusText] = useState("等待输入函数");
@@ -115,7 +119,12 @@ export default function PlotComplexPage({ routePath = "#/plot/complex" }: { rout
   /* 工作区还原（BUGS.md B14）：这一页在 Vue 版时代也没接过工作区，属于补齐。
    * 注意 mode 是**下标**（MODES 的顺序），坏值会让它越界，所以 clamp 一下。 */
   const saved = loadPlotPage(routePath, "plot-complex");
-  const [funcExpr, setFuncExpr] = useState(() => strOr(saved?.funcExpr, ""));
+  const [funcExpr, setFuncExpr] = useState(() => {
+    // 示例里可能写成 `f(z)=z^2`；这一页的输入框只收右侧表达式
+    const seed = String(seedExpr || "").trim().replace(/^\s*f\s*\(\s*z\s*\)\s*=\s*/i, "");
+    if (seed) return seed;
+    return strOr(saved?.funcExpr, "");
+  });
   const [mode, setMode] = useState(() => {
     const m = Math.round(numOr(saved?.mode, 0));
     return m >= 0 && m < MODES.length ? m : 0;

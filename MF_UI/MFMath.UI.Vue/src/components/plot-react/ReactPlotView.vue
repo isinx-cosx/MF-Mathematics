@@ -74,15 +74,19 @@ async function mount(key) {
   /* 示例任务库「加载到工作区」走的是 `setPending({expr, mode, …})` + 跳路由。
    * ⚠ 以前**没有任何绘图页消费它**（只有 CalcView / BasicCalcView 调 takePending），
    *   于是库里点绘图示例 → 表达式被静默丢掉 → 页面只剩一个默认函数，
-   *   用户看到的就是"示例的函数图像加不进来、也不绘制"。
-   * 现在：能接表达式的页（2d / polar，用的是同一个 PlotPage）取一次 pending 交给它；
-   * 接不了的页（3d / 复平面 / 向量场 / 几何 / 分形）**不动 pending**，不静默吞掉。
+   *   用户看到的就是「示例的函数图像加不进来、也不绘制」。
+   *
+   * 现在按页面各自的主输入分工（`SEEDABLE` 之外的页**不动 pending**，不静默吞掉）：
+   *   2d / polar → PlotPage 的表达式行
+   *   3d         → 曲面表达式（z = …）
+   *   complex    → 复变函数（`z^2`、`exp(z)`）
+   *   vector     → 向量场的 dx / dy（把 `F(x,y)=[-y, x]` 拆成两个分量）
    * 取一次即清空（takePending 的语义），避免下次进来被旧示例反复覆盖。 */
-  const canSeed = key === "2d" || key === "polar";
-  const seedExpr = canSeed ? String(takePending()?.expr || "") : "";
+  const SEEDABLE = new Set(["2d", "polar", "3d", "complex", "vector"]);
+  const seedExpr = SEEDABLE.has(key) ? String(takePending()?.expr || "") : "";
   const props = key === "2d" || key === "polar"
     ? { gridMode: key === "polar" ? "polar" : "rect", routePath: route.path, seedExpr }
-    : { routePath: route.path };
+    : { routePath: route.path, seedExpr };
   root = createRoot(host.value);
   root.render(createElement(mod.default, props));
 }

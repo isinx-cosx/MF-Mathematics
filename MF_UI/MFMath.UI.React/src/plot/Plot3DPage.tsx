@@ -58,7 +58,12 @@ function collectParams(body: string): string[] {
   return [...out].sort();
 }
 
-export default function Plot3DPage({ routePath = "#/plot/3d" }: { routePath?: string }) {
+export default function Plot3DPage({ routePath = "#/plot/3d", seedExpr = "" }: {
+  routePath?: string;
+  /** 示例任务库带过来的曲面表达式（如 `x^2 - y^2`）。**示例优先于工作区**，
+   *  与 2D 页/计算页同一套语义：用户刚点的动作不该被上次保存的内容顶掉。 */
+  seedExpr?: string;
+}) {
   const hosted = isHosted();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [statusText, setStatusText] = useState("就绪");
@@ -67,7 +72,11 @@ export default function Plot3DPage({ routePath = "#/plot/3d" }: { routePath?: st
    * 这一页在 Vue 版时代也**没有**接过工作区，所以这是补齐而不是回退。 */
   const saved = loadPlotPage(routePath, "plot3d");
   const savedView = saved?.view as Record<string, unknown> | undefined;
-  const [exprInput, setExprInput] = useState(() => strOr(saved?.exprInput, "sin(x)*cos(y)"));
+  const [exprInput, setExprInput] = useState(() => {
+    const seed = String(seedExpr || "").trim();
+    if (seed) return seed;
+    return strOr(saved?.exprInput, "sin(x)*cos(y)");
+  });
   const [exprError, setExprError] = useState<string | null>(null);
   const [params, setParams] = useState<Record<string, number>>(() => numsOr(saved?.params));
   const [paramConfig, setParamConfig] = useState<Record<string, { min: number; max: number; step: number }>>({});

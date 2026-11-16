@@ -236,6 +236,30 @@ export const AI_TOOLS: ToolSchema[] = [...BASE_TOOLS, ...MATH_TOOLS];
  * 数学工具的宿主依赖：引擎走**同一个** `engineCall`（不另开通道），知识库走本地教程索引。
  * 隐私闸门不在这里 —— 由 `executeTool` 的 `allowResults` 统一管（见下）。
  */
+/**
+ * 每个工具的风险级别（原包 `types.ts` 里 `risk` 字段是"给权限/审批层挂的钩子"，
+ * 但没人读 —— 等于没有。这里**真的用起来**：
+ *
+ *   · `read`    只读本地数据，不发出去；
+ *   · `compute` 会调引擎/回传结果（受「发送引擎结果」开关约束）。
+ *
+ * `executeTool` 只认这两个级别；出现 `network` 一律**拒绝执行**，
+ * 因为这一层被设计成"只能计算"，将来谁加了联网工具必须显式过审批，
+ * 不能悄悄混进来（`cdp-math-tools` 有一条断言钉住"没有 network 级工具"）。
+ */
+export type ToolRisk = "read" | "compute" | "network";
+
+const RISK: Record<string, ToolRisk> = {
+  engine_find: "read",
+  engine_call: "compute",
+  verify_step: "compute",
+  search_knowledge: "read",
+};
+
+export function toolRisks(): Record<string, ToolRisk> {
+  return { ...RISK };
+}
+
 const mathDeps: MathDeps = {
   engineCall: (fn, args) => engineCall(fn, args) as { isError: boolean; value: unknown } | null,
   searchKb: (query, topK) => searchKb(query, topK),
@@ -265,6 +289,16 @@ export function executeTool(name: string, args: Record<string, unknown>, allowRe
   if (!TOOL_NAMES.has(name)) {
     const content = `{"ok":false,"error":"没有这个工具：${name}。可用工具：${[...TOOL_NAMES].join("、")}。"}`;
     return done({ name, ok: false, content, summary: content });
+  }
+
+  /* 风险闸门：这一层被设计成"只能计算"，任何 network 级工具都不许跑（见 ToolRisk 的注释）。
+   * 现在没有任何 network 工具，这条是**给将来**的：谁要加联网工具，必须显式改这里并过审批。 */
+  if (RISK[name] === "network") {
+    const content = JSON.stringify({
+      ok: false,
+      error: "这个工具被标记为 network 级，当前层不允许执行（AI 只能计算，不能联网）。",
+    });
+    return done({ name, ok: false, content, summary: "network 级工具被拒" });
   }
 
   /* ── 数学工具层分支（verify_step / search_knowledge）────────────────────────
@@ -438,6 +472,8 @@ export function initAiToolsHook() {
       mathPrompt: () => mathSystemPrompt({ toolMode: true }),
       looksMath: (q: string) => looksLikeMathQuestion(q),
       mathToolNames: () => [...MATH_TOOL_NAMES],
+      /** 每个工具的风险级别（断言"没有 network 级工具混进来"用） */
+      risks: toolRisks,
       nameOf: (fn: string) => BY_NAME.get(String(fn).toLowerCase())?.fn ?? "",
       /** 表与运行中引擎的一致性（漂移检测） */
       verify: verifyEngineTable,

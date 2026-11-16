@@ -53,6 +53,8 @@ await send("Runtime.enable");
 await sleep(1500);
 
 let pass = 0, fail = 0;
+import { closeOverlays, overlaysClosed } from "./_overlays.mjs";
+
 const check = (label, ok, detail = "") => {
   ok ? pass++ : fail++;
   console.log(`  ${ok ? "[OK]" : "[FAIL]"} ${label}${detail ? "   " + detail : ""}`);
@@ -72,8 +74,19 @@ const pixelStats = () => evalJs(`(function(){
   return { colored, w: cv.width, h: cv.height };
 })()`);
 
+/* 开局清掉这一页的工作区，否则"默认表达式"这条会读到上次留下的表达式
+ * （实测跑完 cdp-plot-seed 后 3D 页会还原出 x^2 - y^2，那是残留状态，不是默认值被改坏）。 */
+await evalJs(`(function(){
+  try { window.__mfWorkspace && window.__mfWorkspace.clearAll && window.__mfWorkspace.clearAll(); } catch (e) {}
+  return 'cleared';
+})()`);
+await sleep(600);
+await evalJs("location.hash = '#/'");
+await sleep(500);
 await evalJs("location.hash = '#/plot/3d'");
-await sleep(1200);
+await sleep(1400);
+await closeOverlays(evalJs);
+await sleep(300);
 
 console.log("── 3D 视图加载与引擎网格求值 ──");
 let st = await evalJs(`(function(){
@@ -94,6 +107,11 @@ console.log("   彩色像素（曲面着色）:", px1.colored, "| 画布:", px1.
 check("曲面已着色绘制（彩色像素 > 20000）", px1.colored > 20000, String(px1.colored));
 
 console.log("\n── 拖拽旋转视角 ──");
+/* 拖拽是对着**画布**做的：AI 抽屉（`.ai-panel`）是 fixed 定位，正好盖住画布，
+ * 拖拽会打在 `.ai-body` 上 ⇒ 像素签名一模一样，看起来像"旋转坏了"。
+ * 所以拖之前先确保浮层是关的，并把它做成一条断言（否则后面的判据没有意义）。 */
+if (!(await overlaysClosed(evalJs))) { await closeOverlays(evalJs); await sleep(400); }
+check("拖拽前画布没有被浮层遮挡", await overlaysClosed(evalJs), "");
 const rect = await evalJs("(function(){const r=document.querySelector('canvas').getBoundingClientRect();return {x:r.left,y:r.top,w:r.width,h:r.height};})()");
 const beforeRotate = await evalJs(`(function(){
   const cv=document.querySelector('canvas'); const d=cv.getContext('2d').getImageData(0,0,cv.width,cv.height).data;

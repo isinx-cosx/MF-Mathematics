@@ -1038,6 +1038,8 @@ export function initAiHook() {
         schemas: () => AI_TOOLS,
         execute: executeTool,
         maxRounds: () => MAX_TOOL_ROUNDS,
+        /** 单轮最多执行几个 tool_calls（原包 loop.ts 没有这条，见 B18 附注） */
+        maxPerRound: () => MAX_TOOL_CALLS_PER_ROUND,
       },
     };
   } catch { /* 忽略 */ }

@@ -180,6 +180,18 @@ for (const q of ["导数", "矩阵乘法", "极值"]) {
 const kbConcept = await run("search_knowledge", { query: "怎么样把计算结果画成图像" });
 check("换个问法也能回收（绘图相关条目）", kbConcept.ok === true && (body(kbConcept).hits || []).length > 0, kbConcept.summary);
 
+console.log("\n── 风险分级与循环上限（B18 里「没改」的两条，这里钉住）──");
+const risks = JSON.parse(String(await evalJs("JSON.stringify(window.__mfAiTools.risks())")));
+check("四个工具都声明了 risk", names.every((n) => typeof risks[n] === "string"), JSON.stringify(risks));
+check("没有 network 级工具（这一层只能计算，不能联网）",
+  Object.values(risks).every((r) => r === "read" || r === "compute"), JSON.stringify(risks));
+/* 原包 loop.ts 一轮的 tool_calls 不设上限；MFMath 自己的循环有，且这里要证明它真的存在 */
+const caps = JSON.parse(String(await evalJs(
+  `JSON.stringify({ rounds: window.__mfAi.tools.maxRounds(), perRound: window.__mfAi.tools.maxPerRound && window.__mfAi.tools.maxPerRound() })`,
+)));
+check("轮次上限存在且有限", typeof caps.rounds === "number" && caps.rounds > 0 && caps.rounds <= 10, JSON.stringify(caps));
+check("单轮工具调用数有上限（<=8）", typeof caps.perRound === "number" && caps.perRound > 0 && caps.perRound <= 8, JSON.stringify(caps));
+
 console.log(`\nRESULT|math-tools|${pass}|${fail}`);
 ws.close();
 process.exit(fail === 0 ? 0 : 1);
